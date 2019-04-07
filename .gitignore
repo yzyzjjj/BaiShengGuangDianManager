@@ -244,6 +244,8 @@ _Pvt_Extensions
 
 # JetBrains Rider
 .idea/
+.suo
+[Oo]bj/
 *.sln.iml
 BaiShengGuangDianManager/ApiDeviceManagement/obj
 BaiShengGuangDianManager/ApiFlowCardManagement/obj
