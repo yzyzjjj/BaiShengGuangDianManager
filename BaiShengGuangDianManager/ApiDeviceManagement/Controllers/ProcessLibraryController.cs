@@ -19,7 +19,7 @@ namespace ApiDeviceManagement.Controllers
         public DataResult GetProcessLibrary()
         {
             var result = new DataResult();
-            result.datas.AddRange(ServerConfig.DeviceDb.Query<ProcessLibrary>("SELECT * FROM `process_library`;"));
+            result.datas.AddRange(ServerConfig.DeviceDb.Query<ProcessLibrary>("SELECT * FROM `process_library` WHERE `MarkedDelete` = 0;"));
             return result;
         }
 
@@ -29,7 +29,7 @@ namespace ApiDeviceManagement.Controllers
         {
             var result = new DataResult();
             var data =
-                ServerConfig.DeviceDb.Query<ProcessLibrary>("SELECT * FROM `process_library` WHERE Id = @id;", new { id }).FirstOrDefault();
+                ServerConfig.DeviceDb.Query<ProcessLibrary>("SELECT * FROM `process_library` WHERE Id = @id AND `MarkedDelete` = 0;", new { id }).FirstOrDefault();
             if (data == null)
             {
                 result.errno = Error.ProcessLibraryNotExist;
@@ -44,7 +44,7 @@ namespace ApiDeviceManagement.Controllers
         public Result PutProcessLibrary([FromRoute] int id, [FromBody] ProcessLibrary processLibrary)
         {
             var cnt =
-                ServerConfig.DeviceDb.Query<int>("SELECT COUNT(1) FROM `process_library` WHERE Id = @id;", new { id }).FirstOrDefault();
+                ServerConfig.DeviceDb.Query<int>("SELECT COUNT(1) FROM `process_library` WHERE Id = @id AND `MarkedDelete` = 0;", new { id }).FirstOrDefault();
             if (cnt == 0)
             {
                 return Result.GenError<Result>(Error.ProcessLibraryNotExist);
@@ -80,7 +80,7 @@ namespace ApiDeviceManagement.Controllers
         public Result DeleteProcessLibrary([FromRoute] int id)
         {
             var cnt =
-                ServerConfig.DeviceDb.Query<int>("SELECT COUNT(1) FROM `process_library` WHERE Id = @id;", new { id }).FirstOrDefault();
+                ServerConfig.DeviceDb.Query<int>("SELECT COUNT(1) FROM `process_library` WHERE Id = @id AND `MarkedDelete` = 0;", new { id }).FirstOrDefault();
             if (cnt == 0)
             {
                 return Result.GenError<Result>(Error.ProcessLibraryNotExist);

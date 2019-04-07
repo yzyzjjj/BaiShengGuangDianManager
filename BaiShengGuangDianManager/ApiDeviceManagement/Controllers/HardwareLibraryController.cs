@@ -20,7 +20,7 @@ namespace ApiDeviceManagement.Controllers
         public DataResult GetHardwareLibrary()
         {
             var result = new DataResult();
-            result.datas.AddRange(ServerConfig.DeviceDb.Query<HardwareLibrary>("SELECT * FROM `hardware_library`;"));
+            result.datas.AddRange(ServerConfig.DeviceDb.Query<HardwareLibrary>("SELECT * FROM `hardware_library` WHERE `MarkedDelete` = 0;"));
             return result;
         }
 
@@ -30,7 +30,7 @@ namespace ApiDeviceManagement.Controllers
         {
             var result = new DataResult();
             var data =
-                ServerConfig.DeviceDb.Query<HardwareLibrary>("SELECT * FROM `hardware_library` WHERE Id = @id;", new { id }).FirstOrDefault();
+                ServerConfig.DeviceDb.Query<HardwareLibrary>("SELECT * FROM `hardware_library` WHERE Id = @id AND `MarkedDelete` = 0;", new { id }).FirstOrDefault();
             if (data == null)
             {
                 result.errno = Error.HardwareLibraryNotExist;
@@ -45,7 +45,7 @@ namespace ApiDeviceManagement.Controllers
         public Result PutHardwareLibrary([FromRoute] int id, [FromBody] HardwareLibrary hardwareLibrary)
         {
             var cnt =
-                ServerConfig.DeviceDb.Query<int>("SELECT * FROM `hardware_library` WHERE Id = @id;", new { id }).FirstOrDefault();
+                ServerConfig.DeviceDb.Query<int>("SELECT * FROM `hardware_library` WHERE Id = @id AND `MarkedDelete` = 0;", new { id }).FirstOrDefault();
             if (cnt == 0)
             {
                 return Result.GenError<Result>(Error.HardwareLibraryNotExist);
@@ -82,7 +82,7 @@ namespace ApiDeviceManagement.Controllers
         public Result DeleteHardwareLibrary([FromRoute] int id)
         {
             var cnt =
-                ServerConfig.DeviceDb.Query<int>("SELECT COUNT(1) FROM `hardware_library` WHERE Id = @id;", new { id }).FirstOrDefault();
+                ServerConfig.DeviceDb.Query<int>("SELECT COUNT(1) FROM `hardware_library` WHERE Id = @id AND `MarkedDelete` = 0;", new { id }).FirstOrDefault();
             if (cnt == 0)
             {
                 return Result.GenError<Result>(Error.HardwareLibraryNotExist);

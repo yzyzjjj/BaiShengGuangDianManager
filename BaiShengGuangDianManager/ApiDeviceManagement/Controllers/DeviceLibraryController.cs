@@ -30,7 +30,7 @@ namespace ApiDeviceManagement.Controllers
                 "SELECT a.*, b.ModelName, c.FirmwareName, d.ProcessName, e.HardwareName, f.SiteName " +
                 "FROM device_library a JOIN device_model b ON a.DeviceModelId = b.Id JOIN firmware_library c " +
                 "ON a.FirmwareId = c.Id JOIN process_library d ON a.ProcessId = d.Id JOIN hardware_library e " +
-                "ON a.HardwareId = e.Id JOIN site f ON a.SiteId = f.Id;").ToDictionary(x => x.Id);
+                "ON a.HardwareId = e.Id JOIN site f ON a.SiteId = f.Id WHERE a.`MarkedDelete` = 0;").ToDictionary(x => x.Id);
 
             var url = ServerConfig.GateUrl + UrlMappings.Urls["deviceListGate"];
             //向GateProxyLink请求数据
@@ -71,7 +71,7 @@ namespace ApiDeviceManagement.Controllers
             var data =
                 ServerConfig.DeviceDb.Query<DeviceLibraryDetail>("SELECT a.*, b.ModelName, c.FirmwareName, d.ProcessName, e.HardwareName, f.SiteName FROM device_library a " +
                                                            "JOIN device_model b ON a.DeviceModelId = b.Id JOIN firmware_library c ON a.FirmwareId = c.Id JOIN process_library " +
-                                                           "d ON a.ProcessId = d.Id JOIN hardware_library e ON a.HardwareId = e.Id JOIN site f ON a.SiteId = f.Id WHERE a.Id = @id;", new { id }).FirstOrDefault();
+                                                           "d ON a.ProcessId = d.Id JOIN hardware_library e ON a.HardwareId = e.Id JOIN site f ON a.SiteId = f.Id WHERE a.Id = @id AND a.`MarkedDelete` = 0;", new { id }).FirstOrDefault();
             if (data == null)
             {
                 result.errno = Error.DeviceNotExist;
@@ -121,7 +121,7 @@ namespace ApiDeviceManagement.Controllers
             var data =
                 ServerConfig.DeviceDb.Query<DeviceLibraryDetail>("SELECT a.*, b.ModelName, c.FirmwareName, d.ProcessName, e.HardwareName, f.SiteName FROM device_library a JOIN device_model b " +
                                                            "ON a.DeviceModelId = b.Id JOIN firmware_library c ON a.FirmwareId = c.Id JOIN process_library d ON a.ProcessId = d.Id JOIN " +
-                                                           "hardware_library e ON a.HardwareId = e.Id JOIN site f ON a.SiteId = f.Id WHERE a.Code = @code;", new { code }).FirstOrDefault();
+                                                           "hardware_library e ON a.HardwareId = e.Id JOIN site f ON a.SiteId = f.Id WHERE a.Code = @code AND a.`MarkedDelete` = 0;", new { code }).FirstOrDefault();
             if (data == null)
             {
                 result.errno = Error.DeviceNotExist;
@@ -167,40 +167,40 @@ namespace ApiDeviceManagement.Controllers
         public Result PutDeviceLibrary([FromRoute] int id, [FromBody] DeviceLibrary deviceLibrary)
         {
             var data =
-                ServerConfig.DeviceDb.Query<DeviceLibrary>("SELECT * FROM `device_library` WHERE Id = @id;", new { id }).FirstOrDefault();
+                ServerConfig.DeviceDb.Query<DeviceLibrary>("SELECT * FROM `device_library` WHERE Id = @id AND `MarkedDelete` = 0;", new { id }).FirstOrDefault();
             if (data == null)
             {
                 return Result.GenError<Result>(Error.DeviceNotExist);
             }
 
             var cnt =
-                ServerConfig.DeviceDb.Query<int>("SELECT COUNT(1) FROM `device_model` WHERE Id = @id;", new { id = deviceLibrary.DeviceModelId }).FirstOrDefault();
+                ServerConfig.DeviceDb.Query<int>("SELECT COUNT(1) FROM `device_model` WHERE Id = @id AND `MarkedDelete` = 0;", new { id = deviceLibrary.DeviceModelId }).FirstOrDefault();
             if (cnt == 0)
             {
                 return Result.GenError<Result>(Error.DeviceModelNotExist);
             }
 
             cnt =
-                ServerConfig.DeviceDb.Query<int>("SELECT COUNT(1) FROM `firmware_library` WHERE Id = @id;", new { id = deviceLibrary.FirmwareId }).FirstOrDefault();
+                ServerConfig.DeviceDb.Query<int>("SELECT COUNT(1) FROM `firmware_library` WHERE Id = @id AND `MarkedDelete` = 0;", new { id = deviceLibrary.FirmwareId }).FirstOrDefault();
             if (cnt == 0)
             {
                 return Result.GenError<Result>(Error.FirmwareLibraryNotExist);
             }
 
             cnt =
-                ServerConfig.DeviceDb.Query<int>("SELECT COUNT(1) FROM `hardware_library` WHERE Id = @id;", new { id = deviceLibrary.HardwareId }).FirstOrDefault();
+                ServerConfig.DeviceDb.Query<int>("SELECT COUNT(1) FROM `hardware_library` WHERE Id = @id AND `MarkedDelete` = 0;", new { id = deviceLibrary.HardwareId }).FirstOrDefault();
             if (cnt == 0)
             {
                 return Result.GenError<Result>(Error.HardwareLibraryNotExist);
             }
             cnt =
-                ServerConfig.DeviceDb.Query<int>("SELECT COUNT(1) FROM `process_library` WHERE Id = @id;", new { id = deviceLibrary.ProcessId }).FirstOrDefault();
+                ServerConfig.DeviceDb.Query<int>("SELECT COUNT(1) FROM `process_library` WHERE Id = @id AND `MarkedDelete` = 0;", new { id = deviceLibrary.ProcessId }).FirstOrDefault();
             if (cnt == 0)
             {
                 return Result.GenError<Result>(Error.ProcessLibraryNotExist);
             }
             cnt =
-                ServerConfig.DeviceDb.Query<int>("SELECT COUNT(1) FROM `site` WHERE Id = @id;", new { id = deviceLibrary.SiteId }).FirstOrDefault();
+                ServerConfig.DeviceDb.Query<int>("SELECT COUNT(1) FROM `site` WHERE Id = @id AND `MarkedDelete` = 0;", new { id = deviceLibrary.SiteId }).FirstOrDefault();
             if (cnt == 0)
             {
                 return Result.GenError<Result>(Error.SiteNotExist);
@@ -217,7 +217,7 @@ namespace ApiDeviceManagement.Controllers
             }
 
             cnt =
-                ServerConfig.DeviceDb.Query<int>("SELECT COUNT(1) FROM `device_library` WHERE Ip = @Ip AND Port = @Port;", new
+                ServerConfig.DeviceDb.Query<int>("SELECT COUNT(1) FROM `device_library` WHERE Ip = @Ip AND Port = @Port AND `MarkedDelete` = 0;", new
                 {
                     deviceLibrary.Ip,
                     deviceLibrary.Port
@@ -268,40 +268,40 @@ namespace ApiDeviceManagement.Controllers
         public Result PutDeviceLibrary([FromRoute] string code, [FromBody] DeviceLibrary deviceLibrary)
         {
             var data =
-                ServerConfig.DeviceDb.Query<DeviceLibrary>("SELECT * FROM `device_library` WHERE Code = @code;", new { code }).FirstOrDefault();
+                ServerConfig.DeviceDb.Query<DeviceLibrary>("SELECT * FROM `device_library` WHERE Code = @code AND `MarkedDelete` = 0;", new { code }).FirstOrDefault();
             if (data == null)
             {
                 return Result.GenError<Result>(Error.DeviceNotExist);
             }
 
             var cnt =
-                ServerConfig.DeviceDb.Query<int>("SELECT COUNT(1) FROM `device_model` WHERE Id = @id;", new { id = deviceLibrary.DeviceModelId }).FirstOrDefault();
+                ServerConfig.DeviceDb.Query<int>("SELECT COUNT(1) FROM `device_model` WHERE Id = @id AND `MarkedDelete` = 0;", new { id = deviceLibrary.DeviceModelId }).FirstOrDefault();
             if (cnt == 0)
             {
                 return Result.GenError<Result>(Error.DeviceModelNotExist);
             }
 
             cnt =
-                ServerConfig.DeviceDb.Query<int>("SELECT COUNT(1) FROM `firmware_library` WHERE Id = @id;", new { id = deviceLibrary.FirmwareId }).FirstOrDefault();
+                ServerConfig.DeviceDb.Query<int>("SELECT COUNT(1) FROM `firmware_library` WHERE Id = @id AND `MarkedDelete` = 0;", new { id = deviceLibrary.FirmwareId }).FirstOrDefault();
             if (cnt == 0)
             {
                 return Result.GenError<Result>(Error.FirmwareLibraryNotExist);
             }
 
             cnt =
-                ServerConfig.DeviceDb.Query<int>("SELECT COUNT(1) FROM `hardware_library` WHERE Id = @id;", new { id = deviceLibrary.HardwareId }).FirstOrDefault();
+                ServerConfig.DeviceDb.Query<int>("SELECT COUNT(1) FROM `hardware_library` WHERE Id = @id AND `MarkedDelete` = 0;", new { id = deviceLibrary.HardwareId }).FirstOrDefault();
             if (cnt == 0)
             {
                 return Result.GenError<Result>(Error.HardwareLibraryNotExist);
             }
             cnt =
-                ServerConfig.DeviceDb.Query<int>("SELECT COUNT(1) FROM `process_library` WHERE Id = @id;", new { id = deviceLibrary.ProcessId }).FirstOrDefault();
+                ServerConfig.DeviceDb.Query<int>("SELECT COUNT(1) FROM `process_library` WHERE Id = @id AND `MarkedDelete` = 0;", new { id = deviceLibrary.ProcessId }).FirstOrDefault();
             if (cnt == 0)
             {
                 return Result.GenError<Result>(Error.ProcessLibraryNotExist);
             }
             cnt =
-                ServerConfig.DeviceDb.Query<int>("SELECT COUNT(1) FROM `site` WHERE Id = @id;", new { id = deviceLibrary.SiteId }).FirstOrDefault();
+                ServerConfig.DeviceDb.Query<int>("SELECT COUNT(1) FROM `site` WHERE Id = @id AND `MarkedDelete` = 0;", new { id = deviceLibrary.SiteId }).FirstOrDefault();
             if (cnt == 0)
             {
                 return Result.GenError<Result>(Error.SiteNotExist);
@@ -365,7 +365,7 @@ namespace ApiDeviceManagement.Controllers
         public Result PostDeviceLibrary([FromBody] DeviceLibrary deviceLibrary)
         {
             var cnt =
-                ServerConfig.DeviceDb.Query<int>("SELECT COUNT(1) FROM `device_library` WHERE Ip = @Ip AND Port = @Port;", new
+                ServerConfig.DeviceDb.Query<int>("SELECT COUNT(1) FROM `device_library` WHERE Ip = @Ip AND Port = @Port AND `MarkedDelete` = 0;", new
                 {
                     deviceLibrary.Ip,
                     deviceLibrary.Port
@@ -376,33 +376,33 @@ namespace ApiDeviceManagement.Controllers
             }
 
             cnt =
-               ServerConfig.DeviceDb.Query<int>("SELECT COUNT(1) FROM `device_model` WHERE Id = @id;", new { id = deviceLibrary.DeviceModelId }).FirstOrDefault();
+               ServerConfig.DeviceDb.Query<int>("SELECT COUNT(1) FROM `device_model` WHERE Id = @id AND `MarkedDelete` = 0;", new { id = deviceLibrary.DeviceModelId }).FirstOrDefault();
             if (cnt == 0)
             {
                 return Result.GenError<Result>(Error.DeviceModelNotExist);
             }
 
             cnt =
-                ServerConfig.DeviceDb.Query<int>("SELECT COUNT(1) FROM `firmware_library` WHERE Id = @id;", new { id = deviceLibrary.FirmwareId }).FirstOrDefault();
+                ServerConfig.DeviceDb.Query<int>("SELECT COUNT(1) FROM `firmware_library` WHERE Id = @id AND `MarkedDelete` = 0;", new { id = deviceLibrary.FirmwareId }).FirstOrDefault();
             if (cnt == 0)
             {
                 return Result.GenError<Result>(Error.FirmwareLibraryNotExist);
             }
 
             cnt =
-                ServerConfig.DeviceDb.Query<int>("SELECT COUNT(1) FROM `hardware_library` WHERE Id = @id;", new { id = deviceLibrary.HardwareId }).FirstOrDefault();
+                ServerConfig.DeviceDb.Query<int>("SELECT COUNT(1) FROM `hardware_library` WHERE Id = @id AND `MarkedDelete` = 0;", new { id = deviceLibrary.HardwareId }).FirstOrDefault();
             if (cnt == 0)
             {
                 return Result.GenError<Result>(Error.HardwareLibraryNotExist);
             }
             cnt =
-                ServerConfig.DeviceDb.Query<int>("SELECT COUNT(1) FROM `process_library` WHERE Id = @id;", new { id = deviceLibrary.ProcessId }).FirstOrDefault();
+                ServerConfig.DeviceDb.Query<int>("SELECT COUNT(1) FROM `process_library` WHERE Id = @id AND `MarkedDelete` = 0;", new { id = deviceLibrary.ProcessId }).FirstOrDefault();
             if (cnt == 0)
             {
                 return Result.GenError<Result>(Error.ProcessLibraryNotExist);
             }
             cnt =
-                ServerConfig.DeviceDb.Query<int>("SELECT COUNT(1) FROM `site` WHERE Id = @id;", new { id = deviceLibrary.SiteId }).FirstOrDefault();
+                ServerConfig.DeviceDb.Query<int>("SELECT COUNT(1) FROM `site` WHERE Id = @id AND `MarkedDelete` = 0;", new { id = deviceLibrary.SiteId }).FirstOrDefault();
             if (cnt == 0)
             {
                 return Result.GenError<Result>(Error.SiteNotExist);
@@ -448,7 +448,7 @@ namespace ApiDeviceManagement.Controllers
         public Result DeleteDeviceLibrary([FromRoute] int id)
         {
             var cnt =
-                ServerConfig.DeviceDb.Query<int>("SELECT COUNT(1) FROM `device_library` WHERE Id = @id;", new { id }).FirstOrDefault();
+                ServerConfig.DeviceDb.Query<int>("SELECT COUNT(1) FROM `device_library` WHERE Id = @id AND `MarkedDelete` = 0;", new { id }).FirstOrDefault();
             if (cnt == 0)
             {
                 return Result.GenError<Result>(Error.DeviceNotExist);
@@ -477,7 +477,7 @@ namespace ApiDeviceManagement.Controllers
         public Result DeleteDeviceLibrary([FromRoute] string code)
         {
             var data =
-                ServerConfig.DeviceDb.Query<DeviceLibrary>("SELECT `Id` FROM `device_library` WHERE Code = @code;", new { code }).FirstOrDefault();
+                ServerConfig.DeviceDb.Query<DeviceLibrary>("SELECT `Id` FROM `device_library` WHERE Code = @code AND `MarkedDelete` = 0;", new { code }).FirstOrDefault();
             if (data == null)
             {
                 return Result.GenError<Result>(Error.DeviceNotExist);

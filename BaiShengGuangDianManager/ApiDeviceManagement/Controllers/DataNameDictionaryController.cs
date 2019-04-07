@@ -22,7 +22,7 @@ namespace ApiDeviceManagement.Controllers
         public DataResult GetDataNameDictionary()
         {
             var result = new DataResult();
-            result.datas.AddRange(ServerConfig.DeviceDb.Query<DataNameDictionary>("SELECT * FROM `data_name_dictionary`;"));
+            result.datas.AddRange(ServerConfig.DeviceDb.Query<DataNameDictionary>("SELECT * FROM `data_name_dictionary` WHERE `MarkedDelete` = 0;"));
             return result;
         }
 
@@ -37,7 +37,7 @@ namespace ApiDeviceManagement.Controllers
         {
             var result = new DataResult();
             var data =
-                ServerConfig.DeviceDb.Query<DataNameDictionary>("SELECT * FROM `data_name_dictionary` WHERE Id = @id;", new { id }).FirstOrDefault();
+                ServerConfig.DeviceDb.Query<DataNameDictionary>("SELECT * FROM `data_name_dictionary` WHERE Id = @id AND `MarkedDelete` = 0;", new { id }).FirstOrDefault();
             if (data == null)
             {
                 result.errno = Error.DataNameDictionaryNotExist;
@@ -56,7 +56,7 @@ namespace ApiDeviceManagement.Controllers
         public DataResult GetDataNameDictionaryByScriptId([FromRoute] int id)
         {
             var result = new DataResult();
-            result.datas.AddRange(ServerConfig.DeviceDb.Query<DataNameDictionary>("SELECT * FROM `data_name_dictionary` WHERE ScriptId = @id;", new { id }));
+            result.datas.AddRange(ServerConfig.DeviceDb.Query<DataNameDictionary>("SELECT * FROM `data_name_dictionary` WHERE ScriptId = @id AND `MarkedDelete` = 0;", new { id }));
             return result;
         }
 
@@ -72,7 +72,7 @@ namespace ApiDeviceManagement.Controllers
         public Result PutDataNameDictionary([FromRoute] int id, [FromBody] DataNameDictionary dataNameDictionary)
         {
             var cnt =
-                ServerConfig.DeviceDb.Query<int>("SELECT COUNT(1) FROM `data_name_dictionary` WHERE Id = @id;", new { id }).FirstOrDefault();
+                ServerConfig.DeviceDb.Query<int>("SELECT COUNT(1) FROM `data_name_dictionary` WHERE Id = @id AND `MarkedDelete` = 0;", new { id }).FirstOrDefault();
             if (cnt == 0)
             {
                 return Result.GenError<Result>(Error.DataNameDictionaryNotExist);
@@ -136,7 +136,7 @@ namespace ApiDeviceManagement.Controllers
         public Result DeleteDataNameDictionary([FromRoute] int id)
         {
             var cnt =
-                ServerConfig.DeviceDb.Query<int>("SELECT COUNT(1) FROM `data_name_dictionary` WHERE Id = @id;", new { id }).FirstOrDefault();
+                ServerConfig.DeviceDb.Query<int>("SELECT COUNT(1) FROM `data_name_dictionary` WHERE Id = @id AND `MarkedDelete` = 0;", new { id }).FirstOrDefault();
             if (cnt == 0)
             {
                 return Result.GenError<Result>(Error.DataNameDictionaryNotExist);
