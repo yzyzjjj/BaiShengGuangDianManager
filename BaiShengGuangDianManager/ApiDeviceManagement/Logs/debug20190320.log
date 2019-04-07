@@ -1,0 +1,16 @@
+﻿2019-03-20 08:16:30,059 [7] DEBUG ModelBase - PostAsync return:
+2019-03-20 08:17:05,493 [7] DEBUG ModelBase - PostDeviceLibrary Res:
+2019-03-20 08:18:07,117 [7] DEBUG ModelBase - PostAsync return:
+2019-03-20 08:18:08,650 [7] DEBUG ModelBase - PostDeviceLibrary Res:
+2019-03-20 08:58:10,371 [13] DEBUG ModelBase - PostAsync return:{"errmsg":"成功","errno":0}
+2019-03-20 08:58:12,560 [13] DEBUG ModelBase - PostDeviceLibrary Res:{"errmsg":"成功","errno":0}
+2019-03-20 09:05:45,541 [7] DEBUG ModelBase - PostAsync return:{"errmsg":"成功","errno":0}
+2019-03-20 09:05:45,542 [7] DEBUG ModelBase - PostDeviceLibrary Res:{"errmsg":"成功","errno":0}
+2019-03-20 09:09:17,243 [7] DEBUG ModelBase - PostAsync return:{"errmsg":"成功","errno":0}
+2019-03-20 09:09:17,247 [7] DEBUG ModelBase - PostDeviceLibrary Res:{"errmsg":"成功","errno":0}
+2019-03-20 09:10:14,808 [7] DEBUG ModelBase - PostAsync return:{"errmsg":"成功","errno":0}
+2019-03-20 09:10:14,808 [7] DEBUG ModelBase - PutDeviceLibrary Res:{"errmsg":"成功","errno":0}
+2019-03-20 09:12:27,942 [7] DEBUG ModelBase - PostAsync return:{"errmsg":"成功","errno":0}
+2019-03-20 09:12:27,942 [7] DEBUG ModelBase - PutDeviceLibrary Res:{"errmsg":"成功","errno":0}
+2019-03-20 09:13:21,226 [19] DEBUG ModelBase - PostAsync return:{"errmsg":"成功","errno":0}
+2019-03-20 09:13:21,226 [19] DEBUG ModelBase - DeleteDeviceLibrary Res:{"errmsg":"成功","errno":0}
