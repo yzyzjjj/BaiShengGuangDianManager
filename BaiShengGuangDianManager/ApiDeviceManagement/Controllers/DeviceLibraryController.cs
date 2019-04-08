@@ -13,10 +13,11 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Net;
+using ServiceStack;
 
 namespace ApiDeviceManagement.Controllers
 {
-    [Route("api/[controller]")]
+    [Microsoft.AspNetCore.Mvc.Route("api/[controller]")]
     [ApiController]
     //[Authorize]
     public class DeviceLibraryController : ControllerBase
@@ -158,8 +159,33 @@ namespace ApiDeviceManagement.Controllers
             return result;
         }
 
+        // GET: api/DeviceLibrary/Info
+        [HttpGet("Info")]
+        public DeviceUpdateResult GetDeviceLibraryInfo()
+        {
+            var result = new DeviceUpdateResult();
+            var deviceModels =
+                ServerConfig.DeviceDb.Query<dynamic>("SELECT Id, ModelName FROM `device_model` WHERE `MarkedDelete` = 0;");
+            result.deviceModels.AddRange(deviceModels);
 
+            var firmwareLibraries =
+                ServerConfig.DeviceDb.Query<dynamic>("SELECT Id, FirmwareName FROM `firmware_library` WHERE `MarkedDelete` = 0;");
+            result.firmwareLibraries.AddRange(firmwareLibraries);
 
+            var hardwareLibraries =
+                ServerConfig.DeviceDb.Query<dynamic>("SELECT Id, HardwareName FROM `hardware_library` WHERE `MarkedDelete` = 0;");
+            result.hardwareLibraries.AddRange(hardwareLibraries);
+
+            var processLibraries =
+                ServerConfig.DeviceDb.Query<dynamic>("SELECT Id, ProcessName FROM `process_library` WHERE `MarkedDelete` = 0;");
+            result.processLibraries.AddRange(processLibraries);
+
+            var sites =
+                ServerConfig.DeviceDb.Query<dynamic>("SELECT Id, SiteName FROM `site` WHERE `MarkedDelete` = 0;");
+            result.sites.AddRange(sites);
+
+            return result;
+        }
 
 
         // PUT: api/DeviceLibrary/5
