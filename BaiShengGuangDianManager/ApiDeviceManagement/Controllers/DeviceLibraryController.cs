@@ -28,10 +28,13 @@ namespace ApiDeviceManagement.Controllers
         {
             var result = new DataResult();
             var deviceLibraryDetails = ServerConfig.DeviceDb.Query<DeviceLibraryDetail>(
-                "SELECT a.*, b.ModelName, c.FirmwareName, d.ProcessName, e.HardwareName, f.SiteName " +
-                "FROM device_library a JOIN device_model b ON a.DeviceModelId = b.Id JOIN firmware_library c " +
-                "ON a.FirmwareId = c.Id JOIN process_library d ON a.ProcessId = d.Id JOIN hardware_library e " +
-                "ON a.HardwareId = e.Id JOIN site f ON a.SiteId = f.Id WHERE a.`MarkedDelete` = 0;").ToDictionary(x => x.Id);
+                "SELECT a.*, b.ModelName, c.FirmwareName, d.ApplicationName, e.HardwareName, f.SiteName, g.ScriptName FROM device_library a " +
+                "JOIN device_model b ON a.DeviceModelId = b.Id " +
+                "JOIN firmware_library c ON a.FirmwareId = c.Id " +
+                "JOIN application_library d ON a.ApplicationId = d.Id " +
+                "JOIN hardware_library e ON a.HardwareId = e.Id " +
+                "JOIN site f ON a.SiteId = f.Id " +
+                "JOIN script_version g ON a.ScriptId = g.Id WHERE a.`MarkedDelete` = 0;").ToDictionary(x => x.Id);
 
             var url = ServerConfig.GateUrl + UrlMappings.Urls["deviceListGate"];
             //向GateProxyLink请求数据
@@ -70,9 +73,13 @@ namespace ApiDeviceManagement.Controllers
         {
             var result = new DataResult();
             var data =
-                ServerConfig.DeviceDb.Query<DeviceLibraryDetail>("SELECT a.*, b.ModelName, c.FirmwareName, d.ProcessName, e.HardwareName, f.SiteName FROM device_library a " +
-                                                           "JOIN device_model b ON a.DeviceModelId = b.Id JOIN firmware_library c ON a.FirmwareId = c.Id JOIN process_library " +
-                                                           "d ON a.ProcessId = d.Id JOIN hardware_library e ON a.HardwareId = e.Id JOIN site f ON a.SiteId = f.Id WHERE a.Id = @id AND a.`MarkedDelete` = 0;", new { id }).FirstOrDefault();
+                ServerConfig.DeviceDb.Query<DeviceLibraryDetail>("SELECT a.*, b.ModelName, c.FirmwareName, d.ApplicationName, e.HardwareName, f.SiteName, g.ScriptName FROM device_library a " +
+                                                                 "JOIN device_model b ON a.DeviceModelId = b.Id " +
+                                                                 "JOIN firmware_library c ON a.FirmwareId = c.Id " +
+                                                                 "JOIN application_library d ON a.ApplicationId = d.Id " +
+                                                                 "JOIN hardware_library e ON a.HardwareId = e.Id " +
+                                                                 "JOIN site f ON a.SiteId = f.Id " +
+                                                                 "JOIN script_version g ON a.ScriptId = g.Id WHERE a.Id = @id AND a.`MarkedDelete` = 0;", new { id }).FirstOrDefault();
             if (data == null)
             {
                 result.errno = Error.DeviceNotExist;
@@ -120,9 +127,13 @@ namespace ApiDeviceManagement.Controllers
         {
             var result = new DataResult();
             var data =
-                ServerConfig.DeviceDb.Query<DeviceLibraryDetail>("SELECT a.*, b.ModelName, c.FirmwareName, d.ProcessName, e.HardwareName, f.SiteName FROM device_library a JOIN device_model b " +
-                                                           "ON a.DeviceModelId = b.Id JOIN firmware_library c ON a.FirmwareId = c.Id JOIN process_library d ON a.ProcessId = d.Id JOIN " +
-                                                           "hardware_library e ON a.HardwareId = e.Id JOIN site f ON a.SiteId = f.Id WHERE a.Code = @code AND a.`MarkedDelete` = 0;", new { code }).FirstOrDefault();
+                ServerConfig.DeviceDb.Query<DeviceLibraryDetail>("SELECT a.*, b.ModelName, c.FirmwareName, d.ApplicationName, e.HardwareName, f.SiteName, g.ScriptName FROM device_library a " +
+                                                                 "JOIN device_model b ON a.DeviceModelId = b.Id " +
+                                                                 "JOIN firmware_library c ON a.FirmwareId = c.Id " +
+                                                                 "JOIN application_library d ON a.ApplicationId = d.Id " +
+                                                                 "JOIN hardware_library e ON a.HardwareId = e.Id " +
+                                                                 "JOIN site f ON a.SiteId = f.Id " +
+                                                                 "JOIN script_version g ON a.ScriptId = g.Id WHERE a.Code = @code AND a.`MarkedDelete` = 0;", new { code }).FirstOrDefault();
             if (data == null)
             {
                 result.errno = Error.DeviceNotExist;
@@ -176,14 +187,17 @@ namespace ApiDeviceManagement.Controllers
                 ServerConfig.DeviceDb.Query<dynamic>("SELECT Id, HardwareName FROM `hardware_library` WHERE `MarkedDelete` = 0;");
             result.hardwareLibraries.AddRange(hardwareLibraries);
 
-            var processLibraries =
-                ServerConfig.DeviceDb.Query<dynamic>("SELECT Id, ProcessName FROM `process_library` WHERE `MarkedDelete` = 0;");
-            result.processLibraries.AddRange(processLibraries);
+            var applicationLibraries =
+                ServerConfig.DeviceDb.Query<dynamic>("SELECT Id, ApplicationName FROM `application_library` WHERE `MarkedDelete` = 0;");
+            result.applicationLibraries.AddRange(applicationLibraries);
 
             var sites =
                 ServerConfig.DeviceDb.Query<dynamic>("SELECT Id, SiteName FROM `site` WHERE `MarkedDelete` = 0;");
             result.sites.AddRange(sites);
 
+            var scriptVersions =
+                ServerConfig.DeviceDb.Query<dynamic>("SELECT Id, ScriptName FROM `script_version` WHERE `MarkedDelete` = 0;");
+            result.scriptVersions.AddRange(scriptVersions);
             return result;
         }
 
@@ -220,16 +234,22 @@ namespace ApiDeviceManagement.Controllers
                 return Result.GenError<Result>(Error.HardwareLibraryNotExist);
             }
             cnt =
-                ServerConfig.DeviceDb.Query<int>("SELECT COUNT(1) FROM `process_library` WHERE Id = @id AND `MarkedDelete` = 0;", new { id = deviceLibrary.ProcessId }).FirstOrDefault();
+                ServerConfig.DeviceDb.Query<int>("SELECT COUNT(1) FROM `application_library` WHERE Id = @id AND `MarkedDelete` = 0;", new { id = deviceLibrary.ApplicationId }).FirstOrDefault();
             if (cnt == 0)
             {
-                return Result.GenError<Result>(Error.ProcessLibraryNotExist);
+                return Result.GenError<Result>(Error.ApplicationLibraryNotExist);
             }
             cnt =
                 ServerConfig.DeviceDb.Query<int>("SELECT COUNT(1) FROM `site` WHERE Id = @id AND `MarkedDelete` = 0;", new { id = deviceLibrary.SiteId }).FirstOrDefault();
             if (cnt == 0)
             {
                 return Result.GenError<Result>(Error.SiteNotExist);
+            }
+            cnt =
+                ServerConfig.DeviceDb.Query<int>("SELECT COUNT(1) FROM `script_version` WHERE Id = @id AND `MarkedDelete` = 0;", new { id = deviceLibrary.ScriptId }).FirstOrDefault();
+            if (cnt == 0)
+            {
+                return Result.GenError<Result>(Error.ScriptVersionNotExist);
             }
 
             if (!IPAddress.TryParse(deviceLibrary.Ip, out _))
@@ -259,10 +279,10 @@ namespace ApiDeviceManagement.Controllers
             deviceLibrary.CreateUserId = Request.GetIdentityInformation();
             deviceLibrary.MarkedDateTime = DateTime.Now;
             ServerConfig.DeviceDb.Execute(
-                "UPDATE `device_library` SET `CreateUserId`= @CreateUserId, `MarkedDateTime`= @MarkedDateTime, `MarkedDelete`= @MarkedDelete, `ModifyId`= @ModifyId, " +
-                "`DeviceName`= @DeviceName, `MacAddress`= @MacAddress, `Ip`= @Ip, `Port`= @Port, `Identifier`= @Identifier, `Code`= @Code, " +
-                "`DeviceModelId`= @DeviceModelId, `SiteId`= @SiteId, `FirmwareId`= @FirmwareId, `ProcessId`= @ProcessId, `HardwareId`= @HardwareId, `AdministratorUser`= @AdministratorUser, " +
-                "`Remark`= @Remark WHERE `Id`= @Id;", deviceLibrary);
+                "UPDATE device_library SET `CreateUserId` = @CreateUserId, `MarkedDateTime` = @MarkedDateTime, `MarkedDelete` = @MarkedDelete, `ModifyId` = @ModifyId, `Code` = @Code, " +
+                "`DeviceName` = @DeviceName, `MacAddress` = @MacAddress, `Ip` = @Ip, `Port` = @Port, `Identifier` = @Identifier, `DeviceModelId` = @DeviceModelId, `ScriptId` = @ScriptId, " +
+                "`FirmwareId` = @FirmwareId, `HardwareId` = @HardwareId, `ApplicationId` = @ApplicationId, `SiteId` = @SiteId, `AdministratorUser` = @AdministratorUser, " +
+                "`Remark` = @Remark WHERE `Id` = @Id;", deviceLibrary);
 
             if (deviceLibrary.Ip != data.Ip || deviceLibrary.Port != data.Port)
             {
@@ -321,16 +341,22 @@ namespace ApiDeviceManagement.Controllers
                 return Result.GenError<Result>(Error.HardwareLibraryNotExist);
             }
             cnt =
-                ServerConfig.DeviceDb.Query<int>("SELECT COUNT(1) FROM `process_library` WHERE Id = @id AND `MarkedDelete` = 0;", new { id = deviceLibrary.ProcessId }).FirstOrDefault();
+                ServerConfig.DeviceDb.Query<int>("SELECT COUNT(1) FROM `application_library` WHERE Id = @id AND `MarkedDelete` = 0;", new { id = deviceLibrary.ApplicationId }).FirstOrDefault();
             if (cnt == 0)
             {
-                return Result.GenError<Result>(Error.ProcessLibraryNotExist);
+                return Result.GenError<Result>(Error.ApplicationLibraryNotExist);
             }
             cnt =
                 ServerConfig.DeviceDb.Query<int>("SELECT COUNT(1) FROM `site` WHERE Id = @id AND `MarkedDelete` = 0;", new { id = deviceLibrary.SiteId }).FirstOrDefault();
             if (cnt == 0)
             {
                 return Result.GenError<Result>(Error.SiteNotExist);
+            }
+            cnt =
+                ServerConfig.DeviceDb.Query<int>("SELECT COUNT(1) FROM `script_version` WHERE Id = @id AND `MarkedDelete` = 0;", new { id = deviceLibrary.ScriptId }).FirstOrDefault();
+            if (cnt == 0)
+            {
+                return Result.GenError<Result>(Error.ApplicationLibraryNotExist);
             }
 
             if (!IPAddress.TryParse(deviceLibrary.Ip, out _))
@@ -360,10 +386,10 @@ namespace ApiDeviceManagement.Controllers
             deviceLibrary.CreateUserId = Request.GetIdentityInformation();
             deviceLibrary.MarkedDateTime = DateTime.Now;
             ServerConfig.DeviceDb.Execute(
-                "UPDATE `device_library` SET `CreateUserId`= @CreateUserId, `MarkedDateTime`= @MarkedDateTime, `MarkedDelete`= @MarkedDelete, `ModifyId`= @ModifyId, " +
-                "`DeviceName`= @DeviceName, `MacAddress`= @MacAddress, `Ip`= @Ip, `Port`= @Port, `Identifier`= @Identifier, `Code`= @Code, " +
-                "`DeviceModelId`= @DeviceModelId, `SiteId`= @SiteId, `FirmwareId`= @FirmwareId, `ProcessId`= @ProcessId, `HardwareId`= @HardwareId, `AdministratorUser`= @AdministratorUser, " +
-                "`Remark`= @Remark WHERE `Code`= @Code;", deviceLibrary);
+                "UPDATE device_library SET `CreateUserId` = @CreateUserId, `MarkedDateTime` = @MarkedDateTime, `MarkedDelete` = @MarkedDelete, `ModifyId` = @ModifyId, `Code` = @Code, " +
+                "`DeviceName` = @DeviceName, `MacAddress` = @MacAddress, `Ip` = @Ip, `Port` = @Port, `Identifier` = @Identifier, `DeviceModelId` = @DeviceModelId, `ScriptId` = @ScriptId, " +
+                "`FirmwareId` = @FirmwareId, `HardwareId` = @HardwareId, `ApplicationId` = @ApplicationId, `SiteId` = @SiteId, `AdministratorUser` = @AdministratorUser, " +
+                "`Remark` = @Remark WHERE `Id` = @Id;", deviceLibrary);
 
             if (deviceLibrary.Id != data.Id || deviceLibrary.Ip != data.Ip || deviceLibrary.Port != data.Port)
             {
@@ -422,16 +448,22 @@ namespace ApiDeviceManagement.Controllers
                 return Result.GenError<Result>(Error.HardwareLibraryNotExist);
             }
             cnt =
-                ServerConfig.DeviceDb.Query<int>("SELECT COUNT(1) FROM `process_library` WHERE Id = @id AND `MarkedDelete` = 0;", new { id = deviceLibrary.ProcessId }).FirstOrDefault();
+                ServerConfig.DeviceDb.Query<int>("SELECT COUNT(1) FROM `application_library` WHERE Id = @id AND `MarkedDelete` = 0;", new { id = deviceLibrary.ApplicationId }).FirstOrDefault();
             if (cnt == 0)
             {
-                return Result.GenError<Result>(Error.ProcessLibraryNotExist);
+                return Result.GenError<Result>(Error.ApplicationLibraryNotExist);
             }
             cnt =
                 ServerConfig.DeviceDb.Query<int>("SELECT COUNT(1) FROM `site` WHERE Id = @id AND `MarkedDelete` = 0;", new { id = deviceLibrary.SiteId }).FirstOrDefault();
             if (cnt == 0)
             {
                 return Result.GenError<Result>(Error.SiteNotExist);
+            }
+            cnt =
+                ServerConfig.DeviceDb.Query<int>("SELECT COUNT(1) FROM `script_version` WHERE Id = @id AND `MarkedDelete` = 0;", new { id = deviceLibrary.ScriptId }).FirstOrDefault();
+            if (cnt == 0)
+            {
+                return Result.GenError<Result>(Error.ApplicationLibraryNotExist);
             }
 
             if (!IPAddress.TryParse(deviceLibrary.Ip, out _))
@@ -447,10 +479,10 @@ namespace ApiDeviceManagement.Controllers
             deviceLibrary.CreateUserId = Request.GetIdentityInformation();
             deviceLibrary.MarkedDateTime = DateTime.Now;
             var lastInsertId = ServerConfig.DeviceDb.Query<int>(
-              "INSERT INTO `device_library` (`CreateUserId`, `MarkedDateTime`, `MarkedDelete`, `ModifyId`, `DeviceName`, `MacAddress`, " +
-              "`Ip`, `Port`, `Identifier`, `Code`, `DeviceModelId`, `SiteId`, `FirmwareId`, `ProcessId`, `HardwareId`, " +
-              "`AdministratorUser`, `Remark`) VALUES (@CreateUserId, @MarkedDateTime, @MarkedDelete, @ModifyId, @DeviceName, " +
-              "@MacAddress, @Ip, @Port, @Identifier, @Code, @DeviceModelId, @SiteId, @FirmwareId, @ProcessId, @HardwareId, @AdministratorUser, @Remark);SELECT LAST_INSERT_ID();",
+              "INSERT INTO device_library (`CreateUserId`, `MarkedDateTime`, `MarkedDelete`, `ModifyId`, `Code`, `DeviceName`, `MacAddress`, `Ip`, `Port`, `Identifier`, `DeviceModelId`, " +
+              "`ScriptId`, `FirmwareId`, `HardwareId`, `ApplicationId`, `SiteId`, `AdministratorUser`, `Remark`) VALUES (@CreateUserId, @MarkedDateTime, @MarkedDelete, " +
+              "@ModifyId, @Code, @DeviceName, @MacAddress, @Ip, @Port, @Identifier, @DeviceModelId, @ScriptId, @FirmwareId, @HardwareId, @ApplicationId, @SiteId, @AdministratorUser, " +
+              "@Remark);SELECT LAST_INSERT_ID();",
               deviceLibrary).FirstOrDefault();
 
             ServerConfig.DeviceDb.Execute("INSERT INTO npc_proxy_link (`DeviceId`) VALUES (@DeviceId);", new { DeviceId = lastInsertId, });
