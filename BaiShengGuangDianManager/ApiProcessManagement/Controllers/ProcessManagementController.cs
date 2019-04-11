@@ -1,7 +1,7 @@
 ﻿using ApiProcessManagement.Base.Server;
 using ApiProcessManagement.Models;
 using Microsoft.AspNetCore.Mvc;
-using ModelBase.Base.ServerConfig.Enum;
+using ModelBase.Base.EnumConfig;
 using ModelBase.Base.Utils;
 using ModelBase.Models.Result;
 using ServiceStack;

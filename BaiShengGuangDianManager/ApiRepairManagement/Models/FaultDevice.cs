@@ -15,5 +15,6 @@ namespace ApiRepairManagement.Models
         public string Proposer { get; set; }
         public string FaultDescription { get; set; }
         public int Priority { get; set; }
+        public int State { get; set; }
     }
 }

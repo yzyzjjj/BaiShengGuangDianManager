@@ -1,7 +1,7 @@
 ﻿using ApiRepairManagement.Base.Server;
 using ApiRepairManagement.Models;
 using Microsoft.AspNetCore.Mvc;
-using ModelBase.Base.ServerConfig.Enum;
+using ModelBase.Base.EnumConfig;
 using ModelBase.Models.Result;
 using System;
 using System.Collections.Generic;
@@ -22,7 +22,7 @@ namespace ApiRepairManagement.Controllers
         public DataResult GetUsuallyFault()
         {
             var result = new DataResult();
-            result.datas.AddRange(ServerConfig.RepairDb.Query<UsuallyFault>("SELECT * FROM `usually_fault`;"));
+            result.datas.AddRange(ServerConfig.RepairDb.Query<UsuallyFault>("SELECT * FROM `usually_fault` WHERE MarkedDelete = 0;"));
             return result;
         }
 
@@ -37,7 +37,7 @@ namespace ApiRepairManagement.Controllers
         {
             var result = new DataResult();
             var data =
-                ServerConfig.RepairDb.Query<UsuallyFault>("SELECT * FROM `usually_fault` WHERE Id = @id;", new { id }).FirstOrDefault();
+                ServerConfig.RepairDb.Query<UsuallyFault>("SELECT * FROM `usually_fault` WHERE Id = @id AND MarkedDelete = 0;", new { id }).FirstOrDefault();
             if (data == null)
             {
                 result.errno = Error.UsuallyFaultNotExist;
@@ -58,7 +58,7 @@ namespace ApiRepairManagement.Controllers
         public Result PutUsuallyFault([FromRoute] int id, [FromBody] UsuallyFault usuallyFault)
         {
             var cnt =
-                ServerConfig.RepairDb.Query<int>("SELECT COUNT(1) FROM `usually_fault` WHERE Id = @id;", new { id }).FirstOrDefault();
+                ServerConfig.RepairDb.Query<int>("SELECT COUNT(1) FROM `usually_fault` WHERE Id = @id AND MarkedDelete = 0;", new { id }).FirstOrDefault();
             if (cnt == 0)
             {
                 return Result.GenError<Result>(Error.UsuallyFaultNotExist);
@@ -115,7 +115,7 @@ namespace ApiRepairManagement.Controllers
         public Result DeleteUsuallyFault([FromRoute] int id)
         {
             var cnt =
-                ServerConfig.RepairDb.Query<int>("SELECT COUNT(1) FROM `usually_fault` WHERE Id = @id;", new { id }).FirstOrDefault();
+                ServerConfig.RepairDb.Query<int>("SELECT COUNT(1) FROM `usually_fault` WHERE Id = @id AND MarkedDelete = 0;", new { id }).FirstOrDefault();
             if (cnt == 0)
             {
                 return Result.GenError<Result>(Error.UsuallyFaultNotExist);

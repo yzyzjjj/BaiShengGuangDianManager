@@ -1,19 +1,20 @@
 ﻿using ApiDeviceManagement.Base.Server;
 using ApiDeviceManagement.Models;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore.Internal;
+using ModelBase.Base.EnumConfig;
 using ModelBase.Base.HttpServer;
 using ModelBase.Base.Logger;
-using ModelBase.Base.ServerConfig.Enum;
 using ModelBase.Base.UrlMappings;
 using ModelBase.Base.Utils;
 using ModelBase.Models.Device;
 using ModelBase.Models.Result;
 using Newtonsoft.Json;
+using ServiceStack;
 using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Net;
-using ServiceStack;
 
 namespace ApiDeviceManagement.Controllers
 {
@@ -28,13 +29,23 @@ namespace ApiDeviceManagement.Controllers
         {
             var result = new DataResult();
             var deviceLibraryDetails = ServerConfig.DeviceDb.Query<DeviceLibraryDetail>(
-                "SELECT a.*, b.ModelName, c.FirmwareName, d.ApplicationName, e.HardwareName, f.SiteName, g.ScriptName FROM device_library a " +
+                "SELECT a.*, b.ModelName, b.DeviceCategoryId, c.FirmwareName, d.ApplicationName, e.HardwareName, f.SiteName, g.ScriptName FROM device_library a " +
                 "JOIN device_model b ON a.DeviceModelId = b.Id " +
                 "JOIN firmware_library c ON a.FirmwareId = c.Id " +
                 "JOIN application_library d ON a.ApplicationId = d.Id " +
                 "JOIN hardware_library e ON a.HardwareId = e.Id " +
                 "JOIN site f ON a.SiteId = f.Id " +
                 "JOIN script_version g ON a.ScriptId = g.Id WHERE a.`MarkedDelete` = 0;").ToDictionary(x => x.Id);
+
+            var faultDevices = ServerConfig.RepairDb.Query<dynamic>("SELECT * FROM `fault_device` WHERE MarkedDelete = 0;");
+            foreach (var faultDevice in faultDevices)
+            {
+                var device = deviceLibraryDetails.Values.FirstOrDefault(x => x.Code == faultDevice.DeviceCode);
+                if (device != null)
+                {
+                    device.RepairState = faultDevice.State;
+                }
+            }
 
             var url = ServerConfig.GateUrl + UrlMappings.Urls["deviceListGate"];
             //向GateProxyLink请求数据
@@ -52,6 +63,7 @@ namespace ApiDeviceManagement.Controllers
                             if (deviceLibraryDetails.ContainsKey(deviceId))
                             {
                                 deviceLibraryDetails[deviceId].State = deviceInfo.State;
+                                deviceLibraryDetails[deviceId].DeviceState = deviceInfo.DeviceState;
                             }
                         }
                     }
@@ -73,7 +85,7 @@ namespace ApiDeviceManagement.Controllers
         {
             var result = new DataResult();
             var data =
-                ServerConfig.DeviceDb.Query<DeviceLibraryDetail>("SELECT a.*, b.ModelName, c.FirmwareName, d.ApplicationName, e.HardwareName, f.SiteName, g.ScriptName FROM device_library a " +
+                ServerConfig.DeviceDb.Query<DeviceLibraryDetail>("SELECT a.*, b.ModelName, b.DeviceCategoryId, c.FirmwareName, d.ApplicationName, e.HardwareName, f.SiteName, g.ScriptName FROM device_library a " +
                                                                  "JOIN device_model b ON a.DeviceModelId = b.Id " +
                                                                  "JOIN firmware_library c ON a.FirmwareId = c.Id " +
                                                                  "JOIN application_library d ON a.ApplicationId = d.Id " +
@@ -85,7 +97,11 @@ namespace ApiDeviceManagement.Controllers
                 result.errno = Error.DeviceNotExist;
                 return result;
             }
-
+            var faultDevice = ServerConfig.RepairDb.Query<dynamic>("SELECT * FROM `fault_device` WHERE MarkedDelete = 0 AND DeviceCode = @DeviceCode;", new { DeviceCode = data.Code }).FirstOrDefault();
+            if (faultDevice != null)
+            {
+                data.RepairState = faultDevice.State;
+            }
             var url = ServerConfig.GateUrl + UrlMappings.Urls["deviceSingleGate"];
             //向GateProxyLink请求数据
             var resp = HttpServer.Get(url, new Dictionary<string, string>
@@ -103,6 +119,7 @@ namespace ApiDeviceManagement.Controllers
                         {
                             var deviceInfo = dataResult.datas.First();
                             data.State = deviceInfo.State;
+                            data.DeviceState = deviceInfo.DeviceState;
                         }
                     }
                 }
@@ -127,7 +144,7 @@ namespace ApiDeviceManagement.Controllers
         {
             var result = new DataResult();
             var data =
-                ServerConfig.DeviceDb.Query<DeviceLibraryDetail>("SELECT a.*, b.ModelName, c.FirmwareName, d.ApplicationName, e.HardwareName, f.SiteName, g.ScriptName FROM device_library a " +
+                ServerConfig.DeviceDb.Query<DeviceLibraryDetail>("SELECT a.*, b.ModelName, b.DeviceCategoryId, c.FirmwareName, d.ApplicationName, e.HardwareName, f.SiteName, g.ScriptName FROM device_library a " +
                                                                  "JOIN device_model b ON a.DeviceModelId = b.Id " +
                                                                  "JOIN firmware_library c ON a.FirmwareId = c.Id " +
                                                                  "JOIN application_library d ON a.ApplicationId = d.Id " +
@@ -138,6 +155,11 @@ namespace ApiDeviceManagement.Controllers
             {
                 result.errno = Error.DeviceNotExist;
                 return result;
+            }
+            var faultDevice = ServerConfig.RepairDb.Query<dynamic>("SELECT * FROM `fault_device` WHERE MarkedDelete = 0 AND DeviceCode = @DeviceCode;", new { DeviceCode = data.Code }).FirstOrDefault();
+            if (faultDevice != null)
+            {
+                data.RepairState = faultDevice.State;
             }
 
             var url = ServerConfig.GateUrl + UrlMappings.Urls["deviceSingleGate"];
@@ -157,6 +179,7 @@ namespace ApiDeviceManagement.Controllers
                         {
                             var deviceInfo = dataResult.datas.First();
                             data.State = deviceInfo.State;
+                            data.DeviceState = deviceInfo.DeviceState;
                         }
                     }
                 }
@@ -175,8 +198,12 @@ namespace ApiDeviceManagement.Controllers
         public DeviceUpdateResult GetDeviceLibraryInfo()
         {
             var result = new DeviceUpdateResult();
+            var deviceCategories =
+                ServerConfig.DeviceDb.Query<dynamic>("SELECT Id, CategoryName FROM `device_category` WHERE `MarkedDelete` = 0;");
+            result.deviceCategories.AddRange(deviceCategories);
+
             var deviceModels =
-                ServerConfig.DeviceDb.Query<dynamic>("SELECT Id, ModelName FROM `device_model` WHERE `MarkedDelete` = 0;");
+                ServerConfig.DeviceDb.Query<dynamic>("SELECT Id, DeviceCategoryId, ModelName FROM `device_model` WHERE `MarkedDelete` = 0;");
             result.deviceModels.AddRange(deviceModels);
 
             var firmwareLibraries =
@@ -196,11 +223,93 @@ namespace ApiDeviceManagement.Controllers
             result.sites.AddRange(sites);
 
             var scriptVersions =
-                ServerConfig.DeviceDb.Query<dynamic>("SELECT Id, ScriptName FROM `script_version` WHERE `MarkedDelete` = 0;");
+                ServerConfig.DeviceDb.Query<dynamic>("SELECT Id, DeviceModelId, ScriptName FROM `script_version` WHERE `MarkedDelete` = 0;");
             result.scriptVersions.AddRange(scriptVersions);
             return result;
         }
 
+        // GET: api/DeviceLibrary/State
+        [HttpGet("State/{id}")]
+        public DataResult GetDeviceLibraryState([FromRoute] int id)
+        {
+            var device =
+                ServerConfig.DeviceDb.Query<DeviceLibrary>("SELECT `Id`, ScriptId FROM `device_library` WHERE Id = @id AND `MarkedDelete` = 0;", new { id }).FirstOrDefault();
+            if (device == null)
+            {
+                return Result.GenError<DataResult>(Error.DeviceNotExist);
+            }
+
+            var scriptVersion =
+                 ServerConfig.DeviceDb.Query<ScriptVersion>("SELECT * FROM `script_version` WHERE Id = @id AND `MarkedDelete` = 0;", new { id = device.ScriptId }).FirstOrDefault();
+            if (scriptVersion == null)
+            {
+                return Result.GenError<DataResult>(Error.ScriptVersionNotExist);
+            }
+
+            var usuallyDictionaries =
+                ServerConfig.DeviceDb.Query<UsuallyDictionary>("SELECT * FROM `usually_dictionary` WHERE ScriptId = @ScriptId AND MarkedDelete = 0;", new { device.ScriptId });
+            if (!usuallyDictionaries.Any())
+            {
+                return Result.GenError<DataResult>(Error.UsuallyDictionaryNotExist);
+            }
+
+            var usuallyDictionaryTypes = ServerConfig.DeviceDb.Query<UsuallyDictionaryType>("SELECT `Id` FROM `usually_dictionary_type` WHERE MarkedDelete = 0;");
+            if (!usuallyDictionaryTypes.Any())
+            {
+                return Result.GenError<DataResult>(Error.UsuallyDictionaryTypeNotExist);
+            }
+
+            var result = new DataResult();
+            var url = ServerConfig.GateUrl + UrlMappings.Urls["sendBackGate"];
+            //向GateProxyLink请求数据
+            var resp = HttpServer.Post(url, new Dictionary<string, string>{
+                {"deviceInfo",new DeviceInfo
+                {
+                     DeviceId = id,
+                    Instruction = scriptVersion.HeartPacket
+                }.ToJSON()}
+            });
+            if (resp != "fail")
+            {
+                try
+                {
+                    var dataResult = JsonConvert.DeserializeObject<MessageResult>(resp);
+                    if (dataResult.errno == Error.Success)
+                    {
+                        if (dataResult.messages.Any())
+                        {
+                            var data = dataResult.messages.First().Item2;
+                            var datas = data.Split(",");
+                            if (datas.Any())
+                            {
+                                foreach (var usuallyDictionaryType in usuallyDictionaryTypes)
+                                {
+                                    var usuallyDictionary =
+                                        usuallyDictionaries.FirstOrDefault(
+                                            x => x.VariableNameId == usuallyDictionaryType.Id);
+                                    if (usuallyDictionary != null)
+                                    {
+                                        var start = 1 + 1 + 4 + 4 + 4 * (usuallyDictionary.DictionaryId - 1);
+                                        if (start + 4 <= datas.Length)
+                                        {
+                                            var str = datas.Skip(start).Take(4).Reverse().Join("");
+                                            var v = Convert.ToInt32(str, 16);
+                                            result.datas.Add(new Tuple<int, int>(usuallyDictionaryType.Id, v));
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+                catch (Exception e)
+                {
+                    Log.ErrorFormat($"{UrlMappings.Urls["sendBackGate"]} 返回：{resp},信息:{e.Message}");
+                }
+            }
+
+            return result;
+        }
 
         // PUT: api/DeviceLibrary/5
         [HttpPut("{id}")]

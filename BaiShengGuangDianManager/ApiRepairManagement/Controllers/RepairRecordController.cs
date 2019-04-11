@@ -1,7 +1,7 @@
 ﻿using ApiRepairManagement.Base.Server;
 using ApiRepairManagement.Models;
 using Microsoft.AspNetCore.Mvc;
-using ModelBase.Base.ServerConfig.Enum;
+using ModelBase.Base.EnumConfig;
 using ModelBase.Models.Result;
 using System;
 using System.Linq;
@@ -21,7 +21,7 @@ namespace ApiRepairManagement.Controllers
         public DataResult GetRepairRecord()
         {
             var result = new DataResult();
-            result.datas.AddRange(ServerConfig.RepairDb.Query<RepairRecord>("SELECT * FROM `repair_record`;"));
+            result.datas.AddRange(ServerConfig.RepairDb.Query<RepairRecord>("SELECT * FROM `repair_record` WHERE MarkedDelete = 0;"));
             return result;
         }
 
@@ -36,7 +36,7 @@ namespace ApiRepairManagement.Controllers
         {
             var result = new DataResult();
             var data =
-                ServerConfig.RepairDb.Query<RepairRecord>("SELECT * FROM `repair_record` WHERE Id = @id;", new { id }).FirstOrDefault();
+                ServerConfig.RepairDb.Query<RepairRecord>("SELECT * FROM `repair_record` WHERE Id = @id AND MarkedDelete = 0;", new { id }).FirstOrDefault();
             if (data == null)
             {
                 result.errno = Error.RepairRecordNotExist;
@@ -57,7 +57,7 @@ namespace ApiRepairManagement.Controllers
         public Result PutRepairRecord([FromRoute] int id, [FromBody] RepairRecord repairRecord)
         {
             var cnt =
-                ServerConfig.RepairDb.Query<int>("SELECT COUNT(1) FROM `repair_record` WHERE Id = @id;", new { id }).FirstOrDefault();
+                ServerConfig.RepairDb.Query<int>("SELECT COUNT(1) FROM `repair_record` WHERE Id = @id AND MarkedDelete = 0;", new { id }).FirstOrDefault();
             if (cnt == 0)
             {
                 return Result.GenError<Result>(Error.RepairRecordNotExist);
@@ -78,7 +78,7 @@ namespace ApiRepairManagement.Controllers
         public Result PostRepairRecord([FromBody] RepairRecord repairRecord)
         {
             var cnt =
-                ServerConfig.RepairDb.Query<int>("SELECT COUNT(1) FROM `fault_type` WHERE Id = @id;", new { id = repairRecord.FaultTypeId }).FirstOrDefault();
+                ServerConfig.RepairDb.Query<int>("SELECT COUNT(1) FROM `fault_type` WHERE Id = @id AND MarkedDelete = 0;", new { id = repairRecord.FaultTypeId }).FirstOrDefault();
             if (cnt == 0)
             {
                 return Result.GenError<Result>(Error.FaultTypeNotExist);
@@ -103,7 +103,7 @@ namespace ApiRepairManagement.Controllers
         public Result DeleteRepairRecord([FromRoute] int id)
         {
             var cnt =
-                ServerConfig.RepairDb.Query<int>("SELECT COUNT(1) FROM `repair_record` WHERE Id = @id;", new { id }).FirstOrDefault();
+                ServerConfig.RepairDb.Query<int>("SELECT COUNT(1) FROM `repair_record` WHERE Id = @id AND MarkedDelete = 0;", new { id }).FirstOrDefault();
             if (cnt == 0)
             {
                 return Result.GenError<Result>(Error.RepairRecordNotExist);

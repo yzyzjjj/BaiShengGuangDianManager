@@ -11,6 +11,11 @@ namespace ApiDeviceManagement.Models
         public int ModifyId { get; set; }
         public int DeviceModelId { get; set; }
         public string ScriptName { get; set; }
+        public int ValueNumber { get; set; }
+        public int InputNumber { get; set; }
+        public int OutputNumber { get; set; }
+        public string HeartPacket { get; set; }
+
 
     }
 }

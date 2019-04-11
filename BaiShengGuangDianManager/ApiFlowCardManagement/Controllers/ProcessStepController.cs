@@ -1,7 +1,7 @@
 ﻿using ApiFlowCardManagement.Base.Server;
 using ApiFlowCardManagement.Models;
 using Microsoft.AspNetCore.Mvc;
-using ModelBase.Base.ServerConfig.Enum;
+using ModelBase.Base.EnumConfig;
 using ModelBase.Models.Result;
 using ServiceStack;
 using System;

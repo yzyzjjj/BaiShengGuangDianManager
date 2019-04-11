@@ -4,7 +4,7 @@ using System.Linq;
 using ApiDeviceManagement.Base.Server;
 using ApiDeviceManagement.Models;
 using Microsoft.AspNetCore.Mvc;
-using ModelBase.Base.ServerConfig.Enum;
+using ModelBase.Base.EnumConfig;
 using ModelBase.Base.Utils;
 using ModelBase.Models.Result;
 
@@ -82,8 +82,8 @@ namespace ApiDeviceManagement.Controllers
             scriptVersion.CreateUserId = Request.GetIdentityInformation();
             scriptVersion.MarkedDateTime = DateTime.Now;
             ServerConfig.DeviceDb.Execute(
-                "UPDATE script_version SET `CreateUserId` = @CreateUserId, `MarkedDateTime` = @MarkedDateTime, `MarkedDelete` = @MarkedDelete, `ModifyId` = @ModifyId, " +
-                "`DeviceModelId` = @DeviceModelId, `ScriptName` = @ScriptName WHERE `Id` = @Id;", scriptVersion);
+                "UPDATE script_version SET `CreateUserId` = @CreateUserId, `MarkedDateTime` = @MarkedDateTime, `MarkedDelete` = @MarkedDelete, `ModifyId` = @ModifyId, `DeviceModelId` = @DeviceModelId, `ScriptName` = @ScriptName, " +
+                "`ValueNumber` = @ValueNumber, `InputNumber` = @InputNumber, `OutputNumber` = @OutputNumber, `HeartPacket` = @HeartPacket WHERE `Id` = @Id;", scriptVersion);
 
             return Result.GenError<Result>(Error.Success);
         }
@@ -95,8 +95,8 @@ namespace ApiDeviceManagement.Controllers
             scriptVersion.CreateUserId = Request.GetIdentityInformation();
             scriptVersion.MarkedDateTime = DateTime.Now;
             ServerConfig.DeviceDb.Execute(
-                "INSERT INTO script_version (`CreateUserId`, `MarkedDateTime`, `MarkedDelete`, `ModifyId`, `DeviceModelId`, `ScriptName`) " +
-                "VALUES (@CreateUserId, @MarkedDateTime, @MarkedDelete, @ModifyId, @DeviceModelId, @ScriptName);",
+                "INSERT INTO script_version (`CreateUserId`, `MarkedDateTime`, `MarkedDelete`, `ModifyId`, `DeviceModelId`, `ScriptName`, `ValueNumber`, `InputNumber`, `OutputNumber`, `HeartPacket`) " +
+                "VALUES (@CreateUserId, @MarkedDateTime, @MarkedDelete, @ModifyId, @DeviceModelId, @ScriptName, @ValueNumber, @InputNumber, @OutputNumber, @HeartPacket);",
                 scriptVersion);
 
             return Result.GenError<Result>(Error.Success);
@@ -112,8 +112,8 @@ namespace ApiDeviceManagement.Controllers
                 scriptVersion.MarkedDateTime = DateTime.Now;
             }
             ServerConfig.DeviceDb.Execute(
-                "INSERT INTO script_version (`CreateUserId`, `MarkedDateTime`, `MarkedDelete`, `ModifyId`, `DeviceModelId`, `ScriptName`) " +
-                "VALUES (@CreateUserId, @MarkedDateTime, @MarkedDelete, @ModifyId, @DeviceModelId, @ScriptName);",
+                "INSERT INTO script_version (`CreateUserId`, `MarkedDateTime`, `MarkedDelete`, `ModifyId`, `DeviceModelId`, `ScriptName`, `ValueNumber`, `InputNumber`, `OutputNumber`, `HeartPacket`) " +
+                "VALUES (@CreateUserId, @MarkedDateTime, @MarkedDelete, @ModifyId, @DeviceModelId, @ScriptName, @ValueNumber, @InputNumber, @OutputNumber, @HeartPacket);",
                 scriptVersions);
 
             return Result.GenError<Result>(Error.Success);

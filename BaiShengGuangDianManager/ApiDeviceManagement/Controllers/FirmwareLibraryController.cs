@@ -1,7 +1,7 @@
 ﻿using ApiDeviceManagement.Base.Server;
 using ApiDeviceManagement.Models;
 using Microsoft.AspNetCore.Mvc;
-using ModelBase.Base.ServerConfig.Enum;
+using ModelBase.Base.EnumConfig;
 using ModelBase.Models.Result;
 using System;
 using System.Linq;
