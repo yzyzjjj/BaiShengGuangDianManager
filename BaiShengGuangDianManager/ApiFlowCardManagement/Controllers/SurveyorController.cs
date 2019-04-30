@@ -22,7 +22,7 @@ namespace ApiFlowCardManagement.Controllers
         public DataResult GetSurveyor()
         {
             var result = new DataResult();
-            result.datas.AddRange(ServerConfig.FlowcardDb.Query<Surveyor>("SELECT * FROM `surveyor`;"));
+            result.datas.AddRange(ServerConfig.FlowCardDb.Query<Surveyor>("SELECT * FROM `surveyor` WHERE MarkedDelete = 0;"));
             return result;
         }
         /// <summary>
@@ -36,7 +36,7 @@ namespace ApiFlowCardManagement.Controllers
         {
             var result = new DataResult();
             var data =
-                ServerConfig.FlowcardDb.Query<Surveyor>("SELECT * FROM `surveyor` WHERE Id = @id;", new { id }).FirstOrDefault();
+                ServerConfig.FlowCardDb.Query<Surveyor>("SELECT * FROM `surveyor` WHERE Id = @id AND MarkedDelete = 0;", new { id }).FirstOrDefault();
             if (data == null)
             {
                 result.errno = Error.SurveyorNotExist;
@@ -57,7 +57,7 @@ namespace ApiFlowCardManagement.Controllers
         public Result PutSurveyor([FromRoute] int id, [FromBody] Surveyor surveyor)
         {
             var cnt =
-                ServerConfig.FlowcardDb.Query<int>("SELECT COUNT(1) FROM `surveyor` WHERE Id = @id;", new { id }).FirstOrDefault();
+                ServerConfig.FlowCardDb.Query<int>("SELECT COUNT(1) FROM `surveyor` WHERE Id = @id AND MarkedDelete = 0;", new { id }).FirstOrDefault();
             if (cnt == 0)
             {
                 return Result.GenError<Result>(Error.SurveyorNotExist);
@@ -66,7 +66,7 @@ namespace ApiFlowCardManagement.Controllers
             surveyor.Id = id;
             surveyor.CreateUserId = Request.GetIdentityInformation();
             surveyor.MarkedDateTime = DateTime.Now;
-            ServerConfig.FlowcardDb.Execute(
+            ServerConfig.FlowCardDb.Execute(
                 "UPDATE surveyor SET `CreateUserId` = @CreateUserId, `MarkedDateTime` = @MarkedDateTime, `MarkedDelete` = @MarkedDelete, " +
                 "`ModifyId` = @ModifyId, `SurveyorName` = @SurveyorName WHERE `Id` = @Id;", surveyor);
 
@@ -79,7 +79,7 @@ namespace ApiFlowCardManagement.Controllers
         {
             surveyor.CreateUserId = Request.GetIdentityInformation();
             surveyor.MarkedDateTime = DateTime.Now;
-            ServerConfig.FlowcardDb.Execute(
+            ServerConfig.FlowCardDb.Execute(
                 "INSERT INTO surveyor (`CreateUserId`, `MarkedDateTime`, `MarkedDelete`, `ModifyId`, `SurveyorName`) " +
                 "VALUES (@CreateUserId, @MarkedDateTime, @MarkedDelete, @ModifyId, @SurveyorName);",
                 surveyor);
@@ -96,7 +96,7 @@ namespace ApiFlowCardManagement.Controllers
                 surveyor.CreateUserId = Request.GetIdentityInformation();
                 surveyor.MarkedDateTime = DateTime.Now;
             }
-            ServerConfig.FlowcardDb.Execute(
+            ServerConfig.FlowCardDb.Execute(
                 "INSERT INTO surveyor (`CreateUserId`, `MarkedDateTime`, `MarkedDelete`, `ModifyId`, `SurveyorName`) " +
                 "VALUES (@CreateUserId, @MarkedDateTime, @MarkedDelete, @ModifyId, @SurveyorName);",
                 surveyors);
@@ -114,13 +114,13 @@ namespace ApiFlowCardManagement.Controllers
         public Result DeleteSurveyor([FromRoute] int id)
         {
             var cnt =
-                ServerConfig.FlowcardDb.Query<int>("SELECT COUNT(1) FROM `surveyor` WHERE Id = @id;", new { id }).FirstOrDefault();
+                ServerConfig.FlowCardDb.Query<int>("SELECT COUNT(1) FROM `surveyor` WHERE Id = @id AND MarkedDelete = 0;", new { id }).FirstOrDefault();
             if (cnt == 0)
             {
                 return Result.GenError<Result>(Error.SurveyorNotExist);
             }
 
-            ServerConfig.FlowcardDb.Execute(
+            ServerConfig.FlowCardDb.Execute(
                 "UPDATE `surveyor` SET  `MarkedDateTime`= @MarkedDateTime, `MarkedDelete`= @MarkedDelete WHERE `Id`= @Id;", new
                 {
                     MarkedDateTime = DateTime.Now,

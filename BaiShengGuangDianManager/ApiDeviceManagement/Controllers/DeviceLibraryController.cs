@@ -1,4 +1,5 @@
-﻿using ApiDeviceManagement.Base.Server;
+﻿using ApiDeviceManagement.Base.Control;
+using ApiDeviceManagement.Base.Server;
 using ApiDeviceManagement.Models;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore.Internal;
@@ -253,7 +254,7 @@ namespace ApiDeviceManagement.Controllers
                 return Result.GenError<DataResult>(Error.UsuallyDictionaryNotExist);
             }
 
-            var usuallyDictionaryTypes = ServerConfig.DeviceDb.Query<UsuallyDictionaryType>("SELECT `Id` FROM `usually_dictionary_type` WHERE MarkedDelete = 0;");
+            var usuallyDictionaryTypes = ServerConfig.DeviceDb.Query<UsuallyDictionaryType>("SELECT `Id` FROM `usually_dictionary_type` WHERE MarkedDelete = 0 AND IsDetail = 1;");
             if (!usuallyDictionaryTypes.Any())
             {
                 return Result.GenError<DataResult>(Error.UsuallyDictionaryTypeNotExist);
@@ -261,12 +262,14 @@ namespace ApiDeviceManagement.Controllers
 
             var result = new DataResult();
             var url = ServerConfig.GateUrl + UrlMappings.Urls["sendBackGate"];
+            var msg = new DeviceInfoMessagePacket(scriptVersion.ValueNumber, scriptVersion.InputNumber,
+                scriptVersion.OutputNumber);
             //向GateProxyLink请求数据
             var resp = HttpServer.Post(url, new Dictionary<string, string>{
                 {"deviceInfo",new DeviceInfo
                 {
                      DeviceId = id,
-                    Instruction = scriptVersion.HeartPacket
+                    Instruction = msg.Serialize()
                 }.ToJSON()}
             });
             if (resp != "fail")
@@ -279,8 +282,8 @@ namespace ApiDeviceManagement.Controllers
                         if (dataResult.messages.Any())
                         {
                             var data = dataResult.messages.First().Item2;
-                            var datas = data.Split(",");
-                            if (datas.Any())
+                            var res = msg.Deserialize(data);
+                            if (res != null)
                             {
                                 foreach (var usuallyDictionaryType in usuallyDictionaryTypes)
                                 {
@@ -289,13 +292,49 @@ namespace ApiDeviceManagement.Controllers
                                             x => x.VariableNameId == usuallyDictionaryType.Id);
                                     if (usuallyDictionary != null)
                                     {
-                                        var start = 1 + 1 + 4 + 4 + 4 * (usuallyDictionary.DictionaryId - 1);
-                                        if (start + 4 <= datas.Length)
+                                        var v = string.Empty;
+                                        var dId = usuallyDictionary.DictionaryId;
+                                        switch (usuallyDictionary.VariableTypeId)
                                         {
-                                            var str = datas.Skip(start).Take(4).Reverse().Join("");
-                                            var v = Convert.ToInt32(str, 16);
-                                            result.datas.Add(new Tuple<int, int>(usuallyDictionaryType.Id, v));
+                                            case 1:
+                                                if (((List<int>)res.vals).Count >= usuallyDictionary.DictionaryId)
+                                                {
+                                                    v = res.vals[dId].ToString();
+                                                    if (usuallyDictionary.Id == 6)
+                                                    {
+                                                        var flowCard = ServerConfig.FlowCardDb.Query<dynamic>("SELECT FlowCardName, ProductionProcessId FROM `flowcard_library` WHERE Id = @id AND MarkedDelete = 0;",
+                                                            new { id = v }).FirstOrDefault();
+                                                        if (flowCard != null)
+                                                        {
+                                                            v = flowCard.FlowCardName;
+                                                            var processNumber = ServerConfig.ProcessDb.Query<dynamic>(
+                                                                "SELECT Id, ProcessNumber FROM `process_management` WHERE FIND_IN_SET(@DeviceId, DeviceIds) AND FIND_IN_SET(@ProductModel, ProductModels) AND MarkedDelete = 0;", new
+                                                                {
+                                                                    DeviceId = id,
+                                                                    ProductModel = flowCard.ProductionProcessId
+                                                                }).FirstOrDefault();
+                                                            if (processNumber != null)
+                                                            {
+                                                                result.datas.Add(new Tuple<int, string>(-1, processNumber.ProcessNumber));
+                                                            }
+                                                        }
+                                                    }
+                                                }
+                                                break;
+                                            case 2:
+                                                if (((List<int>)res.ins).Count >= usuallyDictionary.DictionaryId)
+                                                {
+                                                    v = res.ins[dId].ToString();
+                                                }
+                                                break;
+                                            case 3:
+                                                if (((List<int>)res.outs).Count >= usuallyDictionary.DictionaryId)
+                                                {
+                                                    v = res.outs[dId].ToString();
+                                                }
+                                                break;
                                         }
+                                        result.datas.Add(new Tuple<int, string>(usuallyDictionaryType.Id, v));
                                     }
                                 }
                             }
@@ -519,8 +558,6 @@ namespace ApiDeviceManagement.Controllers
             return Result.GenError<Result>(Error.Success);
         }
 
-
-
         // POST: api/DeviceLibrary
         [HttpPost]
         public Result PostDeviceLibrary([FromBody] DeviceLibrary deviceLibrary)
@@ -604,11 +641,123 @@ namespace ApiDeviceManagement.Controllers
             }, "addDeviceGate", "PostDeviceLibrary");
             return Result.GenError<Result>(Error.Success);
         }
+        public class ProcessInfo
+        {
+            //设备id
+            public int DeviceId;
+            //工艺编号id
+            public int ProcessId;
+            //流程卡id
+            public int FlowCardId;
+        }
+        // POST: api/DeviceLibrary/SetProcessStep
+        [HttpPost("SetProcessStep")]
+        public Result PostDeviceLibrarySetProcessStep([FromBody] ProcessInfo processInfo)
+        {
+            var processDatas =
+                ServerConfig.ProcessDb.Query<dynamic>("SELECT * FROM `process_data` WHERE ProcessManagementId = @ProcessId AND MarkedDelete = 0 ORDER BY ProcessOrder;", new
+                {
+                    processInfo.ProcessId,
+                });
+            if (!processDatas.Any())
+            {
+                return Result.GenError<Result>(Error.ProcessStepNotExist);
+            }
 
+            var device =
+                ServerConfig.DeviceDb.Query<DeviceLibrary>("SELECT * FROM `device_library` WHERE Id = @DeviceId AND `MarkedDelete` = 0;", new { processInfo.DeviceId }).FirstOrDefault();
+            if (device == null)
+            {
+                return Result.GenError<Result>(Error.DeviceNotExist);
+            }
 
+            var dictionaryIds =
+                ServerConfig.DeviceDb.Query<UsuallyDictionaryDetail>("SELECT a.Id, VariableName, DictionaryId FROM `usually_dictionary_type` a JOIN `usually_dictionary` b " +
+                                                     "ON a.Id = b.VariableNameId WHERE b.ScriptId = @ScriptId AND a.MarkedDelete = 0 ORDER BY a.Id;", new
+                                                     {
+                                                         device.ScriptId,
+                                                     });
+            if (!dictionaryIds.Any())
+            {
+                return Result.GenError<Result>(Error.UsuallyDictionaryTypeNotExist);
+            }
 
+            var messagePacket = new SetValMessagePacket();
+            var key = new[]
+            {
+                "加压时间分",
+                "加压时间秒",
+                "工艺时间分",
+                "工艺时间秒",
+                "设定压力",
+                "下盘速度",
+            };
+            var i = 1;
+            foreach (var processData in processDatas)
+            {
+                var j = 0;
+                if (dictionaryIds.Any(x => x.VariableName == key[j] + i))
+                {
+                    messagePacket.Vals.Add(dictionaryIds.First(x => x.VariableName == key[j] + i).DictionaryId, processData.PressurizeMinute);
+                }
+                j = 1;
+                if (dictionaryIds.Any(x => x.VariableName == key[j] + i))
+                {
+                    messagePacket.Vals.Add(dictionaryIds.First(x => x.VariableName == key[j] + i).DictionaryId, processData.PressurizeSecond);
+                }
+                j = 2;
+                if (dictionaryIds.Any(x => x.VariableName == key[j] + i))
+                {
+                    messagePacket.Vals.Add(dictionaryIds.First(x => x.VariableName == key[j] + i).DictionaryId, processData.ProcessMinute);
+                }
+                j = 3;
+                if (dictionaryIds.Any(x => x.VariableName == key[j] + i))
+                {
+                    messagePacket.Vals.Add(dictionaryIds.First(x => x.VariableName == key[j] + i).DictionaryId, processData.ProcessSecond);
+                }
+                j = 4;
+                if (dictionaryIds.Any(x => x.VariableName == key[j] + i))
+                {
+                    messagePacket.Vals.Add(dictionaryIds.First(x => x.VariableName == key[j] + i).DictionaryId, processData.Pressure);
+                }
+                j = 5;
+                if (dictionaryIds.Any(x => x.VariableName == key[j] + i))
+                {
+                    messagePacket.Vals.Add(dictionaryIds.First(x => x.VariableName == key[j] + i).DictionaryId, processData.Speed);
+                }
 
+                i++;
+            }
 
+            if (dictionaryIds.Any(x => x.Id == 6))
+            {
+                messagePacket.Vals.Add(dictionaryIds.First(x => x.Id == 6).DictionaryId, processInfo.FlowCardId);
+            }
+            var msg = messagePacket.Serialize();
+            var url = ServerConfig.GateUrl + UrlMappings.Urls["sendBackGate"];
+            //向GateProxyLink请求数据
+            var resp = HttpServer.Post(url, new Dictionary<string, string>{
+                {"deviceInfo",new DeviceInfo
+                {
+                    DeviceId = processInfo.DeviceId,
+                    Instruction = msg
+                }.ToJSON()}
+            });
+            if (resp != "fail")
+            {
+                var dataResult = JsonConvert.DeserializeObject<MessageResult>(resp);
+                if (dataResult.errno == Error.Success)
+                {
+                    if (dataResult.messages.Any())
+                    {
+                        var data = dataResult.messages.First().Item2;
+                        var res = messagePacket.Deserialize(data);
+                        return Result.GenError<Result>(res == 0 ? Error.Success : Error.Fail);
+                    }
+                }
+            }
+            return Result.GenError<Result>(Error.Fail);
+        }
 
         // DELETE: api/DeviceLibrary/5
         [HttpDelete("{id}")]

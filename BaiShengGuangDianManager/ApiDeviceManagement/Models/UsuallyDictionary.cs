@@ -12,6 +12,12 @@ namespace ApiDeviceManagement.Models
         public int ScriptId { get; set; }
         public int VariableNameId { get; set; }
         public int DictionaryId { get; set; }
+        public int VariableTypeId { get; set; }
+
+    }
+    public class UsuallyDictionaryDetail: UsuallyDictionary
+    {
+        public string VariableName { get; set; }
 
     }
 }

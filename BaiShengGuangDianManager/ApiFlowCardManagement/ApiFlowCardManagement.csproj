@@ -5,6 +5,11 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <Compile Remove="Controllers\ProcessStepProductionProcessController.cs" />
+    <Compile Remove="Controllers\RawMateriaSpecificationController.cs" />
+  </ItemGroup>
+
+  <ItemGroup>
     <Folder Include="wwwroot\" />
   </ItemGroup>
 

@@ -1,4 +1,5 @@
 ﻿using System;
+using Newtonsoft.Json;
 
 namespace ApiDeviceManagement.Models
 {
@@ -14,8 +15,11 @@ namespace ApiDeviceManagement.Models
         public int ValueNumber { get; set; }
         public int InputNumber { get; set; }
         public int OutputNumber { get; set; }
+        [JsonIgnore]
         public string HeartPacket { get; set; }
-
-
+    }
+    public class ScriptVersionDetail: ScriptVersion
+    {
+        public string ModelName { get; set; }
     }
 }

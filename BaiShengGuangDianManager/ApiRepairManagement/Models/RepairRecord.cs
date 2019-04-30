@@ -1,9 +1,8 @@
 ﻿using System;
-using System.Collections.Generic;
 
 namespace ApiRepairManagement.Models
 {
-    public partial class RepairRecord
+    public class RepairRecord
     {
         public int Id { get; set; }
         public string CreateUserId { get; set; }
@@ -19,5 +18,9 @@ namespace ApiRepairManagement.Models
         public DateTime SolveTime { get; set; }
         public string SolvePlan { get; set; }
         public int FaultTypeId { get; set; }
+    }
+    public class RepairRecordDetail : RepairRecord
+    {
+        public string FaultTypeName { get; set; }
     }
 }

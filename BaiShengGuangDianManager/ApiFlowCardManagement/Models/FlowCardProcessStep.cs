@@ -2,19 +2,19 @@
 
 namespace ApiFlowCardManagement.Models
 {
-    public class ProcessStep
+    public class FlowCardProcessStep
     {
         public int Id { get; set; }
         public string CreateUserId { get; set; }
         public DateTime MarkedDateTime { get; set; }
         public bool MarkedDelete { get; set; }
         public int ModifyId { get; set; }
-        public int ProductionProcessId { get; set; }
+        public int FlowCardId { get; set; }
         public int ProcessStepOrder { get; set; }
         public string ProcessStepName { get; set; }
-        public string ProcessSteprequirements { get; set; }
+        public string ProcessStepRequirements { get; set; }
         public int ProcessorId { get; set; }
-        public DateTime ProcessorTime { get; set; }
+        public DateTime ProcessTime { get; set; }
         public int SurveyorId { get; set; }
         public DateTime SurveyTime { get; set; }
         public int QualifiedNumber { get; set; }
@@ -23,7 +23,7 @@ namespace ApiFlowCardManagement.Models
 
     }
 
-    public class ProcessStepDetail : ProcessStep
+    public class FlowCardProcessStepDetail : FlowCardProcessStep
     {
         public string ProcessorName { get; set; }
         public string SurveyorName { get; set; }

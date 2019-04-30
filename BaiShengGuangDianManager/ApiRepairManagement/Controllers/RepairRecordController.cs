@@ -21,7 +21,7 @@ namespace ApiRepairManagement.Controllers
         public DataResult GetRepairRecord()
         {
             var result = new DataResult();
-            result.datas.AddRange(ServerConfig.RepairDb.Query<RepairRecord>("SELECT * FROM `repair_record` WHERE MarkedDelete = 0;"));
+            result.datas.AddRange(ServerConfig.RepairDb.Query<RepairRecordDetail>("SELECT a.*, b.FaultTypeName FROM `repair_record` a JOIN `fault_type` b ON a.FaultTypeId = b.Id WHERE a.MarkedDelete = 0;"));
             return result;
         }
 
@@ -36,7 +36,7 @@ namespace ApiRepairManagement.Controllers
         {
             var result = new DataResult();
             var data =
-                ServerConfig.RepairDb.Query<RepairRecord>("SELECT * FROM `repair_record` WHERE Id = @id AND MarkedDelete = 0;", new { id }).FirstOrDefault();
+                ServerConfig.RepairDb.Query<RepairRecordDetail>("SELECT a.*, b.FaultTypeName FROM `repair_record` a JOIN `fault_type` b ON a.FaultTypeId = b.Id WHERE a.MarkedDelete = 0 AND a.Id = @id;", new { id }).FirstOrDefault();
             if (data == null)
             {
                 result.errno = Error.RepairRecordNotExist;
@@ -68,7 +68,8 @@ namespace ApiRepairManagement.Controllers
             repairRecord.MarkedDateTime = DateTime.Now;
             ServerConfig.RepairDb.Execute(
                 "UPDATE repair_record SET `CreateUserId` = @CreateUserId, `MarkedDateTime` = @MarkedDateTime, `MarkedDelete` = @MarkedDelete, `ModifyId` = @ModifyId, " +
-                "`DeviceCode` = @DeviceCode, `FaultTime` = @FaultTime, `Proposer` = @Proposer, `FaultDescription` = @FaultDescription, `Priority` = @Priority WHERE `Id` = @Id;", repairRecord);
+                "`DeviceCode` = @DeviceCode, `FaultTime` = @FaultTime, `Proposer` = @Proposer, `FaultDescription` = @FaultDescription, `Priority` = @Priority, " +
+                "`FaultSolver` = @FaultSolver, `SolveTime` = @SolveTime, `SolvePlan` = @SolvePlan, `FaultTypeId` = @FaultTypeId WHERE `Id` = @Id;", repairRecord);
 
             return Result.GenError<Result>(Error.Success);
         }

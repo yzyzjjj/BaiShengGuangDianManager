@@ -8,11 +8,13 @@ namespace ApiFlowCardManagement.Base.Server
     public class ServerConfig
     {
         public static DataBase DeviceDb;
-        public static DataBase FlowcardDb;
+        public static DataBase FlowCardDb;
+        public static DataBase ProcessDb;
         public static void Init(IConfiguration configuration)
         {
-            FlowcardDb = new DataBase(configuration.GetConnectionString("FlowcardDb"));
             DeviceDb = new DataBase(configuration.GetConnectionString("DeviceDb"));
+            FlowCardDb = new DataBase(configuration.GetConnectionString("FlowCardDb"));
+            ProcessDb = new DataBase(configuration.GetConnectionString("ProcessDb"));
 
             Log.InfoFormat("ServerConfig Done");
         }

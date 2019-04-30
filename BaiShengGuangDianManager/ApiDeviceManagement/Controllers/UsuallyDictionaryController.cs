@@ -71,6 +71,7 @@ namespace ApiDeviceManagement.Controllers
                 "UPDATE data_name_dictionary SET `CreateUserId` = @CreateUserId, `MarkedDateTime` = @MarkedDateTime, `MarkedDelete` = @MarkedDelete, `ModifyId` = @ModifyId, `ScriptId` = @ScriptId, " +
                 "`VariableTypeId` = @VariableTypeId, `PointerAddress` = @PointerAddress, `VariableName` = @VariableName WHERE `Id` = @Id;", usuallyDictionary);
 
+            ServerConfig.RedisHelper.PublishToTable();
             return Result.GenError<Result>(Error.Success);
         }
 
@@ -85,6 +86,7 @@ namespace ApiDeviceManagement.Controllers
                 "VALUES (@CreateUserId, @MarkedDateTime, @MarkedDelete, @ModifyId, @ScriptId, @VariableTypeId, @PointerAddress, @VariableName);",
                 usuallyDictionary);
 
+            ServerConfig.RedisHelper.PublishToTable();
             return Result.GenError<Result>(Error.Success);
         }
 
@@ -102,6 +104,7 @@ namespace ApiDeviceManagement.Controllers
                 "VALUES (@CreateUserId, @MarkedDateTime, @MarkedDelete, @ModifyId, @ScriptId, @VariableTypeId, @PointerAddress, @VariableName);",
                 usuallyDictionaries);
 
+            ServerConfig.RedisHelper.PublishToTable();
             return Result.GenError<Result>(Error.Success);
         }
 
@@ -128,6 +131,7 @@ namespace ApiDeviceManagement.Controllers
                     MarkedDelete = true,
                     Id = id
                 });
+            ServerConfig.RedisHelper.PublishToTable();
             return Result.GenError<Result>(Error.Success);
         }
 

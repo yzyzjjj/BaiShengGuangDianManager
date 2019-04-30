@@ -13,6 +13,7 @@ namespace ApiDeviceManagement.Models
         public int VariableTypeId { get; set; }
         public int PointerAddress { get; set; }
         public string VariableName { get; set; }
+        public string Remark { get; set; } = "";
 
     }
 }

@@ -1,12 +1,13 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
+﻿using ApiDeviceManagement.Base.Control;
 using ApiDeviceManagement.Base.Server;
 using ApiDeviceManagement.Models;
 using Microsoft.AspNetCore.Mvc;
 using ModelBase.Base.EnumConfig;
 using ModelBase.Base.Utils;
 using ModelBase.Models.Result;
+using System;
+using System.Collections.Generic;
+using System.Linq;
 
 namespace ApiDeviceManagement.Controllers
 {
@@ -22,7 +23,7 @@ namespace ApiDeviceManagement.Controllers
         public DataResult GetScriptVersion()
         {
             var result = new DataResult();
-            result.datas.AddRange(ServerConfig.DeviceDb.Query<ScriptVersion>("SELECT * FROM `script_version` WHERE `MarkedDelete` = 0;"));
+            result.datas.AddRange(ServerConfig.DeviceDb.Query<ScriptVersionDetail>("SELECT a.*, b.ModelName FROM `script_version` a JOIN `device_model` b ON a.DeviceModelId = b.Id WHERE a.`MarkedDelete` = 0;"));
             return result;
         }
 
@@ -94,11 +95,17 @@ namespace ApiDeviceManagement.Controllers
         {
             scriptVersion.CreateUserId = Request.GetIdentityInformation();
             scriptVersion.MarkedDateTime = DateTime.Now;
+            var valN = scriptVersion.ValueNumber == 0 ? 300 : scriptVersion.ValueNumber;
+            var inN = scriptVersion.InputNumber == 0 ? 255 : scriptVersion.InputNumber;
+            var outN = scriptVersion.OutputNumber == 0 ? 255 : scriptVersion.OutputNumber;
+            var msg = new DeviceInfoMessagePacket(valN, inN, outN);
+            scriptVersion.HeartPacket = msg.Serialize();
             ServerConfig.DeviceDb.Execute(
                 "INSERT INTO script_version (`CreateUserId`, `MarkedDateTime`, `MarkedDelete`, `ModifyId`, `DeviceModelId`, `ScriptName`, `ValueNumber`, `InputNumber`, `OutputNumber`, `HeartPacket`) " +
                 "VALUES (@CreateUserId, @MarkedDateTime, @MarkedDelete, @ModifyId, @DeviceModelId, @ScriptName, @ValueNumber, @InputNumber, @OutputNumber, @HeartPacket);",
                 scriptVersion);
 
+            ServerConfig.RedisHelper.PublishToTable();
             return Result.GenError<Result>(Error.Success);
         }
 
@@ -110,12 +117,18 @@ namespace ApiDeviceManagement.Controllers
             {
                 scriptVersion.CreateUserId = Request.GetIdentityInformation();
                 scriptVersion.MarkedDateTime = DateTime.Now;
+                var valN = scriptVersion.ValueNumber == 0 ? 300 : scriptVersion.ValueNumber;
+                var inN = scriptVersion.InputNumber == 0 ? 255 : scriptVersion.InputNumber;
+                var outN = scriptVersion.OutputNumber == 0 ? 255 : scriptVersion.OutputNumber;
+                var msg = new DeviceInfoMessagePacket(valN, inN, outN);
+                scriptVersion.HeartPacket = msg.Serialize();
             }
             ServerConfig.DeviceDb.Execute(
                 "INSERT INTO script_version (`CreateUserId`, `MarkedDateTime`, `MarkedDelete`, `ModifyId`, `DeviceModelId`, `ScriptName`, `ValueNumber`, `InputNumber`, `OutputNumber`, `HeartPacket`) " +
                 "VALUES (@CreateUserId, @MarkedDateTime, @MarkedDelete, @ModifyId, @DeviceModelId, @ScriptName, @ValueNumber, @InputNumber, @OutputNumber, @HeartPacket);",
                 scriptVersions);
 
+            ServerConfig.RedisHelper.PublishToTable();
             return Result.GenError<Result>(Error.Success);
         }
 
@@ -142,6 +155,7 @@ namespace ApiDeviceManagement.Controllers
                     MarkedDelete = true,
                     Id = id
                 });
+            ServerConfig.RedisHelper.PublishToTable();
             return Result.GenError<Result>(Error.Success);
         }
 

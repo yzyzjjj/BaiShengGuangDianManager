@@ -22,7 +22,7 @@ namespace ApiProcessManagement.Controllers
         public DataResult GetProcessData()
         {
             var result = new DataResult();
-            result.datas.AddRange(ServerConfig.ProcessDb.Query<dynamic>("SELECT a.*, b.ProcessNumber FROM `process_data` a JOIN `process_management` b ON a.ProcessManagementId = b.Id;"));
+            result.datas.AddRange(ServerConfig.ProcessDb.Query<dynamic>("SELECT * FROM `process_data` WHERE MarkedDelete = 0;"));
             return result;
         }
 
@@ -37,7 +37,7 @@ namespace ApiProcessManagement.Controllers
         {
             var result = new DataResult();
             var data =
-                ServerConfig.ProcessDb.Query<ProcessData>("SELECT a.*, b.ProcessNumber FROM `process_data` a JOIN `process_management` b ON a.ProcessManagementId = b.Id WHERE a.Id = @id;", new { id }).FirstOrDefault();
+                ServerConfig.ProcessDb.Query<ProcessData>("SELECT * FROM `process_data` WHERE Id = @id AND MarkedDelete = 0;", new { id }).FirstOrDefault();
             if (data == null)
             {
                 result.errno = Error.ProcessDataNotExist;
@@ -50,21 +50,21 @@ namespace ApiProcessManagement.Controllers
         /// <summary>
         /// 工艺编号
         /// </summary>
-        /// <param name="processNumber">工艺编号</param>
+        /// <param name="id">工艺编号id</param>
         /// <returns></returns>
         // GET: api/ProcessData/ProcessNumber/5
-        [HttpGet("ProcessNumber/{processNumber}")]
-        public DataResult GetProcessData([FromRoute] string processNumber)
+        [HttpGet("ProcessNumber/{id}")]
+        public DataResult GetProcessDataByProcessNumber([FromRoute] int id)
         {
             var data =
-                ServerConfig.ProcessDb.Query<ProcessManagement>("SELECT `Id` FROM `process_management` WHERE ProcessNumber = @processNumber;", new { processNumber }).FirstOrDefault();
+                ServerConfig.ProcessDb.Query<ProcessManagement>("SELECT * FROM `process_management` WHERE Id = @id AND MarkedDelete = 0;", new { id }).FirstOrDefault();
             if (data == null)
             {
                 return Result.GenError<DataResult>(Error.ProcessManagementNotExist);
             }
 
             var result = new DataResult();
-            result.datas.AddRange(ServerConfig.ProcessDb.Query<ProcessData>("SELECT * FROM `process_data` a JOIN `process_management` b ON a.ProcessManagementId = b.Id WHERE a.Id = @Id;", new { data.Id }));
+            result.datas.AddRange(ServerConfig.ProcessDb.Query<ProcessData>("SELECT * FROM `process_data` WHERE ProcessManagementId = @Id AND MarkedDelete = 0;", new { data.Id }));
             return result;
         }
 
@@ -82,14 +82,14 @@ namespace ApiProcessManagement.Controllers
         public Result PutProcessData([FromRoute] int id, [FromBody] ProcessData processData)
         {
             var data =
-                ServerConfig.ProcessDb.Query<ProcessData>("SELECT * FROM `process_data` WHERE Id = @id;", new { id }).FirstOrDefault();
+                ServerConfig.ProcessDb.Query<ProcessData>("SELECT * FROM `process_data` WHERE Id = @id AND MarkedDelete = 0;", new { id }).FirstOrDefault();
             if (data == null)
             {
                 return Result.GenError<Result>(Error.ProcessDataNotExist);
             }
 
             var cnt =
-               ServerConfig.ProcessDb.Query<int>("SELECT COUNT(1) FROM `process_management` WHERE `Id` = @Id;", new { Id = processData.ProcessManagementId }).FirstOrDefault();
+               ServerConfig.ProcessDb.Query<int>("SELECT COUNT(1) FROM `process_management` WHERE `Id` = @Id AND MarkedDelete = 0;", new { Id = processData.ProcessManagementId }).FirstOrDefault();
             if (cnt == 0)
             {
                 return Result.GenError<DataResult>(Error.ProcessManagementNotExist);
@@ -112,7 +112,7 @@ namespace ApiProcessManagement.Controllers
         public Result PostProcessData([FromBody] ProcessData processData)
         {
             var cnt =
-                ServerConfig.ProcessDb.Query<int>("SELECT COUNT(1) FROM `process_management` WHERE `Id` = @Id;", new { Id = processData.ProcessManagementId }).FirstOrDefault();
+                ServerConfig.ProcessDb.Query<int>("SELECT COUNT(1) FROM `process_management` WHERE `Id` = @Id AND MarkedDelete = 0;", new { Id = processData.ProcessManagementId }).FirstOrDefault();
             if (cnt == 0)
             {
                 return Result.GenError<DataResult>(Error.ProcessManagementNotExist);
@@ -133,7 +133,7 @@ namespace ApiProcessManagement.Controllers
         {
             var processManagementIds = processDatas.GroupBy(x => x.ProcessManagementId).Select(x => x.Key);
             var cnt =
-                ServerConfig.ProcessDb.Query<int>("SELECT COUNT(1) FROM `process_management` WHERE `Id` IN @ProcessManagementId;", new
+                ServerConfig.ProcessDb.Query<int>("SELECT COUNT(1) FROM `process_management` WHERE `Id` IN @ProcessManagementId AND MarkedDelete = 0;", new
                 {
                     ProcessManagementId = processManagementIds
                 }).FirstOrDefault();
@@ -166,7 +166,7 @@ namespace ApiProcessManagement.Controllers
         public Result DeleteProcessData([FromRoute] int id)
         {
             var cnt =
-                ServerConfig.ProcessDb.Query<int>("SELECT COUNT(1) FROM `process_data` WHERE Id = @id;", new { id }).FirstOrDefault();
+                ServerConfig.ProcessDb.Query<int>("SELECT COUNT(1) FROM `process_data` WHERE Id = @id AND MarkedDelete = 0;", new { id }).FirstOrDefault();
             if (cnt == 0)
             {
                 return Result.GenError<Result>(Error.ProcessDataNotExist);
@@ -192,7 +192,7 @@ namespace ApiProcessManagement.Controllers
         public Result DeleteProcessData([FromRoute] string processNumber)
         {
             var data =
-                ServerConfig.ProcessDb.Query<ProcessManagement>("SELECT `Id` FROM `process_management` WHERE `ProcessNumber` = @processNumber;", new { processNumber }).FirstOrDefault();
+                ServerConfig.ProcessDb.Query<ProcessManagement>("SELECT `Id` FROM `process_management` WHERE `ProcessNumber` = @processNumber AND MarkedDelete = 0;", new { processNumber }).FirstOrDefault();
             if (data == null)
             {
                 return Result.GenError<DataResult>(Error.ProcessManagementNotExist);

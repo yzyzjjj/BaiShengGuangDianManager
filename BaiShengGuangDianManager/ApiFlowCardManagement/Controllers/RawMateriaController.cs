@@ -24,9 +24,18 @@ namespace ApiFlowCardManagement.Controllers
         public DataResult GetRawMateria()
         {
             var result = new DataResult();
-            result.datas.AddRange(ServerConfig.FlowcardDb.Query<RawMateria>("SELECT * FROM `raw_materia`;"));
+            var rawMaterias = ServerConfig.FlowCardDb.Query<RawMateria>("SELECT * FROM `raw_materia` WHERE MarkedDelete = 0;");
+            var rawMateriaSpecifications = ServerConfig.FlowCardDb.Query<RawMateriaSpecification>("SELECT * FROM `raw_materia_specification` WHERE MarkedDelete = 0;");
+            foreach (var rawMateria in rawMaterias)
+            {
+                var specifications = rawMateriaSpecifications.Where(x => x.RawMateriaId == rawMateria.Id);
+                rawMateria.RawMateriaSpecifications.AddRange(specifications);
+            }
+
+            result.datas.AddRange(rawMaterias);
             return result;
         }
+
         /// <summary>
         /// 自增Id
         /// </summary>
@@ -38,12 +47,15 @@ namespace ApiFlowCardManagement.Controllers
         {
             var result = new DataResult();
             var data =
-                ServerConfig.FlowcardDb.Query<RawMateria>("SELECT * FROM `raw_materia` WHERE Id = @id;", new { id }).FirstOrDefault();
+                ServerConfig.FlowCardDb.Query<RawMateria>("SELECT * FROM `raw_materia` WHERE Id = @id AND MarkedDelete = 0;", new { id }).FirstOrDefault();
             if (data == null)
             {
                 result.errno = Error.RawMateriaNotExist;
                 return result;
             }
+
+            var rawMateriaSpecifications = ServerConfig.FlowCardDb.Query<RawMateriaSpecification>("SELECT * FROM `raw_materia_specification` WHERE MarkedDelete = 0 AND RawMateriaId = @id;", new { id });
+            data.RawMateriaSpecifications.AddRange(rawMateriaSpecifications);
             result.datas.Add(data);
             return result;
         }
@@ -59,12 +71,15 @@ namespace ApiFlowCardManagement.Controllers
         {
             var result = new DataResult();
             var data =
-                ServerConfig.FlowcardDb.Query<RawMateria>("SELECT * FROM `raw_materia` WHERE RawMateriaName = @rawMateriaName;", new { rawMateriaName }).FirstOrDefault();
+                ServerConfig.FlowCardDb.Query<RawMateria>("SELECT * FROM `raw_materia` WHERE RawMateriaName = @rawMateriaName AND MarkedDelete = 0;", new { rawMateriaName }).FirstOrDefault();
             if (data == null)
             {
                 result.errno = Error.RawMateriaNotExist;
                 return result;
             }
+
+            var rawMateriaSpecifications = ServerConfig.FlowCardDb.Query<RawMateriaSpecification>("SELECT * FROM `raw_materia_specification` WHERE MarkedDelete = 0 AND RawMateriaId = @id;", new { id = data.Id });
+            data.RawMateriaSpecifications.AddRange(rawMateriaSpecifications);
             result.datas.Add(data);
             return result;
         }
@@ -79,15 +94,16 @@ namespace ApiFlowCardManagement.Controllers
         [HttpPut("Id/{id}")]
         public Result PutRawMateria([FromRoute] int id, [FromBody] RawMateria rawMateria)
         {
+
             var data =
-                ServerConfig.FlowcardDb.Query<RawMateria>("SELECT * FROM `raw_materia` WHERE Id = @id;", new { id }).FirstOrDefault();
+                ServerConfig.FlowCardDb.Query<RawMateria>("SELECT * FROM `raw_materia` WHERE Id = @id AND MarkedDelete = 0;", new { id }).FirstOrDefault();
             if (data == null)
             {
                 return Result.GenError<Result>(Error.RawMateriaNotExist);
             }
 
             var cnt =
-                ServerConfig.FlowcardDb.Query<int>("SELECT COUNT(1) FROM `raw_materia` WHERE RawMateriaName = @RawMateriaName;", new { rawMateria.RawMateriaName }).FirstOrDefault();
+                ServerConfig.FlowCardDb.Query<int>("SELECT COUNT(1) FROM `raw_materia` WHERE RawMateriaName = @RawMateriaName AND MarkedDelete = 0;", new { rawMateria.RawMateriaName }).FirstOrDefault();
             if (cnt > 0)
             {
                 if (!rawMateria.RawMateriaName.IsNullOrEmpty() && data.RawMateriaName != rawMateria.RawMateriaName)
@@ -96,12 +112,44 @@ namespace ApiFlowCardManagement.Controllers
                 }
             }
 
+            var createUserId = Request.GetIdentityInformation();
+            var time = DateTime.Now;
             rawMateria.Id = id;
-            rawMateria.CreateUserId = Request.GetIdentityInformation();
-            rawMateria.MarkedDateTime = DateTime.Now;
-            ServerConfig.FlowcardDb.Execute(
+            rawMateria.CreateUserId = createUserId;
+            rawMateria.MarkedDateTime = time;
+            ServerConfig.FlowCardDb.Execute(
                 "UPDATE raw_materia SET `CreateUserId` = @CreateUserId, `MarkedDateTime` = @MarkedDateTime, `MarkedDelete` = @MarkedDelete, " +
                 "`ModifyId` = @ModifyId, `RawMateriaName` = @RawMateriaName WHERE `Id` = @Id;", rawMateria);
+
+            if (rawMateria.RawMateriaSpecifications.Any())
+            {
+                var rawMateriaSpecifications = rawMateria.RawMateriaSpecifications;
+                foreach (var rawMateriaSpecification in rawMateriaSpecifications)
+                {
+                    rawMateriaSpecification.RawMateriaId = id;
+                    rawMateriaSpecification.CreateUserId = createUserId;
+                    rawMateriaSpecification.MarkedDateTime = time;
+                }
+                var existRawMateriaSpecifications = ServerConfig.FlowCardDb.Query<RawMateriaSpecification>("SELECT * FROM `raw_materia_specification` " +
+                                                                                                           "WHERE MarkedDelete = 0 AND RawMateriaId = @RawMateriaId;", new { RawMateriaId = id });
+                ServerConfig.FlowCardDb.Execute(
+                    "INSERT INTO raw_materia_specification (`CreateUserId`, `MarkedDateTime`, `MarkedDelete`, `ModifyId`, `RawMateriaId`, `SpecificationName`, `SpecificationValue`) " +
+                    "VALUES (@CreateUserId, @MarkedDateTime, @MarkedDelete, @ModifyId, @RawMateriaId, @SpecificationName, @SpecificationValue);",
+                    rawMateriaSpecifications.Where(x => x.Id == 0));
+
+                var updateRawMateriaSpecifications = rawMateriaSpecifications.Where(x => x.Id != 0
+                    && existRawMateriaSpecifications.Any(y => y.Id == x.Id && (y.SpecificationName != x.SpecificationName || y.SpecificationValue != x.SpecificationValue))).ToList();
+                updateRawMateriaSpecifications.AddRange(existRawMateriaSpecifications.Where(x => rawMateriaSpecifications.All(y => x.Id != y.Id)).Select(x =>
+                {
+                    x.MarkedDateTime = DateTime.Now;
+                    x.MarkedDelete = true;
+                    return x;
+                }));
+
+                ServerConfig.FlowCardDb.Execute(
+                    "UPDATE raw_materia_specification SET `CreateUserId` = @CreateUserId, `MarkedDateTime` = @MarkedDateTime, `MarkedDelete` = @MarkedDelete, `ModifyId` = @ModifyId, " +
+                    "`RawMateriaId` = @RawMateriaId, `SpecificationName` = @SpecificationName, `SpecificationValue` = @SpecificationValue WHERE `Id` = @Id;", updateRawMateriaSpecifications);
+            }
 
             return Result.GenError<Result>(Error.Success);
         }
@@ -117,13 +165,13 @@ namespace ApiFlowCardManagement.Controllers
         public Result PutRawMateria([FromRoute] string rawMateriaName, [FromBody] RawMateria rawMateria)
         {
             var data =
-                ServerConfig.FlowcardDb.Query<RawMateria>("SELECT `Id` FROM `raw_materia` WHERE RawMateriaName = @rawMateriaName;", new { rawMateriaName }).FirstOrDefault();
+                ServerConfig.FlowCardDb.Query<RawMateria>("SELECT `Id` FROM `raw_materia` WHERE RawMateriaName = @rawMateriaName AND MarkedDelete = 0;", new { rawMateriaName }).FirstOrDefault();
             if (data == null)
             {
                 return Result.GenError<Result>(Error.RawMateriaNotExist);
             }
             var cnt =
-                ServerConfig.FlowcardDb.Query<int>("SELECT COUNT(1) FROM `raw_materia` WHERE RawMateriaName = @RawMateriaName;", new { rawMateria.RawMateriaName }).FirstOrDefault();
+                ServerConfig.FlowCardDb.Query<int>("SELECT COUNT(1) FROM `raw_materia` WHERE RawMateriaName = @RawMateriaName AND MarkedDelete = 0;", new { rawMateria.RawMateriaName }).FirstOrDefault();
             if (cnt > 0)
             {
                 if (!rawMateria.RawMateriaName.IsNullOrEmpty() && data.RawMateriaName != rawMateria.RawMateriaName)
@@ -134,7 +182,7 @@ namespace ApiFlowCardManagement.Controllers
             rawMateria.Id = data.Id;
             rawMateria.CreateUserId = Request.GetIdentityInformation();
             rawMateria.MarkedDateTime = DateTime.Now;
-            ServerConfig.FlowcardDb.Execute(
+            ServerConfig.FlowCardDb.Execute(
                 "UPDATE raw_materia SET `CreateUserId` = @CreateUserId, `MarkedDateTime` = @MarkedDateTime, `MarkedDelete` = @MarkedDelete, " +
                 "`ModifyId` = @ModifyId, `RawMateriaName` = @RawMateriaName WHERE `Id` = @Id;", rawMateria);
 
@@ -145,20 +193,36 @@ namespace ApiFlowCardManagement.Controllers
         [HttpPost]
         public Result PostRawMateria([FromBody] RawMateria rawMateria)
         {
+            var createUserId = Request.GetIdentityInformation();
+            var time = DateTime.Now;
             var cnt =
-                ServerConfig.FlowcardDb.Query<int>("SELECT COUNT(1) FROM `raw_materia` WHERE RawMateriaName = @RawMateriaName;", new { rawMateria.RawMateriaName }).FirstOrDefault();
+                ServerConfig.FlowCardDb.Query<int>("SELECT COUNT(1) FROM `raw_materia` WHERE RawMateriaName = @RawMateriaName AND MarkedDelete = 0;", new { rawMateria.RawMateriaName }).FirstOrDefault();
             if (cnt > 0)
             {
                 return Result.GenError<Result>(Error.RawMateriaIsExist);
             }
 
-            rawMateria.CreateUserId = Request.GetIdentityInformation();
-            rawMateria.MarkedDateTime = DateTime.Now;
-            ServerConfig.FlowcardDb.Execute(
-                "INSERT INTO raw_materia (`CreateUserId`, `MarkedDateTime`, `MarkedDelete`, `ModifyId`, `RawMateriaName`) " +
-                "VALUES (@CreateUserId, @MarkedDateTime, @MarkedDelete, @ModifyId, @RawMateriaName);",
-                rawMateria);
+            rawMateria.CreateUserId = createUserId;
+            rawMateria.MarkedDateTime = time;
+            var index = ServerConfig.FlowCardDb.Query<int>(
+                 "INSERT INTO raw_materia (`CreateUserId`, `MarkedDateTime`, `MarkedDelete`, `ModifyId`, `RawMateriaName`) " +
+                 "VALUES (@CreateUserId, @MarkedDateTime, @MarkedDelete, @ModifyId, @RawMateriaName);SELECT LAST_INSERT_ID();",
+                 rawMateria).FirstOrDefault();
 
+            if (rawMateria.RawMateriaSpecifications.Any())
+            {
+                var rawMateriaRawMateriaSpecifications = rawMateria.RawMateriaSpecifications;
+                foreach (var rawMateriaSpecification in rawMateriaRawMateriaSpecifications)
+                {
+                    rawMateriaSpecification.RawMateriaId = index;
+                    rawMateriaSpecification.CreateUserId = createUserId;
+                    rawMateriaSpecification.MarkedDateTime = time;
+                }
+                ServerConfig.FlowCardDb.Execute(
+                    "INSERT INTO raw_materia_specification (`CreateUserId`, `MarkedDateTime`, `MarkedDelete`, `ModifyId`, `RawMateriaId`, `SpecificationName`, `SpecificationValue`) " +
+                    "VALUES (@CreateUserId, @MarkedDateTime, @MarkedDelete, @ModifyId, @RawMateriaId, @SpecificationName, @SpecificationValue);",
+                    rawMateriaRawMateriaSpecifications);
+            }
             return Result.GenError<Result>(Error.Success);
         }
 
@@ -167,7 +231,7 @@ namespace ApiFlowCardManagement.Controllers
         public Result PostRawMateria([FromBody] List<RawMateria> rawMaterias)
         {
             var cnt =
-                ServerConfig.FlowcardDb.Query<int>("SELECT COUNT(1) FROM `raw_materia` WHERE RawMateriaName IN @rawmateriaIds;", new
+                ServerConfig.FlowCardDb.Query<int>("SELECT COUNT(1) FROM `raw_materia` WHERE RawMateriaName IN @rawmateriaIds AND MarkedDelete = 0;", new
                 {
                     rawmateriaIds = rawMaterias.Select(x => x.RawMateriaName)
                 }).FirstOrDefault();
@@ -181,7 +245,7 @@ namespace ApiFlowCardManagement.Controllers
                 rawMateria.CreateUserId = Request.GetIdentityInformation();
                 rawMateria.MarkedDateTime = DateTime.Now;
             }
-            ServerConfig.FlowcardDb.Execute(
+            ServerConfig.FlowCardDb.Execute(
                 "INSERT INTO raw_materia (`CreateUserId`, `MarkedDateTime`, `MarkedDelete`, `ModifyId`, `RawMateriaName`) " +
                 "VALUES (@CreateUserId, @MarkedDateTime, @MarkedDelete, @ModifyId, @RawMateriaName);",
                 rawMaterias);
@@ -199,18 +263,26 @@ namespace ApiFlowCardManagement.Controllers
         public Result DeleteRawMateria([FromRoute] int id)
         {
             var cnt =
-                ServerConfig.FlowcardDb.Query<int>("SELECT COUNT(1) FROM `raw_materia` WHERE Id = @id;", new { id }).FirstOrDefault();
+                ServerConfig.FlowCardDb.Query<int>("SELECT COUNT(1) FROM `raw_materia` WHERE Id = @id AND MarkedDelete = 0;", new { id }).FirstOrDefault();
             if (cnt == 0)
             {
                 return Result.GenError<Result>(Error.RawMateriaNotExist);
             }
 
-            ServerConfig.FlowcardDb.Execute(
+            ServerConfig.FlowCardDb.Execute(
                 "UPDATE `raw_materia` SET  `MarkedDateTime`= @MarkedDateTime, `MarkedDelete`= @MarkedDelete WHERE `Id`= @Id;", new
                 {
                     MarkedDateTime = DateTime.Now,
                     MarkedDelete = true,
                     Id = id
+                });
+
+            ServerConfig.FlowCardDb.Execute(
+                "UPDATE `raw_materia_specification` SET  `MarkedDateTime`= @MarkedDateTime, `MarkedDelete`= @MarkedDelete WHERE `RawMateriaId`= @RawMateriaId;", new
+                {
+                    MarkedDateTime = DateTime.Now,
+                    MarkedDelete = true,
+                    RawMateriaId = id
                 });
             return Result.GenError<Result>(Error.Success);
         }
@@ -225,13 +297,13 @@ namespace ApiFlowCardManagement.Controllers
         public Result DeleteRawMateria([FromRoute] string rawMateriaName)
         {
             var cnt =
-                ServerConfig.FlowcardDb.Query<int>("SELECT COUNT(1) FROM `raw_materia` WHERE RawMateriaName = @rawMateriaName;", new { rawMateriaName }).FirstOrDefault();
+                ServerConfig.FlowCardDb.Query<int>("SELECT COUNT(1) FROM `raw_materia` WHERE RawMateriaName = @rawMateriaName AND MarkedDelete = 0;", new { rawMateriaName }).FirstOrDefault();
             if (cnt == 0)
             {
                 return Result.GenError<Result>(Error.RawMateriaNotExist);
             }
 
-            ServerConfig.FlowcardDb.Execute(
+            ServerConfig.FlowCardDb.Execute(
                 "UPDATE `raw_materia` SET  `MarkedDateTime`= @MarkedDateTime, `MarkedDelete`= @MarkedDelete WHERE `RawMateriaName`= @rawMateriaName;", new
                 {
                     MarkedDateTime = DateTime.Now,
