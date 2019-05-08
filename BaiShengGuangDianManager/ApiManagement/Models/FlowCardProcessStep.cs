@@ -20,6 +20,7 @@ namespace ApiManagement.Models
         public int QualifiedNumber { get; set; }
         public int UnqualifiedNumber { get; set; }
         public int DeviceId { get; set; }
+        public bool IsReport { get; set; }
 
     }
 

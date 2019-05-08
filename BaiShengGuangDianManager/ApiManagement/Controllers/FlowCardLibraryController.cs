@@ -1,13 +1,13 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using ApiManagement.Base.Server;
+﻿using ApiManagement.Base.Server;
 using ApiManagement.Models;
 using Microsoft.AspNetCore.Mvc;
 using ModelBase.Base.EnumConfig;
 using ModelBase.Base.Utils;
 using ModelBase.Models.Result;
 using ServiceStack;
+using System;
+using System.Collections.Generic;
+using System.Linq;
 
 namespace ApiManagement.Controllers
 {
@@ -83,38 +83,10 @@ namespace ApiManagement.Controllers
             return result;
         }
 
-        /// <summary>
-        /// 获取加工工序数据
-        /// </summary>
-        /// <param name="id"></param>
-        /// <returns></returns>
-        // GET: api/FlowCardLibrary/ProcessData/5
-        [HttpGet("ProcessData/{id}")]
-        public object GetFlowCardLibraryProcessDataById([FromRoute] int id)
+        public class QueryProcessData
         {
-            var cnt =
-                ServerConfig.ApiDb.Query<int>("SELECT COUNT(1) FROM `flowcard_library` WHERE MarkedDelete = 0 AND Id = @id;", new { id }).FirstOrDefault();
-            if (cnt == 0)
-            {
-                return Result.GenError<DataResult>(Error.ProductionProcessLibraryNotExist);
-            }
-
-            var processSteps =
-            ServerConfig.ApiDb.Query<FlowCardProcessStepDetail>("SELECT a.*, d.CategoryName, d.StepName, d.IsSurvey, IFNULL(b.ProcessorName, '') ProcessorName, IFNULL(c.SurveyorName, '') SurveyorName FROM `flowcard_process_step` a LEFT JOIN `processor` b ON a.ProcessorId = b.Id LEFT JOIN `surveyor` c ON a.SurveyorId = c.Id LEFT JOIN ( SELECT a.Id, a.StepName, a.IsSurvey, b.CategoryName FROM `device_process_step` a JOIN `device_category` b ON a.DeviceCategoryId = b.Id WHERE a.MarkedDelete = 0 ) d ON a.ProcessStepId = d.Id WHERE FlowCardId = @id AND a.MarkedDelete = 0;", new { id });
-
-            var processors = ServerConfig.ApiDb.Query<dynamic>("SELECT Id, `ProcessorName` FROM `processor` WHERE MarkedDelete = 0;");
-            var surveyors = ServerConfig.ApiDb.Query<dynamic>("SELECT Id, `SurveyorName` FROM `surveyor` WHERE MarkedDelete = 0;");
-            var deviceIds = ServerConfig.ApiDb.Query<dynamic>("SELECT Id, `Code` FROM `device_library` WHERE MarkedDelete = 0;");
-
-            return new
-            {
-                errno = 0,
-                errmsg = "成功",
-                processSteps,
-                processors,
-                surveyors,
-                deviceIds
-            };
+            public int Id;
+            public string FlowCard;
         }
 
         /// <summary>
@@ -508,7 +480,7 @@ namespace ApiManagement.Controllers
                 return Result.GenError<Result>(Error.FlowCardLibraryNotExist);
             }
 
-            var processorIds = flowCardProcessSteps.Select(x => x.ProcessorId).Where(x => x != 0);
+            var processorIds = flowCardProcessSteps.GroupBy(x => x.ProcessorId).Where(x => x.Key != 0).Select(x => x.Key);
             if (processorIds.Any())
             {
                 cnt =
@@ -518,7 +490,7 @@ namespace ApiManagement.Controllers
                     return Result.GenError<DataResult>(Error.ProcessorNotExist);
                 }
             }
-            var surveyorIds = flowCardProcessSteps.Select(x => x.SurveyorId).Where(x => x != 0);
+            var surveyorIds = flowCardProcessSteps.GroupBy(x => x.SurveyorId).Where(x => x.Key != 0).Select(x => x.Key);
             if (surveyorIds.Any())
             {
                 cnt =
@@ -528,7 +500,7 @@ namespace ApiManagement.Controllers
                     return Result.GenError<DataResult>(Error.SurveyorNotExist);
                 }
             }
-            var deviceIds = flowCardProcessSteps.Select(x => x.DeviceId).Where(x => x != 0);
+            var deviceIds = flowCardProcessSteps.GroupBy(x => x.DeviceId).Where(x => x.Key != 0).Select(x => x.Key);
             if (deviceIds.Any())
             {
                 cnt =
@@ -538,23 +510,92 @@ namespace ApiManagement.Controllers
                     return Result.GenError<DataResult>(Error.DeviceNotExist);
                 }
             }
+            var exist = ServerConfig.ApiDb.Query<FlowCardProcessStepDetail>("SELECT * FROM `flowcard_process_step` " +
+                                                                            "WHERE MarkedDelete = 0 AND FlowCardId = @FlowCardId;", new { FlowCardId = id });
+
+            var update = flowCardProcessSteps.Where(x => x.Id != 0 && exist.Any(y => y.Id == x.Id
+                         && ( y.ProcessorId != x.ProcessorId 
+                              || y.ProcessTime != x.ProcessTime 
+                              || y.SurveyorId != x.SurveyorId 
+                              || y.SurveyTime != x.SurveyTime
+                              || y.QualifiedNumber != x.QualifiedNumber
+                              || y.UnqualifiedNumber != x.UnqualifiedNumber
+                              || y.DeviceId != x.DeviceId))).ToList();
 
             var createUserId = Request.GetIdentityInformation();
             var time = DateTime.Now;
-            foreach (var processStep in flowCardProcessSteps)
+            foreach (var processStep in update)
             {
                 processStep.CreateUserId = createUserId;
                 processStep.MarkedDateTime = time;
+                processStep.IsReport = true;
             }
             ServerConfig.ApiDb.Execute(
                 "UPDATE flowcard_process_step SET `MarkedDateTime` = @MarkedDateTime, `ProcessorId` = @ProcessorId, `ProcessTime` = @ProcessTime, " +
                 "`SurveyorId` = @SurveyorId, `SurveyTime` = @SurveyTime, `QualifiedNumber` = @QualifiedNumber, `UnqualifiedNumber` = @UnqualifiedNumber, " +
-                "`DeviceId` = @DeviceId WHERE `Id` = @Id;", flowCardProcessSteps);
+                "`DeviceId` = @DeviceId, `IsReport` = @IsReport WHERE `Id` = @Id;", update);
 
             return Result.GenError<Result>(Error.Success);
         }
 
 
+
+        /// <summary>
+        /// 获取加工工序数据
+        /// </summary>
+        /// <param name="queryProcessData"></param>
+        /// <returns></returns>
+        // GET: api/FlowCardLibrary/ProcessData
+        [HttpPost("ProcessData")]
+        public object GetFlowCardLibraryProcessDataById([FromBody] QueryProcessData queryProcessData)
+        {
+            if (queryProcessData.Id != 0)
+            {
+                var cnt =
+                    ServerConfig.ApiDb.Query<int>("SELECT COUNT(1) FROM `flowcard_library` WHERE MarkedDelete = 0 AND Id = @Id;", new { queryProcessData.Id }).FirstOrDefault();
+                if (cnt == 0)
+                {
+                    return Result.GenError<DataResult>(Error.FlowCardLibraryNotExist);
+                }
+            }
+            else if (!queryProcessData.FlowCard.IsNullOrEmpty())
+            {
+                var cnt =
+                    ServerConfig.ApiDb.Query<int>("SELECT Id FROM `flowcard_library` WHERE MarkedDelete = 0 AND FlowCardName = @FlowCard;", new { queryProcessData.FlowCard }).FirstOrDefault();
+                if (cnt == 0)
+                {
+                    return Result.GenError<DataResult>(Error.FlowCardLibraryNotExist);
+                }
+
+                queryProcessData.Id = cnt;
+            }
+            else
+            {
+                return Result.GenError<DataResult>(Error.ParamError);
+            }
+
+            var processSteps =
+            ServerConfig.ApiDb.Query<FlowCardProcessStepDetail>("SELECT a.*, d.CategoryName, d.StepName, d.IsSurvey, IFNULL(b.ProcessorName, '') ProcessorName, " +
+                                                                "IFNULL(c.SurveyorName, '') SurveyorName, IFNULL(e.`Code`, '') `Code` FROM `flowcard_process_step` a LEFT JOIN `processor` " +
+                                                                "b ON a.ProcessorId = b.Id LEFT JOIN `surveyor` c ON a.SurveyorId = c.Id LEFT JOIN ( SELECT a.Id, " +
+                                                                "a.StepName, a.IsSurvey, b.CategoryName FROM `device_process_step` a JOIN `device_category` b " +
+                                                                "ON a.DeviceCategoryId = b.Id WHERE a.MarkedDelete = 0 ) d ON a.ProcessStepId = d.Id LEFT JOIN `device_library` " +
+                                                                "e ON a.DeviceId = e.Id WHERE FlowCardId = @Id AND a.MarkedDelete = 0;", new { queryProcessData.Id });
+
+            var processors = ServerConfig.ApiDb.Query<dynamic>("SELECT Id, `ProcessorName` FROM `processor` WHERE MarkedDelete = 0;");
+            var surveyors = ServerConfig.ApiDb.Query<dynamic>("SELECT Id, `SurveyorName` FROM `surveyor` WHERE MarkedDelete = 0;");
+            var deviceIds = ServerConfig.ApiDb.Query<dynamic>("SELECT Id, `Code` FROM `device_library` WHERE MarkedDelete = 0;");
+
+            return new
+            {
+                errno = 0,
+                errmsg = "成功",
+                processSteps,
+                processors,
+                surveyors,
+                deviceIds
+            };
+        }
 
 
 

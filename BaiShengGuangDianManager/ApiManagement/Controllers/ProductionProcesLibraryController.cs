@@ -24,7 +24,7 @@ namespace ApiManagement.Controllers
         public DataResult GetProductionProcessLibrary()
         {
             var result = new DataResult();
-            var productionLibraryDetails = ServerConfig.ApiDb.Query<ProductionLibraryDetail>("SELECT a.*, IFNULL(b.FlowCardCount, 0) FlowCardCount, IFNULL(b.RawMaterialQuantity, 0) AllRawMaterialQuantity, IFNULL(c.RawMaterialQuantity, 0) RawMaterialQuantity, IFNULL(c.Complete, 0) Complete, IFNULL(c.QualifiedNumber, 0) QualifiedNumber FROM `production_library` a LEFT JOIN ( SELECT ProductionProcessId, COUNT(1) FlowCardCount, SUM(RawMaterialQuantity) RawMaterialQuantity FROM `flowcard_library` GROUP BY ProductionProcessId ) b ON a.Id = b.ProductionProcessId LEFT JOIN ( SELECT a.ProductionProcessId, COUNT(1) Complete, SUM(a.QualifiedNumber) QualifiedNumber, SUM(a.RawMaterialQuantity) RawMaterialQuantity FROM ( SELECT * FROM ( SELECT b.ProductionProcessId, b.RawMaterialQuantity, FlowCardId, ProcessStepOrder, QualifiedNumber, ProcessTime FROM `flowcard_process_step` a JOIN `flowcard_library` b ON a.FlowCardId = b.Id WHERE a.MarkedDelete = 0 ORDER BY ProcessStepOrder DESC ) a GROUP BY a.FlowCardId ) a WHERE NOT ISNULL(a.ProcessTime) || a.ProcessTime = '0001-01-01 00:00:00' GROUP BY a.ProductionProcessId ) c ON a.Id = c.ProductionProcessId WHERE a.MarkedDelete = 0;");
+            var productionLibraryDetails = ServerConfig.ApiDb.Query<ProductionLibraryDetail>("SELECT a.*, IFNULL(b.FlowCardCount, 0) FlowCardCount, IFNULL(b.RawMaterialQuantity, 0) AllRawMaterialQuantity, IFNULL(c.RawMaterialQuantity, 0) RawMaterialQuantity, IFNULL(c.Complete, 0) Complete, IFNULL(c.QualifiedNumber, 0) QualifiedNumber FROM `production_library` a LEFT JOIN ( SELECT ProductionProcessId, COUNT(1) FlowCardCount, SUM(RawMaterialQuantity) RawMaterialQuantity FROM `flowcard_library` GROUP BY ProductionProcessId ) b ON a.Id = b.ProductionProcessId LEFT JOIN ( SELECT a.ProductionProcessId, COUNT(1) Complete, SUM(a.QualifiedNumber) QualifiedNumber, SUM(a.RawMaterialQuantity) RawMaterialQuantity FROM ( SELECT * FROM ( SELECT b.ProductionProcessId, b.RawMaterialQuantity, FlowCardId, ProcessStepOrder, QualifiedNumber, ProcessTime FROM `flowcard_process_step` a JOIN `flowcard_library` b ON a.FlowCardId = b.Id WHERE a.MarkedDelete = 0 ORDER BY ProcessStepOrder DESC ) a GROUP BY a.FlowCardId ) a WHERE NOT ISNULL(a.ProcessTime) || a.ProcessTime = '0001-01-01 00:00:00' GROUP BY a.ProductionProcessId ) c ON a.Id = c.ProductionProcessId WHERE a.MarkedDelete = 0 ORDER BY a.Id;");
 
             result.datas.AddRange(productionLibraryDetails);
             return result;
@@ -41,17 +41,17 @@ namespace ApiManagement.Controllers
         {
             var result = new DataResult();
             var data =
-                ServerConfig.ApiDb.Query<ProductionLibraryDetail>("SELECT * FROM `production_library` WHERE MarkedDelete = 0 AND Id = @id;", new { id }).FirstOrDefault();
+                ServerConfig.ApiDb.Query<ProductionLibraryDetail>("SELECT * FROM `production_library` WHERE MarkedDelete = 0 AND Id = @id ORDER BY Id;", new { id }).FirstOrDefault();
             if (data == null)
             {
                 result.errno = Error.ProductionProcessLibraryNotExist;
                 return result;
             }
-            data.ProcessSteps.AddRange(ServerConfig.ApiDb.Query<ProductionProcessStep>("SELECT a.*, b.CategoryName, b.StepName FROM `production_process_step` a JOIN ( SELECT a.Id, a.StepName, b.CategoryName FROM `device_process_step` a JOIN `device_category` b ON a.DeviceCategoryId = b.Id WHERE a.MarkedDelete = 0 ) b ON a.ProcessStepId = b.Id WHERE ProductionProcessId = @ProductionProcessId AND a.MarkedDelete = 0;", new
+            data.ProcessSteps.AddRange(ServerConfig.ApiDb.Query<ProductionProcessStep>("SELECT a.*, b.CategoryName, b.StepName FROM `production_process_step` a JOIN ( SELECT a.Id, a.StepName, b.CategoryName FROM `device_process_step` a JOIN `device_category` b ON a.DeviceCategoryId = b.Id WHERE a.MarkedDelete = 0 ) b ON a.ProcessStepId = b.Id WHERE ProductionProcessId = @ProductionProcessId AND a.MarkedDelete = 0 ORDER BY a.Id;", new
             {
                 ProductionProcessId = data.Id
             }));
-            data.Specifications.AddRange(ServerConfig.ApiDb.Query<ProductionSpecification>("SELECT * FROM `production_specification` WHERE ProductionProcessId = @ProductionProcessId AND MarkedDelete = 0;", new
+            data.Specifications.AddRange(ServerConfig.ApiDb.Query<ProductionSpecification>("SELECT * FROM `production_specification` WHERE ProductionProcessId = @ProductionProcessId AND MarkedDelete = 0 ORDER BY Id;", new
             {
                 ProductionProcessId = data.Id
             }));
