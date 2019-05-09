@@ -18,6 +18,7 @@ namespace ApiManagement.Models
         public DateTime SolveTime { get; set; }
         public string SolvePlan { get; set; }
         public int FaultTypeId { get; set; }
+        public int FaultTypeId1 { get; set; }
     }
     public class RepairRecordDetail : RepairRecord
     {

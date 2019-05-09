@@ -17,21 +17,27 @@ namespace ApiManagement.Controllers
     public class FlowCardLibraryController : ControllerBase
     {
         // GET: api/FlowCardLibrary
-        [HttpGet]
-        public DataResult GetFlowCardLibrary()
+        [HttpGet("{id}")]
+        public DataResult GetFlowCardLibrary([FromRoute] int id = 0)
         {
             var result = new DataResult();
-            var datas = ServerConfig.ApiDb.Query<FlowCardLibraryDetail>("SELECT a.*, b.ProductionProcessName, c.RawMateriaName, d.ProcessStepId, d.CategoryName, d.StepName, d.ProcessTime, d.QualifiedNumber, d.DeviceId FROM `flowcard_library` a LEFT JOIN `production_library` b ON a.ProductionProcessId = b.Id LEFT JOIN `raw_materia` c ON a.RawMateriaId = c.Id LEFT JOIN ( SELECT * FROM ( SELECT FlowCardId, ProcessStepOrder, ProcessStepId, b.CategoryName, b.StepName, QualifiedNumber, ProcessTime, DeviceId FROM `flowcard_process_step` a JOIN ( SELECT a.Id, a.StepName, b.CategoryName FROM `device_process_step` a JOIN `device_category` b ON a.DeviceCategoryId = b.Id WHERE a.MarkedDelete = 0 ) b ON a.ProcessStepId = b.Id WHERE a.MarkedDelete = 0 AND NOT ISNULL(ProcessTime) || ProcessTime = '0001-01-01 00:00:00' ORDER BY ProcessStepOrder DESC ) a GROUP BY a.FlowCardId ) d ON a.Id = d.FlowCardId WHERE a.MarkedDelete = 0;");
+            IEnumerable<FlowCardLibraryDetail> datas;
+            datas = id == 0 ? ServerConfig.ApiDb.Query<FlowCardLibraryDetail>("SELECT a.*, b.ProductionProcessName, c.RawMateriaName, d.ProcessStepId, d.CategoryName, d.StepName, d.ProcessTime, d.QualifiedNumber, d.DeviceId, e.WorkshopName FROM `flowcard_library` a LEFT JOIN `production_library` b ON a.ProductionProcessId = b.Id LEFT JOIN `raw_materia` c ON a.RawMateriaId = c.Id LEFT JOIN ( SELECT * FROM ( SELECT FlowCardId, ProcessStepOrder, ProcessStepId, b.CategoryName, b.StepName, QualifiedNumber, ProcessTime, DeviceId FROM `flowcard_process_step` a JOIN ( SELECT a.Id, a.StepName, b.CategoryName FROM `device_process_step` a JOIN `device_category` b ON a.DeviceCategoryId = b.Id WHERE a.MarkedDelete = 0 ) b ON a.ProcessStepId = b.Id WHERE a.MarkedDelete = 0 AND NOT ISNULL(ProcessTime) || ProcessTime = '0001-01-01 00:00:00' ORDER BY ProcessStepOrder DESC ) a GROUP BY a.FlowCardId ) d ON a.Id = d.FlowCardId LEFT JOIN `workshop` e ON a.WorkshopId = e.Id WHERE a.MarkedDelete = 0;")
+                            : ServerConfig.ApiDb.Query<FlowCardLibraryDetail>("SELECT a.*, b.ProductionProcessName, c.RawMateriaName, d.ProcessStepId, d.CategoryName, d.StepName, d.ProcessTime, d.QualifiedNumber, d.DeviceId, e.WorkshopName FROM `flowcard_library` a LEFT JOIN `production_library` b ON a.ProductionProcessId = b.Id LEFT JOIN `raw_materia` c ON a.RawMateriaId = c.Id LEFT JOIN ( SELECT * FROM ( SELECT FlowCardId, ProcessStepOrder, ProcessStepId, b.CategoryName, b.StepName, QualifiedNumber, ProcessTime, DeviceId FROM `flowcard_process_step` a JOIN ( SELECT a.Id, a.StepName, b.CategoryName FROM `device_process_step` a JOIN `device_category` b ON a.DeviceCategoryId = b.Id WHERE a.MarkedDelete = 0 ) b ON a.ProcessStepId = b.Id WHERE a.MarkedDelete = 0 AND NOT ISNULL(ProcessTime) || ProcessTime = '0001-01-01 00:00:00' ORDER BY ProcessStepOrder DESC ) a GROUP BY a.FlowCardId ) d ON a.Id = d.FlowCardId LEFT JOIN `workshop` e ON a.WorkshopId = e.Id WHERE a.MarkedDelete = 0 AND a.WorkshopId = @id;", new { id });
 
-            var deviceCodes = ServerConfig.ApiDb.Query<FlowCardLibraryDetail>(
-                "SELECT Id, `Code` FROM `device_library` WHERE `Id` IN @Id AND MarkedDelete = 0;", new { Id = datas.Select(x => x.DeviceId) });
-
-            foreach (var data in datas)
+            var device = datas.Select(x => x.DeviceId);
+            if (device.Any())
             {
-                var code = deviceCodes.FirstOrDefault(x => x.Id == data.DeviceId);
-                if (code != null)
+                var deviceCodes = ServerConfig.ApiDb.Query<FlowCardLibraryDetail>(
+                    "SELECT Id, `Code` FROM `device_library` WHERE `Id` IN @Id AND MarkedDelete = 0;", new { Id = device });
+
+                foreach (var data in datas)
                 {
-                    data.Code = code.Code;
+                    var code = deviceCodes.FirstOrDefault(x => x.Id == data.DeviceId);
+                    if (code != null)
+                    {
+                        data.Code = code.Code;
+                    }
                 }
             }
             result.datas.AddRange(datas);
@@ -514,9 +520,9 @@ namespace ApiManagement.Controllers
                                                                             "WHERE MarkedDelete = 0 AND FlowCardId = @FlowCardId;", new { FlowCardId = id });
 
             var update = flowCardProcessSteps.Where(x => x.Id != 0 && exist.Any(y => y.Id == x.Id
-                         && ( y.ProcessorId != x.ProcessorId 
-                              || y.ProcessTime != x.ProcessTime 
-                              || y.SurveyorId != x.SurveyorId 
+                         && (y.ProcessorId != x.ProcessorId
+                              || y.ProcessTime != x.ProcessTime
+                              || y.SurveyorId != x.SurveyorId
                               || y.SurveyTime != x.SurveyTime
                               || y.QualifiedNumber != x.QualifiedNumber
                               || y.UnqualifiedNumber != x.UnqualifiedNumber

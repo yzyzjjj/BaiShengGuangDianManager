@@ -16,7 +16,7 @@ namespace ApiManagement.Base.Server
             ApiDb = new DataBase(configuration.GetConnectionString("ApiDb"));
             GateUrl = configuration.GetAppSettings<string>("GateUrl");
             RedisHelper = new RedisCacheHelper(configuration);
-            FlowCardHelper.Init();
+            FlowCardHelper.Init(configuration);
             Log.InfoFormat("ServerConfig Done");
         }
 
