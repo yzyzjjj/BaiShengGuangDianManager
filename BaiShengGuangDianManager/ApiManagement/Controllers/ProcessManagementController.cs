@@ -1,13 +1,13 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
+﻿using ApiManagement.Base.Server;
 using ApiManagement.Models;
 using Microsoft.AspNetCore.Mvc;
 using ModelBase.Base.EnumConfig;
 using ModelBase.Base.Utils;
 using ModelBase.Models.Result;
 using ServiceStack;
-using ApiManagement.Base.Server;
+using System;
+using System.Collections.Generic;
+using System.Linq;
 
 namespace ApiManagement.Controllers
 {
@@ -532,12 +532,12 @@ namespace ApiManagement.Controllers
                 "VALUES (@CreateUserId, @MarkedDateTime, @MarkedDelete, @ModifyId, @ProcessManagementId, @ProcessOrder, @PressurizeMinute, @PressurizeSecond, @Pressure, @ProcessMinute, @ProcessSecond, @Speed);",
                     processDatas.Where(x => x.Id == 0));
 
-            var update = processDatas.Where(x => x.Id != 0 && exist.Any(y => y.Id == x.Id 
-                                                                             && (y.ProcessOrder != x.ProcessOrder || 
-                                                                                 y.PressurizeMinute != x.PressurizeMinute || 
-                                                                                 y.PressurizeSecond != x.PressurizeSecond || 
-                                                                                 y.ProcessMinute != x.ProcessMinute || 
-                                                                                 y.ProcessSecond != x.ProcessSecond || 
+            var update = processDatas.Where(x => x.Id != 0 && exist.Any(y => y.Id == x.Id
+                                                                             && (y.ProcessOrder != x.ProcessOrder ||
+                                                                                 y.PressurizeMinute != x.PressurizeMinute ||
+                                                                                 y.PressurizeSecond != x.PressurizeSecond ||
+                                                                                 y.ProcessMinute != x.ProcessMinute ||
+                                                                                 y.ProcessSecond != x.ProcessSecond ||
                                                                                  y.Pressure != x.Pressure ||
                                                                                  y.Speed != x.Speed))).ToList();
             update.AddRange(exist.Where(x => processDatas.All(y => x.Id != y.Id)).Select(x =>
@@ -695,24 +695,29 @@ namespace ApiManagement.Controllers
             var result = new DataResult();
             var processManagements = ServerConfig.ApiDb.Query<ProcessManagementDetail>(
                 "SELECT * FROM `process_management` WHERE MarkedDelete = 0" + (request1.Pid == 0 ? ";" : " AND Id != @id;"), new { id = request1.Pid });
-            if (!processManagements.Any())
-            {
-                return Result.GenError<DataResult>(Error.ProcessManagementNotExist);
-            }
 
             try
             {
                 var productionProcessIdList = request1.ProductionProcessIds.Split(",").Select(int.Parse);
                 var deviceModelIdList = request1.DeviceModelIds.Split(",").Select(int.Parse);
-                var existIds = processManagements.Where(x => x.ProductModels.Split(",").Select(int.Parse).Any(y => productionProcessIdList.Contains(y)));
-                var existId = existIds.Select(x => x.DeviceIds.Split(",")).SelectMany(x => x).Distinct();
-                var deviceIds = ServerConfig.ApiDb.Query<DeviceLibrary>("SELECT * FROM device_library WHERE Id NOT IN @id AND MarkedDelete = 0;", new { id = existId });
-                result.datas.AddRange(deviceIds.Where(x => deviceModelIdList.Contains(x.DeviceModelId)));
+                if (processManagements.Any())
+                {
+                    var existIds = processManagements.Where(x => x.ProductModels.Split(",").Select(int.Parse).Any(y => productionProcessIdList.Contains(y)));
+                    var existId = existIds.Select(x => x.DeviceIds.Split(",")).SelectMany(x => x).Distinct();
+                    var deviceIds = ServerConfig.ApiDb.Query<DeviceLibrary>("SELECT * FROM device_library WHERE Id NOT IN @id AND MarkedDelete = 0;", new { id = existId });
+                    result.datas.AddRange(deviceIds.Where(x => deviceModelIdList.Contains(x.DeviceModelId)));
+                }
+                else
+                {
+                    var deviceIds = ServerConfig.ApiDb.Query<DeviceLibrary>("SELECT * FROM device_library WHERE MarkedDelete = 0;");
+                    result.datas.AddRange(deviceIds.Where(x => deviceModelIdList.Contains(x.DeviceModelId)));
+                }
             }
             catch (Exception)
             {
                 // ignored
             }
+
 
             return result;
         }

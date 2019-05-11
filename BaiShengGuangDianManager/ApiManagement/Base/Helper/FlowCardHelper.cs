@@ -152,13 +152,13 @@ namespace ApiManagement.Base.Helper
 
                 //流程卡
                 var flowCardLibraries = ServerConfig.ApiDb.Query<FlowCardLibrary>("SELECT * FROM `flowcard_library`;").ToDictionary(x => x.FlowCardName);
-                var erpFlowCardLibraries = r.ToDictionary(x => x.f_lckh);
+                var erpFlowCardLibraries = r.ToDictionary(x => $"{x.f_bz:d2}{x.f_lckh}");
                 var newFlowCardLibraries = erpFlowCardLibraries.Where(x => !flowCardLibraries.ContainsKey(x.Key)).ToDictionary(x => x.Key, x => x.Value);
                 var newFc = newFlowCardLibraries.Select(x => new FlowCardLibrary
                 {
                     CreateUserId = _createUserId,
                     MarkedDateTime = now,
-                    FlowCardName = $"{x.Value.f_bz:d2}{x.Key}",
+                    FlowCardName = x.Key,
                     ProductionProcessId = productionLibraries[x.Value.f_jhh].Id,
                     RawMateriaId = rawMaterias[x.Value.f_mate].Id,
                     CreateTime = now,
