@@ -28,7 +28,7 @@ namespace ApiManagement.Base.Helper
         private static void Call(object state)
         {
             var sTime =
-                ServerConfig.ApiDb.Query<string>("SELECT `CreateTime` FROM `flowcard_library` ORDER BY Id DESC LIMIT 1;").FirstOrDefault();
+                ServerConfig.ApiDb.Query<string>("SELECT `CreateTime` FROM `flowcard_library` ORDER BY CreateTime DESC LIMIT 1;").FirstOrDefault();
             if (!sTime.IsNullOrEmpty())
             {
                 _starTime = DateTime.Parse(sTime);
@@ -161,7 +161,7 @@ namespace ApiManagement.Base.Helper
                     FlowCardName = x.Key,
                     ProductionProcessId = productionLibraries[x.Value.f_jhh].Id,
                     RawMateriaId = rawMaterias[x.Value.f_mate].Id,
-                    CreateTime = now,
+                    CreateTime = x.Value.f_inserttime,
                     WorkshopId = x.Value.f_bz
                 });
                 ServerConfig.ApiDb.Execute(
