@@ -154,7 +154,7 @@ namespace ApiManagement.Base.Helper
                 var flowCardLibraries = ServerConfig.ApiDb.Query<FlowCardLibrary>("SELECT * FROM `flowcard_library`;").ToDictionary(x => x.FlowCardName);
                 var erpFlowCardLibraries = r.ToDictionary(x => $"{x.f_bz:d2}{x.f_lckh}");
                 var newFlowCardLibraries = erpFlowCardLibraries.Where(x => !flowCardLibraries.ContainsKey(x.Key)).ToDictionary(x => x.Key, x => x.Value);
-                var newFc = newFlowCardLibraries.Select(x => new FlowCardLibrary
+                var newFc = newFlowCardLibraries.OrderBy(x => x.Value.f_id).Select(x => new FlowCardLibrary
                 {
                     CreateUserId = _createUserId,
                     MarkedDateTime = now,

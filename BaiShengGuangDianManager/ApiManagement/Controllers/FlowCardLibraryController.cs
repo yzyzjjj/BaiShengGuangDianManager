@@ -609,6 +609,7 @@ namespace ApiManagement.Controllers
         [HttpPost]
         public Result PostFlowCardLibrary([FromBody] FlowCardLibrary flowCardLibrary)
         {
+            flowCardLibrary.FlowCardName = $"{flowCardLibrary.WorkshopId:d2}{flowCardLibrary.FlowCardName}";
             var cnt =
                 ServerConfig.ApiDb.Query<int>("SELECT COUNT(1) FROM `flowcard_library` WHERE FlowCardName = @FlowCardName AND MarkedDelete = 0;", new { flowCardLibrary.FlowCardName }).FirstOrDefault();
             if (cnt > 0)
@@ -646,9 +647,10 @@ namespace ApiManagement.Controllers
             var time = DateTime.Now;
             flowCardLibrary.CreateUserId = createUserId;
             flowCardLibrary.MarkedDateTime = time;
+            flowCardLibrary.CreateTime = time;
             var index = ServerConfig.ApiDb.Query<int>(
-                "INSERT INTO flowcard_library (`CreateUserId`, `MarkedDateTime`, `MarkedDelete`, `ModifyId`, `FlowCardName`, `ProductionProcessId`, `RawMateriaId`, `RawMaterialQuantity`, `Sender`, `InboundNum`, `Remarks`, `Priority`) " +
-                "VALUES (@CreateUserId, @MarkedDateTime, @MarkedDelete, @ModifyId, @FlowCardName, @ProductionProcessId, @RawMateriaId, @RawMaterialQuantity, @Sender, @InboundNum, @Remarks, @Priority);SELECT LAST_INSERT_ID();",
+                "INSERT INTO flowcard_library (`CreateUserId`, `MarkedDateTime`, `MarkedDelete`, `ModifyId`, `FlowCardName`, `ProductionProcessId`, `RawMateriaId`, `RawMaterialQuantity`, `Sender`, `InboundNum`, `Remarks`, `Priority`, `CreateTime`, `WorkshopId`) " +
+                "VALUES (@CreateUserId, @MarkedDateTime, @MarkedDelete, @ModifyId, @FlowCardName, @ProductionProcessId, @RawMateriaId, @RawMaterialQuantity, @Sender, @InboundNum, @Remarks, @Priority, @CreateTime, @WorkshopId);SELECT LAST_INSERT_ID();",
                     flowCardLibrary).FirstOrDefault();
 
             flowCardLibrary.Id = index;
@@ -692,6 +694,11 @@ namespace ApiManagement.Controllers
         [HttpPost("FlowCardLibraries")]
         public Result PostFlowcardLibraries([FromBody] List<FlowCardLibrary> flowCardLibraries)
         {
+            foreach (var flowCardLibrary in flowCardLibraries)
+            {
+                flowCardLibrary.FlowCardName = $"{flowCardLibrary.WorkshopId:d2}{flowCardLibrary.FlowCardName}";
+            }
+
             var flowCards = flowCardLibraries.GroupBy(x => x.FlowCardName);
             var cnt =
                 ServerConfig.ApiDb.Query<int>("SELECT COUNT(1) FROM `flowcard_library` WHERE FlowCardName IN @FlowCardName AND MarkedDelete = 0;", new
@@ -739,15 +746,17 @@ namespace ApiManagement.Controllers
 
             var createUserId = Request.GetIdentityInformation();
             var time = DateTime.Now;
-            foreach (var flowcardLibrary in flowCardLibraries)
+            foreach (var flowCardLibrary in flowCardLibraries)
             {
-                flowcardLibrary.CreateUserId = createUserId;
-                flowcardLibrary.MarkedDateTime = time;
+                flowCardLibrary.CreateUserId = createUserId;
+                flowCardLibrary.MarkedDateTime = time;
+                flowCardLibrary.CreateTime = time;
             }
 
+
             ServerConfig.ApiDb.Execute(
-                "INSERT INTO flowcard_library (`CreateUserId`, `MarkedDateTime`, `MarkedDelete`, `ModifyId`, `FlowCardName`, `ProductionProcessId`, `RawMateriaId`, `RawMaterialQuantity`, `Sender`, `InboundNum`, `Remarks`, `Priority`) " +
-                "VALUES (@CreateUserId, @MarkedDateTime, @MarkedDelete, @ModifyId, @FlowCardName, @ProductionProcessId, @RawMateriaId, @RawMaterialQuantity, @Sender, @InboundNum, @Remarks, @Priority);",
+                "INSERT INTO flowcard_library (`CreateUserId`, `MarkedDateTime`, `MarkedDelete`, `ModifyId`, `FlowCardName`, `ProductionProcessId`, `RawMateriaId`, `RawMaterialQuantity`, `Sender`, `InboundNum`, `Remarks`, `Priority`, `CreateTime`, `WorkshopId`) " +
+                "VALUES (@CreateUserId, @MarkedDateTime, @MarkedDelete, @ModifyId, @FlowCardName, @ProductionProcessId, @RawMateriaId, @RawMaterialQuantity, @Sender, @InboundNum, @Remarks, @Priority, @CreateTime, @WorkshopId);",
                 flowCardLibraries.OrderBy(x => x.FlowCardName));
 
             var insertDatas =
