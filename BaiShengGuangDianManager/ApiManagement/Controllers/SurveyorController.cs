@@ -7,13 +7,14 @@ using Microsoft.AspNetCore.Mvc;
 using ModelBase.Base.EnumConfig;
 using ModelBase.Base.Utils;
 using ModelBase.Models.Result;
+using ServiceStack;
 
 namespace ApiManagement.Controllers
 {
     /// <summary>
     /// 检验员
     /// </summary>
-    [Route("api/[controller]")]
+    [Microsoft.AspNetCore.Mvc.Route("api/[controller]")]
     [ApiController]
     public class SurveyorController : ControllerBase
     {
@@ -47,24 +48,33 @@ namespace ApiManagement.Controllers
         }
 
         /// <summary>
-        /// 自增Id
+        /// account
         /// </summary>
-        /// <param name="id">自增Id</param>
+        /// <param name="account">account</param>
         /// <param name="surveyor"></param>
         /// <returns></returns>
         // PUT: api/Surveyor/Id/5
-        [HttpPut("{id}")]
-        public Result PutSurveyor([FromRoute] int id, [FromBody] Surveyor surveyor)
+        [HttpPut("{account}")]
+        public Result PutSurveyor([FromRoute] string account, [FromBody] Surveyor surveyor)
         {
-            var cnt =
-                ServerConfig.ApiDb.Query<int>("SELECT COUNT(1) FROM `surveyor` WHERE Id = @id AND MarkedDelete = 0;", new { id }).FirstOrDefault();
-            if (cnt == 0)
+            var data =
+                ServerConfig.ApiDb.Query<Surveyor>("SELECT * FROM `surveyor` WHERE Account = @Account;", new { Account = account }).FirstOrDefault();
+            if (data == null)
             {
                 return Result.GenError<Result>(Error.SurveyorNotExist);
             }
 
-            surveyor.Id = id;
-            surveyor.CreateUserId = Request.GetIdentityInformation();
+            //var cnt =
+            //    ServerConfig.ApiDb.Query<int>("SELECT COUNT(1) FROM `surveyor` WHERE SurveyorName = @SurveyorName;", new { surveyor.SurveyorName }).FirstOrDefault();
+            //if (cnt > 0)
+            //{
+            //    if (!surveyor.SurveyorName.IsNullOrEmpty() && data.SurveyorName != surveyor.SurveyorName)
+            //    {
+            //        return Result.GenError<Result>(Error.SurveyorIsExist);
+            //    }
+            //}
+
+            surveyor.Id = data.Id;
             surveyor.MarkedDateTime = DateTime.Now;
             ServerConfig.ApiDb.Execute(
                 "UPDATE surveyor SET `MarkedDateTime` = @MarkedDateTime, `MarkedDelete` = @MarkedDelete, " +
@@ -73,6 +83,8 @@ namespace ApiManagement.Controllers
             return Result.GenError<Result>(Error.Success);
         }
 
+
+
         // POST: api/Surveyor
         [HttpPost]
         public Result PostSurveyor([FromBody] Surveyor surveyor)
@@ -80,8 +92,8 @@ namespace ApiManagement.Controllers
             surveyor.CreateUserId = Request.GetIdentityInformation();
             surveyor.MarkedDateTime = DateTime.Now;
             ServerConfig.ApiDb.Execute(
-                "INSERT INTO surveyor (`CreateUserId`, `MarkedDateTime`, `MarkedDelete`, `ModifyId`, `SurveyorName`) " +
-                "VALUES (@CreateUserId, @MarkedDateTime, @MarkedDelete, @ModifyId, @SurveyorName);",
+                "INSERT INTO surveyor (`CreateUserId`, `MarkedDateTime`, `MarkedDelete`, `ModifyId`, `SurveyorName`, `Account`) " +
+                "VALUES (@CreateUserId, @MarkedDateTime, @MarkedDelete, @ModifyId, @SurveyorName, @Account);",
                 surveyor);
 
             return Result.GenError<Result>(Error.Success);
@@ -91,41 +103,42 @@ namespace ApiManagement.Controllers
         [HttpPost("Surveyors")]
         public Result PostSurveyor([FromBody] List<Surveyor> surveyors)
         {
+            var createUserId = Request.GetIdentityInformation();
+            var time = DateTime.Now;
             foreach (var surveyor in surveyors)
             {
-                surveyor.CreateUserId = Request.GetIdentityInformation();
-                surveyor.MarkedDateTime = DateTime.Now;
+                surveyor.CreateUserId = createUserId;
+                surveyor.MarkedDateTime = time;
             }
             ServerConfig.ApiDb.Execute(
-                "INSERT INTO surveyor (`CreateUserId`, `MarkedDateTime`, `MarkedDelete`, `ModifyId`, `SurveyorName`) " +
-                "VALUES (@CreateUserId, @MarkedDateTime, @MarkedDelete, @ModifyId, @SurveyorName);",
+                "INSERT INTO surveyor (`CreateUserId`, `MarkedDateTime`, `MarkedDelete`, `ModifyId`, `SurveyorName`, `Account`) " +
+                "VALUES (@CreateUserId, @MarkedDateTime, @MarkedDelete, @ModifyId, @SurveyorName, @Account);",
                 surveyors);
 
             return Result.GenError<Result>(Error.Success);
         }
 
         /// <summary>
-        /// 自增Id
+        /// account
         /// </summary>
-        /// <param name="id"></param>
+        /// <param name="account"></param>
         /// <returns></returns>
         // DELETE: api/Surveyor/Id/5
-        [HttpDelete("{id}")]
-        public Result DeleteSurveyor([FromRoute] int id)
+        [HttpDelete("{account}")]
+        public Result DeleteSurveyor([FromRoute] string account)
         {
-            var cnt =
-                ServerConfig.ApiDb.Query<int>("SELECT COUNT(1) FROM `surveyor` WHERE Id = @id AND MarkedDelete = 0;", new { id }).FirstOrDefault();
-            if (cnt == 0)
+            var data =
+                ServerConfig.ApiDb.Query<Surveyor>("SELECT * FROM `surveyor` WHERE Account = @Account AND MarkedDelete = 0;", new { Account = account }).FirstOrDefault();
+            if (data == null)
             {
-                return Result.GenError<Result>(Error.SurveyorNotExist);
+                return Result.GenError<Result>(Error.SurveyorIsExist);
             }
-
             ServerConfig.ApiDb.Execute(
                 "UPDATE `surveyor` SET `MarkedDateTime`= @MarkedDateTime, `MarkedDelete`= @MarkedDelete WHERE `Id`= @Id;", new
                 {
                     MarkedDateTime = DateTime.Now,
                     MarkedDelete = true,
-                    Id = id
+                    Id = data.Id
                 });
             return Result.GenError<Result>(Error.Success);
         }

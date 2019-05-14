@@ -1,19 +1,20 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using ApiManagement.Base.Server;
+﻿using ApiManagement.Base.Server;
 using ApiManagement.Models;
 using Microsoft.AspNetCore.Mvc;
 using ModelBase.Base.EnumConfig;
 using ModelBase.Base.Utils;
 using ModelBase.Models.Result;
+using ServiceStack;
+using System;
+using System.Collections.Generic;
+using System.Linq;
 
 namespace ApiManagement.Controllers
 {
     /// <summary>
     /// 加工人
     /// </summary>
-    [Route("api/[controller]")]
+    [Microsoft.AspNetCore.Mvc.Route("api/[controller]")]
     [ApiController]
     public class ProcessorController : ControllerBase
     {
@@ -47,32 +48,45 @@ namespace ApiManagement.Controllers
             return result;
         }
 
+
+
         /// <summary>
-        /// 自增Id
+        /// account
         /// </summary>
-        /// <param name="id">自增Id</param>
+        /// <param name="account">account</param>
         /// <param name="processor"></param>
         /// <returns></returns>
         // PUT: api/Processor/5
-        [HttpPut("{id}")]
-        public Result PutProcessor([FromRoute] int id, [FromBody] Processor processor)
+        [HttpPut("{account}")]
+        public Result PutProcessor([FromRoute] string account, [FromBody] Processor processor)
         {
-            var cnt =
-                ServerConfig.ApiDb.Query<int>("SELECT COUNT(1) FROM `processor` WHERE Id = @id AND MarkedDelete = 0;", new { id }).FirstOrDefault();
-            if (cnt == 0)
+            var data = 
+                ServerConfig.ApiDb.Query<Processor>("SELECT * FROM `processor` WHERE Account = @Account;", new { Account = account }).FirstOrDefault();
+            if (data == null)
             {
                 return Result.GenError<Result>(Error.ProcessorNotExist);
             }
 
-            processor.Id = id;
-            processor.CreateUserId = Request.GetIdentityInformation();
+            //var cnt =
+            //    ServerConfig.ApiDb.Query<int>("SELECT COUNT(1) FROM `processor` WHERE ProcessorName = @ProcessorName;", new { processor.ProcessorName }).FirstOrDefault();
+            //if (cnt > 0)
+            //{
+            //    if (!processor.ProcessorName.IsNullOrEmpty() && data.ProcessorName != processor.ProcessorName)
+            //    {
+            //        return Result.GenError<Result>(Error.ProcessorIsExist);
+            //    }
+            //}
+
+            processor.Id = data.Id;
             processor.MarkedDateTime = DateTime.Now;
             ServerConfig.ApiDb.Execute(
-                "UPDATE processor SET `MarkedDateTime` = @MarkedDateTime, `MarkedDelete` = @MarkedDelete, " +
-                "`ModifyId` = @ModifyId, `ProcessorName` = @ProcessorName WHERE `Id` = @Id;", processor);
+                "UPDATE processor SET `MarkedDateTime` = @MarkedDateTime, `MarkedDelete` = @MarkedDelete, `ModifyId` = @ModifyId, `ProcessorName` = @ProcessorName WHERE `Id` = @Id;",
+                processor);
 
             return Result.GenError<Result>(Error.Success);
         }
+
+
 
         // POST: api/Processor
         [HttpPost]
@@ -92,10 +106,12 @@ namespace ApiManagement.Controllers
         [HttpPost("Processors")]
         public Result PostProcessor([FromBody] List<Processor> processors)
         {
+            var createUserId = Request.GetIdentityInformation();
+            var time = DateTime.Now;
             foreach (var processor in processors)
             {
-                processor.CreateUserId = Request.GetIdentityInformation();
-                processor.MarkedDateTime = DateTime.Now;
+                processor.CreateUserId = createUserId;
+                processor.MarkedDateTime = time;
             }
             ServerConfig.ApiDb.Execute(
                 "INSERT INTO processor (`CreateUserId`, `MarkedDateTime`, `MarkedDelete`, `ModifyId`, `ProcessorName`, `Account`) " +
@@ -105,28 +121,29 @@ namespace ApiManagement.Controllers
             return Result.GenError<Result>(Error.Success);
         }
 
+
+
         /// <summary>
-        /// 自增Id
+        /// account
         /// </summary>
-        /// <param name="id"></param>
+        /// <param name="account"></param>
         /// <returns></returns>
-        // DELETE: api/Processor/Id/5
-        [HttpDelete("{id}")]
-        public Result DeleteProcessor([FromRoute] int id)
+        // DELETE: api/Processor/5
+        [HttpDelete("{account}")]
+        public Result DeleteProcessor([FromRoute] string account)
         {
-            var cnt =
-                ServerConfig.ApiDb.Query<int>("SELECT COUNT(1) FROM `processor` WHERE Id = @id AND MarkedDelete = 0;", new { id }).FirstOrDefault();
-            if (cnt == 0)
+            var data =
+                ServerConfig.ApiDb.Query<Processor>("SELECT * FROM `processor` WHERE Account = @Account AND MarkedDelete = 0;", new { Account = account }).FirstOrDefault();
+            if (data == null)
             {
                 return Result.GenError<Result>(Error.ProcessorNotExist);
             }
-
             ServerConfig.ApiDb.Execute(
                 "UPDATE `processor` SET `MarkedDateTime`= @MarkedDateTime, `MarkedDelete`= @MarkedDelete WHERE `Id`= @Id;", new
                 {
                     MarkedDateTime = DateTime.Now,
                     MarkedDelete = true,
-                    Id = id
+                    Id = data.Id
                 });
             return Result.GenError<Result>(Error.Success);
         }
