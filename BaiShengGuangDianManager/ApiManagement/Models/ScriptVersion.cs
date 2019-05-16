@@ -1,5 +1,8 @@
-﻿using System;
-using Newtonsoft.Json;
+﻿using Newtonsoft.Json;
+using ServiceStack;
+using System;
+using System.Collections.Generic;
+using System.Linq;
 
 namespace ApiManagement.Models
 {
@@ -10,7 +13,10 @@ namespace ApiManagement.Models
         public DateTime MarkedDateTime { get; set; }
         public bool MarkedDelete { get; set; }
         public int ModifyId { get; set; }
-        public int DeviceModelId { get; set; }
+        public string DeviceModelId { get; set; }
+        [JsonIgnore]
+        public IEnumerable<int> DeviceModelIds => DeviceModelId.IsNullOrEmpty() ? new List<int>() : DeviceModelId.Split(",").Select(int.Parse);
+
         public string ScriptName { get; set; }
         public int ValueNumber { get; set; }
         public int InputNumber { get; set; }
@@ -18,8 +24,8 @@ namespace ApiManagement.Models
         [JsonIgnore]
         public string HeartPacket { get; set; }
     }
-    public class ScriptVersionDetail: ScriptVersion
+    public class ScriptVersionDetail : ScriptVersion
     {
-        public string ModelName { get; set; }
+
     }
 }
