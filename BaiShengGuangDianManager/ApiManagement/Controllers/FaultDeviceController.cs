@@ -22,7 +22,7 @@ namespace ApiManagement.Controllers
         public DataResult GetFaultDevice()
         {
             var result = new DataResult();
-            result.datas.AddRange(ServerConfig.ApiDb.Query<FaultDevice>("SELECT * FROM `fault_device` WHERE MarkedDelete = 0;"));
+            result.datas.AddRange(ServerConfig.ApiDb.Query<FaultDeviceDetail>("SELECT a.*, b.FaultTypeName FROM `fault_device` a JOIN `fault_type` b ON a.FaultTypeId = b.Id WHERE a.MarkedDelete = 0;"));
             return result;
         }
 
@@ -37,7 +37,7 @@ namespace ApiManagement.Controllers
         {
             var result = new DataResult();
             var data =
-                ServerConfig.ApiDb.Query<FaultDevice>("SELECT * FROM `fault_device` WHERE Id = @id AND MarkedDelete = 0;", new { id }).FirstOrDefault();
+                ServerConfig.ApiDb.Query<FaultDeviceDetail>("SELECT a.*, b.FaultTypeName FROM `fault_device` a JOIN `fault_type` b ON a.FaultTypeId = b.Id WHERE a.MarkedDelete = 0 AND a.Id = @id;", new { id }).FirstOrDefault();
             if (data == null)
             {
                 result.errno = Error.FaultDeviceNotExist;
@@ -58,7 +58,7 @@ namespace ApiManagement.Controllers
         {
             var result = new DataResult();
             var datas =
-                ServerConfig.ApiDb.Query<FaultDevice>("SELECT * FROM `fault_device` WHERE DeviceCode = @code AND MarkedDelete = 0;", new { code });
+                ServerConfig.ApiDb.Query<FaultDeviceDetail>("SELECT a.*, b.FaultTypeName FROM `fault_device` a JOIN `fault_type` b ON a.FaultTypeId = b.Id WHERE a.MarkedDelete = 0 AND a.DeviceCode = @code;", new { code });
             if (!datas.Any())
             {
                 result.errno = Error.FaultDeviceNotExist;
@@ -135,8 +135,8 @@ namespace ApiManagement.Controllers
                 faultDevice.MarkedDateTime = DateTime.Now;
             }
             ServerConfig.ApiDb.Execute(
-                "INSERT INTO fault_device (`CreateUserId`, `MarkedDateTime`, `MarkedDelete`, `ModifyId`, `DeviceCode`, `FaultTime`, `Proposer`, `FaultDescription`, `Priority`, `State`) " +
-                "VALUES (@CreateUserId, @MarkedDateTime, @MarkedDelete, @ModifyId, @DeviceCode, @FaultTime, @Proposer, @FaultDescription, @Priority, @State);",
+                "INSERT INTO fault_device (`CreateUserId`, `MarkedDateTime`, `MarkedDelete`, `ModifyId`, `DeviceCode`, `FaultTime`, `Proposer`, `FaultDescription`, `Priority`, `State`, `FaultTypeId`) " +
+                "VALUES (@CreateUserId, @MarkedDateTime, @MarkedDelete, @ModifyId, @DeviceCode, @FaultTime, @Proposer, @FaultDescription, @Priority, @State, @FaultTypeId);",
                 faultDevices);
 
             return Result.GenError<Result>(Error.Success);
