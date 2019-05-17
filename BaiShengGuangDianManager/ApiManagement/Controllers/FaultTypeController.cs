@@ -7,13 +7,14 @@ using Microsoft.AspNetCore.Mvc;
 using ModelBase.Base.EnumConfig;
 using ModelBase.Base.Utils;
 using ModelBase.Models.Result;
+using ServiceStack;
 
 namespace ApiManagement.Controllers
 {
     /// <summary>
     /// 故障类型
     /// </summary>
-    [Route("api/[controller]")]
+    [Microsoft.AspNetCore.Mvc.Route("api/[controller]")]
     [ApiController]
     public class FaultTypeController : ControllerBase
     {
@@ -57,11 +58,21 @@ namespace ApiManagement.Controllers
         [HttpPut("{id}")]
         public Result PutFaultType([FromRoute] int id, [FromBody] FaultType faultType)
         {
-            var cnt =
-                ServerConfig.ApiDb.Query<int>("SELECT COUNT(1) FROM `fault_type` WHERE Id = @id AND MarkedDelete = 0;", new { id }).FirstOrDefault();
-            if (cnt == 0)
+            var data =
+                ServerConfig.ApiDb.Query<FaultType>("SELECT * FROM `fault_type` WHERE Id = @id AND MarkedDelete = 0;", new { id }).FirstOrDefault();
+            if (data == null)
             {
                 return Result.GenError<Result>(Error.FaultTypeNotExist);
+            }
+
+            var cnt =
+                ServerConfig.ApiDb.Query<int>("SELECT COUNT(1) FROM `fault_type` WHERE FaultTypeName = @FaultTypeName;", new { faultType.FaultTypeName }).FirstOrDefault();
+            if (cnt > 0)
+            {
+                if (!faultType.FaultTypeName.IsNullOrEmpty() && data.FaultTypeName != faultType.FaultTypeName)
+                {
+                    return Result.GenError<Result>(Error.FaultTypeIsExist);
+                }
             }
 
             faultType.Id = id;
@@ -78,6 +89,12 @@ namespace ApiManagement.Controllers
         [HttpPost]
         public Result PostFaultType([FromBody] FaultType faultType)
         {
+            var cnt =
+                ServerConfig.ApiDb.Query<int>("SELECT COUNT(1) FROM `fault_type` WHERE FaultTypeName = @FaultTypeName;", new { faultType.FaultTypeName }).FirstOrDefault();
+            if (cnt > 0)
+            {
+                return Result.GenError<Result>(Error.FaultTypeIsExist);
+            }
             faultType.CreateUserId = Request.GetIdentityInformation();
             faultType.MarkedDateTime = DateTime.Now;
             ServerConfig.ApiDb.Execute(
@@ -92,6 +109,16 @@ namespace ApiManagement.Controllers
         [HttpPost("FaultTypes")]
         public Result PostFaultType([FromBody] List<FaultType> faultTypes)
         {
+            var faultTypeName = faultTypes.GroupBy(x => x.FaultTypeName).Select(x => x.Key);
+            if (faultTypeName.Any())
+            {
+                var cnt =
+                    ServerConfig.ApiDb.Query<int>("SELECT COUNT(1) FROM `fault_type` WHERE FaultTypeName IN @FaultTypeName;", new { FaultTypeName = faultTypeName }).FirstOrDefault();
+                if (cnt > 0)
+                {
+                    return Result.GenError<Result>(Error.FaultTypeIsExist);
+                }
+            }
             foreach (var faultType in faultTypes)
             {
                 faultType.CreateUserId = Request.GetIdentityInformation();

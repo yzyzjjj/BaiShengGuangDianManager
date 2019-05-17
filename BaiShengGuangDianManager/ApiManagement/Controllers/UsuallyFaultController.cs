@@ -1,19 +1,20 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using ApiManagement.Base.Server;
+﻿using ApiManagement.Base.Server;
 using ApiManagement.Models;
 using Microsoft.AspNetCore.Mvc;
 using ModelBase.Base.EnumConfig;
 using ModelBase.Base.Utils;
 using ModelBase.Models.Result;
+using ServiceStack;
+using System;
+using System.Collections.Generic;
+using System.Linq;
 
 namespace ApiManagement.Controllers
 {
     /// <summary>
     /// 常见故障
     /// </summary>
-    [Route("api/[controller]")]
+    [Microsoft.AspNetCore.Mvc.Route("api/[controller]")]
     [ApiController]
     public class UsuallyFaultController : ControllerBase
     {
@@ -57,11 +58,21 @@ namespace ApiManagement.Controllers
         [HttpPut("{id}")]
         public Result PutUsuallyFault([FromRoute] int id, [FromBody] UsuallyFault usuallyFault)
         {
-            var cnt =
-                ServerConfig.ApiDb.Query<int>("SELECT COUNT(1) FROM `usually_fault` WHERE Id = @id AND MarkedDelete = 0;", new { id }).FirstOrDefault();
-            if (cnt == 0)
+            var data =
+                ServerConfig.ApiDb.Query<UsuallyFault>("SELECT * FROM `usually_fault` WHERE Id = @id AND MarkedDelete = 0;", new { id }).FirstOrDefault();
+            if (data == null)
             {
                 return Result.GenError<Result>(Error.UsuallyFaultNotExist);
+            }
+
+            var cnt =
+                ServerConfig.ApiDb.Query<int>("SELECT COUNT(1) FROM `usually_fault` WHERE UsuallyFaultDesc = @UsuallyFaultDesc;", new { usuallyFault.UsuallyFaultDesc }).FirstOrDefault();
+            if (cnt > 0)
+            {
+                if (!usuallyFault.UsuallyFaultDesc.IsNullOrEmpty() && data.UsuallyFaultDesc != usuallyFault.UsuallyFaultDesc)
+                {
+                    return Result.GenError<Result>(Error.UsuallyFaultIsExist);
+                }
             }
 
             usuallyFault.Id = id;
@@ -78,6 +89,13 @@ namespace ApiManagement.Controllers
         [HttpPost]
         public Result PostUsuallyFault([FromBody] UsuallyFault usuallyFault)
         {
+            var cnt =
+                ServerConfig.ApiDb.Query<int>("SELECT COUNT(1) FROM `usually_fault` WHERE UsuallyFaultDesc = @UsuallyFaultDesc;", new { usuallyFault.UsuallyFaultDesc }).FirstOrDefault();
+            if (cnt > 0)
+            {
+                return Result.GenError<Result>(Error.UsuallyFaultIsExist);
+            }
+
             usuallyFault.CreateUserId = Request.GetIdentityInformation();
             usuallyFault.MarkedDateTime = DateTime.Now;
             ServerConfig.ApiDb.Execute(
@@ -92,6 +110,16 @@ namespace ApiManagement.Controllers
         [HttpPost("UsuallyFaults")]
         public Result PostUsuallyFault([FromBody] List<UsuallyFault> usuallyFaults)
         {
+            var usuallyFaultDesc = usuallyFaults.GroupBy(x => x.UsuallyFaultDesc).Select(x => x.Key);
+            if (usuallyFaultDesc.Any())
+            {
+                var cnt =
+                    ServerConfig.ApiDb.Query<int>("SELECT COUNT(1) FROM `usually_fault` WHERE UsuallyFaultDesc IN @UsuallyFaultDesc;", new { UsuallyFaultDesc = usuallyFaultDesc }).FirstOrDefault();
+                if (cnt > 0)
+                {
+                    return Result.GenError<Result>(Error.UsuallyFaultIsExist);
+                }
+            }
             foreach (var usuallyFault in usuallyFaults)
             {
                 usuallyFault.CreateUserId = Request.GetIdentityInformation();

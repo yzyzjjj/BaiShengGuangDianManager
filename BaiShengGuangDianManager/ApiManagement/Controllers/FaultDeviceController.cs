@@ -111,8 +111,8 @@ namespace ApiManagement.Controllers
             faultDevice.CreateUserId = Request.GetIdentityInformation();
             faultDevice.MarkedDateTime = DateTime.Now;
             ServerConfig.ApiDb.Execute(
-                "INSERT INTO fault_device (`CreateUserId`, `MarkedDateTime`, `MarkedDelete`, `ModifyId`, `DeviceCode`, `FaultTime`, `Proposer`, `FaultDescription`, `Priority`, `State`) " +
-                "VALUES (@CreateUserId, @MarkedDateTime, @MarkedDelete, @ModifyId, @DeviceCode, @FaultTime, @Proposer, @FaultDescription, @Priority, @State);",
+                "INSERT INTO fault_device (`CreateUserId`, `MarkedDateTime`, `MarkedDelete`, `ModifyId`, `DeviceCode`, `FaultTime`, `Proposer`, `FaultDescription`, `Priority`, `State`, `FaultTypeId`) " +
+                "VALUES (@CreateUserId, @MarkedDateTime, @MarkedDelete, @ModifyId, @DeviceCode, @FaultTime, @Proposer, @FaultDescription, @Priority, @State, @FaultTypeId);",
                 faultDevice);
 
             return Result.GenError<Result>(Error.Success);

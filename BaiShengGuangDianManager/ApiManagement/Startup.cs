@@ -9,7 +9,7 @@ using Newtonsoft.Json.Serialization;
 using Swashbuckle.AspNetCore.Swagger;
 using Swashbuckle.AspNetCore.SwaggerUI;
 
-namespace ApiDeviceManagement
+namespace ApiManagement
 {
     public class Startup
     {
