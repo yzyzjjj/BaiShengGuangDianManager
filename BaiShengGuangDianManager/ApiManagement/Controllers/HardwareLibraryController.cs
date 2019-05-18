@@ -6,10 +6,11 @@ using ModelBase.Models.Result;
 using System;
 using System.Linq;
 using ModelBase.Base.Utils;
+using ServiceStack;
 
 namespace ApiManagement.Controllers
 {
-    [Route("api/[controller]")]
+    [Microsoft.AspNetCore.Mvc.Route("api/[controller]")]
     [ApiController]
     //[Authorize]
     public class HardwareLibraryController : ControllerBase
@@ -44,11 +45,21 @@ namespace ApiManagement.Controllers
         [HttpPut("{id}")]
         public Result PutHardwareLibrary([FromRoute] int id, [FromBody] HardwareLibrary hardwareLibrary)
         {
-            var cnt =
-                ServerConfig.ApiDb.Query<int>("SELECT * FROM `hardware_library` WHERE Id = @id AND `MarkedDelete` = 0;", new { id }).FirstOrDefault();
-            if (cnt == 0)
+            var data =
+                ServerConfig.ApiDb.Query<HardwareLibrary>("SELECT * FROM `hardware_library` WHERE Id = @id AND MarkedDelete = 0;", new { id }).FirstOrDefault();
+            if (data == null)
             {
                 return Result.GenError<Result>(Error.HardwareLibraryNotExist);
+            }
+
+            var cnt =
+                ServerConfig.ApiDb.Query<int>("SELECT COUNT(1) FROM `hardware_library` WHERE HardwareName = @HardwareName AND MarkedDelete = 0;", new { hardwareLibrary.HardwareName }).FirstOrDefault();
+            if (cnt > 0)
+            {
+                if (!hardwareLibrary.HardwareName.IsNullOrEmpty() && data.HardwareName != hardwareLibrary.HardwareName)
+                {
+                    return Result.GenError<Result>(Error.HardwareLibraryIsExist);
+                }
             }
 
             hardwareLibrary.Id = id;
@@ -66,6 +77,12 @@ namespace ApiManagement.Controllers
         [HttpPost]
         public Result PostHardwareLibrary([FromBody] HardwareLibrary hardwareLibrary)
         {
+            var cnt =
+                ServerConfig.ApiDb.Query<int>("SELECT COUNT(1) FROM `hardware_library` WHERE HardwareName = @HardwareName AND MarkedDelete = 0;", new { hardwareLibrary.HardwareName }).FirstOrDefault();
+            if (cnt > 0)
+            {
+                return Result.GenError<Result>(Error.HardwareLibraryIsExist);
+            }
             hardwareLibrary.CreateUserId = Request.GetIdentityInformation();
             hardwareLibrary.MarkedDateTime = DateTime.Now;
             ServerConfig.ApiDb.Execute(

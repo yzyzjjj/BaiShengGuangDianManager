@@ -6,10 +6,11 @@ using ModelBase.Models.Result;
 using System;
 using System.Linq;
 using ModelBase.Base.Utils;
+using ServiceStack;
 
 namespace ApiManagement.Controllers
 {
-    [Route("api/[controller]")]
+    [Microsoft.AspNetCore.Mvc.Route("api/[controller]")]
     [ApiController]
     //[Authorize]
     public class SiteController : ControllerBase
@@ -43,13 +44,22 @@ namespace ApiManagement.Controllers
         [HttpPut("{id}")]
         public Result PutSite([FromRoute] int id, [FromBody] Site site)
         {
-            var cnt =
-                ServerConfig.ApiDb.Query<int>("SELECT COUNT(1) FROM `site` WHERE Id = @id AND `MarkedDelete` = 0;", new { id }).FirstOrDefault();
-            if (cnt == 0)
+            var data =
+                ServerConfig.ApiDb.Query<Site>("SELECT * FROM `site` WHERE Id = @id AND MarkedDelete = 0;", new { id }).FirstOrDefault();
+            if (data == null)
             {
                 return Result.GenError<Result>(Error.SiteNotExist);
             }
 
+            var cnt =
+                ServerConfig.ApiDb.Query<int>("SELECT COUNT(1) FROM `site` WHERE SiteName = @SiteName AND MarkedDelete = 0;", new { site.SiteName }).FirstOrDefault();
+            if (cnt > 0)
+            {
+                if (!site.SiteName.IsNullOrEmpty() && data.SiteName != site.SiteName)
+                {
+                    return Result.GenError<Result>(Error.SiteIsExist);
+                }
+            }
             site.Id = id;
             site.CreateUserId = Request.GetIdentityInformation();
             site.MarkedDateTime = DateTime.Now;
@@ -64,7 +74,12 @@ namespace ApiManagement.Controllers
         [HttpPost]
         public Result PostSite([FromBody] Site site)
         {
-
+            var cnt =
+                ServerConfig.ApiDb.Query<int>("SELECT COUNT(1) FROM `site` WHERE SiteName = @SiteName AND MarkedDelete = 0;", new { site.SiteName }).FirstOrDefault();
+            if (cnt > 0)
+            {
+                return Result.GenError<Result>(Error.SiteIsExist);
+            }
             site.CreateUserId = Request.GetIdentityInformation();
             site.MarkedDateTime = DateTime.Now;
             ServerConfig.ApiDb.Execute(

@@ -66,7 +66,7 @@ namespace ApiManagement.Controllers
             }
 
             var cnt =
-                ServerConfig.ApiDb.Query<int>("SELECT COUNT(1) FROM `fault_type` WHERE FaultTypeName = @FaultTypeName;", new { faultType.FaultTypeName }).FirstOrDefault();
+                ServerConfig.ApiDb.Query<int>("SELECT COUNT(1) FROM `fault_type` WHERE FaultTypeName = @FaultTypeName AND MarkedDelete = 0;", new { faultType.FaultTypeName }).FirstOrDefault();
             if (cnt > 0)
             {
                 if (!faultType.FaultTypeName.IsNullOrEmpty() && data.FaultTypeName != faultType.FaultTypeName)
@@ -90,7 +90,7 @@ namespace ApiManagement.Controllers
         public Result PostFaultType([FromBody] FaultType faultType)
         {
             var cnt =
-                ServerConfig.ApiDb.Query<int>("SELECT COUNT(1) FROM `fault_type` WHERE FaultTypeName = @FaultTypeName;", new { faultType.FaultTypeName }).FirstOrDefault();
+                ServerConfig.ApiDb.Query<int>("SELECT COUNT(1) FROM `fault_type` WHERE FaultTypeName = @FaultTypeName AND MarkedDelete = 0;", new { faultType.FaultTypeName }).FirstOrDefault();
             if (cnt > 0)
             {
                 return Result.GenError<Result>(Error.FaultTypeIsExist);
@@ -113,7 +113,7 @@ namespace ApiManagement.Controllers
             if (faultTypeName.Any())
             {
                 var cnt =
-                    ServerConfig.ApiDb.Query<int>("SELECT COUNT(1) FROM `fault_type` WHERE FaultTypeName IN @FaultTypeName;", new { FaultTypeName = faultTypeName }).FirstOrDefault();
+                    ServerConfig.ApiDb.Query<int>("SELECT COUNT(1) FROM `fault_type` WHERE FaultTypeName IN @FaultTypeName AND MarkedDelete = 0;", new { FaultTypeName = faultTypeName }).FirstOrDefault();
                 if (cnt > 0)
                 {
                     return Result.GenError<Result>(Error.FaultTypeIsExist);

@@ -6,10 +6,11 @@ using ModelBase.Models.Result;
 using System;
 using System.Linq;
 using ModelBase.Base.Utils;
+using ServiceStack;
 
 namespace ApiManagement.Controllers
 {
-    [Route("api/[controller]")]
+    [Microsoft.AspNetCore.Mvc.Route("api/[controller]")]
     [ApiController]
     //[Authorize]
     public class FirmwareLibraryController : ControllerBase
@@ -43,11 +44,21 @@ namespace ApiManagement.Controllers
         [HttpPut("{id}")]
         public Result PutFirmwareLibrary([FromRoute] int id, [FromBody] FirmwareLibrary firmwareLibrary)
         {
-            var cnt =
-                ServerConfig.ApiDb.Query<int>("SELECT COUNT(1) FROM `firmware_library` WHERE Id = @id AND `MarkedDelete` = 0;", new { id }).FirstOrDefault();
-            if (cnt == 0)
+            var data =
+                ServerConfig.ApiDb.Query<FirmwareLibrary>("SELECT * FROM `firmware_library` WHERE Id = @id AND MarkedDelete = 0;", new { id }).FirstOrDefault();
+            if (data == null)
             {
                 return Result.GenError<Result>(Error.FirmwareLibraryNotExist);
+            }
+
+            var cnt =
+                ServerConfig.ApiDb.Query<int>("SELECT COUNT(1) FROM `firmware_library` WHERE FirmwareName = @FirmwareName AND MarkedDelete = 0;", new { firmwareLibrary.FirmwareName }).FirstOrDefault();
+            if (cnt > 0)
+            {
+                if (!firmwareLibrary.FirmwareName.IsNullOrEmpty() && data.FirmwareName != firmwareLibrary.FirmwareName)
+                {
+                    return Result.GenError<Result>(Error.FirmwareLibraryIsExist);
+                }
             }
 
             firmwareLibrary.Id = id;
@@ -65,6 +76,12 @@ namespace ApiManagement.Controllers
         [HttpPost]
         public Result PostFirmwareLibrary([FromBody] FirmwareLibrary firmwareLibrary)
         {
+            var cnt =
+                ServerConfig.ApiDb.Query<int>("SELECT COUNT(1) FROM `firmware_library` WHERE FirmwareName = @FirmwareName AND MarkedDelete = 0;", new { firmwareLibrary.FirmwareName }).FirstOrDefault();
+            if (cnt > 0)
+            {
+                return Result.GenError<Result>(Error.FirmwareLibraryIsExist);
+            }
             firmwareLibrary.CreateUserId = Request.GetIdentityInformation();
             firmwareLibrary.MarkedDateTime = DateTime.Now;
             ServerConfig.ApiDb.Execute(
