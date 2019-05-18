@@ -23,7 +23,7 @@ namespace ApiManagement.Controllers
         public DataResult GetScriptVersion()
         {
             var result = new DataResult();
-            result.datas.AddRange(ServerConfig.ApiDb.Query<ScriptVersionDetail>("SELECT a.*, b.ModelName FROM `script_version` a JOIN `device_model` b ON a.DeviceModelId = b.Id WHERE a.`MarkedDelete` = 0;"));
+            result.datas.AddRange(ServerConfig.ApiDb.Query<ScriptVersion>("SELECT * FROM `script_version` WHERE `MarkedDelete` = 0;"));
             return result;
         }
 
@@ -58,7 +58,7 @@ namespace ApiManagement.Controllers
         public DataResult GetScriptVersionByDeviceModel([FromRoute] int deviceModelId)
         {
             var result = new DataResult();
-            result.datas.AddRange(ServerConfig.ApiDb.Query<ScriptVersion>("SELECT * FROM `script_version` WHERE DeviceModelId = @deviceModelId AND `MarkedDelete` = 0;", new { deviceModelId }));
+            result.datas.AddRange(ServerConfig.ApiDb.Query<ScriptVersion>("SELECT * FROM `script_version` WHERE FIND_IN_SET(@deviceModelId, DeviceModelId) AND `MarkedDelete` = 0;", new { deviceModelId }));
             return result;
         }
 
