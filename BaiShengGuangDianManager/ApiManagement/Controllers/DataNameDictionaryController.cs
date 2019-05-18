@@ -113,7 +113,7 @@ namespace ApiManagement.Controllers
             //0 输入  1  json  2 excel  3 sql
             public int Type;
             //设备型号
-            public int DeviceModelId;
+            public string DeviceModelId;
             //数据类型 1 变量 2 输入口 3 输出口
             public int VariableType;
 

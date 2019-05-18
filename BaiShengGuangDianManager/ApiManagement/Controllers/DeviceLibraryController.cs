@@ -818,6 +818,24 @@ namespace ApiManagement.Controllers
             return Result.GenError<Result>(fRes ? Error.Success : Error.Fail);
         }
 
+
+        public class UpgradeInfo
+        {
+            //设备id
+            public int DeviceId;
+            //固件ID
+            public int FirmwareId;
+            //固件bin文件
+            public string FirmwareFile;
+        }
+        // POST: api/DeviceLibrary/SetProcessStep
+        [HttpPost("Upgrade")]
+        public Result Upgrade([FromBody] UpgradeInfo upgradeInfo)
+        {
+
+            return Result.GenError<Result>(Error.Success);
+        }
+
         // DELETE: api/DeviceLibrary/5
         [HttpDelete("{id}")]
         public Result DeleteDeviceLibrary([FromRoute] int id)
