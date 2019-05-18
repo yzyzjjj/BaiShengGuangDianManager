@@ -6,10 +6,11 @@ using Microsoft.AspNetCore.Mvc;
 using ModelBase.Base.EnumConfig;
 using ModelBase.Base.Utils;
 using ModelBase.Models.Result;
+using ServiceStack;
 
 namespace ApiManagement.Controllers
 {
-    [Route("api/[controller]")]
+    [Microsoft.AspNetCore.Mvc.Route("api/[controller]")]
     [ApiController]
     //[Authorize]
     public class ApplicationLibraryController : ControllerBase
@@ -41,36 +42,51 @@ namespace ApiManagement.Controllers
 
         // PUT: api/ApplicationLibrary/5
         [HttpPut("{id}")]
-        public Result PutApplicationLibrary([FromRoute] int id, [FromBody] ApplicationLibrary processLibrary)
+        public Result PutApplicationLibrary([FromRoute] int id, [FromBody] ApplicationLibrary applicationLibrary)
         {
-            var cnt =
-                ServerConfig.ApiDb.Query<int>("SELECT COUNT(1) FROM `application_library` WHERE Id = @id AND `MarkedDelete` = 0;", new { id }).FirstOrDefault();
-            if (cnt == 0)
+            var data =
+                ServerConfig.ApiDb.Query<ApplicationLibrary>("SELECT * FROM `application_library` WHERE Id = @id AND MarkedDelete = 0;", new { id }).FirstOrDefault();
+            if (data == null)
             {
                 return Result.GenError<Result>(Error.ApplicationLibraryNotExist);
             }
 
-            processLibrary.Id = id;
-            processLibrary.CreateUserId = Request.GetIdentityInformation();
-            processLibrary.MarkedDateTime = DateTime.Now;
+            var cnt =
+                ServerConfig.ApiDb.Query<int>("SELECT COUNT(1) FROM `application_library` WHERE ApplicationName = @ApplicationName AND MarkedDelete = 0;", new { applicationLibrary.ApplicationName }).FirstOrDefault();
+            if (cnt > 0)
+            {
+                if (!applicationLibrary.ApplicationName.IsNullOrEmpty() && data.ApplicationName != applicationLibrary.ApplicationName)
+                {
+                    return Result.GenError<Result>(Error.ApplicationLibraryIsExist);
+                }
+            }
+
+            applicationLibrary.Id = id;
+            applicationLibrary.CreateUserId = Request.GetIdentityInformation();
+            applicationLibrary.MarkedDateTime = DateTime.Now;
             ServerConfig.ApiDb.Execute(
                 "UPDATE application_library SET `MarkedDateTime` = @MarkedDateTime, `MarkedDelete` = @MarkedDelete, `ModifyId` = @ModifyId, " +
-                "`ApplicationName` = @ApplicationName, `FilePath` = @FilePath, `Description` = @Description WHERE `Id` = @Id;", processLibrary);
+                "`ApplicationName` = @ApplicationName, `FilePath` = @FilePath, `Description` = @Description WHERE `Id` = @Id;", applicationLibrary);
 
             return Result.GenError<Result>(Error.Success);
         }
 
         // POST: api/ApplicationLibrary
         [HttpPost]
-        public Result PostApplicationLibrary([FromBody] ApplicationLibrary processLibrary)
+        public Result PostApplicationLibrary([FromBody] ApplicationLibrary applicationLibrary)
         {
-
-            processLibrary.CreateUserId = Request.GetIdentityInformation();
-            processLibrary.MarkedDateTime = DateTime.Now;
+            var cnt =
+                ServerConfig.ApiDb.Query<int>("SELECT COUNT(1) FROM `application_library` WHERE ApplicationName = @ApplicationName AND MarkedDelete = 0;", new { applicationLibrary.ApplicationName }).FirstOrDefault();
+            if (cnt > 0)
+            {
+                return Result.GenError<Result>(Error.ApplicationLibraryIsExist);
+            }
+            applicationLibrary.CreateUserId = Request.GetIdentityInformation();
+            applicationLibrary.MarkedDateTime = DateTime.Now;
             ServerConfig.ApiDb.Execute(
               "INSERT INTO application_library (`CreateUserId`, `MarkedDateTime`, `MarkedDelete`, `ModifyId`, `ApplicationName`, `FilePath`, `Description`) " +
               "VALUES (@CreateUserId, @MarkedDateTime, @MarkedDelete, @ModifyId, @ApplicationName, @FilePath, @Description);",
-              processLibrary);
+              applicationLibrary);
 
             return Result.GenError<Result>(Error.Success);
         }

@@ -66,7 +66,7 @@ namespace ApiManagement.Controllers
             }
 
             var cnt =
-                ServerConfig.ApiDb.Query<int>("SELECT COUNT(1) FROM `usually_fault` WHERE UsuallyFaultDesc = @UsuallyFaultDesc;", new { usuallyFault.UsuallyFaultDesc }).FirstOrDefault();
+                ServerConfig.ApiDb.Query<int>("SELECT COUNT(1) FROM `usually_fault` WHERE UsuallyFaultDesc = @UsuallyFaultDesc AND MarkedDelete = 0;", new { usuallyFault.UsuallyFaultDesc }).FirstOrDefault();
             if (cnt > 0)
             {
                 if (!usuallyFault.UsuallyFaultDesc.IsNullOrEmpty() && data.UsuallyFaultDesc != usuallyFault.UsuallyFaultDesc)
@@ -90,7 +90,7 @@ namespace ApiManagement.Controllers
         public Result PostUsuallyFault([FromBody] UsuallyFault usuallyFault)
         {
             var cnt =
-                ServerConfig.ApiDb.Query<int>("SELECT COUNT(1) FROM `usually_fault` WHERE UsuallyFaultDesc = @UsuallyFaultDesc;", new { usuallyFault.UsuallyFaultDesc }).FirstOrDefault();
+                ServerConfig.ApiDb.Query<int>("SELECT COUNT(1) FROM `usually_fault` WHERE UsuallyFaultDesc = @UsuallyFaultDesc AND MarkedDelete = 0;", new { usuallyFault.UsuallyFaultDesc }).FirstOrDefault();
             if (cnt > 0)
             {
                 return Result.GenError<Result>(Error.UsuallyFaultIsExist);
@@ -114,7 +114,7 @@ namespace ApiManagement.Controllers
             if (usuallyFaultDesc.Any())
             {
                 var cnt =
-                    ServerConfig.ApiDb.Query<int>("SELECT COUNT(1) FROM `usually_fault` WHERE UsuallyFaultDesc IN @UsuallyFaultDesc;", new { UsuallyFaultDesc = usuallyFaultDesc }).FirstOrDefault();
+                    ServerConfig.ApiDb.Query<int>("SELECT COUNT(1) FROM `usually_fault` WHERE UsuallyFaultDesc IN @UsuallyFaultDesc AND MarkedDelete = 0;", new { UsuallyFaultDesc = usuallyFaultDesc }).FirstOrDefault();
                 if (cnt > 0)
                 {
                     return Result.GenError<Result>(Error.UsuallyFaultIsExist);
