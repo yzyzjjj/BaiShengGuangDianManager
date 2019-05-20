@@ -37,6 +37,14 @@
         /// <summary>
         /// 设定变量
         /// </summary>
-        SetVal
+        SetVal,
+        /// <summary>
+        /// 升级状态查询
+        /// </summary>
+        UpgradeState,
+        /// <summary>
+        /// 进入升级状态
+        /// </summary>
+        StartUpgrade
     }
 }

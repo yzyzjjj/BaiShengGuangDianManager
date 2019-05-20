@@ -828,9 +828,17 @@ namespace ApiManagement.Controllers
             //固件bin文件
             public string FirmwareFile;
         }
-        // POST: api/DeviceLibrary/SetProcessStep
+        // POST: api/DeviceLibrary/Upgrade
         [HttpPost("Upgrade")]
         public Result Upgrade([FromBody] UpgradeInfo upgradeInfo)
+        {
+
+            return Result.GenError<Result>(Error.Success);
+        }
+
+        // POST: api/DeviceLibrary/ReStart
+        [HttpPost("ReStart")]
+        public Result ReStart([FromRoute] int id)
         {
 
             return Result.GenError<Result>(Error.Success);

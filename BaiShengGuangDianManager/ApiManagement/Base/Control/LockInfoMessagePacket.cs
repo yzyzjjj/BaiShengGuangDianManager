@@ -50,7 +50,7 @@ namespace ApiManagement.Base.Control
             //子功能码	01
             //状态码	00 解锁 01 锁定
             //CRC校验	2bytes
-            response = "f3,3,1,0,c2,f0";
+            //response = "f3,3,1,0,c2,f0";
             var datas = response.Split(",");
             if (datas.Length == 0 || datas[0] != "f3" || datas[1] != "3")
             {

@@ -47,7 +47,7 @@ namespace ApiManagement.Base.Control
             //功能码	03
             //子功能码	00
             //CRC校验	2bytes
-            response = "f3,3,0,0,crc";
+            //response = "f3,3,0,0,crc";
             var datas = response.Split(",");
             if (datas.Length == 0 || datas[0] != "f3" || datas[1] != "3")
             {
