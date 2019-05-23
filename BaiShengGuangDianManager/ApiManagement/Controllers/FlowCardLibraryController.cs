@@ -16,14 +16,20 @@ namespace ApiManagement.Controllers
     //[Authorize]
     public class FlowCardLibraryController : ControllerBase
     {
-        // GET: api/FlowCardLibrary
-        [HttpGet("{id}")]
-        public DataResult GetFlowCardLibrary([FromRoute] int id = 0)
+        public class GetFlowCardBody
+        {
+            public int Id;
+            public DateTime StartTime;
+            public DateTime EndTime;
+        }
+        // Post: api/FlowCardLibrary/Query
+        [HttpPost("Query")]
+        public DataResult GetFlowCardLibrary([FromBody] GetFlowCardBody getFlowCardBody)
         {
             var result = new DataResult();
-            IEnumerable<FlowCardLibraryDetail> datas;
-            datas = id == 0 ? ServerConfig.ApiDb.Query<FlowCardLibraryDetail>("SELECT a.*, b.ProductionProcessName, c.RawMateriaName, d.ProcessStepId, d.CategoryName, d.StepName, d.ProcessTime, d.QualifiedNumber, d.DeviceId, e.WorkshopName FROM `flowcard_library` a LEFT JOIN `production_library` b ON a.ProductionProcessId = b.Id LEFT JOIN `raw_materia` c ON a.RawMateriaId = c.Id LEFT JOIN ( SELECT * FROM ( SELECT FlowCardId, ProcessStepOrder, ProcessStepId, b.CategoryName, b.StepName, QualifiedNumber, ProcessTime, DeviceId FROM `flowcard_process_step` a JOIN ( SELECT a.Id, a.StepName, b.CategoryName FROM `device_process_step` a JOIN `device_category` b ON a.DeviceCategoryId = b.Id WHERE a.MarkedDelete = 0 ) b ON a.ProcessStepId = b.Id WHERE a.MarkedDelete = 0 AND NOT ISNULL(ProcessTime) || ProcessTime = '0001-01-01 00:00:00' ORDER BY ProcessStepOrder DESC ) a GROUP BY a.FlowCardId ) d ON a.Id = d.FlowCardId LEFT JOIN `workshop` e ON a.WorkshopId = e.Id WHERE a.MarkedDelete = 0;")
-                            : ServerConfig.ApiDb.Query<FlowCardLibraryDetail>("SELECT a.*, b.ProductionProcessName, c.RawMateriaName, d.ProcessStepId, d.CategoryName, d.StepName, d.ProcessTime, d.QualifiedNumber, d.DeviceId, e.WorkshopName FROM `flowcard_library` a LEFT JOIN `production_library` b ON a.ProductionProcessId = b.Id LEFT JOIN `raw_materia` c ON a.RawMateriaId = c.Id LEFT JOIN ( SELECT * FROM ( SELECT FlowCardId, ProcessStepOrder, ProcessStepId, b.CategoryName, b.StepName, QualifiedNumber, ProcessTime, DeviceId FROM `flowcard_process_step` a JOIN ( SELECT a.Id, a.StepName, b.CategoryName FROM `device_process_step` a JOIN `device_category` b ON a.DeviceCategoryId = b.Id WHERE a.MarkedDelete = 0 ) b ON a.ProcessStepId = b.Id WHERE a.MarkedDelete = 0 AND NOT ISNULL(ProcessTime) || ProcessTime = '0001-01-01 00:00:00' ORDER BY ProcessStepOrder DESC ) a GROUP BY a.FlowCardId ) d ON a.Id = d.FlowCardId LEFT JOIN `workshop` e ON a.WorkshopId = e.Id WHERE a.MarkedDelete = 0 AND a.WorkshopId = @id;", new { id });
+            var datas = getFlowCardBody.Id == 0 ? ServerConfig.ApiDb.Query<FlowCardLibraryDetail>(
+                    "SELECT a.*, b.ProductionProcessName, c.RawMateriaName, d.ProcessStepId, d.CategoryName, d.StepName, d.ProcessTime, d.QualifiedNumber, d.DeviceId, e.WorkshopName FROM (SELECT * FROM `flowcard_library` WHERE CreateTime>= @StartTime AND CreateTime <= @EndTime) a LEFT JOIN `production_library` b ON a.ProductionProcessId = b.Id LEFT JOIN `raw_materia` c ON a.RawMateriaId = c.Id LEFT JOIN ( SELECT * FROM ( SELECT FlowCardId, ProcessStepOrder, ProcessStepId, b.CategoryName, b.StepName, QualifiedNumber, ProcessTime, DeviceId FROM `flowcard_process_step` a JOIN ( SELECT a.Id, a.StepName, b.CategoryName FROM `device_process_step` a JOIN `device_category` b ON a.DeviceCategoryId = b.Id WHERE a.MarkedDelete = 0 ) b ON a.ProcessStepId = b.Id WHERE a.MarkedDelete = 0 AND NOT ISNULL(ProcessTime) || ProcessTime = \'0001-01-01 00:00:00\' ORDER BY ProcessStepOrder DESC ) a GROUP BY a.FlowCardId ) d ON a.Id = d.FlowCardId LEFT JOIN `workshop` e ON a.WorkshopId = e.Id WHERE a.MarkedDelete = 0;", new { StartTime = getFlowCardBody.StartTime.DayBeginTime(), EndTime = getFlowCardBody.EndTime.DayEndTime() })
+                : ServerConfig.ApiDb.Query<FlowCardLibraryDetail>("SELECT a.*, b.ProductionProcessName, c.RawMateriaName, d.ProcessStepId, d.CategoryName, d.StepName, d.ProcessTime, d.QualifiedNumber, d.DeviceId, e.WorkshopName FROM (SELECT * FROM `flowcard_library` WHERE CreateTime>= @StartTime AND CreateTime <= @EndTime) a LEFT JOIN `production_library` b ON a.ProductionProcessId = b.Id LEFT JOIN `raw_materia` c ON a.RawMateriaId = c.Id LEFT JOIN ( SELECT * FROM ( SELECT FlowCardId, ProcessStepOrder, ProcessStepId, b.CategoryName, b.StepName, QualifiedNumber, ProcessTime, DeviceId FROM `flowcard_process_step` a JOIN ( SELECT a.Id, a.StepName, b.CategoryName FROM `device_process_step` a JOIN `device_category` b ON a.DeviceCategoryId = b.Id WHERE a.MarkedDelete = 0 ) b ON a.ProcessStepId = b.Id WHERE a.MarkedDelete = 0 AND NOT ISNULL(ProcessTime) || ProcessTime = \'0001-01-01 00:00:00\' ORDER BY ProcessStepOrder DESC ) a GROUP BY a.FlowCardId ) d ON a.Id = d.FlowCardId LEFT JOIN `workshop` e ON a.WorkshopId = e.Id WHERE a.MarkedDelete = 0 AND a.WorkshopId = @Id;", new { getFlowCardBody.Id, StartTime = getFlowCardBody.StartTime.DayBeginTime(), EndTime = getFlowCardBody.EndTime.DayEndTime() });
 
             var device = datas.Select(x => x.DeviceId);
             if (device.Any())
