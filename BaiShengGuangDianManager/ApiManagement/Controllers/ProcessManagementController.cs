@@ -32,7 +32,7 @@ namespace ApiManagement.Controllers
             if (processManagements.Any())
             {
                 var deviceLibraries = ServerConfig.ApiDb.Query<DeviceLibrary>("SELECT `Id`, Code FROM `device_library` WHERE MarkedDelete = 0;").ToDictionary(x => x.Id);
-                var deviceModels = ServerConfig.ApiDb.Query<DeviceModel>("SELECT `Id`, ModelName FROM `device_model` WHERE MarkedDelete = 0;").ToDictionary(x => x.Id);
+                var deviceModels = ServerConfig.ApiDb.Query<DeviceModelDetail>("SELECT a.`Id`, a.ModelName, b.CategoryName FROM `device_model` a JOIN `device_category` b ON a.DeviceCategoryId = b.Id WHERE a.MarkedDelete = 0;").ToDictionary(x => x.Id);
                 var productionProcessLibraries = ServerConfig.ApiDb.Query<ProductionProcessLibrary>("SELECT `Id`, ProductionProcessName FROM `production_library` WHERE MarkedDelete = 0;").ToDictionary(x => x.Id);
 
                 foreach (var processManagement in processManagements)
@@ -40,7 +40,7 @@ namespace ApiManagement.Controllers
                     if (!processManagement.DeviceModels.IsNullOrEmpty())
                     {
                         var deviceModelList = processManagement.DeviceModels.Split(',').Select(int.Parse);
-                        processManagement.ModelName = deviceModels.Where(x => deviceModelList.Contains(x.Key)).Select(x => x.Value.ModelName).Join(",");
+                        processManagement.ModelName = deviceModels.Where(x => deviceModelList.Contains(x.Key)).Select(x => $"{x.Value.CategoryName}-{x.Value.ModelName}").Join(",");
                     }
                     if (!processManagement.ProductModels.IsNullOrEmpty())
                     {
@@ -72,7 +72,7 @@ namespace ApiManagement.Controllers
             var res = new List<ProcessManagementDetail>();
             if (productionProcessLibraries.Any())
             {
-                var deviceModels = ServerConfig.ApiDb.Query<DeviceModel>("SELECT * FROM `device_model` WHERE MarkedDelete = 0;").ToDictionary(x => x.Id);
+                var deviceModels = ServerConfig.ApiDb.Query<DeviceModelDetail>("SELECT a.`Id`, a.ModelName, b.CategoryName FROM `device_model` a JOIN `device_category` b ON a.DeviceCategoryId = b.Id WHERE a.MarkedDelete = 0;").ToDictionary(x => x.Id);
                 var deviceLibraries = ServerConfig.ApiDb.Query<DeviceLibrary>("SELECT * FROM `device_library` WHERE MarkedDelete = 0;").ToDictionary(x => x.Id);
                 var processManagements = ServerConfig.ApiDb.Query<ProcessManagement>("SELECT * FROM `process_management` WHERE MarkedDelete = 0 AND ProductModels != '';");
 
@@ -91,19 +91,22 @@ namespace ApiManagement.Controllers
                         if (!processNumber.DeviceModels.IsNullOrEmpty())
                         {
                             var tdeviceModelList = processNumber.DeviceModels.Split(',').Select(int.Parse);
-                            productionProcessLibrary.ModelName = deviceModels.Where(x => tdeviceModelList.Contains(x.Key)).Select(x => x.Value.ModelName).Join(",");
+                            productionProcessLibrary.ModelName = deviceModels.Where(x => tdeviceModelList.Contains(x.Key)).Select(x => $"{x.Value.CategoryName}-{x.Value.ModelName}").Join(",");
                         }
                     }
 
+                    var codes = new List<Tuple<int, string>>();
                     //机台号
                     foreach (var processNumber in processNumberList)
                     {
                         if (!processNumber.DeviceIds.IsNullOrEmpty())
                         {
                             var codeList = processNumber.DeviceIds.Split(',').Select(int.Parse);
-                            productionProcessLibrary.Code = deviceLibraries.Where(x => codeList.Contains(x.Key)).Select(x => x.Value.Code).Join(",");
+                            codes.AddRange(deviceLibraries.Where(x => codeList.Contains(x.Key)).Select(x => new Tuple<int, string>(x.Value.Id, x.Value.Code)));
                         }
                     }
+
+                    productionProcessLibrary.Code = codes.Distinct().OrderBy(x => x.Item1).Select(x => x.Item2).Join(",");
                     res.Add(productionProcessLibrary);
                 }
             }
@@ -151,7 +154,7 @@ namespace ApiManagement.Controllers
         public DataResult GetProcessManagementByModelName()
         {
             var result = new DataResult();
-            var deviceModels = ServerConfig.ApiDb.Query<ProcessManagementDetail>("SELECT * FROM `device_model` WHERE MarkedDelete = 0;");
+            var deviceModels = ServerConfig.ApiDb.Query<ProcessManagementDetail>("SELECT a.`Id`, a.ModelName, b.CategoryName FROM `device_model` a JOIN `device_category` b ON a.DeviceCategoryId = b.Id WHERE a.MarkedDelete = 0;");
             var res = new List<ProcessManagementDetail>();
             if (deviceModels.Any())
             {
@@ -161,6 +164,7 @@ namespace ApiManagement.Controllers
 
                 foreach (var deviceModel in deviceModels)
                 {
+                    deviceModel.ModelName = $"{deviceModel.CategoryName}-{deviceModel.ModelName}";
                     var processNumberList = processManagements.Where(x => x.DeviceModels.Split(',').Select(int.Parse).Contains(deviceModel.Id));
                     if (!processNumberList.Any())
                     {
@@ -245,7 +249,7 @@ namespace ApiManagement.Controllers
             if (deviceLibraries.Any())
             {
                 var processManagements = ServerConfig.ApiDb.Query<ProcessManagement>("SELECT * FROM `process_management` WHERE MarkedDelete = 0 AND DeviceIds != '';");
-                var deviceModels = ServerConfig.ApiDb.Query<DeviceModel>("SELECT `Id`, ModelName FROM `device_model` WHERE MarkedDelete = 0;").ToDictionary(x => x.Id);
+                var deviceModels = ServerConfig.ApiDb.Query<DeviceModelDetail>("SELECT a.`Id`, a.ModelName, b.CategoryName FROM `device_model` a JOIN `device_category` b ON a.DeviceCategoryId = b.Id;").ToDictionary(x => x.Id);
                 var productionProcessLibraries = ServerConfig.ApiDb.Query<ProductionProcessLibrary>("SELECT `Id`, ProductionProcessName FROM `production_library` WHERE MarkedDelete = 0;").ToDictionary(x => x.Id);
 
                 foreach (var deviceLibrary in deviceLibraries)
@@ -256,7 +260,7 @@ namespace ApiManagement.Controllers
                         continue;
                     }
                     deviceLibrary.ProcessNumber = processNumberList.Select(x => x.ProcessNumber).Join(",");
-                    deviceLibrary.ModelName = deviceModels.ContainsKey(deviceLibrary.Id) ? deviceModels[deviceLibrary.Id].ModelName : "";
+                    deviceLibrary.ModelName = deviceModels.ContainsKey(deviceLibrary.DeviceModelId) ? $"{deviceModels[deviceLibrary.DeviceModelId].CategoryName}-{deviceModels[deviceLibrary.DeviceModelId].ModelName}" : "";
 
                     foreach (var processNumber in processNumberList)
                     {

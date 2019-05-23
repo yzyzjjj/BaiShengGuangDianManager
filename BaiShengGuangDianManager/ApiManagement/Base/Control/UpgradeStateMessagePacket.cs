@@ -1,20 +1,19 @@
-﻿using ModelBase.Base.Utils;
-using ServiceStack;
-using System;
+﻿using System;
 using System.Collections.Generic;
-using System.Linq;
+using ModelBase.Base.Utils;
+using ServiceStack;
 
 namespace ApiManagement.Base.Control
 {
-    ///<summary>
-    /// 解锁
-    ///</summary>
-    public class UnlockMessagePacket : MessagePacket
+    /// <summary>
+    /// 升级状态查询
+    /// </summary>
+    public class UpgradeStateMessagePacket : MessagePacket
     {
-        public override ControlEnum ControlEnum => ControlEnum.Unlock;
-        public override int FunctionCode => 3;
-        public override int SubFunctionCode => 1;
-        public int OperateCode => 0;
+        public override ControlEnum ControlEnum => ControlEnum.UpgradeState;
+        public override int FunctionCode => 4;
+        public override int SubFunctionCode => 0;
+        public int OperateCode => 1;
 
         ///<summary>
         /// 解锁报文
@@ -23,9 +22,9 @@ namespace ApiManagement.Base.Control
         public override string Serialize()
         {
             // 包头 F3
-            // 功能码	03
-            // 子功能码	01
-            // 操作码	00
+            // 功能码	04
+            // 子功能码	00
+            // 操作码	01
             // CRC校验	2bytes
             var data = new List<string>
             {
@@ -47,11 +46,11 @@ namespace ApiManagement.Base.Control
         public override dynamic Deserialize(string response)
         {
             //包头 F3
-            //功能码	03
-            //子功能码	01
-            //状态码	00 解锁 01 锁定
+            //功能码	4
+            //子功能码	0
+            //状态码	0 引导层 01 在固件层
             //CRC校验	2bytes
-            //response = "f3,3,1,0,c2,f0";
+            //response = "f3,4,0,1,b3,61";
             var datas = response.Split(",");
             if (datas.Length == 0 || datas[0] != "f3" || datas[1] != "3")
             {

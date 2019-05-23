@@ -53,5 +53,7 @@ namespace ApiManagement.Models
         /// 适用机台号 英文逗号隔开
         /// </summary>
         public string Code { get; set; } = string.Empty;
+        public int DeviceModelId { get; set; }
+        public string CategoryName { get; set; }
     }
 }

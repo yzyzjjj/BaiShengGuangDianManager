@@ -155,6 +155,7 @@ namespace ApiManagement.Controllers
                         dataNameDictionary.ScriptId = data.ScriptId;
                         dataNameDictionary.VariableTypeId = data.VariableType;
                     }
+
                     break;
                 case 1:
                     if (data.ScriptName.IsNullOrEmpty())
@@ -196,6 +197,11 @@ namespace ApiManagement.Controllers
             }
 
             var dataNameDictionaries = data.DataNameDictionaries;
+            if (!dataNameDictionaries.Any())
+            {
+                return Result.GenError<Result>(Error.Success);
+            }
+
             var createUserId = Request.GetIdentityInformation();
             foreach (var dataNameDictionary in dataNameDictionaries)
             {
@@ -210,17 +216,22 @@ namespace ApiManagement.Controllers
             {
                 return Result.GenError<Result>(Error.PointerAddressIsExist);
             }
-            cnt = ServerConfig.ApiDb.Query<int>(
-                "SELECT COUNT(1) FROM `data_name_dictionary` WHERE ScriptId = @ScriptId AND VariableTypeId = @VariableTypeId AND PointerAddress IN @PointerAddress;",
-                new
-                {
-                    ScriptId = data.ScriptId,
-                    VariableTypeId = data.VariableType,
-                    PointerAddress = dataNameDictionaries.Select(x => x.PointerAddress)
-                }).FirstOrDefault();
-            if (cnt > 0)
+
+            var dna = dataNameDictionaries.Select(x => x.PointerAddress);
+            if (dna.Any())
             {
-                return Result.GenError<Result>(Error.PointerAddressIsExist);
+                cnt = ServerConfig.ApiDb.Query<int>(
+                    "SELECT COUNT(1) FROM `data_name_dictionary` WHERE ScriptId = @ScriptId AND VariableTypeId = @VariableTypeId AND PointerAddress IN @PointerAddress;",
+                    new
+                    {
+                        ScriptId = data.ScriptId,
+                        VariableTypeId = data.VariableType,
+                        PointerAddress = dna
+                    }).FirstOrDefault();
+                if (cnt > 0)
+                {
+                    return Result.GenError<Result>(Error.PointerAddressIsExist);
+                }
             }
 
             ServerConfig.ApiDb.Execute(

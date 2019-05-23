@@ -18,7 +18,7 @@ namespace ApiManagement.Controllers
         public DataResult GetDeviceProcessStep()
         {
             var result = new DataResult();
-            result.datas.AddRange(ServerConfig.ApiDb.Query<DeviceProcessStepDetail>("SELECT a.*, b.CategoryName FROM `device_process_step` a JOIN `device_category` b ON a.DeviceCategoryId = b.Id WHERE a.MarkedDelete = 0;"));
+            result.datas.AddRange(ServerConfig.ApiDb.Query<DeviceProcessStepDetail>("SELECT a.*, b.CategoryName FROM `device_process_step` a JOIN `device_category` b ON a.DeviceCategoryId = b.Id WHERE a.MarkedDelete = 0 ORDER BY a.DeviceCategoryId, a.Id;"));
             return result;
         }
 
