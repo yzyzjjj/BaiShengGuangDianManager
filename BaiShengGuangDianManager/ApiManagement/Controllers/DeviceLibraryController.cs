@@ -607,7 +607,7 @@ namespace ApiManagement.Controllers
                 ServerConfig.ApiDb.Query<int>("SELECT COUNT(1) FROM `script_version` WHERE Id = @id AND `MarkedDelete` = 0;", new { id = deviceLibrary.ScriptId }).FirstOrDefault();
             if (cnt == 0)
             {
-                return Result.GenError<Result>(Error.ApplicationLibraryNotExist);
+                return Result.GenError<Result>(Error.ScriptVersionNotExist);
             }
 
             if (!IPAddress.TryParse(deviceLibrary.Ip, out _))
