@@ -6,10 +6,11 @@ using System;
 using System.Linq;
 using ModelBase.Base.EnumConfig;
 using ModelBase.Base.Utils;
+using ServiceStack;
 
 namespace ApiManagement.Controllers
 {
-    [Route("api/[controller]")]
+    [Microsoft.AspNetCore.Mvc.Route("api/[controller]")]
     [ApiController]
     //[Authorize]  //根据需要可添加角色和自定义授权
     public class DeviceCategoryController : ControllerBase
@@ -43,11 +44,21 @@ namespace ApiManagement.Controllers
         [HttpPut("{id}")]
         public Result PutDeviceCategory([FromRoute] int id, [FromBody] DeviceCategory deviceCategory)
         {
-            var cnt =
-                ServerConfig.ApiDb.Query<int>("SELECT COUNT(1) FROM `device_category` WHERE Id = @id AND `MarkedDelete` = 0;", new { id }).FirstOrDefault();
-            if (cnt == 0)
+            var data =
+                ServerConfig.ApiDb.Query<DeviceCategory>("SELECT * FROM `device_category` WHERE Id = @id AND MarkedDelete = 0;", new { id }).FirstOrDefault();
+            if (data == null)
             {
                 return Result.GenError<Result>(Error.DeviceCategoryNotExist);
+            }
+
+            var cnt =
+                ServerConfig.ApiDb.Query<int>("SELECT COUNT(1) FROM `device_category` WHERE CategoryName = @CategoryName AND MarkedDelete = 0;", new { deviceCategory.CategoryName }).FirstOrDefault();
+            if (cnt > 0)
+            {
+                if (!deviceCategory.CategoryName.IsNullOrEmpty() && data.CategoryName != deviceCategory.CategoryName)
+                {
+                    return Result.GenError<Result>(Error.DeviceCategoryIsExist);
+                }
             }
 
             deviceCategory.Id = id;
@@ -64,6 +75,12 @@ namespace ApiManagement.Controllers
         [HttpPost]
         public Result PostDeviceCategory([FromBody] DeviceCategory deviceCategory)
         {
+            var cnt =
+                ServerConfig.ApiDb.Query<int>("SELECT COUNT(1) FROM `device_category` WHERE CategoryName = @CategoryName AND MarkedDelete = 0;", new { deviceCategory.CategoryName }).FirstOrDefault();
+            if (cnt > 0)
+            {
+                return Result.GenError<Result>(Error.DeviceCategoryIsExist);
+            }
             deviceCategory.CreateUserId = Request.GetIdentityInformation();
             deviceCategory.MarkedDateTime = DateTime.Now;
             ServerConfig.ApiDb.Execute(

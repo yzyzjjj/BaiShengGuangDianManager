@@ -2,14 +2,15 @@
 using ApiManagement.Models;
 using Microsoft.AspNetCore.Mvc;
 using ModelBase.Base.EnumConfig;
+using ModelBase.Base.Utils;
 using ModelBase.Models.Result;
+using ServiceStack;
 using System;
 using System.Linq;
-using ModelBase.Base.Utils;
 
 namespace ApiManagement.Controllers
 {
-    [Route("api/[controller]")]
+    [Microsoft.AspNetCore.Mvc.Route("api/[controller]")]
     [ApiController]
     //[Authorize]
     public class DeviceModelController : ControllerBase
@@ -19,7 +20,7 @@ namespace ApiManagement.Controllers
         public DataResult GetDeviceModel()
         {
             var result = new DataResult();
-            result.datas.AddRange(ServerConfig.ApiDb.Query<DeviceModelDetail>("SELECT a.*, b.CategoryName FROM `device_model` a JOIN `device_category` b ON a.DeviceCategoryId = b.Id WHERE a.MarkedDelete = 0;"));
+            result.datas.AddRange(ServerConfig.ApiDb.Query<DeviceModelDetail>("SELECT a.*, b.CategoryName FROM `device_model` a JOIN `device_category` b ON a.DeviceCategoryId = b.Id WHERE a.MarkedDelete = 0 ORDER BY a.Id;;"));
             return result;
         }
 
@@ -43,11 +44,28 @@ namespace ApiManagement.Controllers
         [HttpPut("{id}")]
         public Result PutDeviceModel([FromRoute] int id, [FromBody] DeviceModel deviceModel)
         {
-            var cnt =
-                ServerConfig.ApiDb.Query<int>("SELECT COUNT(1) FROM `device_model` WHERE Id = @id AND `MarkedDelete` = 0;", new { id }).FirstOrDefault();
-            if (cnt == 0)
+            var data =
+                ServerConfig.ApiDb.Query<DeviceModel>("SELECT COUNT(1) FROM `device_model` WHERE Id = @id AND MarkedDelete = 0;", new { id }).FirstOrDefault();
+            if (data == null)
             {
                 return Result.GenError<Result>(Error.DeviceModelNotExist);
+            }
+
+            var cnt =
+                ServerConfig.ApiDb.Query<int>("SELECT COUNT(1) FROM `device_category` WHERE Id = @id AND `MarkedDelete` = 0;", new { id = deviceModel.DeviceCategoryId }).FirstOrDefault();
+            if (cnt == 0)
+            {
+                return Result.GenError<Result>(Error.DeviceCategoryNotExist);
+            }
+
+            cnt =
+               ServerConfig.ApiDb.Query<int>("SELECT COUNT(1) FROM `device_model` WHERE ModelName = @ModelName AND DeviceCategoryId = @DeviceCategoryId AND MarkedDelete = 0;", new { deviceModel.ModelName, deviceModel.DeviceCategoryId }).FirstOrDefault();
+            if (cnt > 0)
+            {
+                if (!deviceModel.ModelName.IsNullOrEmpty() && data.ModelName != deviceModel.ModelName)
+                {
+                    return Result.GenError<Result>(Error.DeviceModelIsExist);
+                }
             }
 
             deviceModel.Id = id;
@@ -71,6 +89,12 @@ namespace ApiManagement.Controllers
                 return Result.GenError<Result>(Error.DeviceCategoryNotExist);
             }
 
+            cnt =
+                ServerConfig.ApiDb.Query<int>("SELECT COUNT(1) FROM `device_model` WHERE ModelName = @ModelName AND DeviceCategoryId = @DeviceCategoryId AND MarkedDelete = 0;", new { deviceModel.ModelName, deviceModel.DeviceCategoryId }).FirstOrDefault();
+            if (cnt > 0)
+            {
+                return Result.GenError<Result>(Error.DeviceModelIsExist);
+            }
             deviceModel.CreateUserId = Request.GetIdentityInformation();
             deviceModel.MarkedDateTime = DateTime.Now;
             ServerConfig.ApiDb.Execute(
