@@ -22,7 +22,7 @@ namespace ApiManagement.Controllers
         public DataResult GetFaultDevice()
         {
             var result = new DataResult();
-            result.datas.AddRange(ServerConfig.ApiDb.Query<FaultDeviceDetail>("SELECT a.*, b.FaultTypeName FROM `fault_device` a JOIN `fault_type` b ON a.FaultTypeId = b.Id WHERE a.MarkedDelete = 0;"));
+            result.datas.AddRange(ServerConfig.ApiDb.Query<FaultDeviceDetail>("SELECT a.*, b.FaultTypeName FROM `fault_device` a JOIN `fault_type` b ON a.FaultTypeId = b.Id WHERE a.MarkedDelete = 0 ORDER BY DeviceCode, a.Id;"));
             return result;
         }
 
@@ -102,12 +102,12 @@ namespace ApiManagement.Controllers
         [HttpPost]
         public Result PostFaultDevice([FromBody] FaultDevice faultDevice)
         {
-            var cnt =
-                ServerConfig.ApiDb.Query<int>("SELECT COUNT(1) FROM `fault_device` WHERE MarkedDelete = 0 AND DeviceCode = @DeviceCode;", new { faultDevice.DeviceCode }).FirstOrDefault();
-            if (cnt > 0)
-            {
-                return Result.GenError<Result>(Error.FaultDeviceIsExist);
-            }
+            //var cnt =
+            //    ServerConfig.ApiDb.Query<int>("SELECT COUNT(1) FROM `fault_device` WHERE MarkedDelete = 0 AND DeviceCode = @DeviceCode;", new { faultDevice.DeviceCode }).FirstOrDefault();
+            //if (cnt > 0)
+            //{
+            //    return Result.GenError<Result>(Error.FaultDeviceIsExist);
+            //}
             faultDevice.CreateUserId = Request.GetIdentityInformation();
             faultDevice.MarkedDateTime = DateTime.Now;
             ServerConfig.ApiDb.Execute(
@@ -122,17 +122,18 @@ namespace ApiManagement.Controllers
         [HttpPost("FaultDevices")]
         public Result PostFaultDevice([FromBody] List<FaultDevice> faultDevices)
         {
-            var cnt =
-                ServerConfig.ApiDb.Query<int>("SELECT COUNT(1) FROM `fault_device` WHERE DeviceCode IN @DeviceCode AND MarkedDelete = 0;", new { DeviceCode = faultDevices.Select(x => x.DeviceCode) }).FirstOrDefault();
-            if (cnt > 0)
-            {
-                return Result.GenError<Result>(Error.FaultDeviceIsExist);
-            }
-
+            //var cnt =
+            //    ServerConfig.ApiDb.Query<int>("SELECT COUNT(1) FROM `fault_device` WHERE DeviceCode IN @DeviceCode AND MarkedDelete = 0;", new { DeviceCode = faultDevices.Select(x => x.DeviceCode) }).FirstOrDefault();
+            //if (cnt > 0)
+            //{
+            //    return Result.GenError<Result>(Error.FaultDeviceIsExist);
+            //}
+            var createUserId = Request.GetIdentityInformation();
+            var time = DateTime.Now;
             foreach (var faultDevice in faultDevices)
             {
-                faultDevice.CreateUserId = Request.GetIdentityInformation();
-                faultDevice.MarkedDateTime = DateTime.Now;
+                faultDevice.CreateUserId = createUserId;
+                faultDevice.MarkedDateTime = time;
             }
             ServerConfig.ApiDb.Execute(
                 "INSERT INTO fault_device (`CreateUserId`, `MarkedDateTime`, `MarkedDelete`, `ModifyId`, `DeviceCode`, `FaultTime`, `Proposer`, `FaultDescription`, `Priority`, `State`, `FaultTypeId`) " +
