@@ -36,7 +36,7 @@ namespace ApiManagement.Controllers
                 "JOIN site f ON a.SiteId = f.Id " +
                 "JOIN script_version g ON a.ScriptId = g.Id WHERE a.`MarkedDelete` = 0;").ToDictionary(x => x.Id);
 
-            var faultDevices = ServerConfig.ApiDb.Query<dynamic>("SELECT * FROM `fault_device` WHERE MarkedDelete = 0;");
+            var faultDevices = ServerConfig.ApiDb.Query<dynamic>("SELECT * FROM ( SELECT * FROM `fault_device` WHERE MarkedDelete = 0 ORDER BY DeviceCode, State DESC ) a GROUP BY DeviceCode;");
             foreach (var faultDevice in faultDevices)
             {
                 var device = deviceLibraryDetails.Values.FirstOrDefault(x => x.Code == faultDevice.DeviceCode);
