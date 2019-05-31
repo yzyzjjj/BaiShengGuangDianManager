@@ -358,7 +358,8 @@ namespace ApiManagement.Controllers
             var rawMateriaSpecifications =
                 ServerConfig.ApiDb.Query<dynamic>(
                     "SELECT SpecificationName, SpecificationValue FROM `raw_materia_specification` WHERE RawMateriaId = @RawMateriaId AND MarkedDelete = 0;", new { flowCard.RawMateriaId });
-
+            var processData = ServerConfig.ApiDb.Query<ProcessData>(
+                "SELECT * FROM `process_data` WHERE ProcessManagementId = @Id AND MarkedDelete = 0;", new { processNumber.Id });
             return new
             {
                 errno = 0,
@@ -371,12 +372,10 @@ namespace ApiManagement.Controllers
                     RawMateriaSpecifications = rawMateriaSpecifications,
                     ProcessId = processNumber.Id,
                     processNumber.ProcessNumber,
+                    processData
                 }
             };
         }
-
-
-
 
         /// <summary>
         /// 自增ID
