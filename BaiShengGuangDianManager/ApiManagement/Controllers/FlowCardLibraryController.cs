@@ -377,7 +377,8 @@ namespace ApiManagement.Controllers
             var rawMateriaSpecifications =
                 ServerConfig.ApiDb.Query<dynamic>(
                     "SELECT SpecificationName, SpecificationValue FROM `raw_materia_specification` WHERE RawMateriaId = @RawMateriaId AND MarkedDelete = 0;", new { flowCard.RawMateriaId });
-
+            var processData = ServerConfig.ApiDb.Query<ProcessData>(
+                "SELECT * FROM `process_data` WHERE ProcessManagementId = @Id AND MarkedDelete = 0;", new { processNumber.Id });
             return new
             {
                 errno = 0,
@@ -390,12 +391,10 @@ namespace ApiManagement.Controllers
                     RawMateriaSpecifications = rawMateriaSpecifications,
                     ProcessId = processNumber.Id,
                     processNumber.ProcessNumber,
+                    processData
                 }
             };
         }
-
-
-
 
         /// <summary>
         /// 自增ID
@@ -672,8 +671,8 @@ namespace ApiManagement.Controllers
             flowCardLibrary.CreateUserId = createUserId;
             flowCardLibrary.MarkedDateTime = time;
             var index = ServerConfig.ApiDb.Query<int>(
-                "INSERT INTO flowcard_library (`CreateUserId`, `MarkedDateTime`, `MarkedDelete`, `ModifyId`, `FlowCardName`, `ProductionProcessId`, `RawMateriaId`, `RawMaterialQuantity`, `Sender`, `InboundNum`, `Remarks`, `Priority`) " +
-                "VALUES (@CreateUserId, @MarkedDateTime, @MarkedDelete, @ModifyId, @FlowCardName, @ProductionProcessId, @RawMateriaId, @RawMaterialQuantity, @Sender, @InboundNum, @Remarks, @Priority);SELECT LAST_INSERT_ID();",
+                "INSERT INTO flowcard_library(`CreateUserId`, `MarkedDateTime`, `MarkedDelete`, `ModifyId`, `FlowCardName`, `ProductionProcessId`, `RawMateriaId`, `RawMaterialQuantity`, `Sender`, `InboundNum`, `Remarks`, `Priority`, `CreateTime`) " +
+                "VALUES (@CreateUserId, @MarkedDateTime, @MarkedDelete, @ModifyId, @FlowCardName, @ProductionProcessId, @RawMateriaId, @RawMaterialQuantity, @Sender, @InboundNum, @Remarks, @Priority, @CreateTime); SELECT LAST_INSERT_ID();",
                     flowCardLibrary).FirstOrDefault();
 
             flowCardLibrary.Id = index;
@@ -771,8 +770,8 @@ namespace ApiManagement.Controllers
             }
 
             ServerConfig.ApiDb.Execute(
-                "INSERT INTO flowcard_library (`CreateUserId`, `MarkedDateTime`, `MarkedDelete`, `ModifyId`, `FlowCardName`, `ProductionProcessId`, `RawMateriaId`, `RawMaterialQuantity`, `Sender`, `InboundNum`, `Remarks`, `Priority`) " +
-                "VALUES (@CreateUserId, @MarkedDateTime, @MarkedDelete, @ModifyId, @FlowCardName, @ProductionProcessId, @RawMateriaId, @RawMaterialQuantity, @Sender, @InboundNum, @Remarks, @Priority);",
+                "INSERT INTO flowcard_library(`CreateUserId`, `MarkedDateTime`, `MarkedDelete`, `ModifyId`, `FlowCardName`, `ProductionProcessId`, `RawMateriaId`, `RawMaterialQuantity`, `Sender`, `InboundNum`, `Remarks`, `Priority`, `CreateTime`) " +
+                "VALUES(@CreateUserId, @MarkedDateTime, @MarkedDelete, @ModifyId, @FlowCardName, @ProductionProcessId, @RawMateriaId, @RawMaterialQuantity, @Sender, @InboundNum, @Remarks, @Priority, @CreateTime);",
                 flowCardLibraries.OrderBy(x => x.FlowCardName));
 
             var insertDatas =

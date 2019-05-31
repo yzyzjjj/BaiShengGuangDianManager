@@ -18,6 +18,7 @@ namespace ApiManagement.Models
         public string InboundNum { get; set; }
         public string Remarks { get; set; }
         public int Priority { get; set; }
+        public DateTime CreateTime { get; set; }
 
         public List<FlowCardSpecification> Specifications = new List<FlowCardSpecification>();
         public List<FlowCardProcessStepDetail> ProcessSteps = new List<FlowCardProcessStepDetail>();
