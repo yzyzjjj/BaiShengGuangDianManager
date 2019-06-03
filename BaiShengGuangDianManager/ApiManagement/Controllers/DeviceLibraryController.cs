@@ -28,13 +28,13 @@ namespace ApiManagement.Controllers
         {
             var result = new DataResult();
             var deviceLibraryDetails = ServerConfig.ApiDb.Query<DeviceLibraryDetail>(
-                "SELECT a.*, b.ModelName, b.DeviceCategoryId, c.FirmwareName, d.ApplicationName, e.HardwareName, f.SiteName, g.ScriptName FROM device_library a " +
-                "JOIN device_model b ON a.DeviceModelId = b.Id " +
+                "SELECT a.*, b.ModelName, b.DeviceCategoryId, b.CategoryName, c.FirmwareName, d.ApplicationName, e.HardwareName, f.SiteName, g.ScriptName FROM device_library a " +
+                "JOIN (SELECT a.*, b.CategoryName FROM device_model a JOIN device_category b ON a.DeviceCategoryId = b.Id) b ON a.DeviceModelId = b.Id " +
                 "JOIN firmware_library c ON a.FirmwareId = c.Id " +
                 "JOIN application_library d ON a.ApplicationId = d.Id " +
                 "JOIN hardware_library e ON a.HardwareId = e.Id " +
                 "JOIN site f ON a.SiteId = f.Id " +
-                "JOIN script_version g ON a.ScriptId = g.Id WHERE a.`MarkedDelete` = 0;").ToDictionary(x => x.Id);
+                "JOIN script_version g ON a.ScriptId = g.Id WHERE a.`MarkedDelete` = 0 ORDER BY a.Id;").ToDictionary(x => x.Id);
 
             var faultDevices = ServerConfig.ApiDb.Query<dynamic>("SELECT * FROM ( SELECT * FROM `fault_device` WHERE MarkedDelete = 0 ORDER BY DeviceCode, State DESC ) a GROUP BY DeviceCode;");
             foreach (var faultDevice in faultDevices)
@@ -63,6 +63,9 @@ namespace ApiManagement.Controllers
                             {
                                 deviceLibraryDetails[deviceId].State = deviceInfo.State;
                                 deviceLibraryDetails[deviceId].DeviceState = deviceInfo.DeviceState;
+                                deviceLibraryDetails[deviceId].ProcessTime = deviceInfo.ProcessTime;
+                                deviceLibraryDetails[deviceId].LeftTime = deviceInfo.LeftTime;
+                                deviceLibraryDetails[deviceId].FlowCard = deviceInfo.FlowCard;
                             }
                         }
                     }
@@ -198,31 +201,31 @@ namespace ApiManagement.Controllers
         {
             var result = new DeviceUpdateResult();
             var deviceCategories =
-                ServerConfig.ApiDb.Query<dynamic>("SELECT Id, CategoryName FROM `device_category` WHERE `MarkedDelete` = 0;");
+                ServerConfig.ApiDb.Query<dynamic>("SELECT Id, CategoryName FROM `device_category` WHERE `MarkedDelete` = 0 ORDER BY Id DESC;");
             result.deviceCategories.AddRange(deviceCategories);
 
             var deviceModels =
-                ServerConfig.ApiDb.Query<dynamic>("SELECT Id, DeviceCategoryId, ModelName FROM `device_model` WHERE `MarkedDelete` = 0;");
+                ServerConfig.ApiDb.Query<dynamic>("SELECT Id, DeviceCategoryId, ModelName FROM `device_model` WHERE `MarkedDelete` = 0 ORDER BY Id DESC;");
             result.deviceModels.AddRange(deviceModels);
 
             var firmwareLibraries =
-                ServerConfig.ApiDb.Query<dynamic>("SELECT Id, FirmwareName FROM `firmware_library` WHERE `MarkedDelete` = 0;");
+                ServerConfig.ApiDb.Query<dynamic>("SELECT Id, FirmwareName FROM `firmware_library` WHERE `MarkedDelete` = 0 ORDER BY Id DESC;");
             result.firmwareLibraries.AddRange(firmwareLibraries);
 
             var hardwareLibraries =
-                ServerConfig.ApiDb.Query<dynamic>("SELECT Id, HardwareName FROM `hardware_library` WHERE `MarkedDelete` = 0;");
+                ServerConfig.ApiDb.Query<dynamic>("SELECT Id, HardwareName FROM `hardware_library` WHERE `MarkedDelete` = 0 ORDER BY Id DESC;");
             result.hardwareLibraries.AddRange(hardwareLibraries);
 
             var applicationLibraries =
-                ServerConfig.ApiDb.Query<dynamic>("SELECT Id, ApplicationName FROM `application_library` WHERE `MarkedDelete` = 0;");
+                ServerConfig.ApiDb.Query<dynamic>("SELECT Id, ApplicationName FROM `application_library` WHERE `MarkedDelete` = 0 ORDER BY Id DESC;");
             result.applicationLibraries.AddRange(applicationLibraries);
 
             var sites =
-                ServerConfig.ApiDb.Query<dynamic>("SELECT Id, SiteName FROM `site` WHERE `MarkedDelete` = 0;");
+                ServerConfig.ApiDb.Query<dynamic>("SELECT Id, SiteName FROM `site` WHERE `MarkedDelete` = 0 ORDER BY Id DESC;");
             result.sites.AddRange(sites);
 
             var scriptVersions =
-                ServerConfig.ApiDb.Query<dynamic>("SELECT Id, DeviceModelId, ScriptName FROM `script_version` WHERE `MarkedDelete` = 0;");
+                ServerConfig.ApiDb.Query<dynamic>("SELECT Id, DeviceModelId, ScriptName FROM `script_version` WHERE `MarkedDelete` = 0 ORDER BY Id DESC;");
             result.scriptVersions.AddRange(scriptVersions);
             return result;
         }
@@ -652,6 +655,46 @@ namespace ApiManagement.Controllers
         [HttpPost("SetProcessStep")]
         public Result PostDeviceLibrarySetProcessStep([FromBody] ProcessInfo processInfo)
         {
+            var device =
+                ServerConfig.ApiDb.Query<DeviceLibraryDetail>("SELECT a.*, IFNULL(b.DeviceCategoryId, 0) DeviceCategoryId FROM `device_library` a JOIN `device_model` b ON a.DeviceModelId = b.Id " +
+                                                              "WHERE a.Id = @DeviceId AND a.`MarkedDelete` = 0 AND b.`MarkedDelete` = 0;", new { processInfo.DeviceId }).FirstOrDefault();
+            if (device == null)
+            {
+                return Result.GenError<Result>(Error.DeviceNotExist);
+            }
+
+            var url = ServerConfig.GateUrl + UrlMappings.Urls["deviceSingleGate"];
+            //向GateProxyLink请求数据
+            var resp = HttpServer.Get(url, new Dictionary<string, string>
+            {
+                { "id", processInfo.DeviceId.ToString()}
+            });
+            if (resp == "fail")
+            {
+                return Result.GenError<Result>(Error.ExceptionHappen);
+            }
+
+            try
+            {
+                var dataResult = JsonConvert.DeserializeObject<DeviceResult>(resp);
+                if (dataResult.errno == Error.Success)
+                {
+                    if (dataResult.datas.Any())
+                    {
+                        var deviceInfo = dataResult.datas.First();
+                        if (deviceInfo.DeviceState != DeviceState.Waiting)
+                        {
+                            //return Result.GenError<Result>(deviceInfo.DeviceState == DeviceState.Processing ? Error.ProcessingNotSet : Error.DeviceStateErrorNotSet);
+                        }
+                    }
+                }
+            }
+            catch (Exception e)
+            {
+                Log.ErrorFormat($"{UrlMappings.Urls["deviceSingleGate"]} 返回：{resp},信息:{e.Message}");
+                return Result.GenError<Result>(Error.AnalysisFail);
+            }
+
             var processDatas =
                 ServerConfig.ApiDb.Query<dynamic>("SELECT `ProcessOrder`, `PressurizeMinute`, `PressurizeSecond`, `ProcessMinute`, `ProcessSecond`, " +
                                                       "`Pressure`, `Speed` FROM `process_data` WHERE ProcessManagementId = @ProcessId AND MarkedDelete = 0 ORDER BY ProcessOrder;", new
@@ -664,19 +707,11 @@ namespace ApiManagement.Controllers
             }
 
             var flowCard =
-                ServerConfig.ApiDb.Query<FlowCardLibraryDetail>("SELECT *, b.RawMateriaName, c.ProductionProcessName FROM `flowcard_library` a JOIN `raw_materia` b ON a.RawMateriaId = b.Id " +
+                ServerConfig.ApiDb.Query<FlowCardLibraryDetail>("SELECT a.*, b.RawMateriaName, c.ProductionProcessName FROM `flowcard_library` a JOIN `raw_materia` b ON a.RawMateriaId = b.Id " +
                                                                 "JOIN `production_library` c ON a.ProductionProcessId = c.Id WHERE a.MarkedDelete = 0 AND a.Id = @id;", new { id = processInfo.FlowCardId }).FirstOrDefault();
             if (flowCard == null)
             {
                 return Result.GenError<Result>(Error.FlowCardLibraryNotExist);
-            }
-
-            var device =
-                ServerConfig.ApiDb.Query<DeviceLibraryDetail>("SELECT a.*, IFNULL(b.DeviceCategoryId, 0) DeviceCategoryId FROM `device_library` a JOIN `device_model` b ON a.DeviceModelId = b.Id " +
-                                                        "WHERE a.Id = @DeviceId AND a.`MarkedDelete` = 0 AND b.`MarkedDelete` = 0;", new { processInfo.DeviceId }).FirstOrDefault();
-            if (device == null)
-            {
-                return Result.GenError<Result>(Error.DeviceNotExist);
             }
 
             var dictionaryIds =
@@ -742,9 +777,9 @@ namespace ApiManagement.Controllers
                 messagePacket.Vals.Add(dictionaryIds.First(x => x.Id == 6).DictionaryId, processInfo.FlowCardId);
             }
             var msg = messagePacket.Serialize();
-            var url = ServerConfig.GateUrl + UrlMappings.Urls["sendBackGate"];
+            url = ServerConfig.GateUrl + UrlMappings.Urls["sendBackGate"];
             //向GateProxyLink请求数据
-            var resp = HttpServer.Post(url, new Dictionary<string, string>{
+            resp = HttpServer.Post(url, new Dictionary<string, string>{
                 {"deviceInfo",new DeviceInfo
                 {
                     DeviceId = processInfo.DeviceId,
