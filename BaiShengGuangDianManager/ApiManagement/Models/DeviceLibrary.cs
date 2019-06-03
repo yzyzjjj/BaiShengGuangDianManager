@@ -32,6 +32,7 @@ namespace ApiManagement.Models
     {
         public int DeviceCategoryId { get; set; }
         public string ModelName { get; set; }
+        public string CategoryName { get; set; }
         public string FirmwareName { get; set; }
         public string ApplicationName { get; set; }
         public string HardwareName { get; set; }
@@ -52,28 +53,38 @@ namespace ApiManagement.Models
         {
             get
             {
-                if (State == SocketState.Connected)
+                if (RepairState == -1)
                 {
-                    if (RepairState == -1)
+                    switch (DeviceState)
                     {
-                        switch (DeviceState)
-                        {
-                            case DeviceState.Waiting: return "待加工";
-                            case DeviceState.Processing: return "加工中";
-                        }
+                        case DeviceState.Waiting: return "待加工";
+                        case DeviceState.Processing: return "加工中";
                     }
-                    else
+                }
+                else
+                {
+                    switch (RepairState)
                     {
-                        switch (RepairState)
-                        {
-                            case 0: return "已报修";
-                            case 1: return "已确认";
-                            case 2: return "维修中";
-                        }
+                        case 0: return "已报修";
+                        case 1: return "已确认";
+                        case 2: return "维修中";
                     }
                 }
                 return "连接异常";
             }
         }
+
+        /// <summary>
+        /// 当前加工流程卡号
+        /// </summary>
+        public string FlowCard { get; set; }
+        /// <summary>
+        /// 加工时间
+        /// </summary>
+        public string ProcessTime { get; set; }
+        /// <summary>
+        /// 剩余加工时间
+        /// </summary>
+        public string LeftTime { get; set; }
     }
 }

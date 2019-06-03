@@ -33,7 +33,7 @@ namespace ApiProcessManagement.Controllers
             {
                 var deviceLibraries = ServerConfig.DeviceDb.Query<DeviceLibrary>("SELECT `Id`, Code FROM `device_library` WHERE MarkedDelete = 0;").ToDictionary(x => x.Id);
                 var deviceModels = ServerConfig.DeviceDb.Query<DeviceModel>("SELECT `Id`, ModelName FROM `device_model` WHERE MarkedDelete = 0;").ToDictionary(x => x.Id);
-                var productionProcessLibraries = ServerConfig.FlowCardDb.Query<ProductionProcessLibrary>("SELECT `Id`, ProductionProcessName FROM `production_library` WHERE MarkedDelete = 0;").ToDictionary(x => x.Id);
+                var productionProcessLibraries = ServerConfig.FlowCardDb.Query<ProductionLibrary>("SELECT `Id`, ProductionProcessName FROM `production_library` WHERE MarkedDelete = 0;").ToDictionary(x => x.Id);
 
                 foreach (var processManagement in processManagements)
                 {
@@ -159,7 +159,7 @@ namespace ApiProcessManagement.Controllers
             {
                 var deviceLibraries = ServerConfig.DeviceDb.Query<DeviceLibrary>("SELECT * FROM `device_library` WHERE MarkedDelete = 0;");
                 var processManagements = ServerConfig.ProcessDb.Query<ProcessManagement>("SELECT * FROM `process_management` WHERE MarkedDelete = 0 AND DeviceModels != '';");
-                var productionProcessLibraries = ServerConfig.FlowCardDb.Query<ProductionProcessLibrary>("SELECT `Id`, ProductionProcessName FROM `production_library` WHERE MarkedDelete = 0;").ToDictionary(x => x.Id);
+                var productionProcessLibraries = ServerConfig.FlowCardDb.Query<ProductionLibrary>("SELECT `Id`, ProductionProcessName FROM `production_library` WHERE MarkedDelete = 0;").ToDictionary(x => x.Id);
 
                 foreach (var deviceModel in deviceModels)
                 {
@@ -248,7 +248,7 @@ namespace ApiProcessManagement.Controllers
             {
                 var processManagements = ServerConfig.ProcessDb.Query<ProcessManagement>("SELECT * FROM `process_management` WHERE MarkedDelete = 0 AND DeviceIds != '';");
                 var deviceModels = ServerConfig.DeviceDb.Query<DeviceModel>("SELECT `Id`, ModelName FROM `device_model` WHERE MarkedDelete = 0;").ToDictionary(x => x.Id);
-                var productionProcessLibraries = ServerConfig.FlowCardDb.Query<ProductionProcessLibrary>("SELECT `Id`, ProductionProcessName FROM `production_library` WHERE MarkedDelete = 0;").ToDictionary(x => x.Id);
+                var productionProcessLibraries = ServerConfig.FlowCardDb.Query<ProductionLibrary>("SELECT `Id`, ProductionProcessName FROM `production_library` WHERE MarkedDelete = 0;").ToDictionary(x => x.Id);
 
                 foreach (var deviceLibrary in deviceLibraries)
                 {
@@ -289,7 +289,7 @@ namespace ApiProcessManagement.Controllers
             if (deviceLibrary != null)
             {
                 var processManagements = ServerConfig.ProcessDb.Query<ProcessManagementDetail>("SELECT * FROM `process_management` WHERE MarkedDelete = 0 AND FIND_IN_SET(@id, DeviceIds);", new { id });
-                var productionProcessLibraries = ServerConfig.FlowCardDb.Query<ProductionProcessLibrary>("SELECT `Id`, ProductionProcessName FROM `production_library` WHERE MarkedDelete = 0;").ToDictionary(x => x.Id);
+                var productionProcessLibraries = ServerConfig.FlowCardDb.Query<ProductionLibrary>("SELECT `Id`, ProductionProcessName FROM `production_library` WHERE MarkedDelete = 0;").ToDictionary(x => x.Id);
                 var res = new Dictionary<int, List<string>>();
                 foreach (var processManagement in processManagements)
                 {
@@ -341,7 +341,7 @@ namespace ApiProcessManagement.Controllers
             var deviceModels = ServerConfig.DeviceDb
                 .Query<DeviceModel>("SELECT `Id`, ModelName FROM `device_model` WHERE MarkedDelete = 0;").ToDictionary(x => x.Id);
             var productionProcessLibraries = ServerConfig.FlowCardDb
-                .Query<ProductionProcessLibrary>(
+                .Query<ProductionLibrary>(
                     "SELECT `Id`, ProductionProcessName FROM `production_library` WHERE MarkedDelete = 0;")
                 .ToDictionary(x => x.Id);
 
@@ -391,7 +391,7 @@ namespace ApiProcessManagement.Controllers
             var deviceModels = ServerConfig.DeviceDb
                 .Query<DeviceModel>("SELECT `Id`, ModelName FROM `device_model` WHERE MarkedDelete = 0;").ToDictionary(x => x.Id);
             var productionProcessLibraries = ServerConfig.FlowCardDb
-                .Query<ProductionProcessLibrary>(
+                .Query<ProductionLibrary>(
                     "SELECT `Id`, ProductionProcessName FROM `production_library` WHERE MarkedDelete = 0;")
                 .ToDictionary(x => x.Id);
 
@@ -462,15 +462,15 @@ namespace ApiProcessManagement.Controllers
                     processManagement.DeviceModels = "";
                 }
 
-                Dictionary<int, ProductionProcessLibrary> productionProcessLibraries = new Dictionary<int, ProductionProcessLibrary>();
+                Dictionary<int, ProductionLibrary> productionProcessLibraries = new Dictionary<int, ProductionLibrary>();
                 IEnumerable<int> productModelList = null;
                 if (!processManagement.ProductModels.IsNullOrEmpty())
                 {
-                    productionProcessLibraries = ServerConfig.FlowCardDb.Query<ProductionProcessLibrary>("SELECT `Id` FROM `production_library` WHERE MarkedDelete = 0;").ToDictionary(x => x.Id);
+                    productionProcessLibraries = ServerConfig.FlowCardDb.Query<ProductionLibrary>("SELECT `Id` FROM `production_library` WHERE MarkedDelete = 0;").ToDictionary(x => x.Id);
                     productModelList = processManagement.ProductModels.Split(',').Select(int.Parse);
                     if (productModelList.Any(x => !productionProcessLibraries.ContainsKey(x)))
                     {
-                        return Result.GenError<Result>(Error.ProductionProcessLibraryNotExist);
+                        return Result.GenError<Result>(Error.ProductionLibraryNotExist);
                     }
                 }
                 else
@@ -596,11 +596,11 @@ namespace ApiProcessManagement.Controllers
                 }
                 if (!processManagement.ProductModels.IsNullOrEmpty())
                 {
-                    var productionProcessLibraries = ServerConfig.FlowCardDb.Query<ProductionProcessLibrary>("SELECT `Id` FROM `production_library` WHERE MarkedDelete = 0;").ToDictionary(x => x.Id);
+                    var productionProcessLibraries = ServerConfig.FlowCardDb.Query<ProductionLibrary>("SELECT `Id` FROM `production_library` WHERE MarkedDelete = 0;").ToDictionary(x => x.Id);
                     var productModelList = processManagement.ProductModels.Split(',').Select(int.Parse);
                     if (productModelList.Any(x => !productionProcessLibraries.ContainsKey(x)))
                     {
-                        return Result.GenError<Result>(Error.ProductionProcessLibraryNotExist);
+                        return Result.GenError<Result>(Error.ProductionLibraryNotExist);
                     }
                 }
                 if (!processManagement.DeviceIds.IsNullOrEmpty())
@@ -736,7 +736,7 @@ namespace ApiProcessManagement.Controllers
         //    var productModels = ServerConfig.ProcessDb.Query<string>(
         //        "SELECT IFNULL(GROUP_CONCAT(ProductModels), '') FROM `process_management` WHERE FIND_IN_SET(@deviceId, DeviceIds) AND MarkedDelete = 0;", new { deviceId });
 
-        //    result.datas.AddRange(ServerConfig.FlowCardDb.Query<ProductionProcessLibrary>("SELECT * FROM production_library WHERE Id NOT IN @id AND MarkedDelete = 0;", new { id = productModels }));
+        //    result.datas.AddRange(ServerConfig.FlowCardDb.Query<ProductionLibrary>("SELECT * FROM production_library WHERE Id NOT IN @id AND MarkedDelete = 0;", new { id = productModels }));
         //    return result;
         //}
 
@@ -772,15 +772,15 @@ namespace ApiProcessManagement.Controllers
                     processManagement.DeviceModels = "";
                 }
 
-                Dictionary<int, ProductionProcessLibrary> productionProcessLibraries = new Dictionary<int, ProductionProcessLibrary>();
+                Dictionary<int, ProductionLibrary> productionProcessLibraries = new Dictionary<int, ProductionLibrary>();
                 IEnumerable<int> productModelList = null;
                 if (!processManagement.ProductModels.IsNullOrEmpty())
                 {
-                    productionProcessLibraries = ServerConfig.FlowCardDb.Query<ProductionProcessLibrary>("SELECT `Id` FROM `production_library` WHERE MarkedDelete = 0;").ToDictionary(x => x.Id);
+                    productionProcessLibraries = ServerConfig.FlowCardDb.Query<ProductionLibrary>("SELECT `Id` FROM `production_library` WHERE MarkedDelete = 0;").ToDictionary(x => x.Id);
                     productModelList = processManagement.ProductModels.Split(',').Select(int.Parse);
                     if (productModelList.Any(x => !productionProcessLibraries.ContainsKey(x)))
                     {
-                        return Result.GenError<Result>(Error.ProductionProcessLibraryNotExist);
+                        return Result.GenError<Result>(Error.ProductionLibraryNotExist);
                     }
                 }
                 else

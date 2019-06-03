@@ -16,12 +16,12 @@ namespace ApiManagement.Controllers
     [Microsoft.AspNetCore.Mvc.Route("api/[controller]")]
     [ApiController]
     //[Authorize]
-    public class ProductionProcessLibraryController : ControllerBase
+    public class ProductionLibraryController : ControllerBase
     {
 
-        // GET: api/ProductionProcessLibrary
+        // GET: api/ProductionLibrary
         [HttpGet]
-        public DataResult GetProductionProcessLibrary()
+        public DataResult GetProductionLibrary()
         {
             var result = new DataResult();
             var productionLibraryDetails = ServerConfig.ApiDb.Query<ProductionLibraryDetail>("SELECT a.*, IFNULL(b.FlowCardCount, 0) FlowCardCount, IFNULL(b.RawMaterialQuantity, 0) AllRawMaterialQuantity, IFNULL(c.RawMaterialQuantity, 0) RawMaterialQuantity, IFNULL(c.Complete, 0) Complete, IFNULL(c.QualifiedNumber, 0) QualifiedNumber FROM `production_library` a LEFT JOIN ( SELECT ProductionProcessId, COUNT(1) FlowCardCount, SUM(RawMaterialQuantity) RawMaterialQuantity FROM `flowcard_library` WHERE MarkedDelete = 0 GROUP BY ProductionProcessId ) b ON a.Id = b.ProductionProcessId LEFT JOIN ( SELECT a.ProductionProcessId, COUNT(1) Complete, SUM(a.QualifiedNumber) QualifiedNumber, SUM(a.RawMaterialQuantity) RawMaterialQuantity FROM ( SELECT * FROM ( SELECT b.ProductionProcessId, b.RawMaterialQuantity, FlowCardId, ProcessStepOrder, QualifiedNumber, ProcessTime FROM `flowcard_process_step` a JOIN `flowcard_library` b ON a.FlowCardId = b.Id WHERE a.MarkedDelete = 0 ORDER BY ProcessStepOrder DESC ) a GROUP BY a.FlowCardId ) a WHERE NOT ISNULL(a.ProcessTime) || a.ProcessTime = '0001-01-01 00:00:00' GROUP BY a.ProductionProcessId ) c ON a.Id = c.ProductionProcessId WHERE a.MarkedDelete = 0 ORDER BY a.Id;");
@@ -35,16 +35,16 @@ namespace ApiManagement.Controllers
         /// </summary>
         /// <param name="id">自增Id</param>
         /// <returns></returns>
-        // GET: api/ProductionProcessLibrary/Id/5
+        // GET: api/ProductionLibrary/Id/5
         [HttpGet("Id/{id}")]
-        public DataResult GetProductionProcessLibrary([FromRoute] int id)
+        public DataResult GetProductionLibrary([FromRoute] int id)
         {
             var result = new DataResult();
             var data =
                 ServerConfig.ApiDb.Query<ProductionLibraryDetail>("SELECT * FROM `production_library` WHERE MarkedDelete = 0 AND Id = @id ORDER BY Id;", new { id }).FirstOrDefault();
             if (data == null)
             {
-                result.errno = Error.ProductionProcessLibraryNotExist;
+                result.errno = Error.ProductionLibraryNotExist;
                 return result;
             }
             data.ProcessSteps.AddRange(ServerConfig.ApiDb.Query<ProductionProcessStep>("SELECT a.*, b.CategoryName, b.StepName FROM `production_process_step` a JOIN ( SELECT a.Id, a.StepName, b.CategoryName FROM `device_process_step` a JOIN `device_category` b ON a.DeviceCategoryId = b.Id WHERE a.MarkedDelete = 0 ) b ON a.ProcessStepId = b.Id WHERE ProductionProcessId = @ProductionProcessId AND a.MarkedDelete = 0 ORDER BY a.Id;", new
@@ -64,16 +64,16 @@ namespace ApiManagement.Controllers
         /// </summary>
         /// <param name="productionProcessName">计划号</param>
         /// <returns></returns>
-        // GET: api/ProductionProcessLibrary/ProductionProcessName/5
+        // GET: api/ProductionLibrary/ProductionProcessName/5
         [HttpGet("ProductionProcessName/{productionProcessName}")]
-        public DataResult GetProductionProcessLibrary([FromRoute] string productionProcessName)
+        public DataResult GetProductionLibrary([FromRoute] string productionProcessName)
         {
             var result = new DataResult();
             var data =
                 ServerConfig.ApiDb.Query<ProductionLibraryDetail>("SELECT * FROM `production_library` WHERE MarkedDelete = 0 AND ProductionProcessName = @productionProcessName;", new { productionProcessName }).FirstOrDefault();
             if (data == null)
             {
-                result.errno = Error.ProductionProcessLibraryNotExist;
+                result.errno = Error.ProductionLibraryNotExist;
                 return result;
             }
             data.ProcessSteps.AddRange(ServerConfig.ApiDb.Query<ProductionProcessStep>("SELECT a.*, b.CategoryName, b.StepName FROM `production_process_step` a JOIN ( SELECT a.Id, a.StepName, b.CategoryName FROM `device_process_step` a JOIN `device_category` b ON a.DeviceCategoryId = b.Id WHERE a.MarkedDelete = 0 ) b ON a.ProcessStepId = b.Id WHERE ProductionProcessId = @ProductionProcessId AND a.MarkedDelete = 0;;", new
@@ -97,15 +97,15 @@ namespace ApiManagement.Controllers
         /// <param name="id">自增Id</param>
         /// <param name="productionProcessLibrary"></param>
         /// <returns></returns>
-        // PUT: api/ProductionProcessLibrary/Id/5
+        // PUT: api/ProductionLibrary/Id/5
         [HttpPut("Id/{id}")]
-        public Result PutProductionProcessLibrary([FromRoute] int id, [FromBody] ProductionLibrary productionProcessLibrary)
+        public Result PutProductionLibrary([FromRoute] int id, [FromBody] ProductionLibrary productionProcessLibrary)
         {
             var data =
                 ServerConfig.ApiDb.Query<ProductionLibrary>("SELECT * FROM `production_library` WHERE Id = @id AND MarkedDelete = 0;", new { id }).FirstOrDefault();
             if (data == null)
             {
-                return Result.GenError<Result>(Error.ProductionProcessLibraryNotExist);
+                return Result.GenError<Result>(Error.ProductionLibraryNotExist);
             }
 
             var cnt =
@@ -114,7 +114,7 @@ namespace ApiManagement.Controllers
             {
                 if (!productionProcessLibrary.ProductionProcessName.IsNullOrEmpty() && data.ProductionProcessName != productionProcessLibrary.ProductionProcessName)
                 {
-                    return Result.GenError<Result>(Error.ProductionProcessLibraryIsExist);
+                    return Result.GenError<Result>(Error.ProductionLibraryIsExist);
                 }
             }
 
@@ -170,13 +170,13 @@ namespace ApiManagement.Controllers
                                                                                           "WHERE MarkedDelete = 0 AND ProductionProcessId = @ProductionProcessId;", new { ProductionProcessId = id });
 
                 ServerConfig.ApiDb.Execute(
-                    "INSERT INTO production_process_step (`CreateUserId`, `MarkedDateTime`, `MarkedDelete`, `ModifyId`, `ProductionProcessId`, `ProcessStepOrder`, `ProcessStepId`, `ProcessStepRequirements`) " +
-                    "VALUES(@CreateUserId, @MarkedDateTime, @MarkedDelete, @ModifyId, @ProductionProcessId, @ProcessStepOrder, @ProcessStepId, @ProcessStepRequirements); ",
+                    "INSERT INTO production_process_step (`CreateUserId`, `MarkedDateTime`, `MarkedDelete`, `ModifyId`, `ProductionProcessId`, `ProcessStepOrder`, `ProcessStepId`, `ProcessStepRequirements`, `ProcessStepRequirementMid`) " +
+                    "VALUES(@CreateUserId, @MarkedDateTime, @MarkedDelete, @ModifyId, @ProductionProcessId, @ProcessStepOrder, @ProcessStepId, @ProcessStepRequirements, @ProcessStepRequirementMid); ",
                     processSteps.Where(x => x.Id == 0).OrderBy(x => x.ProcessStepOrder));
 
 
                 var update = processSteps.Where(x => x.Id != 0 && exist.Any(y => y.Id == x.Id
-                                    && (y.ProcessStepOrder != x.ProcessStepOrder || y.ProcessStepId != x.ProcessStepId || y.ProcessStepRequirements != x.ProcessStepRequirements))).ToList();
+                                    && (y.ProcessStepOrder != x.ProcessStepOrder || y.ProcessStepId != x.ProcessStepId || y.ProcessStepRequirements != x.ProcessStepRequirements || y.ProcessStepRequirementMid != x.ProcessStepRequirementMid))).ToList();
                 update.AddRange(exist.Where(x => processSteps.All(y => x.Id != y.Id)).Select(x =>
                 {
                     x.MarkedDateTime = DateTime.Now;
@@ -185,7 +185,7 @@ namespace ApiManagement.Controllers
                 }));
                 ServerConfig.ApiDb.Execute(
                     "UPDATE production_process_step SET `MarkedDateTime` = @MarkedDateTime, `MarkedDelete` = @MarkedDelete, `ModifyId` = @ModifyId, `ProductionProcessId` = " +
-                    "@ProductionProcessId, `ProcessStepOrder` = @ProcessStepOrder, `ProcessStepId` = @ProcessStepId, `ProcessStepRequirements` = @ProcessStepRequirements " +
+                    "@ProductionProcessId, `ProcessStepOrder` = @ProcessStepOrder, `ProcessStepId` = @ProcessStepId, `ProcessStepRequirements` = @ProcessStepRequirements, `ProcessStepRequirementMid` = @ProcessStepRequirementMid " +
                     "WHERE `Id` = @Id;", update);
             }
             return Result.GenError<Result>(Error.Success);
@@ -197,15 +197,15 @@ namespace ApiManagement.Controllers
         /// <param name="productionProcessName">计划号</param>
         /// <param name="productionProcessLibrary"></param>
         /// <returns></returns>
-        // PUT: api/ProductionProcessLibrary/ProductionProcessName/5
+        // PUT: api/ProductionLibrary/ProductionProcessName/5
         [HttpPut("ProductionProcessName/{productionProcessName}")]
-        public Result PutProductionProcessLibrary([FromRoute] string productionProcessName, [FromBody] ProductionLibrary productionProcessLibrary)
+        public Result PutProductionLibrary([FromRoute] string productionProcessName, [FromBody] ProductionLibrary productionProcessLibrary)
         {
             var data =
                 ServerConfig.ApiDb.Query<ProductionLibrary>("SELECT `Id` FROM `production_library` WHERE ProductionProcessName = @productionProcessName AND MarkedDelete = 0;", new { productionProcessName }).FirstOrDefault();
             if (data == null)
             {
-                return Result.GenError<Result>(Error.ProductionProcessLibraryNotExist);
+                return Result.GenError<Result>(Error.ProductionLibraryNotExist);
             }
 
             var id = data.Id;
@@ -215,7 +215,7 @@ namespace ApiManagement.Controllers
             {
                 if (!productionProcessLibrary.ProductionProcessName.IsNullOrEmpty() && data.ProductionProcessName != productionProcessLibrary.ProductionProcessName)
                 {
-                    return Result.GenError<Result>(Error.ProductionProcessLibraryIsExist);
+                    return Result.GenError<Result>(Error.ProductionLibraryIsExist);
                 }
             }
 
@@ -271,13 +271,13 @@ namespace ApiManagement.Controllers
                                                                                           "WHERE MarkedDelete = 0 AND ProductionProcessId = @ProductionProcessId;", new { ProductionProcessId = id });
 
                 ServerConfig.ApiDb.Execute(
-                    "INSERT INTO production_process_step (`CreateUserId`, `MarkedDateTime`, `MarkedDelete`, `ModifyId`, `ProductionProcessId`, `ProcessStepOrder`, `ProcessStepId`, `ProcessStepRequirements`) " +
-                    "VALUES(@CreateUserId, @MarkedDateTime, @MarkedDelete, @ModifyId, @ProductionProcessId, @ProcessStepOrder, @ProcessStepId, @ProcessStepRequirements); ",
+                    "INSERT INTO production_process_step (`CreateUserId`, `MarkedDateTime`, `MarkedDelete`, `ModifyId`, `ProductionProcessId`, `ProcessStepOrder`, `ProcessStepId`, `ProcessStepRequirements`, `ProcessStepRequirementMid`) " +
+                    "VALUES(@CreateUserId, @MarkedDateTime, @MarkedDelete, @ModifyId, @ProductionProcessId, @ProcessStepOrder, @ProcessStepId, @ProcessStepRequirements, @ProcessStepRequirementMid); ",
                     processSteps.Where(x => x.Id == 0).OrderBy(x => x.ProcessStepOrder));
 
 
                 var update = processSteps.Where(x => x.Id != 0 && exist.Any(y => y.Id == x.Id
-                                    && (y.ProcessStepOrder != x.ProcessStepOrder || y.ProcessStepId != x.ProcessStepId || y.ProcessStepRequirements != x.ProcessStepRequirements))).ToList();
+                                    && (y.ProcessStepOrder != x.ProcessStepOrder || y.ProcessStepId != x.ProcessStepId || y.ProcessStepRequirements != x.ProcessStepRequirements || y.ProcessStepRequirementMid != x.ProcessStepRequirementMid))).ToList();
                 update.AddRange(exist.Where(x => processSteps.All(y => x.Id != y.Id)).Select(x =>
                 {
                     x.MarkedDateTime = DateTime.Now;
@@ -286,7 +286,7 @@ namespace ApiManagement.Controllers
                 }));
                 ServerConfig.ApiDb.Execute(
                     "UPDATE production_process_step SET `MarkedDateTime` = @MarkedDateTime, `MarkedDelete` = @MarkedDelete, `ModifyId` = @ModifyId, `ProductionProcessId` = " +
-                    "@ProductionProcessId, `ProcessStepOrder` = @ProcessStepOrder, `ProcessStepId` = @ProcessStepId, `ProcessStepRequirements` = @ProcessStepRequirements " +
+                    "@ProductionProcessId, `ProcessStepOrder` = @ProcessStepOrder, `ProcessStepId` = @ProcessStepId, `ProcessStepRequirements` = @ProcessStepRequirements, `ProcessStepRequirementMid` = @ProcessStepRequirementMid " +
                     "WHERE `Id` = @Id;", update);
             }
             return Result.GenError<Result>(Error.Success);
@@ -294,15 +294,15 @@ namespace ApiManagement.Controllers
 
 
 
-        // POST: api/ProductionProcessLibrary
+        // POST: api/ProductionLibrary
         [HttpPost]
-        public Result PostProductionProcessLibrary([FromBody] ProductionLibrary productionProcessLibrary)
+        public Result PostProductionLibrary([FromBody] ProductionLibrary productionProcessLibrary)
         {
             var cnt =
                 ServerConfig.ApiDb.Query<int>("SELECT COUNT(1) FROM `production_library` WHERE ProductionProcessName = @ProductionProcessName AND MarkedDelete = 0;", new { productionProcessLibrary.ProductionProcessName }).FirstOrDefault();
             if (cnt > 0)
             {
-                return Result.GenError<Result>(Error.ProductionProcessLibraryIsExist);
+                return Result.GenError<Result>(Error.ProductionLibraryIsExist);
             }
             var createUserId = Request.GetIdentityInformation();
             var time = DateTime.Now;
@@ -340,8 +340,8 @@ namespace ApiManagement.Controllers
                 }
 
                 ServerConfig.ApiDb.Execute(
-                    "INSERT INTO production_process_step (`CreateUserId`, `MarkedDateTime`, `MarkedDelete`, `ModifyId`, `ProductionProcessId`, `ProcessStepOrder`, `ProcessStepId`, `ProcessStepRequirements`) " +
-                    "VALUES (@CreateUserId, @MarkedDateTime, @MarkedDelete, @ModifyId, @ProductionProcessId, @ProcessStepOrder, @ProcessStepId, @ProcessStepRequirements);",
+                    "INSERT INTO production_process_step (`CreateUserId`, `MarkedDateTime`, `MarkedDelete`, `ModifyId`, `ProductionProcessId`, `ProcessStepOrder`, `ProcessStepId`, `ProcessStepRequirements`, `ProcessStepRequirementMid`) " +
+                    "VALUES(@CreateUserId, @MarkedDateTime, @MarkedDelete, @ModifyId, @ProductionProcessId, @ProcessStepOrder, @ProcessStepId, @ProcessStepRequirements, @ProcessStepRequirementMid); ",
                     processSteps.OrderBy(x => x.ProcessStepOrder));
             }
 
@@ -355,15 +355,15 @@ namespace ApiManagement.Controllers
         /// </summary>
         /// <param name="id"></param>
         /// <returns></returns>
-        // DELETE: api/ProductionProcessLibrary/Id/5
+        // DELETE: api/ProductionLibrary/Id/5
         [HttpDelete("Id/{id}")]
-        public Result DeleteProductionProcessLibrary([FromRoute] int id)
+        public Result DeleteProductionLibrary([FromRoute] int id)
         {
             var cnt =
                 ServerConfig.ApiDb.Query<int>("SELECT COUNT(1) FROM `production_library` WHERE Id = @id AND MarkedDelete = 0;", new { id }).FirstOrDefault();
             if (cnt == 0)
             {
-                return Result.GenError<Result>(Error.ProductionProcessLibraryNotExist);
+                return Result.GenError<Result>(Error.ProductionLibraryNotExist);
             }
 
             ServerConfig.ApiDb.Execute(
@@ -395,15 +395,15 @@ namespace ApiManagement.Controllers
         /// </summary>
         /// <param name="productionProcessName">计划号</param>
         /// <returns></returns>
-        // DELETE: api/ProductionProcessLibrary/ProductionProcessName/5
+        // DELETE: api/ProductionLibrary/ProductionProcessName/5
         [HttpDelete("ProductionProcessName/{productionProcessName}")]
-        public Result DeleteProductionProcessLibrary([FromRoute] string productionProcessName)
+        public Result DeleteProductionLibrary([FromRoute] string productionProcessName)
         {
             var data =
                 ServerConfig.ApiDb.Query<ProductionLibrary>("SELECT * FROM `production_library` WHERE ProductionProcessName = @productionProcessName AND MarkedDelete = 0;", new { productionProcessName }).FirstOrDefault();
             if (data == null)
             {
-                return Result.GenError<Result>(Error.ProductionProcessLibraryNotExist);
+                return Result.GenError<Result>(Error.ProductionLibraryNotExist);
             }
 
             var id = data.Id;

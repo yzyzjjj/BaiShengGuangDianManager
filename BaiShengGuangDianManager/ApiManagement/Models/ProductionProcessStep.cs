@@ -13,6 +13,7 @@ namespace ApiManagement.Models
         public int ProcessStepOrder { get; set; }
         public int ProcessStepId { get; set; }
         public string ProcessStepRequirements { get; set; }
+        public decimal ProcessStepRequirementMid { get; set; }
         public string CategoryName { get; set; }
         public string StepName { get; set; }
     }

@@ -83,7 +83,7 @@ namespace ApiManagement.Controllers
                 ServerConfig.ApiDb.Query<FlowCardLibraryDetail>("SELECT a.*, b.RawMateriaName, c.ProductionProcessName FROM `flowcard_library` a JOIN `raw_materia` b ON a.RawMateriaId = b.Id JOIN `production_library` c ON a.ProductionProcessId = c.Id WHERE a.MarkedDelete = 0 AND a.Id = @id;", new { id }).FirstOrDefault();
             if (data == null)
             {
-                result.errno = Error.ProductionProcessLibraryNotExist;
+                result.errno = Error.ProductionLibraryNotExist;
                 return result;
             }
             data.Specifications.AddRange(ServerConfig.ApiDb.Query<FlowCardSpecification>("SELECT * FROM `flowcard_specification` WHERE FlowCardId = @FlowCardId AND MarkedDelete = 0;", new
@@ -133,7 +133,7 @@ namespace ApiManagement.Controllers
                 ServerConfig.ApiDb.Query<int>("SELECT COUNT(1) FROM `production_library` WHERE ProductionProcessName = @productionProcessName;", new { productionProcessName }).FirstOrDefault();
             if (cnt == 0)
             {
-                return Result.GenError<DataResult>(Error.ProductionProcessLibraryNotExist);
+                return Result.GenError<DataResult>(Error.ProductionLibraryNotExist);
             }
 
             var result = new DataResult();
@@ -346,10 +346,10 @@ namespace ApiManagement.Controllers
         [HttpPost("Detail")]
         public object GetFlowCardLibraryDetail([FromBody] FlowCardInfo flowCardInfo)
         {
-            var deviceId = ServerConfig.ApiDb.Query<int>(
-                "SELECT Id FROM `device_library` WHERE `Id` = @id;", new { flowCardInfo.Id }).FirstOrDefault();
+            var device = ServerConfig.ApiDb.Query<DeviceLibraryDetail>(
+                "SELECT a.Id, b.DeviceCategoryId FROM `device_library` a JOIN device_model b ON a.DeviceModelId = b.Id WHERE a.`Id` = @Id;", new { flowCardInfo.Id }).FirstOrDefault();
 
-            if (deviceId == 0)
+            if (device == null)
             {
                 return Result.GenError<DataResult>(Error.DeviceNotExist);
             }
@@ -367,7 +367,7 @@ namespace ApiManagement.Controllers
                 "SELECT Id, ProcessNumber FROM `process_management` " +
                 "WHERE FIND_IN_SET(@DeviceId, DeviceIds) AND FIND_IN_SET(@ProductModel, ProductModels) AND MarkedDelete = 0;", new
                 {
-                    DeviceId = deviceId,
+                    DeviceId = device.Id,
                     ProductModel = flowCard.ProductionProcessId
                 }).FirstOrDefault();
             if (processNumber == null)
@@ -379,6 +379,34 @@ namespace ApiManagement.Controllers
                     "SELECT SpecificationName, SpecificationValue FROM `raw_materia_specification` WHERE RawMateriaId = @RawMateriaId AND MarkedDelete = 0;", new { flowCard.RawMateriaId });
             var processData = ServerConfig.ApiDb.Query<ProcessData>(
                 "SELECT * FROM `process_data` WHERE ProcessManagementId = @Id AND MarkedDelete = 0;", new { processNumber.Id });
+
+
+            var processSteps = ServerConfig.ApiDb.Query<FlowCardProcessStepDetail>("SELECT a.*, IFNULL(b.StepName, '') StepName  FROM `flowcard_process_step` a LEFT JOIN `device_process_step` b ON a.ProcessStepId = b.Id WHERE FlowCardId = @FlowCardId AND a.MarkedDelete = 0;", new
+                                                                                           {
+                                                                                               FlowCardId = flowCard.Id
+                                                                                           }).OrderBy(x => x.ProcessStepOrder);
+            var currentProcessSteps = new List<FlowCardProcessStepDetail>();
+            var deviceProcessSteps =
+                ServerConfig.ApiDb.Query<DeviceProcessStep>("SELECT * FROM `device_process_step` WHERE DeviceCategoryId = @DeviceCategoryId AND MarkedDelete = 0;",
+                    new { device.DeviceCategoryId }).ToDictionary(x => x.Id);
+            if (deviceProcessSteps.Any() && processSteps.Any())
+            {
+                var currentProcessStep = processSteps.FirstOrDefault(x => deviceProcessSteps.ContainsKey(x.ProcessStepId) && x.ProcessTime == default(DateTime));
+                if (currentProcessStep != null)
+                {
+                    currentProcessStep.ProcessStepOrderName = "加工工序";
+                    var beforeOrder = currentProcessStep.ProcessStepOrder - 1;
+                    var beforeProcessStep = processSteps.FirstOrDefault(x => x.ProcessStepOrder == beforeOrder);
+
+                    if (beforeProcessStep != null)
+                    {
+                        beforeProcessStep.ProcessStepOrderName = "上道工序";
+                        currentProcessSteps.Add(beforeProcessStep);
+                    }
+
+                    currentProcessSteps.Add(currentProcessStep);
+                }
+            }
             return new
             {
                 errno = 0,
@@ -391,7 +419,8 @@ namespace ApiManagement.Controllers
                     RawMateriaSpecifications = rawMateriaSpecifications,
                     ProcessId = processNumber.Id,
                     processNumber.ProcessNumber,
-                    processData
+                    processData,
+                    processSteps = currentProcessSteps
                 }
             };
         }
@@ -466,13 +495,14 @@ namespace ApiManagement.Controllers
                                                                                      "WHERE MarkedDelete = 0 AND FlowCardId = @FlowCardId;", new { FlowCardId = id });
 
                 ServerConfig.ApiDb.Execute(
-                    "INSERT INTO flowcard_process_step (`CreateUserId`, `MarkedDateTime`, `MarkedDelete`, `ModifyId`, `FlowCardId`, `ProcessStepOrder`, `ProcessStepId`, `ProcessStepRequirements`) " +
-                    "VALUES (@CreateUserId, @MarkedDateTime, @MarkedDelete, @ModifyId, @FlowCardId, @ProcessStepOrder, @ProcessStepId, @ProcessStepRequirements);",
+                    "INSERT INTO flowcard_process_step (`CreateUserId`, `MarkedDateTime`, `MarkedDelete`, `ModifyId`, `FlowCardId`, `ProcessStepOrder`, `ProcessStepId`, `ProcessStepRequirements`, `ProcessStepRequirementMid`) " +
+                    "VALUES (@CreateUserId, @MarkedDateTime, @MarkedDelete, @ModifyId, @FlowCardId, @ProcessStepOrder, @ProcessStepId, @ProcessStepRequirements, @ProcessStepRequirementMid);",
                     processSteps.Where(x => x.Id == 0).OrderBy(x => x.ProcessStepOrder));
 
 
                 var update = processSteps.Where(x => x.Id != 0 && exist.Any(y => y.Id == x.Id
-                                    && (y.ProcessStepOrder != x.ProcessStepOrder || y.ProcessStepId != x.ProcessStepId || y.ProcessStepRequirements != x.ProcessStepRequirements))).ToList();
+                                    && (y.ProcessStepOrder != x.ProcessStepOrder || y.ProcessStepId != x.ProcessStepId
+                                        || y.ProcessStepRequirements != x.ProcessStepRequirements || y.ProcessStepRequirementMid != x.ProcessStepRequirementMid))).ToList();
                 update.AddRange(exist.Where(x => processSteps.All(y => x.Id != y.Id)).Select(x =>
                 {
                     x.MarkedDateTime = DateTime.Now;
@@ -481,7 +511,7 @@ namespace ApiManagement.Controllers
                 }));
                 ServerConfig.ApiDb.Execute(
                     "UPDATE flowcard_process_step SET `MarkedDateTime` = @MarkedDateTime, `MarkedDelete` = @MarkedDelete, `ModifyId` = @ModifyId, " +
-                    "`ProcessStepOrder` = @ProcessStepOrder, `ProcessStepId` = @ProcessStepId, `ProcessStepRequirements` = @ProcessStepRequirements " +
+                    "`ProcessStepOrder` = @ProcessStepOrder, `ProcessStepId` = @ProcessStepId, `ProcessStepRequirements` = @ProcessStepRequirements, `ProcessStepRequirementMid` = @ProcessStepRequirementMid " +
                     "WHERE `Id` = @Id;", update);
             }
             return Result.GenError<Result>(Error.Success);
@@ -563,7 +593,7 @@ namespace ApiManagement.Controllers
             ServerConfig.ApiDb.Execute(
                 "UPDATE flowcard_process_step SET `MarkedDateTime` = @MarkedDateTime, `ProcessorId` = @ProcessorId, `ProcessTime` = @ProcessTime, " +
                 "`SurveyorId` = @SurveyorId, `SurveyTime` = @SurveyTime, `QualifiedNumber` = @QualifiedNumber, `UnqualifiedNumber` = @UnqualifiedNumber, " +
-                "`DeviceId` = @DeviceId, `IsReport` = @IsReport WHERE `Id` = @Id;", update);
+                "`DeviceId` = @DeviceId, `IsReport` = @IsReport, `QualifiedRange` = @QualifiedRange, `QualifiedMode` = @QualifiedMode WHERE `Id` = @Id;", update);
 
             return Result.GenError<Result>(Error.Success);
         }
@@ -644,7 +674,7 @@ namespace ApiManagement.Controllers
               ServerConfig.ApiDb.Query<int>("SELECT COUNT(1) FROM `production_library` WHERE `Id` = @ProductionProcessId AND MarkedDelete = 0;", new { flowCardLibrary.ProductionProcessId }).FirstOrDefault();
             if (cnt == 0)
             {
-                return Result.GenError<Result>(Error.ProductionProcessLibraryNotExist);
+                return Result.GenError<Result>(Error.ProductionLibraryNotExist);
             }
 
             cnt =
@@ -670,6 +700,7 @@ namespace ApiManagement.Controllers
             var time = DateTime.Now;
             flowCardLibrary.CreateUserId = createUserId;
             flowCardLibrary.MarkedDateTime = time;
+            flowCardLibrary.CreateTime = time;
             var index = ServerConfig.ApiDb.Query<int>(
                 "INSERT INTO flowcard_library(`CreateUserId`, `MarkedDateTime`, `MarkedDelete`, `ModifyId`, `FlowCardName`, `ProductionProcessId`, `RawMateriaId`, `RawMaterialQuantity`, `Sender`, `InboundNum`, `Remarks`, `Priority`, `CreateTime`) " +
                 "VALUES (@CreateUserId, @MarkedDateTime, @MarkedDelete, @ModifyId, @FlowCardName, @ProductionProcessId, @RawMateriaId, @RawMaterialQuantity, @Sender, @InboundNum, @Remarks, @Priority, @CreateTime); SELECT LAST_INSERT_ID();",
@@ -697,6 +728,7 @@ namespace ApiManagement.Controllers
                     ProcessStepOrder = processStep.ProcessStepOrder,
                     ProcessStepId = processStep.ProcessStepId,
                     ProcessStepRequirements = processStep.ProcessStepRequirements,
+                    ProcessStepRequirementMid = processStep.ProcessStepRequirementMid,
                 });
             }
             ServerConfig.ApiDb.Execute(
@@ -705,8 +737,8 @@ namespace ApiManagement.Controllers
                 flowCardLibrary.Specifications.OrderBy(x => x.FlowCardId));
 
             ServerConfig.ApiDb.Execute(
-                "INSERT INTO flowcard_process_step (`CreateUserId`, `MarkedDateTime`, `MarkedDelete`, `ModifyId`, `FlowCardId`, `ProcessStepOrder`, `ProcessStepId`, `ProcessStepRequirements`) " +
-                "VALUES (@CreateUserId, @MarkedDateTime, @MarkedDelete, @ModifyId, @FlowCardId, @ProcessStepOrder, @ProcessStepId, @ProcessStepRequirements);",
+                "INSERT INTO flowcard_process_step (`CreateUserId`, `MarkedDateTime`, `MarkedDelete`, `ModifyId`, `FlowCardId`, `ProcessStepOrder`, `ProcessStepId`, `ProcessStepRequirements`, `ProcessStepRequirementMid`) " +
+                "VALUES (@CreateUserId, @MarkedDateTime, @MarkedDelete, @ModifyId, @FlowCardId, @ProcessStepOrder, @ProcessStepId, @ProcessStepRequirements, @ProcessStepRequirementMid);",
                 flowCardLibrary.ProcessSteps.OrderBy(x => x.ProcessStepOrder));
 
             return Result.GenError<Result>(Error.Success);
@@ -735,7 +767,7 @@ namespace ApiManagement.Controllers
                 }).FirstOrDefault();
             if (cnt != productionProcessIds.Count() || cnt != 1)
             {
-                return Result.GenError<Result>(Error.ProductionProcessLibraryNotExist);
+                return Result.GenError<Result>(Error.ProductionLibraryNotExist);
             }
 
             var rawMateriaIds = flowCardLibraries.GroupBy(x => x.RawMateriaId).Select(x => x.Key);
@@ -767,6 +799,7 @@ namespace ApiManagement.Controllers
             {
                 flowcardLibrary.CreateUserId = createUserId;
                 flowcardLibrary.MarkedDateTime = time;
+                flowcardLibrary.CreateTime = time;
             }
 
             ServerConfig.ApiDb.Execute(
@@ -804,6 +837,7 @@ namespace ApiManagement.Controllers
                         ProcessStepOrder = processStep.ProcessStepOrder,
                         ProcessStepId = processStep.ProcessStepId,
                         ProcessStepRequirements = processStep.ProcessStepRequirements,
+                        ProcessStepRequirementMid = processStep.ProcessStepRequirementMid,
                     });
                 }
             }
@@ -813,8 +847,8 @@ namespace ApiManagement.Controllers
                 flowCardLibraries.SelectMany(x => x.Specifications).OrderBy(x => x.FlowCardId));
 
             ServerConfig.ApiDb.Execute(
-                "INSERT INTO flowcard_process_step (`CreateUserId`, `MarkedDateTime`, `MarkedDelete`, `ModifyId`, `FlowCardId`, `ProcessStepOrder`, `ProcessStepId`, `ProcessStepRequirements`) " +
-                "VALUES (@CreateUserId, @MarkedDateTime, @MarkedDelete, @ModifyId, @FlowCardId, @ProcessStepOrder, @ProcessStepId, @ProcessStepRequirements);",
+                "INSERT INTO flowcard_process_step (`CreateUserId`, `MarkedDateTime`, `MarkedDelete`, `ModifyId`, `FlowCardId`, `ProcessStepOrder`, `ProcessStepId`, `ProcessStepRequirements`, `ProcessStepRequirementMid`) " +
+                "VALUES (@CreateUserId, @MarkedDateTime, @MarkedDelete, @ModifyId, @FlowCardId, @ProcessStepOrder, @ProcessStepId, @ProcessStepRequirements, @ProcessStepRequirementMid);",
                 flowCardLibraries.SelectMany(x => x.ProcessSteps).OrderBy(x => x.FlowCardId).ThenBy(x => x.ProcessStepOrder));
 
             return Result.GenError<Result>(Error.Success);
@@ -902,7 +936,7 @@ namespace ApiManagement.Controllers
                 ServerConfig.ApiDb.Query<ProductionLibrary>("SELECT `Id` FROM `production_library` WHERE ProductionProcessName = @productionProcessName AND MarkedDelete = 0;", new { productionProcessName }).FirstOrDefault();
             if (data == null)
             {
-                return Result.GenError<Result>(Error.ProductionProcessLibraryNotExist);
+                return Result.GenError<Result>(Error.ProductionLibraryNotExist);
             }
 
             ServerConfig.ApiDb.Execute(
@@ -928,7 +962,7 @@ namespace ApiManagement.Controllers
                 ServerConfig.ApiDb.Query<ProductionLibrary>("SELECT `Id` FROM `raw_materia` WHERE RawMateriaName = @rawMateriaName AND MarkedDelete = 0;", new { rawMateriaName }).FirstOrDefault();
             if (data == null)
             {
-                return Result.GenError<Result>(Error.ProductionProcessLibraryNotExist);
+                return Result.GenError<Result>(Error.ProductionLibraryNotExist);
             }
 
             ServerConfig.ApiDb.Execute(
