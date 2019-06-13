@@ -28,7 +28,7 @@ namespace ApiManagement.Controllers
         {
             var result = new DataResult();
             var deviceLibraryDetails = ServerConfig.ApiDb.Query<DeviceLibraryDetail>(
-                "SELECT a.*, b.ModelName, b.DeviceCategoryId, b.CategoryName, c.FirmwareName, d.ApplicationName, e.HardwareName, f.SiteName, g.ScriptName FROM device_library a " +
+                "SELECT a.*, b.ModelName, b.DeviceCategoryId, b.CategoryName, c.FirmwareName, d.ApplicationName, e.HardwareName, f.SiteName, f.RegionDescription, g.ScriptName FROM device_library a " +
                 "JOIN (SELECT a.*, b.CategoryName FROM device_model a JOIN device_category b ON a.DeviceCategoryId = b.Id) b ON a.DeviceModelId = b.Id " +
                 "JOIN firmware_library c ON a.FirmwareId = c.Id " +
                 "JOIN application_library d ON a.ApplicationId = d.Id " +
@@ -87,7 +87,7 @@ namespace ApiManagement.Controllers
         {
             var result = new DataResult();
             var data =
-                ServerConfig.ApiDb.Query<DeviceLibraryDetail>("SELECT a.*, b.ModelName, b.DeviceCategoryId, c.FirmwareName, d.ApplicationName, e.HardwareName, f.SiteName, g.ScriptName FROM device_library a " +
+                ServerConfig.ApiDb.Query<DeviceLibraryDetail>("SELECT a.*, b.ModelName, b.DeviceCategoryId, c.FirmwareName, d.ApplicationName, e.HardwareName, f.SiteName, f.RegionDescription, g.ScriptName FROM device_library a " +
                                                                  "JOIN device_model b ON a.DeviceModelId = b.Id " +
                                                                  "JOIN firmware_library c ON a.FirmwareId = c.Id " +
                                                                  "JOIN application_library d ON a.ApplicationId = d.Id " +
