@@ -32,7 +32,7 @@ namespace ApiManagement.Base.Helper
         public static void Init(IConfiguration configuration)
         {
             _url = configuration.GetAppSettings<string>("ErpUrl");
-            _time = new Timer(Call, null, 5000, 1000 * 60999 * 1);
+            _time = new Timer(Call, null, 5000, 1000 * 60 * 1);
         }
         private static void Call(object state)
         {
