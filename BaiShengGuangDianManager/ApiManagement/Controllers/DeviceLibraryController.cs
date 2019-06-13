@@ -221,7 +221,7 @@ namespace ApiManagement.Controllers
             result.applicationLibraries.AddRange(applicationLibraries);
 
             var sites =
-                ServerConfig.ApiDb.Query<dynamic>("SELECT Id, SiteName FROM `site` WHERE `MarkedDelete` = 0 ORDER BY Id DESC;");
+                ServerConfig.ApiDb.Query<dynamic>("SELECT Id, SiteName, RegionDescription FROM `site` WHERE `MarkedDelete` = 0 ORDER BY Id DESC;");
             result.sites.AddRange(sites);
 
             var scriptVersions =
@@ -651,6 +651,8 @@ namespace ApiManagement.Controllers
             public int ProcessId;
             //流程卡id
             public int FlowCardId;
+
+            //public 
         }
         // POST: api/DeviceLibrary/SetProcessStep
         [HttpPost("SetProcessStep")]
