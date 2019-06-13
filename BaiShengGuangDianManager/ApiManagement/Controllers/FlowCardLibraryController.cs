@@ -372,7 +372,7 @@ namespace ApiManagement.Controllers
                     new { device.DeviceCategoryId }).ToDictionary(x => x.Id);
             if (deviceProcessSteps.Any() && processSteps.Any())
             {
-                var currentProcessStep = processSteps.FirstOrDefault(x => deviceProcessSteps.ContainsKey(x.ProcessStepId) && x.ProcessTime == default(DateTime));
+                var currentProcessStep = processSteps.FirstOrDefault(x => deviceProcessSteps.ContainsKey(x.ProcessStepId));
                 if (currentProcessStep != null)
                 {
                     currentProcessStep.ProcessStepOrderName = "加工工序";

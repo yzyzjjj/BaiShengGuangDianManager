@@ -7,7 +7,7 @@ namespace ApiManagement.Base.Helper
 {
     public class DataStorageHelper
     {
-        private static Thread _analysis;
+        //private static Thread _analysis;
 
 
         public static void Init()
@@ -15,15 +15,16 @@ namespace ApiManagement.Base.Helper
 
 
 
-            _analysis = new Thread(Analysis);
+            //_analysis = new Thread(Analysis);
         }
 
         private static void Analysis()
         {
-            while (true)
-            {
+
+            //while (true)
+            //{
                 
-            }
+            //}
         }
     }
 }

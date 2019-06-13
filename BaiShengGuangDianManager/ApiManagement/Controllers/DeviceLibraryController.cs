@@ -606,9 +606,9 @@ namespace ApiManagement.Controllers
             {
                 return Result.GenError<Result>(Error.SiteNotExist);
             }
-            cnt =
-                ServerConfig.ApiDb.Query<int>("SELECT COUNT(1) FROM `script_version` WHERE Id = @id AND `MarkedDelete` = 0;", new { id = deviceLibrary.ScriptId }).FirstOrDefault();
-            if (cnt == 0)
+            var scriptVersion =
+                ServerConfig.ApiDb.Query<ScriptVersion>("SELECT * FROM `script_version` WHERE Id = @id AND `MarkedDelete` = 0;", new { id = deviceLibrary.ScriptId }).FirstOrDefault();
+            if (scriptVersion == null)
             {
                 return Result.GenError<Result>(Error.ScriptVersionNotExist);
             }
@@ -632,7 +632,8 @@ namespace ApiManagement.Controllers
               "@Remark);SELECT LAST_INSERT_ID();",
               deviceLibrary).FirstOrDefault();
 
-            ServerConfig.ApiDb.Execute("INSERT INTO npc_proxy_link (`DeviceId`) VALUES (@DeviceId);", new { DeviceId = lastInsertId, });
+            ServerConfig.ApiDb.Execute("INSERT INTO npc_proxy_link (`DeviceId`, `Instruction`) VALUES (@DeviceId, @Instruction);",
+                new { DeviceId = lastInsertId, Instruction = scriptVersion.HeartPacket, });
 
             HttpResponseErrAsync(new DeviceInfo
             {

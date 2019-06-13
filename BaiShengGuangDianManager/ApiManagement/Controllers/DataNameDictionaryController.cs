@@ -271,6 +271,7 @@ namespace ApiManagement.Controllers
             var outN = scriptVersion.OutputNumber < 255 ? 255 : scriptVersion.OutputNumber;
             var msg = new DeviceInfoMessagePacket(valN, inN, outN);
             var heartPacket = msg.Serialize();
+            var oldHeartPacket = scriptVersion.HeartPacket;
             var notify = heartPacket != scriptVersion.HeartPacket;
             scriptVersion.HeartPacket = heartPacket;
 
@@ -280,10 +281,9 @@ namespace ApiManagement.Controllers
                 "UPDATE script_version SET `MarkedDateTime` = @MarkedDateTime, `MarkedDelete` = @MarkedDelete, `ModifyId` = @ModifyId, `DeviceModelId` = @DeviceModelId, `ScriptName` = @ScriptName, " +
                 "`ValueNumber` = @ValueNumber, `InputNumber` = @InputNumber, `OutputNumber` = @OutputNumber, `HeartPacket` = @HeartPacket WHERE `Id` = @Id;", scriptVersion);
 
-            if (notify)
-            {
-                ServerConfig.RedisHelper.PublishToTable();
-            }
+            ServerConfig.ApiDb.Execute(
+                "UPDATE npc_proxy_link SET `Instruction` = @HeartPacket WHERE `Instruction` = @oldHeartPacket;", new { oldHeartPacket, scriptVersion.HeartPacket });
+            ServerConfig.RedisHelper.PublishToTable();
         }
 
         /// <summary>
