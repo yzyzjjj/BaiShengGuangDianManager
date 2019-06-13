@@ -9,11 +9,13 @@ namespace ApiManagement.Base.Server
     public class ServerConfig
     {
         public static DataBase ApiDb;
+        public static DataBase DataStorageDb;
         public static string GateUrl;
         public static RedisCacheHelper RedisHelper;
         public static void Init(IConfiguration configuration)
         {
             ApiDb = new DataBase(configuration.GetConnectionString("ApiDb"));
+            DataStorageDb = new DataBase(configuration.GetConnectionString("DataStorageDb"));
             GateUrl = configuration.GetAppSettings<string>("GateUrl");
             RedisHelper = new RedisCacheHelper(configuration);
             FlowCardHelper.Init();

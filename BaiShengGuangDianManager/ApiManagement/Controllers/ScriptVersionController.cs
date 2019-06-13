@@ -97,6 +97,7 @@ namespace ApiManagement.Controllers
                 "UPDATE script_version SET `MarkedDateTime` = @MarkedDateTime, `MarkedDelete` = @MarkedDelete, `ModifyId` = @ModifyId, `DeviceModelId` = @DeviceModelId, `ScriptName` = @ScriptName, " +
                 "`ValueNumber` = @ValueNumber, `InputNumber` = @InputNumber, `OutputNumber` = @OutputNumber, `HeartPacket` = @HeartPacket WHERE `Id` = @Id;", scriptVersion);
 
+            ServerConfig.RedisHelper.PublishToTable();
             return Result.GenError<Result>(Error.Success);
         }
 

@@ -70,7 +70,7 @@ namespace ApiManagement.Controllers
             ServerConfig.ApiDb.Execute(
                 "UPDATE usually_dictionary_type SET `MarkedDateTime` = @MarkedDateTime, " +
                 "`MarkedDelete` = @MarkedDelete, `ModifyId` = @ModifyId, `VariableName` = @VariableName WHERE `Id` = @Id;", usuallyDictionaryType);
-
+            ServerConfig.RedisHelper.PublishToTable();
             return Result.GenError<Result>(Error.Success);
         }
 
@@ -85,6 +85,7 @@ namespace ApiManagement.Controllers
                 "VALUES (@CreateUserId, @MarkedDateTime, @MarkedDelete, @ModifyId, @VariableName);",
                 usuallyDictionaryType);
 
+            ServerConfig.RedisHelper.PublishToTable();
             return Result.GenError<Result>(Error.Success);
         }
 
@@ -111,6 +112,7 @@ namespace ApiManagement.Controllers
                     MarkedDelete = true,
                     Id = id
                 });
+            ServerConfig.RedisHelper.PublishToTable();
             return Result.GenError<Result>(Error.Success);
         }
 

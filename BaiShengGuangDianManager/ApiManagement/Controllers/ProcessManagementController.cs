@@ -699,9 +699,14 @@ namespace ApiManagement.Controllers
             var result = new DataResult();
             var processManagements = ServerConfig.ApiDb.Query<ProcessManagementDetail>(
                 "SELECT * FROM `process_management` WHERE MarkedDelete = 0" + (request1.Pid == 0 ? ";" : " AND Id != @id;"), new { id = request1.Pid });
-            if (request1.Pid != 0 && !processManagements.Any())
+            if (request1.Pid != 0)
             {
-                return Result.GenError<DataResult>(Error.ProcessManagementNotExist);
+                var cnt =
+                    ServerConfig.ApiDb.Query<int>("SELECT COUNT(1) FROM `process_management` WHERE Id = @id AND MarkedDelete = 0;", new { id = request1.Pid }).FirstOrDefault();
+                if (cnt == 0)
+                {
+                    return Result.GenError<DataResult>(Error.ProcessManagementNotExist);
+                }
             }
 
             try

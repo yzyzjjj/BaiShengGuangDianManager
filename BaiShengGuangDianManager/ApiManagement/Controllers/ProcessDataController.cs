@@ -1,12 +1,12 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using ApiManagement.Base.Server;
+﻿using ApiManagement.Base.Server;
 using ApiManagement.Models;
 using Microsoft.AspNetCore.Mvc;
 using ModelBase.Base.EnumConfig;
 using ModelBase.Base.Utils;
 using ModelBase.Models.Result;
+using System;
+using System.Collections.Generic;
+using System.Linq;
 
 namespace ApiManagement.Controllers
 {
@@ -47,29 +47,72 @@ namespace ApiManagement.Controllers
             return result;
         }
 
+        public class ProcessDataQuery
+        {
+            /// <summary>
+            /// 工艺编号
+            /// </summary>
+            public int Id;
+            /// <summary>
+            /// 当前厚度
+            /// </summary>
+            public decimal CurLand;
+            /// <summary>
+            /// 上次成厚
+            /// </summary>
+            public decimal LastLand;
+            /// <summary>
+            /// 目标成厚
+            /// </summary>
+            public decimal TarLand;
+        }
+
+
         /// <summary>
         /// 工艺编号
         /// </summary>
-        /// <param name="id">工艺编号id</param>
+        /// <param name="processDataQuery">工艺请求参数</param>
         /// <returns></returns>
-        // GET: api/ProcessData/ProcessNumber/5
-        [HttpGet("ProcessNumber/{id}")]
-        public DataResult GetProcessDataByProcessNumber([FromRoute] int id)
+        // Post: api/ProcessData/ProcessNumber
+        [HttpPost("ProcessNumber")]
+        public DataResult GetProcessDataByProcessNumber([FromBody] ProcessDataQuery processDataQuery)
         {
             var data =
-                ServerConfig.ApiDb.Query<ProcessManagement>("SELECT * FROM `process_management` WHERE Id = @id AND MarkedDelete = 0;", new { id }).FirstOrDefault();
+                ServerConfig.ApiDb.Query<ProcessManagement>("SELECT * FROM `process_management` WHERE Id = @id AND MarkedDelete = 0;", new { id = processDataQuery.Id }).FirstOrDefault();
             if (data == null)
             {
                 return Result.GenError<DataResult>(Error.ProcessManagementNotExist);
             }
 
+            var pd = ServerConfig.ApiDb.Query<ProcessData>(
+                "SELECT * FROM `process_data` WHERE ProcessManagementId = @Id AND MarkedDelete = 0;", new { data.Id });
+
             var result = new DataResult();
-            result.datas.AddRange(ServerConfig.ApiDb.Query<ProcessData>("SELECT * FROM `process_data` WHERE ProcessManagementId = @Id AND MarkedDelete = 0;", new { data.Id }));
+            if (processDataQuery.CurLand != 0)
+            {
+                if (pd.Any())
+                {
+                    if (processDataQuery.CurLand != processDataQuery.LastLand)
+                    {
+                        var pdOrder = pd.OrderByDescending(x => x.PressurizeMinute * 60 + x.PressurizeSecond).ThenBy(x => x.Id)
+                            .First();
+                        var t = (pdOrder.ProcessMinute * 60 + pdOrder.ProcessSecond) -
+                                (pdOrder.PressurizeMinute * 60 + pdOrder.PressurizeSecond);
+                        var pTime = (pdOrder.PressurizeMinute * 60 + pdOrder.PressurizeSecond) *
+                                    ((processDataQuery.CurLand - processDataQuery.TarLand) /
+                                     (processDataQuery.LastLand - processDataQuery.TarLand));
+
+                        pdOrder.PressurizeMinute = (int)pTime / 60;
+                        pdOrder.PressurizeSecond = (int)pTime % 60;
+                        pdOrder.ProcessMinute = (int)(pTime + t) / 60;
+                        pdOrder.ProcessSecond = (int)(pTime + t) % 60;
+                    }
+                }
+            }
+
+            result.datas.AddRange(pd);
             return result;
         }
-
-
-
 
         /// <summary>
         /// 自增Id

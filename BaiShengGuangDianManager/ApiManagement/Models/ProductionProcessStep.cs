@@ -17,4 +17,8 @@ namespace ApiManagement.Models
         public string CategoryName { get; set; }
         public string StepName { get; set; }
     }
+    public class ProductionProcessStepDetail : ProductionProcessStep
+    {
+        public string ProductionProcessName { get; set; }
+    }
 }
