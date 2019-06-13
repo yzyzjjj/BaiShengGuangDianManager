@@ -37,6 +37,7 @@ namespace ApiManagement.Models
         public string ApplicationName { get; set; }
         public string HardwareName { get; set; }
         public string SiteName { get; set; }
+        public string RegionDescription { get; set; }
         public string ScriptName { get; set; }
         /// <summary>
         /// 状态 0 已报修 1 已确认 2 维修中

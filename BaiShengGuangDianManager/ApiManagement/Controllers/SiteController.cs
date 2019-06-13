@@ -2,11 +2,11 @@
 using ApiManagement.Models;
 using Microsoft.AspNetCore.Mvc;
 using ModelBase.Base.EnumConfig;
+using ModelBase.Base.Utils;
 using ModelBase.Models.Result;
+using ServiceStack;
 using System;
 using System.Linq;
-using ModelBase.Base.Utils;
-using ServiceStack;
 
 namespace ApiManagement.Controllers
 {
@@ -52,7 +52,7 @@ namespace ApiManagement.Controllers
             }
 
             var cnt =
-                ServerConfig.ApiDb.Query<int>("SELECT COUNT(1) FROM `site` WHERE SiteName = @SiteName AND MarkedDelete = 0;", new { site.SiteName }).FirstOrDefault();
+                ServerConfig.ApiDb.Query<int>("SELECT COUNT(1) FROM `site` WHERE SiteName = @SiteName AND RegionDescription = @RegionDescription AND MarkedDelete = 0;", new { site.SiteName, site.RegionDescription }).FirstOrDefault();
             if (cnt > 0)
             {
                 if (!site.SiteName.IsNullOrEmpty() && data.SiteName != site.SiteName)
@@ -75,7 +75,7 @@ namespace ApiManagement.Controllers
         public Result PostSite([FromBody] Site site)
         {
             var cnt =
-                ServerConfig.ApiDb.Query<int>("SELECT COUNT(1) FROM `site` WHERE SiteName = @SiteName AND MarkedDelete = 0;", new { site.SiteName }).FirstOrDefault();
+                ServerConfig.ApiDb.Query<int>("SELECT COUNT(1) FROM `site` WHERE SiteName = @SiteName AND RegionDescription = @RegionDescription AND MarkedDelete = 0;", new { site.SiteName, site.RegionDescription }).FirstOrDefault();
             if (cnt > 0)
             {
                 return Result.GenError<Result>(Error.SiteIsExist);
