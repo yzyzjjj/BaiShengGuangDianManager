@@ -652,7 +652,7 @@ namespace ApiManagement.Controllers
             //流程卡id
             public int FlowCardId;
 
-            //public 
+            public List<ProcessData> ProcessDatas;
         }
         // POST: api/DeviceLibrary/SetProcessStep
         [HttpPost("SetProcessStep")]
@@ -687,7 +687,7 @@ namespace ApiManagement.Controllers
                         var deviceInfo = dataResult.datas.First();
                         if (deviceInfo.DeviceState != DeviceState.Waiting)
                         {
-                            //return Result.GenError<Result>(deviceInfo.DeviceState == DeviceState.Processing ? Error.ProcessingNotSet : Error.DeviceStateErrorNotSet);
+                            return Result.GenError<Result>(deviceInfo.DeviceState == DeviceState.Processing ? Error.ProcessingNotSet : Error.DeviceStateErrorNotSet);
                         }
                     }
                 }
@@ -698,17 +698,6 @@ namespace ApiManagement.Controllers
                 return Result.GenError<Result>(Error.AnalysisFail);
             }
 
-            var processDatas =
-                ServerConfig.ApiDb.Query<dynamic>("SELECT `ProcessOrder`, `PressurizeMinute`, `PressurizeSecond`, `ProcessMinute`, `ProcessSecond`, " +
-                                                      "`Pressure`, `Speed` FROM `process_data` WHERE ProcessManagementId = @ProcessId AND MarkedDelete = 0 ORDER BY ProcessOrder;", new
-                                                      {
-                                                          processInfo.ProcessId,
-                                                      });
-            if (!processDatas.Any())
-            {
-                return Result.GenError<Result>(Error.ProcessStepNotExist);
-            }
-
             var flowCard =
                 ServerConfig.ApiDb.Query<FlowCardLibraryDetail>("SELECT a.*, b.RawMateriaName, c.ProductionProcessName FROM `flowcard_library` a JOIN `raw_materia` b ON a.RawMateriaId = b.Id " +
                                                                 "JOIN `production_library` c ON a.ProductionProcessId = c.Id WHERE a.MarkedDelete = 0 AND a.Id = @id;", new { id = processInfo.FlowCardId }).FirstOrDefault();
@@ -717,17 +706,40 @@ namespace ApiManagement.Controllers
                 return Result.GenError<Result>(Error.FlowCardLibraryNotExist);
             }
 
+
+            var processDatas =
+                ServerConfig.ApiDb.Query<dynamic>("SELECT `ProcessOrder`, `PressurizeMinute`, `PressurizeSecond`, `ProcessMinute`, `ProcessSecond`, " +
+                                                  "`Pressure`, `Speed` FROM `process_data` WHERE ProcessManagementId = @ProcessId AND MarkedDelete = 0 ORDER BY ProcessOrder;", new
+                                                  {
+                                                      processInfo.ProcessId,
+                                                  });
+            if (!processDatas.Any())
+            {
+                return Result.GenError<Result>(Error.ProcessDataNotExist);
+            }
+
+            if (processInfo.ProcessDatas != null)
+            {
+                if (processInfo.ProcessDatas.Any())
+                {
+                    processDatas = processInfo.ProcessDatas;
+                }
+                else
+                {
+                    return Result.GenError<Result>(Error.ProcessDataNotExist);
+                }
+            }
+
             var dictionaryIds =
                 ServerConfig.ApiDb.Query<UsuallyDictionaryDetail>("SELECT a.Id, VariableName, DictionaryId FROM `usually_dictionary_type` a JOIN `usually_dictionary` b " +
-                                                     "ON a.Id = b.VariableNameId WHERE b.ScriptId = @ScriptId AND a.MarkedDelete = 0 ORDER BY a.Id;", new
-                                                     {
-                                                         device.ScriptId,
-                                                     });
+                                                                  "ON a.Id = b.VariableNameId WHERE b.ScriptId = @ScriptId AND a.MarkedDelete = 0 ORDER BY a.Id;", new
+                                                                  {
+                                                                      device.ScriptId,
+                                                                  });
             if (!dictionaryIds.Any())
             {
                 return Result.GenError<Result>(Error.UsuallyDictionaryTypeNotExist);
             }
-
             var messagePacket = new SetValMessagePacket();
             var key = new[]
             {
@@ -746,27 +758,27 @@ namespace ApiManagement.Controllers
                 {
                     messagePacket.Vals.Add(dictionaryIds.First(x => x.VariableName == key[j] + i).DictionaryId, processData.PressurizeMinute);
                 }
-                j = 1;
+                j++;
                 if (dictionaryIds.Any(x => x.VariableName == key[j] + i))
                 {
                     messagePacket.Vals.Add(dictionaryIds.First(x => x.VariableName == key[j] + i).DictionaryId, processData.PressurizeSecond);
                 }
-                j = 2;
+                j++;
                 if (dictionaryIds.Any(x => x.VariableName == key[j] + i))
                 {
                     messagePacket.Vals.Add(dictionaryIds.First(x => x.VariableName == key[j] + i).DictionaryId, processData.ProcessMinute);
                 }
-                j = 3;
+                j++;
                 if (dictionaryIds.Any(x => x.VariableName == key[j] + i))
                 {
                     messagePacket.Vals.Add(dictionaryIds.First(x => x.VariableName == key[j] + i).DictionaryId, processData.ProcessSecond);
                 }
-                j = 4;
+                j++;
                 if (dictionaryIds.Any(x => x.VariableName == key[j] + i))
                 {
                     messagePacket.Vals.Add(dictionaryIds.First(x => x.VariableName == key[j] + i).DictionaryId, processData.Pressure);
                 }
-                j = 5;
+                j++;
                 if (dictionaryIds.Any(x => x.VariableName == key[j] + i))
                 {
                     messagePacket.Vals.Add(dictionaryIds.First(x => x.VariableName == key[j] + i).DictionaryId, processData.Speed);

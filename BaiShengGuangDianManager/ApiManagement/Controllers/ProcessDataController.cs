@@ -94,18 +94,15 @@ namespace ApiManagement.Controllers
                 {
                     if (processDataQuery.CurLand != processDataQuery.LastLand)
                     {
-                        var pdOrder = pd.OrderByDescending(x => x.PressurizeMinute * 60 + x.PressurizeSecond).ThenBy(x => x.Id)
+                        var pdOrder = pd.OrderByDescending(x => x.ProcessMinute * 60 + x.ProcessSecond).ThenBy(x => x.Id)
                             .First();
-                        var t = (pdOrder.ProcessMinute * 60 + pdOrder.ProcessSecond) -
-                                (pdOrder.PressurizeMinute * 60 + pdOrder.PressurizeSecond);
-                        var pTime = (pdOrder.PressurizeMinute * 60 + pdOrder.PressurizeSecond) *
+                        
+                        var pTime = (pdOrder.ProcessMinute * 60 + pdOrder.ProcessSecond) *
                                     ((processDataQuery.CurLand - processDataQuery.TarLand) /
                                      (processDataQuery.LastLand - processDataQuery.TarLand));
 
-                        pdOrder.PressurizeMinute = (int)pTime / 60;
-                        pdOrder.PressurizeSecond = (int)pTime % 60;
-                        pdOrder.ProcessMinute = (int)(pTime + t) / 60;
-                        pdOrder.ProcessSecond = (int)(pTime + t) % 60;
+                        pdOrder.ProcessMinute = (int)pTime / 60;
+                        pdOrder.ProcessSecond = (int)pTime % 60;
                     }
                 }
             }
