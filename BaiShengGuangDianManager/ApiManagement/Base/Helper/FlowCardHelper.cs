@@ -275,7 +275,6 @@ namespace ApiManagement.Base.Helper
                             continue;
                         }
 
-                        var i = 1;
                         var newFlowCardProcessStep = productionProcessStep[fc.ProductionProcessId];
                         foreach (var processStep in newFlowCardProcessStep)
                         {
