@@ -8,6 +8,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading;
+using Microsoft.Extensions.Configuration;
 
 namespace ApiManagement.Base.Helper
 {
@@ -16,7 +17,7 @@ namespace ApiManagement.Base.Helper
         private static Timer _time;
         private static DateTime _starTime = DateTime.Now.DayBeginTime();
         private static string _createUserId = "ERP";
-        public static void Init()
+        public static void Init(IConfiguration configuration)
         {
             _time = new Timer(Call, null, 10000, 1000 * 60 * 10);
         }

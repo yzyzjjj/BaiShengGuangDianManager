@@ -59,7 +59,7 @@ namespace ApiManagement.Base.Control
             //功能码 02
             //字节数 4bytes
             //唯一识别码   4bytes
-            if (datas.Length == 0 || datas[0] != "f3" || datas[1] != "2")
+            if (datas.Length == 0 || datas[0] != "f3" || datas[1] != "02")
             {
                 return null;
             }
