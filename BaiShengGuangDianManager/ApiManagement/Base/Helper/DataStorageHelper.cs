@@ -54,9 +54,9 @@ namespace ApiManagement.Base.Helper
                     data.Data = JsonConvert.SerializeObject(analysisData);
                 }
 
-                ServerConfig.ApiDb.Execute(
+                ServerConfig.ApiDb.ExecuteAsync(
                     "INSERT INTO npc_monitoring_analysis (`SendTime`, `DeviceId`, `ScriptId`, `Ip`, `Port`, `Data`) " +
-                    "VALUES (@SendTime, @DeviceId, @ScriptId, @Ip, @Port, @Data);", mData.OrderBy(x => x.Id));
+                    "VALUES (@SendTime, @DeviceId, @ScriptId, @Ip, @Port, @Data);", mData);
             }
         }
         public class DeviceInfoResult
