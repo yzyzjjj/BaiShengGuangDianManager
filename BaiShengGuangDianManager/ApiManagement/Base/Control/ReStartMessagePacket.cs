@@ -49,12 +49,12 @@ namespace ApiManagement.Base.Control
             //CRC校验	2bytes
             //response = "f3,3,0,0,crc";
             var datas = response.Split(",");
-            if (datas.Length == 0 || datas[0] != "f3" || datas[1] != "3")
+            if (datas.Length == 0 || datas[0] != "f3" || datas[1] != "03")
             {
                 return null;
             }
 
-            return datas[3] == "0" ? 0 : 1;
+            return datas[3] == "00" ? 0 : 1;
         }
     }
 }

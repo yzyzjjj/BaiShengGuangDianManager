@@ -17,11 +17,11 @@ namespace ApiManagement.Base.Server
             ApiDb = new DataBase(configuration.GetConnectionString("ApiDb"));
             DataStorageDb = new DataBase(configuration.GetConnectionString("DataStorageDb"));
             GateUrl = configuration.GetAppSettings<string>("GateUrl");
+            GlobalConfig.LoadGlobalConfig();
             RedisHelper = new RedisCacheHelper(configuration);
             FlowCardHelper.Init(configuration);
+            DataStorageHelper.Init(configuration);
             Log.InfoFormat("ServerConfig Done");
         }
-
-
     }
 }
