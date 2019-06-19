@@ -41,7 +41,7 @@ namespace ApiManagement.Base.Helper
             if (mData.Any())
             {
                 var endId = mData.Last().Id;
-                ServerConfig.RedisHelper.Set(redisKey, endId);
+                ServerConfig.RedisHelper.SetForever(redisKey, endId);
             }
             ServerConfig.RedisHelper.Remove(lockKey);
 
