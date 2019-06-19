@@ -194,50 +194,53 @@ namespace ApiManagement.Base.Helper
                         return false;
                     }
                     var rrr = HttpUtility.UrlDecode(ff);
-                    var erpJhhGxes = JsonConvert.DeserializeObject<ErpJhhGx[]>(rrr);
-                    if (erpJhhGxes.Any())
+                    if (rrr != "[][]")
                     {
-                        var deviceProcessSteps = ServerConfig.ApiDb.Query<DeviceProcessStep>("SELECT Id, StepName FROM `device_process_step` WHERE MarkedDelete = 0;");
-
-                        //erp计划号工序
-                        var erpProductionProcessStep = erpJhhGxes.ToDictionary(x => x.jhh);
-                        //var newProductionProcessStep = erpProductionProcessStep.Where(x => !productionProcessStep.ContainsKey(x.Key));
-
-                        //计划号新工序
-                        var newPps = new List<ProductionProcessStep>();
-                        foreach (var pl in newPlTmp)
+                        var erpJhhGxes = JsonConvert.DeserializeObject<ErpJhhGx[]>(rrr);
+                        if (erpJhhGxes.Any())
                         {
-                            if (erpProductionProcessStep.ContainsKey(pl.ProductionProcessName))
-                            {
-                                var newProductionProcessStep = erpProductionProcessStep[pl.ProductionProcessName].gx;
-                                var i = 1;
-                                foreach (var processStep in newProductionProcessStep)
-                                {
-                                    var n = _processStepName.ContainsKey(processStep.n)
-                                        ? _processStepName[processStep.n]
-                                        : processStep.n;
+                            var deviceProcessSteps = ServerConfig.ApiDb.Query<DeviceProcessStep>("SELECT Id, StepName FROM `device_process_step` WHERE MarkedDelete = 0;");
 
-                                    var dps = deviceProcessSteps.FirstOrDefault(x => x.StepName == n);
-                                    newPps.Add(new ProductionProcessStep
+                            //erp计划号工序
+                            var erpProductionProcessStep = erpJhhGxes.ToDictionary(x => x.jhh);
+                            //var newProductionProcessStep = erpProductionProcessStep.Where(x => !productionProcessStep.ContainsKey(x.Key));
+
+                            //计划号新工序
+                            var newPps = new List<ProductionProcessStep>();
+                            foreach (var pl in newPlTmp)
+                            {
+                                if (erpProductionProcessStep.ContainsKey(pl.ProductionProcessName))
+                                {
+                                    var newProductionProcessStep = erpProductionProcessStep[pl.ProductionProcessName].gx;
+                                    var i = 1;
+                                    foreach (var processStep in newProductionProcessStep)
                                     {
-                                        CreateUserId = _createUserId,
-                                        MarkedDateTime = now,
-                                        ProductionProcessId = productionLibraries[pl.ProductionProcessName].Id,
-                                        ProcessStepOrder = i++,
-                                        ProcessStepId = dps?.Id ?? 0,
-                                        ProcessStepRequirements = processStep.v,
-                                        ProcessStepRequirementMid = GetMid(processStep.v)
-                                    });
+                                        var n = _processStepName.ContainsKey(processStep.n)
+                                            ? _processStepName[processStep.n]
+                                            : processStep.n;
+
+                                        var dps = deviceProcessSteps.FirstOrDefault(x => x.StepName == n);
+                                        newPps.Add(new ProductionProcessStep
+                                        {
+                                            CreateUserId = _createUserId,
+                                            MarkedDateTime = now,
+                                            ProductionProcessId = productionLibraries[pl.ProductionProcessName].Id,
+                                            ProcessStepOrder = i++,
+                                            ProcessStepId = dps?.Id ?? 0,
+                                            ProcessStepRequirements = processStep.v,
+                                            ProcessStepRequirementMid = GetMid(processStep.v)
+                                        });
+                                    }
                                 }
                             }
-                        }
-                        ServerConfig.ApiDb.Execute(
-                            "INSERT INTO production_process_step (`CreateUserId`, `MarkedDateTime`, `MarkedDelete`, `ModifyId`, `ProductionProcessId`, `ProcessStepOrder`, `ProcessStepId`, `ProcessStepRequirements`, `ProcessStepRequirementMid`) " +
-                            "VALUES (@CreateUserId, @MarkedDateTime, @MarkedDelete, @ModifyId, @ProductionProcessId, @ProcessStepOrder, @ProcessStepId, @ProcessStepRequirements, @ProcessStepRequirementMid);",
-                            newPps);
+                            ServerConfig.ApiDb.Execute(
+                                "INSERT INTO production_process_step (`CreateUserId`, `MarkedDateTime`, `MarkedDelete`, `ModifyId`, `ProductionProcessId`, `ProcessStepOrder`, `ProcessStepId`, `ProcessStepRequirements`, `ProcessStepRequirementMid`) " +
+                                "VALUES (@CreateUserId, @MarkedDateTime, @MarkedDelete, @ModifyId, @ProductionProcessId, @ProcessStepOrder, @ProcessStepId, @ProcessStepRequirements, @ProcessStepRequirementMid);",
+                                newPps);
 
-                        productionProcessStep = ServerConfig.ApiDb.Query<ProductionProcessStepDetail>("SELECT a.*, b.ProductionProcessName FROM `production_process_step` a JOIN `production_library` b ON a.ProductionProcessId = b.Id; ")
-                          .GroupBy(x => x.ProductionProcessId).ToDictionary(x => x.Key);
+                            productionProcessStep = ServerConfig.ApiDb.Query<ProductionProcessStepDetail>("SELECT a.*, b.ProductionProcessName FROM `production_process_step` a JOIN `production_library` b ON a.ProductionProcessId = b.Id; ")
+                              .GroupBy(x => x.ProductionProcessId).ToDictionary(x => x.Key);
+                        }
                     }
                 }
 
