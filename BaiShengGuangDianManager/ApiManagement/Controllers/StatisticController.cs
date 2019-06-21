@@ -24,6 +24,10 @@ namespace ApiManagement.Controllers
             //0 小时 - 秒  1 天 - 小时 2 月 天 
             public DateTime DataType;
         }
+        /// <summary>
+        /// 趋势图
+        /// </summary>
+        /// <returns></returns>
         // POST: api/Trend
         [HttpPost]
         public DataResult Trend()
@@ -33,6 +37,10 @@ namespace ApiManagement.Controllers
             return result;
         }
 
+        /// <summary>
+        /// 加工记录
+        /// </summary>
+        /// <returns></returns>
         // POST: api/Process
         [HttpPost]
         public DataResult Process()

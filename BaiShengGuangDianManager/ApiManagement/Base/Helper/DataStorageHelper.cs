@@ -21,6 +21,7 @@ namespace ApiManagement.Base.Helper
         private static Timer _statisticProcess;
         private static int _dealLength = 1000;
         private static int _due = 3;
+        private static bool _isSupplementaryData;
         public static void Init(IConfiguration configuration)
         {
             _analysis = new Timer(Analysis, null, 5000, 2000);
@@ -74,6 +75,10 @@ namespace ApiManagement.Base.Helper
             var redisKey = $"{_pre}:Time";
             var stateDId = 1;
             var pCountDId = 63;
+            if (_isSupplementaryData)
+            {
+                return;
+            }
 
             if (ServerConfig.RedisHelper.SetIfNotExist(lockKey, "lock"))
             {
@@ -88,8 +93,10 @@ namespace ApiManagement.Base.Helper
 
                 if ((int)(now - startTime).TotalSeconds != 1)
                 {
+                    _isSupplementaryData = true;
                     SupplementaryData(startTime.AddSeconds(1), now);
                     ServerConfig.RedisHelper.Remove(lockKey);
+                    _isSupplementaryData = false;
                     return;
                 }
 
@@ -119,7 +126,8 @@ namespace ApiManagement.Base.Helper
                     });
                 if (mData.Any())
                 {
-                    var scripts = mData.GroupBy(x => x.ScriptId);
+                    var scripts = mData.GroupBy(x => x.ScriptId).Select(x => x.Key).ToList();
+                    scripts.Add(0);
                     IEnumerable<UsuallyDictionary> usuallyDictionaries = null;
                     if (scripts.Any())
                     {
@@ -217,7 +225,8 @@ namespace ApiManagement.Base.Helper
                 {
                     ServerConfig.RedisHelper.SetForever(redisKey, maxTime.ToStr());
                 }
-                var scripts = mData.GroupBy(x => x.ScriptId);
+                var scripts = mData.GroupBy(x => x.ScriptId).Select(x => x.Key).ToList();
+                scripts.Add(0);
                 IEnumerable<UsuallyDictionary> usuallyDictionaries = null;
                 if (scripts.Any())
                 {
