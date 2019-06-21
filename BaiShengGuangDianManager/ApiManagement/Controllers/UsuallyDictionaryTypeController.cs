@@ -31,7 +31,7 @@ namespace ApiManagement.Controllers
         public DataResult GetUsuallyDictionaryStatistics()
         {
             var result = new DataResult();
-            result.datas.AddRange(ServerConfig.ApiDb.Query<UsuallyDictionaryType>("SELECT * FROM `usually_dictionary_type` WHERE `MarkedDelete` = 0 AND IsStatistic = 1;"));
+            result.datas.AddRange(ServerConfig.ApiDb.Query<UsuallyDictionaryType>("SELECT * FROM `usually_dictionary_type` WHERE `MarkedDelete` = 0 AND StatisticType = 1;"));
             return result;
         }
 
