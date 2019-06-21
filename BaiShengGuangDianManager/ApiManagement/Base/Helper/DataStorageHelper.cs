@@ -23,8 +23,8 @@ namespace ApiManagement.Base.Helper
         private static int _due = 3;
         public static void Init(IConfiguration configuration)
         {
-            //_analysis = new Timer(Analysis, null, 5000, 2000);
-            _statisticProcess = new Timer(Process, null, 5000, 1000);
+            _analysis = new Timer(Analysis, null, 5000, 2000);
+            _statisticProcess = new Timer(Process, null, 10000, 1000);
         }
         private static void Analysis(object state)
         {
