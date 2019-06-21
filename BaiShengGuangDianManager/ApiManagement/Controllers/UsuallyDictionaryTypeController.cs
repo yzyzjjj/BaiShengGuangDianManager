@@ -26,6 +26,15 @@ namespace ApiManagement.Controllers
             return result;
         }
 
+        // GET: api/UsuallyDictionaryType/Statistic
+        [HttpGet("Statistic")]
+        public DataResult GetUsuallyDictionaryStatistics()
+        {
+            var result = new DataResult();
+            result.datas.AddRange(ServerConfig.ApiDb.Query<UsuallyDictionaryType>("SELECT * FROM `usually_dictionary_type` WHERE `MarkedDelete` = 0 AND IsStatistic = 1;"));
+            return result;
+        }
+
         /// <summary>
         /// 自增Id
         /// </summary>
