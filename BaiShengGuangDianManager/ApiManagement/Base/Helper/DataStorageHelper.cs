@@ -96,7 +96,8 @@ namespace ApiManagement.Base.Helper
                 ServerConfig.RedisHelper.SetForever(redisKey, startTime.ToStr());
 
                 var deviceList =
-                    ServerConfig.ApiDb.Query<MonitoringProcess>("SELECT b.DeviceId, b.LastState, b.TodayProcessCount, b.TotalProcessCount FROM `device_library` a JOIN `npc_proxy_link` b ON a.Id = b.DeviceId WHERE a.MarkedDelete = 0;").ToDictionary(x => x.DeviceId);
+                    ServerConfig.ApiDb.Query<MonitoringProcess>("SELECT b.DeviceId, b.LastState, b.TodayProcessCount, b.TotalProcessCount FROM `device_library` a " +
+                                                                "JOIN `npc_proxy_link` b ON a.Id = b.DeviceId WHERE a.MarkedDelete = 0 AND b.Monitoring = 1;").ToDictionary(x => x.DeviceId);
                 if (!deviceList.Any())
                 {
                     return;
@@ -188,7 +189,8 @@ namespace ApiManagement.Base.Helper
             var pCountDId = 63;
 
             var deviceList =
-                ServerConfig.ApiDb.Query<MonitoringProcess>("SELECT b.DeviceId, b.LastState, b.TodayProcessCount, b.TotalProcessCount FROM `device_library` a JOIN `npc_proxy_link` b ON a.Id = b.DeviceId WHERE a.MarkedDelete = 0;").ToDictionary(x => x.DeviceId);
+                ServerConfig.ApiDb.Query<MonitoringProcess>("SELECT b.DeviceId, b.LastState, b.TodayProcessCount, b.TotalProcessCount FROM `device_library` a " +
+                                                            "JOIN `npc_proxy_link` b ON a.Id = b.DeviceId WHERE a.MarkedDelete = 0 AND b.Monitoring = 1;").ToDictionary(x => x.DeviceId);
             if (!deviceList.Any())
             {
                 return;
