@@ -6,6 +6,7 @@ using Newtonsoft.Json;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading;
+using System.Threading.Tasks;
 
 namespace ApiManagement.Base.Helper
 {
@@ -20,14 +21,14 @@ namespace ApiManagement.Base.Helper
         private static int _dealLength = 1000;
         public static void Init(IConfiguration configuration)
         {
-            _analysis1 = new Timer(Analysis, null, 5000, 1000);
-            //_analysis2 = new Timer(Analysis, null, 5000, 1000);
+            _analysis1 = new Timer(Analysis, null, 5000, 2000);
+            //_analysis2 = new Timer(Analysis, null, 5000, 2000);
         }
         private static void Analysis(object state)
         {
             var lockKey = $"{_pre}:Lock";
             var redisKey = $"{_pre}:Id";
-            if (ServerConfig.RedisHelper.SetIfNotExist(lockKey, "1"))
+            if (ServerConfig.RedisHelper.SetIfNotExist(lockKey, "lock"))
             {
                 var startId = ServerConfig.RedisHelper.Get<int>(redisKey);
                 Log.DebugFormat("统计startId：{0}", startId);
@@ -52,9 +53,13 @@ namespace ApiManagement.Base.Helper
                             data.Data = JsonConvert.SerializeObject(analysisData);
                         }
 
-                        ServerConfig.ApiDb.ExecuteAsync(
-                            "INSERT INTO npc_monitoring_analysis (`SendTime`, `DeviceId`, `ScriptId`, `Ip`, `Port`, `Data`) " +
-                            "VALUES (@SendTime, @DeviceId, @ScriptId, @Ip, @Port, @Data);", mData);
+                        Task.Run(() =>
+                        {
+                            ServerConfig.ApiDb.ExecuteAsync(
+                                "INSERT INTO npc_monitoring_analysis (`SendTime`, `DeviceId`, `ScriptId`, `Ip`, `Port`, `Data`) " +
+                                "VALUES (@SendTime, @DeviceId, @ScriptId, @Ip, @Port, @Data);",
+                                mData);
+                        });
                     }
                 }
                 ServerConfig.RedisHelper.Remove(lockKey);
