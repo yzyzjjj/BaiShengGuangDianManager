@@ -120,12 +120,12 @@ namespace ApiManagement.Base.Helper
                     device.Value.Time = now;
                 }
 
-                var mData = ServerConfig.ApiDb.Query<MonitoringAnalysis>(
+                var mData = ServerConfig.ApiDb.QueryWithTime<MonitoringAnalysis>(
                     "SELECT * FROM `npc_monitoring_analysis` WHERE SendTime BETWEEN @startTime AND @endTime ORDER BY SendTime;", new
                     {
                         startTime = startTime.ToStr(),
                         endTime = endTime.ToStr()
-                    });
+                    }, 90);
                 if (mData.Any())
                 {
                     var scripts = mData.GroupBy(x => x.ScriptId).Select(x => x.Key).ToList();
@@ -133,7 +133,7 @@ namespace ApiManagement.Base.Helper
                     IEnumerable<UsuallyDictionary> usuallyDictionaries = null;
                     if (scripts.Any())
                     {
-                        usuallyDictionaries = ServerConfig.ApiDb.Query<UsuallyDictionary>(
+                        usuallyDictionaries = ServerConfig.ApiDb.QueryWithTime<UsuallyDictionary>(
                             "SELECT * FROM `usually_dictionary` WHERE ScriptId IN @ScriptId AND (VariableNameId = @VariableNameId1 OR VariableNameId = @VariableNameId2);", new
                             {
                                 ScriptId = scripts,
@@ -216,31 +216,33 @@ namespace ApiManagement.Base.Helper
                 }
 
                 var endTime = now;
-                var mData = ServerConfig.ApiDb.Query<MonitoringAnalysis>(
+
+                var mData = ServerConfig.ApiDb.QueryWithTime<MonitoringAnalysis>(
                     "SELECT * FROM `npc_monitoring_analysis` WHERE SendTime BETWEEN @startTime AND @endTime ORDER BY SendTime;", new
                     {
                         startTime = startTime.ToStr(),
                         endTime = endTime.ToStr()
-                    });
+                    }, 90);
                 if (mData.Any())
                 {
                     var maxTime = mData.Last().SendTime.NoMillisecond();
-                    if (maxTime < now)
+                    if (maxTime < now.AddMinutes(-10))
                     {
                         return;
                     }
+
                     var scripts = mData.GroupBy(x => x.ScriptId).Select(x => x.Key).ToList();
                     scripts.Add(0);
                     IEnumerable<UsuallyDictionary> usuallyDictionaries = null;
                     if (scripts.Any())
                     {
-                        usuallyDictionaries = ServerConfig.ApiDb.QueryWithTime<UsuallyDictionary>(
+                        usuallyDictionaries = ServerConfig.ApiDb.Query<UsuallyDictionary>(
                             "SELECT * FROM `usually_dictionary` WHERE ScriptId IN @ScriptId AND (VariableNameId = @VariableNameId1 OR VariableNameId = @VariableNameId2);", new
                             {
                                 ScriptId = scripts,
                                 VariableNameId1 = stateDId,
                                 VariableNameId2 = pCountDId,
-                            }, 90);
+                            });
                     }
 
                     for (int i = 0; i < totalSeconds; i++)
@@ -302,6 +304,7 @@ namespace ApiManagement.Base.Helper
                     ServerConfig.ApiDb.Execute(
                         "UPDATE npc_proxy_link SET `LastState` = @LastState, `TodayProcessCount` = @TodayProcessCount, `TotalProcessCount` = @TotalProcessCount WHERE `DeviceId` = @DeviceId;",
                         deviceList.Values);
+                    ServerConfig.RedisHelper.SetForever(redisKey, maxTime.ToStr());
                 }
             }
             catch (Exception e)
