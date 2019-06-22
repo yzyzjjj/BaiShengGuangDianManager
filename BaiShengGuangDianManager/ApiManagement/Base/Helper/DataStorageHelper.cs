@@ -1,6 +1,7 @@
 ﻿using ApiManagement.Base.Control;
 using ApiManagement.Base.Server;
 using ApiManagement.Models;
+using ApiManagement.Models.Analysis;
 using Microsoft.Extensions.Configuration;
 using ModelBase.Base.Logger;
 using ModelBase.Base.Utils;
@@ -10,7 +11,6 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
-using ApiManagement.Models.Analysis;
 
 namespace ApiManagement.Base.Helper
 {
@@ -234,13 +234,13 @@ namespace ApiManagement.Base.Helper
                     IEnumerable<UsuallyDictionary> usuallyDictionaries = null;
                     if (scripts.Any())
                     {
-                        usuallyDictionaries = ServerConfig.ApiDb.Query<UsuallyDictionary>(
+                        usuallyDictionaries = ServerConfig.ApiDb.QueryWithTime<UsuallyDictionary>(
                             "SELECT * FROM `usually_dictionary` WHERE ScriptId IN @ScriptId AND (VariableNameId = @VariableNameId1 OR VariableNameId = @VariableNameId2);", new
                             {
                                 ScriptId = scripts,
                                 VariableNameId1 = stateDId,
                                 VariableNameId2 = pCountDId,
-                            });
+                            }, 90);
                     }
 
                     for (int i = 0; i < totalSeconds; i++)
