@@ -20,6 +20,7 @@ namespace ApiManagement.Base.Helper
         private static DateTime _starTime = DateTime.Now.DayBeginTime();
         private static string _createUserId = "ErpSystem";
         private static string _url = "";
+        private static bool isDeal;
         private static Dictionary<string, string> _processStepName = new Dictionary<string, string>
         {
             {"线切割", "线切割"},
@@ -36,6 +37,9 @@ namespace ApiManagement.Base.Helper
         }
         private static void Call(object state)
         {
+            if(isDeal)
+                return;
+            isDeal = true;
             var sTime =
                 ServerConfig.ApiDb.Query<string>("SELECT `CreateTime` FROM `flowcard_library` ORDER BY CreateTime DESC LIMIT 1;").FirstOrDefault();
             if (!sTime.IsNullOrEmpty())
@@ -46,6 +50,7 @@ namespace ApiManagement.Base.Helper
             var queryTime2 = DateTime.Now;
             var r = GetData(queryTime1, queryTime2);
             _starTime = !r ? queryTime1 : queryTime2;
+            isDeal = false;
         }
 
         public class ErpFlowCard
