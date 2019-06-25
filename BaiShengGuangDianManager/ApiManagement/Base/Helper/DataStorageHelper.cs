@@ -38,7 +38,7 @@ namespace ApiManagement.Base.Helper
             {
                 var startId = ServerConfig.RedisHelper.Get<int>(redisKey);
                 var mData = ServerConfig.DataStorageDb.Query<dynamic>(
-                    "SELECT * FROM `npc_monitoring_data` WHERE Id > @Id ORDER BY Id LIMIT @limit;", new
+                    "SELECT * FROM `npc_monitoring_data` WHERE Id > @Id AND UserSend = 0 ORDER BY Id LIMIT @limit;", new
                     {
                         Id = startId,
                         limit = _dealLength
@@ -108,7 +108,7 @@ namespace ApiManagement.Base.Helper
 
                 var deviceList =
                     ServerConfig.ApiDb.Query<MonitoringProcess>("SELECT b.DeviceId, b.LastState, b.TodayProcessCount, b.TotalProcessCount FROM `device_library` a " +
-                                                                "JOIN `npc_proxy_link` b ON a.Id = b.DeviceId WHERE a.MarkedDelete = 0 AND b.Monitoring = 1;").ToDictionary(x => x.DeviceId);
+                                                                "JOIN `npc_proxy_link` b ON a.Id = b.DeviceId WHERE a.MarkedDelete = 0;").ToDictionary(x => x.DeviceId);
                 if (!deviceList.Any())
                 {
                     ServerConfig.RedisHelper.Remove(lockKey);
@@ -126,6 +126,7 @@ namespace ApiManagement.Base.Helper
                         startTime = startTime.ToStr(),
                         endTime = endTime.ToStr()
                     }, 90);
+                var aDeviceIds = new List<int>();
                 if (mData.Any())
                 {
                     var scripts = mData.GroupBy(x => x.ScriptId).Select(x => x.Key).ToList();
@@ -144,6 +145,11 @@ namespace ApiManagement.Base.Helper
 
                     foreach (var data in mData)
                     {
+                        if (!aDeviceIds.Contains(data.DeviceId))
+                        {
+                            aDeviceIds.Add(data.DeviceId);
+                        }
+
                         var analysisData = data.AnalysisData;
                         if (usuallyDictionaries != null && usuallyDictionaries.Any())
                         {
@@ -182,13 +188,13 @@ namespace ApiManagement.Base.Helper
 
                     ServerConfig.ApiDb.Execute(
                         "UPDATE npc_proxy_link SET `LastState` = @LastState, `TotalProcessCount` = @TotalProcessCount WHERE `DeviceId` = @DeviceId;",
-                        deviceList.Values);
+                        deviceList.Values.Where(x => aDeviceIds.Contains(x.DeviceId)));
 
                     Task.Run(() =>
                     {
                         ServerConfig.ApiDb.ExecuteAsync(
                             "INSERT INTO npc_monitoring_process (`Time`, `DeviceId`, `ProcessCount`) VALUES (@Time, @DeviceId, @ProcessCount);",
-                            deviceList.Values);
+                            deviceList.Values.Where(x => aDeviceIds.Contains(x.DeviceId)));
                     });
                 }
 
@@ -209,7 +215,7 @@ namespace ApiManagement.Base.Helper
 
                 var deviceList =
                     ServerConfig.ApiDb.Query<MonitoringProcess>("SELECT b.DeviceId, b.LastState, b.TodayProcessCount, b.TotalProcessCount FROM `device_library` a " +
-                                                                "JOIN `npc_proxy_link` b ON a.Id = b.DeviceId WHERE a.MarkedDelete = 0 AND b.Monitoring = 1;").ToDictionary(x => x.DeviceId);
+                                                                "JOIN `npc_proxy_link` b ON a.Id = b.DeviceId WHERE a.MarkedDelete = 0;").ToDictionary(x => x.DeviceId);
                 if (!deviceList.Any())
                 {
                     return;
@@ -223,6 +229,7 @@ namespace ApiManagement.Base.Helper
                         startTime = startTime.ToStr(),
                         endTime = endTime.ToStr()
                     }, 90);
+                var aDeviceIds = new List<int>();
                 if (mData.Any())
                 {
                     var maxTime = mData.Last().SendTime.NoMillisecond();
@@ -257,6 +264,11 @@ namespace ApiManagement.Base.Helper
                         {
                             foreach (var data in lastData)
                             {
+                                if (!aDeviceIds.Contains(data.DeviceId))
+                                {
+                                    aDeviceIds.Add(data.DeviceId);
+                                }
+
                                 if (usuallyDictionaries != null && usuallyDictionaries.Any())
                                 {
                                     var analysisData = data.AnalysisData;
@@ -297,13 +309,13 @@ namespace ApiManagement.Base.Helper
                             }
                             ServerConfig.ApiDb.Execute(
                                 "INSERT INTO npc_monitoring_process (`Time`, `DeviceId`, `ProcessCount`) VALUES (@Time, @DeviceId, @ProcessCount);",
-                                deviceList.Values);
+                                deviceList.Values.Where(x => aDeviceIds.Contains(x.DeviceId)));
                         }
                     }
 
                     ServerConfig.ApiDb.Execute(
                         "UPDATE npc_proxy_link SET `LastState` = @LastState, `TodayProcessCount` = @TodayProcessCount, `TotalProcessCount` = @TotalProcessCount WHERE `DeviceId` = @DeviceId;",
-                        deviceList.Values);
+                        deviceList.Values.Where(x => aDeviceIds.Contains(x.DeviceId)));
                     ServerConfig.RedisHelper.SetForever(redisKey, maxTime.ToStr());
                 }
             }
