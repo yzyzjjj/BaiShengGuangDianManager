@@ -1,11 +1,11 @@
-﻿using System;
-using System.Linq;
-using ApiManagement.Base.Server;
+﻿using ApiManagement.Base.Server;
 using ApiManagement.Models;
 using Microsoft.AspNetCore.Mvc;
 using ModelBase.Base.EnumConfig;
 using ModelBase.Base.Utils;
 using ModelBase.Models.Result;
+using System;
+using System.Linq;
 
 namespace ApiManagement.Controllers
 {
@@ -18,7 +18,7 @@ namespace ApiManagement.Controllers
     {
         // GET: api/RepairRecord
         [HttpGet]
-        public DataResult GetRepairRecord()
+        public DataResult GetRepairRecord([FromQuery]DateTime? startTime, DateTime? endTime, string code)
         {
             var result = new DataResult();
             result.datas.AddRange(ServerConfig.ApiDb.Query<RepairRecordDetail>("SELECT a.*, b.FaultTypeName FROM `repair_record` a JOIN `fault_type` b ON a.FaultTypeId = b.Id WHERE a.MarkedDelete = 0;"));
