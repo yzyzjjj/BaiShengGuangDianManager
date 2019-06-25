@@ -18,7 +18,7 @@ namespace ApiManagement.Controllers
     {
         // GET: api/RepairRecord
         [HttpGet]
-        public DataResult GetRepairRecord([FromQuery]DateTime? startTime, DateTime? endTime, string code)
+        public DataResult GetRepairRecord([FromQuery]DateTime startTime, DateTime endTime, string code)
         {
             var result = new DataResult();
             result.datas.AddRange(ServerConfig.ApiDb.Query<RepairRecordDetail>("SELECT a.*, b.FaultTypeName FROM `repair_record` a JOIN `fault_type` b ON a.FaultTypeId = b.Id WHERE a.MarkedDelete = 0;"));
