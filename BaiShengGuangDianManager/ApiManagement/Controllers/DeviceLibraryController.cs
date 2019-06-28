@@ -787,7 +787,7 @@ namespace ApiManagement.Controllers
                 i++;
             }
 
-            for (; i < 8; i++)
+            for (; i <= 8; i++)
             {
                 var j = 0;
                 if (dictionaryIds.Any(x => x.VariableName == key[j] + i))
