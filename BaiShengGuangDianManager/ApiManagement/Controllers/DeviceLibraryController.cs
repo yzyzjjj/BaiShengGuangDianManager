@@ -756,32 +756,32 @@ namespace ApiManagement.Controllers
                 var j = 0;
                 if (dictionaryIds.Any(x => x.VariableName == key[j] + i))
                 {
-                    messagePacket.Vals.Add(dictionaryIds.First(x => x.VariableName == key[j] + i).DictionaryId, processData.PressurizeMinute);
+                    messagePacket.Vals.Add(dictionaryIds.First(x => x.VariableName == key[j] + i).DictionaryId - 1, processData.PressurizeMinute);
                 }
                 j++;
                 if (dictionaryIds.Any(x => x.VariableName == key[j] + i))
                 {
-                    messagePacket.Vals.Add(dictionaryIds.First(x => x.VariableName == key[j] + i).DictionaryId, processData.PressurizeSecond);
+                    messagePacket.Vals.Add(dictionaryIds.First(x => x.VariableName == key[j] + i).DictionaryId - 1, processData.PressurizeSecond);
                 }
                 j++;
                 if (dictionaryIds.Any(x => x.VariableName == key[j] + i))
                 {
-                    messagePacket.Vals.Add(dictionaryIds.First(x => x.VariableName == key[j] + i).DictionaryId, processData.ProcessMinute);
+                    messagePacket.Vals.Add(dictionaryIds.First(x => x.VariableName == key[j] + i).DictionaryId - 1, processData.ProcessMinute);
                 }
                 j++;
                 if (dictionaryIds.Any(x => x.VariableName == key[j] + i))
                 {
-                    messagePacket.Vals.Add(dictionaryIds.First(x => x.VariableName == key[j] + i).DictionaryId, processData.ProcessSecond);
+                    messagePacket.Vals.Add(dictionaryIds.First(x => x.VariableName == key[j] + i).DictionaryId - 1, processData.ProcessSecond);
                 }
                 j++;
                 if (dictionaryIds.Any(x => x.VariableName == key[j] + i))
                 {
-                    messagePacket.Vals.Add(dictionaryIds.First(x => x.VariableName == key[j] + i).DictionaryId, processData.Pressure);
+                    messagePacket.Vals.Add(dictionaryIds.First(x => x.VariableName == key[j] + i).DictionaryId - 1, processData.Pressure);
                 }
                 j++;
                 if (dictionaryIds.Any(x => x.VariableName == key[j] + i))
                 {
-                    messagePacket.Vals.Add(dictionaryIds.First(x => x.VariableName == key[j] + i).DictionaryId, processData.Speed);
+                    messagePacket.Vals.Add(dictionaryIds.First(x => x.VariableName == key[j] + i).DictionaryId - 1, processData.Speed);
                 }
 
                 i++;
@@ -789,7 +789,7 @@ namespace ApiManagement.Controllers
 
             if (dictionaryIds.Any(x => x.Id == 6))
             {
-                messagePacket.Vals.Add(dictionaryIds.First(x => x.Id == 6).DictionaryId, processInfo.FlowCardId);
+                messagePacket.Vals.Add(dictionaryIds.First(x => x.Id == 6).DictionaryId - 1, processInfo.FlowCardId);
             }
             var msg = messagePacket.Serialize();
             url = ServerConfig.GateUrl + UrlMappings.Urls["sendBackGate"];
