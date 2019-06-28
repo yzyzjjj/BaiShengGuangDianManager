@@ -67,8 +67,10 @@ namespace ApiManagement.Controllers
                     #endregion
                     case 1:
                         #region 1 天 - 小时
-                        startTime = requestBody.StartTime.DayBeginTime();
-                        endTime = requestBody.EndTime.AddDays(1).DayBeginTime();
+                        //startTime = requestBody.StartTime.DayBeginTime();
+                        //endTime = requestBody.EndTime.AddDays(1).DayBeginTime();
+                        startTime = requestBody.StartTime.NoMinute();
+                        endTime = requestBody.EndTime.NoMinute();
                         sql =
                             "SELECT Id, DATE_FORMAT(SendTime, '%Y-%m-%d %H:00:00') SendTime, `DATA`, ScriptId FROM `npc_monitoring_analysis` WHERE DeviceId = @DeviceId AND SendTime >= @startTime AND SendTime <= @endTime GROUP BY DATE(SendTime), HOUR (SendTime) ORDER BY SendTime";
                         #endregion
