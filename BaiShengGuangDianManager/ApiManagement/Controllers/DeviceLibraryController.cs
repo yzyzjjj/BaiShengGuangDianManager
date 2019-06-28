@@ -787,6 +787,40 @@ namespace ApiManagement.Controllers
                 i++;
             }
 
+            for (; i < 8; i++)
+            {
+                var j = 0;
+                if (dictionaryIds.Any(x => x.VariableName == key[j] + i))
+                {
+                    messagePacket.Vals.Add(dictionaryIds.First(x => x.VariableName == key[j] + i).DictionaryId - 1, 0);
+                }
+                j++;
+                if (dictionaryIds.Any(x => x.VariableName == key[j] + i))
+                {
+                    messagePacket.Vals.Add(dictionaryIds.First(x => x.VariableName == key[j] + i).DictionaryId - 1, 0);
+                }
+                j++;
+                if (dictionaryIds.Any(x => x.VariableName == key[j] + i))
+                {
+                    messagePacket.Vals.Add(dictionaryIds.First(x => x.VariableName == key[j] + i).DictionaryId - 1, 0);
+                }
+                j++;
+                if (dictionaryIds.Any(x => x.VariableName == key[j] + i))
+                {
+                    messagePacket.Vals.Add(dictionaryIds.First(x => x.VariableName == key[j] + i).DictionaryId - 1, 0);
+                }
+                j++;
+                if (dictionaryIds.Any(x => x.VariableName == key[j] + i))
+                {
+                    messagePacket.Vals.Add(dictionaryIds.First(x => x.VariableName == key[j] + i).DictionaryId - 1, 0);
+                }
+                j++;
+                if (dictionaryIds.Any(x => x.VariableName == key[j] + i))
+                {
+                    messagePacket.Vals.Add(dictionaryIds.First(x => x.VariableName == key[j] + i).DictionaryId - 1, 0);
+                }
+            }
+
             if (dictionaryIds.Any(x => x.Id == 6))
             {
                 messagePacket.Vals.Add(dictionaryIds.First(x => x.Id == 6).DictionaryId - 1, processInfo.FlowCardId);
