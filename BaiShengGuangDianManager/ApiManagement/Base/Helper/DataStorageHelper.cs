@@ -222,6 +222,17 @@ namespace ApiManagement.Base.Helper
                 }
 
                 var endTime = now;
+                var maxTime = ServerConfig.ApiDb.QueryWithTime<DateTime>(
+                    "SELECT SendTime FROM `npc_monitoring_analysis` ORDER BY SendTime DESC LIMIT 1;", new
+                    {
+                        startTime = startTime.ToStr(),
+                        endTime = endTime.ToStr()
+                    }, 90).FirstOrDefault().NoMillisecond();
+
+                if (maxTime < now.AddMinutes(-10))
+                {
+                    return;
+                }
 
                 var mData = ServerConfig.ApiDb.QueryWithTime<MonitoringAnalysis>(
                     "SELECT * FROM `npc_monitoring_analysis` WHERE SendTime BETWEEN @startTime AND @endTime ORDER BY SendTime;", new
@@ -232,12 +243,6 @@ namespace ApiManagement.Base.Helper
                 var aDeviceIds = new List<int>();
                 if (mData.Any())
                 {
-                    var maxTime = mData.Last().SendTime.NoMillisecond();
-                    if (maxTime < now.AddMinutes(-10))
-                    {
-                        return;
-                    }
-
                     var scripts = mData.GroupBy(x => x.ScriptId).Select(x => x.Key).ToList();
                     scripts.Add(0);
                     IEnumerable<UsuallyDictionary> usuallyDictionaries = null;
