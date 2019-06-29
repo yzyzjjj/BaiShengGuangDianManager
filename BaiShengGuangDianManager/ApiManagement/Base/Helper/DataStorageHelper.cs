@@ -7,7 +7,6 @@ using ModelBase.Base.Logger;
 using ModelBase.Base.Utils;
 using System;
 using System.Collections.Generic;
-using System.Diagnostics;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
@@ -154,13 +153,9 @@ namespace ApiManagement.Base.Helper
                                                             : 0;
                                                     if (deviceList[data.DeviceId].LastState == 0 && v > 0)
                                                     {
-                                                        deviceList[data.DeviceId].LastState = 1;
                                                         deviceList[data.DeviceId].TodayProcessCount++;
                                                     }
-                                                    else if (deviceList[data.DeviceId].LastState == 0)
-                                                    {
-                                                        deviceList[data.DeviceId].LastState = 0;
-                                                    }
+                                                    deviceList[data.DeviceId].LastState = v > 0 ? 1 : 0;
                                                 }
                                             }
 
