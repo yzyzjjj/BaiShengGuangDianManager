@@ -24,14 +24,9 @@ namespace ApiManagement.Base.Helper
         private static int _dealLength = 1000;
         public static void Init(IConfiguration configuration)
         {
-            _analysis = new Timer(Analysis, null, 10000, 2000);
-        }
-        private static void Analysis(object state)
-        {
             var _pre = "Analysis";
             var lockKey = $"{_pre}:Lock";
             var redisKey = $"{_pre}:Id";
-
             if (!_analysisFirst)
             {
                 _analysisFirst = true;
@@ -52,6 +47,13 @@ namespace ApiManagement.Base.Helper
 
                 ServerConfig.RedisHelper.Remove(lockKey);
             }
+            _analysis = new Timer(Analysis, null, 10000, 2000);
+        }
+        private static void Analysis(object state)
+        {
+            var _pre = "Analysis";
+            var lockKey = $"{_pre}:Lock";
+            var redisKey = $"{_pre}:Id";
 
             if (ServerConfig.RedisHelper.SetIfNotExist(lockKey, "lock"))
             {
