@@ -86,7 +86,7 @@ namespace ApiManagement.Controllers
                     default: return Result.GenError<DataResult>(Error.ParamError);
                 }
 
-                var data = ServerConfig.ApiDb.QueryWithTime<MonitoringAnalysis>(sql, new
+                var data = ServerConfig.ApiDb.Query<MonitoringAnalysis>(sql, new
                 {
                     requestBody.DeviceId,
                     startTime,
@@ -188,7 +188,7 @@ namespace ApiManagement.Controllers
                     default: return Result.GenError<DataResult>(Error.ParamError);
                 }
 
-                var data = ServerConfig.ApiDb.QueryWithTime<MonitoringProcess>(sql, new
+                var data = ServerConfig.ApiDb.Query<MonitoringProcess>(sql, new
                 {
                     requestBody.DeviceId,
                     startTime,
