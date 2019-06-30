@@ -89,7 +89,7 @@ namespace ApiManagement.Base.Helper
                             var pCountDId = 63;
 
                             var deviceList =
-                                ServerConfig.ApiDb.Query<MonitoringProcess>("SELECT b.DeviceId, b.LastState, b.TodayProcessCount, b.TotalProcessCount FROM `device_library` a " +
+                                ServerConfig.ApiDb.Query<MonitoringProcess>("SELECT b.DeviceId, b.LastState, b.TodayProcessCount, b.TotalProcessCount, b.Time FROM `device_library` a " +
                                                                             "JOIN `npc_proxy_link` b ON a.Id = b.DeviceId WHERE a.MarkedDelete = 0;")
                                                                             .Where(x => mData.Any(y => y.DeviceId == x.DeviceId)).ToDictionary(x => x.DeviceId);
                             var monitoringProcesses = new List<MonitoringProcess>();
@@ -115,8 +115,6 @@ namespace ApiManagement.Base.Helper
                                 {
                                     foreach (var data in lastData)
                                     {
-                                        deviceList[data.DeviceId].Time = data.SendTime.NoMillisecond();
-
                                         if (usuallyDictionaries != null && usuallyDictionaries.Any())
                                         {
                                             var analysisData = data.AnalysisData;
@@ -162,6 +160,8 @@ namespace ApiManagement.Base.Helper
                                             deviceList[data.DeviceId].ProcessCount =
                                                 deviceList[data.DeviceId].TodayProcessCount;
                                         }
+                                        deviceList[data.DeviceId].Time = data.SendTime.NoMillisecond();
+
                                         monitoringProcesses.Add(new MonitoringProcess
                                         {
                                             DeviceId = deviceList[data.DeviceId].DeviceId,
