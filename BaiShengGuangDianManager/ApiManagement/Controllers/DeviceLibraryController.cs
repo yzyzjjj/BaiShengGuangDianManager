@@ -72,7 +72,7 @@ namespace ApiManagement.Controllers
                 }
                 catch (Exception e)
                 {
-                    Log.ErrorFormat($"{UrlMappings.Urls["deviceListGate"]} 返回：{resp},信息:{e.Message}");
+                    Log.Error($"{UrlMappings.Urls["deviceListGate"]} 返回：{resp},信息:{e.Message}");
                 }
             }
 
@@ -127,7 +127,7 @@ namespace ApiManagement.Controllers
                 }
                 catch (Exception e)
                 {
-                    Log.ErrorFormat($"{UrlMappings.Urls["deviceSingleGate"]} 返回：{resp},信息:{e.Message}");
+                    Log.Error($"{UrlMappings.Urls["deviceSingleGate"]} 返回：{resp},信息:{e.Message}");
                 }
             }
 
@@ -187,7 +187,7 @@ namespace ApiManagement.Controllers
                 }
                 catch (Exception e)
                 {
-                    Log.ErrorFormat($"{UrlMappings.Urls["deviceSingleGate"]} 返回：{resp},信息:{e.Message}");
+                    Log.Error($"{UrlMappings.Urls["deviceSingleGate"]} 返回：{resp},信息:{e.Message}");
                 }
             }
 
@@ -344,7 +344,7 @@ namespace ApiManagement.Controllers
                 }
                 catch (Exception e)
                 {
-                    Log.ErrorFormat($"{UrlMappings.Urls["sendBackGate"]} 返回：{resp},信息:{e.Message}");
+                    Log.Error($"{UrlMappings.Urls["sendBackGate"]} 返回：{resp},信息:{e.Message}");
                 }
             }
 
@@ -694,7 +694,7 @@ namespace ApiManagement.Controllers
             }
             catch (Exception e)
             {
-                Log.ErrorFormat($"{UrlMappings.Urls["deviceSingleGate"]} 返回：{resp},信息:{e.Message}");
+                Log.Error($"{UrlMappings.Urls["deviceSingleGate"]} 返回：{resp},信息:{e.Message}");
                 return Result.GenError<Result>(Error.AnalysisFail);
             }
 

@@ -87,6 +87,10 @@ namespace ApiManagement.Base.Helper
                                     data.AnalysisData.ins = analysisData.ins;
                                     data.AnalysisData.outs = analysisData.outs;
                                 }
+                                else
+                                {
+                                    data.AnalysisData = null;
+                                }
                                 data.Data = data.AnalysisData.ToJSON();
                             }
 
