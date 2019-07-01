@@ -29,22 +29,28 @@ namespace ApiManagement.Base.Helper
             if (!_analysisFirst)
             {
                 _analysisFirst = true;
-                var analysis = ServerConfig.ApiDb.Query<MonitoringAnalysis>(
-                    "SELECT SendTime, DeviceId FROM `npc_monitoring_analysis` ORDER BY SendTime desc LIMIT 1;").FirstOrDefault();
-
-                if (analysis != null)
+                var startId1 = ServerConfig.RedisHelper.Get<int>(redisKey);
+                Thread.Sleep(2000);
+                var startId2 = ServerConfig.RedisHelper.Get<int>(redisKey);
+                if (startId1 == startId2)
                 {
-                    var data = ServerConfig.DataStorageDb.Query<MonitoringData>(
-                        "SELECT Id FROM `npc_monitoring_data` WHERE SendTime = @SendTime AND DeviceId = @DeviceId;", new
-                        {
-                            analysis.SendTime,
-                            analysis.DeviceId
-                        }).FirstOrDefault();
+                    var analysis = ServerConfig.ApiDb.Query<MonitoringAnalysis>(
+                        "SELECT SendTime, DeviceId FROM `npc_monitoring_analysis` ORDER BY SendTime desc LIMIT 1;").FirstOrDefault();
 
-                    ServerConfig.RedisHelper.SetForever(redisKey, data.Id);
+                    if (analysis != null)
+                    {
+                        var data = ServerConfig.DataStorageDb.Query<MonitoringData>(
+                            "SELECT Id FROM `npc_monitoring_data` WHERE SendTime = @SendTime AND DeviceId = @DeviceId;", new
+                            {
+                                analysis.SendTime,
+                                analysis.DeviceId
+                            }).FirstOrDefault();
+
+                        ServerConfig.RedisHelper.SetForever(redisKey, data.Id);
+                    }
+
+                    ServerConfig.RedisHelper.Remove(lockKey);
                 }
-
-                ServerConfig.RedisHelper.Remove(lockKey);
             }
             _analysis = new Timer(Analysis, null, 10000, 2000);
         }
