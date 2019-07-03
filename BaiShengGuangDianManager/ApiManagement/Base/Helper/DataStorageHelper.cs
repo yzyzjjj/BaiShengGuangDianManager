@@ -221,6 +221,7 @@ namespace ApiManagement.Base.Helper
                                             DeviceId = deviceList[data.DeviceId].DeviceId,
                                             Time = deviceList[data.DeviceId].Time,
                                             ProcessCount = deviceList[data.DeviceId].ProcessCount,
+                                            State = deviceList[data.DeviceId].State,
                                         });
                                     }
                                 }
