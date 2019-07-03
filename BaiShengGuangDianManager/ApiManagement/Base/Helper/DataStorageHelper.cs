@@ -7,16 +7,9 @@ using ModelBase.Base.Logger;
 using ModelBase.Base.Utils;
 using System;
 using System.Collections.Generic;
-using System.Diagnostics;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
-using ModelBase.Base.EnumConfig;
-using ModelBase.Base.HttpServer;
-using ModelBase.Base.UrlMappings;
-using ModelBase.Models.Device;
-using ModelBase.Models.Result;
-using Newtonsoft.Json;
 
 namespace ApiManagement.Base.Helper
 {
@@ -220,8 +213,11 @@ namespace ApiManagement.Base.Helper
                                         {
                                             DeviceId = deviceList[data.DeviceId].DeviceId,
                                             Time = deviceList[data.DeviceId].Time,
-                                            ProcessCount = deviceList[data.DeviceId].ProcessCount,
                                             State = deviceList[data.DeviceId].State,
+                                            ProcessCount = deviceList[data.DeviceId].TodayProcessCount,
+                                            TotalProcessCount = deviceList[data.DeviceId].TotalProcessCount,
+                                            ProcessTime = deviceList[data.DeviceId].TodayProcessTime,
+                                            TotalProcessTime = deviceList[data.DeviceId].TotalProcessTime,
                                         });
                                     }
                                 }

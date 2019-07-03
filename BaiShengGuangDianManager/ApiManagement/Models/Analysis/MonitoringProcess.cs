@@ -6,7 +6,13 @@ namespace ApiManagement.Models.Analysis
     {
         public DateTime Time { get; set; }
         public int DeviceId { get; set; }
+        /// <summary>
+        /// 今日加工次数
+        /// </summary>
         public int ProcessCount { get; set; }
+        /// <summary>
+        /// 今日加工时间(秒）
+        /// </summary>
         public int ProcessTime { get; set; }
         public int State { get; set; }
         /// <summary>
