@@ -7,9 +7,16 @@ using ModelBase.Base.Logger;
 using ModelBase.Base.Utils;
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
+using ModelBase.Base.EnumConfig;
+using ModelBase.Base.HttpServer;
+using ModelBase.Base.UrlMappings;
+using ModelBase.Models.Device;
+using ModelBase.Models.Result;
+using Newtonsoft.Json;
 
 namespace ApiManagement.Base.Helper
 {
@@ -20,6 +27,7 @@ namespace ApiManagement.Base.Helper
     {
         private static bool _analysisFirst;
         private static Timer _analysis;
+        private static Timer _delete;
         private static int _dealLength = 1000;
         public static void Init(IConfiguration configuration)
         {
@@ -53,7 +61,15 @@ namespace ApiManagement.Base.Helper
                 }
             }
             _analysis = new Timer(Analysis, null, 10000, 2000);
+            _delete = new Timer(Delete, null, 10000, 1000);
         }
+
+        private static void Delete(object state)
+        {
+            ServerConfig.DataStorageDb.Execute(
+                "DELETE FROM npc_monitoring_data WHERE SendTime < ADDDATE(DATE(NOW()), -3) LIMIT 1");
+        }
+
         private static void Analysis(object state)
         {
             var _pre = "Analysis";
@@ -95,11 +111,20 @@ namespace ApiManagement.Base.Helper
                             }
 
                             #region  加工记录
+                            //设备状态
                             var stateDId = 1;
-                            var pCountDId = 63;
-
+                            //总加工次数
+                            var processCountDId = 63;
+                            //总加工时间
+                            var processTimeDId = 64;
+                            var variableNameIdList = new List<int>
+                            {
+                                stateDId,
+                                processCountDId,
+                                processTimeDId,
+                            };
                             var deviceList =
-                                ServerConfig.ApiDb.Query<MonitoringProcess>("SELECT b.DeviceId, b.LastState, b.TodayProcessCount, b.TotalProcessCount, b.Time FROM `device_library` a " +
+                                ServerConfig.ApiDb.Query<MonitoringProcess>("SELECT b.DeviceId, b.State, b.TodayProcessCount, b.TotalProcessCount, b.Time FROM `device_library` a " +
                                                                             "JOIN `npc_proxy_link` b ON a.Id = b.DeviceId WHERE a.MarkedDelete = 0;")
                                                                             .Where(x => mData.Any(y => y.DeviceId == x.DeviceId)).ToDictionary(x => x.DeviceId);
                             var monitoringProcesses = new List<MonitoringProcess>();
@@ -111,13 +136,28 @@ namespace ApiManagement.Base.Helper
                                 if (scripts.Any())
                                 {
                                     usuallyDictionaries = ServerConfig.ApiDb.Query<UsuallyDictionary>(
-                                        "SELECT * FROM `usually_dictionary` WHERE ScriptId IN @ScriptId AND (VariableNameId = @VariableNameId1 OR VariableNameId = @VariableNameId2);",
+                                        "SELECT * FROM `usually_dictionary` WHERE ScriptId IN @ScriptId AND VariableNameId IN @VariableNameId;",
                                         new
                                         {
                                             ScriptId = scripts,
-                                            VariableNameId1 = stateDId,
-                                            VariableNameId2 = pCountDId,
+                                            VariableNameId = variableNameIdList,
                                         });
+                                }
+
+                                var uDies = new Dictionary<Tuple<int, int>, int>();
+                                foreach (var variableNameId in variableNameIdList)
+                                {
+                                    foreach (var script in scripts.Where(x => x != 0))
+                                    {
+                                        var udd = usuallyDictionaries.FirstOrDefault(x =>
+                                            x.ScriptId == script && x.VariableNameId == variableNameId);
+                                        var address =
+                                            udd?.DictionaryId ?? usuallyDictionaries.First(x =>
+                                                    x.ScriptId == 0 && x.VariableNameId == variableNameId)
+                                                .DictionaryId;
+
+                                        uDies.Add(new Tuple<int, int>(script, variableNameId), address);
+                                    }
                                 }
 
                                 var lastData = mData.OrderBy(x => x.SendTime.NoMillisecond());
@@ -131,13 +171,7 @@ namespace ApiManagement.Base.Helper
                                             if (analysisData != null)
                                             {
                                                 //总加工次数
-                                                var udd = usuallyDictionaries.FirstOrDefault(x =>
-                                                    x.ScriptId == data.ScriptId && x.VariableNameId == pCountDId);
-                                                var address =
-                                                    udd?.DictionaryId ?? usuallyDictionaries.First(x =>
-                                                            x.ScriptId == 0 && x.VariableNameId == pCountDId)
-                                                        .DictionaryId;
-                                                var actAddress = address - 1;
+                                                var actAddress = uDies[new Tuple<int, int>(data.ScriptId, processCountDId)] - 1;
                                                 if (analysisData.vals.Count >= actAddress)
                                                 {
                                                     deviceList[data.DeviceId].TotalProcessCount =
@@ -145,13 +179,7 @@ namespace ApiManagement.Base.Helper
                                                 }
 
                                                 //今日加工次数
-                                                udd = usuallyDictionaries.FirstOrDefault(x =>
-                                                    x.ScriptId == data.ScriptId && x.VariableNameId == stateDId);
-                                                address = udd?.DictionaryId ?? usuallyDictionaries
-                                                              .First(x => x.ScriptId == 0 &&
-                                                                          x.VariableNameId == stateDId)
-                                                              .DictionaryId;
-                                                actAddress = address - 1;
+                                                actAddress = uDies[new Tuple<int, int>(data.ScriptId, stateDId)] - 1;
                                                 if (analysisData.vals.Count >= actAddress)
                                                 {
                                                     var v = analysisData.vals[actAddress];
@@ -159,16 +187,32 @@ namespace ApiManagement.Base.Helper
                                                         deviceList[data.DeviceId].Time.InSameDay(data.SendTime)
                                                             ? deviceList[data.DeviceId].TodayProcessCount
                                                             : 0;
-                                                    if (deviceList[data.DeviceId].LastState == 0 && v > 0)
+                                                    if (deviceList[data.DeviceId].State == 0 && v > 0)
                                                     {
                                                         deviceList[data.DeviceId].TodayProcessCount++;
                                                     }
-                                                    deviceList[data.DeviceId].LastState = v > 0 ? 1 : 0;
+                                                    deviceList[data.DeviceId].State = v > 0 ? 1 : 0;
+                                                }
+
+                                                //总加工时间
+                                                actAddress = uDies[new Tuple<int, int>(data.ScriptId, processTimeDId)] - 1;
+                                                if (analysisData.vals.Count >= actAddress)
+                                                {
+                                                    var totalProcessTime = analysisData.vals[actAddress];
+                                                    if (deviceList[data.DeviceId].TotalProcessTime != 0)
+                                                    {
+                                                        deviceList[data.DeviceId].TodayProcessTime +=
+                                                        totalProcessTime - deviceList[data.DeviceId].TotalProcessTime;
+                                                    }
+                                                    deviceList[data.DeviceId].TotalProcessTime = totalProcessTime;
                                                 }
                                             }
 
                                             deviceList[data.DeviceId].ProcessCount =
                                                 deviceList[data.DeviceId].TodayProcessCount;
+
+                                            deviceList[data.DeviceId].ProcessTime =
+                                                deviceList[data.DeviceId].TodayProcessTime;
                                         }
                                         deviceList[data.DeviceId].Time = data.SendTime.NoMillisecond();
 
@@ -179,13 +223,12 @@ namespace ApiManagement.Base.Helper
                                             ProcessCount = deviceList[data.DeviceId].ProcessCount,
                                         });
                                     }
-
                                 }
                             }
                             #endregion
 
                             ServerConfig.ApiDb.Execute(
-                                "UPDATE npc_proxy_link SET `LastState` = @LastState, `TodayProcessCount` = @TodayProcessCount, `TotalProcessCount` = @TotalProcessCount, `Time` = @Time WHERE `DeviceId` = @DeviceId;",
+                                "UPDATE npc_proxy_link SET `Time` = @Time, `State` = @State, `TodayProcessCount` = @TodayProcessCount, `TotalProcessCount` = @TotalProcessCount, `TodayProcessTime` = @TodayProcessTime, `TotalProcessTime` = @TotalProcessTime WHERE `DeviceId` = @DeviceId;",
                                 deviceList.Values);
 
                             Task.Run(() =>
@@ -198,7 +241,7 @@ namespace ApiManagement.Base.Helper
                             Task.Run(() =>
                             {
                                 ServerConfig.ApiDb.ExecuteTrans(
-                                "INSERT INTO npc_monitoring_process (`Time`, `DeviceId`, `ProcessCount`) VALUES (@Time, @DeviceId, @ProcessCount);",
+                                "INSERT INTO npc_monitoring_process (`Time`, `DeviceId`, `ProcessCount`, `ProcessTime`, `State`) VALUES (@Time, @DeviceId, @ProcessCount, @ProcessTime, @State);",
                                 monitoringProcesses);
                             });
 

@@ -266,9 +266,17 @@ namespace ApiManagement.Controllers
             scriptVersion.InputNumber = scriptVersion.InputNumber < inputNumber ? inputNumber : scriptVersion.InputNumber;
             scriptVersion.OutputNumber = scriptVersion.OutputNumber < outputNumber ? outputNumber : scriptVersion.OutputNumber;
 
-            var valN = scriptVersion.ValueNumber < 300 ? 300 : scriptVersion.ValueNumber;
-            var inN = scriptVersion.InputNumber < 255 ? 255 : scriptVersion.InputNumber;
-            var outN = scriptVersion.OutputNumber < 255 ? 255 : scriptVersion.OutputNumber;
+            var groupPA = dataNameDictionaries.GroupBy(x => x.VariableTypeId).ToDictionary(x => x.Key, x => x.Max(y => y.PointerAddress));
+            var maxValuePointerAddress = groupPA.ContainsKey(1) ? groupPA[1] : 0;
+            var maxInputPointerAddress = groupPA.ContainsKey(2) ? groupPA[2] : 0;
+            var maxOutputPointerAddress = groupPA.ContainsKey(3) ? groupPA[3] : 0;
+            scriptVersion.MaxValuePointerAddress = maxValuePointerAddress;
+            scriptVersion.MaxInputPointerAddress = maxInputPointerAddress;
+            scriptVersion.MaxOutputPointerAddress = maxOutputPointerAddress;
+
+            var valN = maxValuePointerAddress < 300 ? 300 : maxValuePointerAddress;
+            var inN = maxInputPointerAddress < 255 ? 255 : maxInputPointerAddress;
+            var outN = maxOutputPointerAddress < 255 ? 255 : maxOutputPointerAddress;
             var msg = new DeviceInfoMessagePacket(valN, inN, outN);
             var heartPacket = msg.Serialize();
             var oldHeartPacket = scriptVersion.HeartPacket;
@@ -279,7 +287,8 @@ namespace ApiManagement.Controllers
             scriptVersion.MarkedDateTime = DateTime.Now;
             ServerConfig.ApiDb.Execute(
                 "UPDATE script_version SET `MarkedDateTime` = @MarkedDateTime, `MarkedDelete` = @MarkedDelete, `ModifyId` = @ModifyId, `DeviceModelId` = @DeviceModelId, `ScriptName` = @ScriptName, " +
-                "`ValueNumber` = @ValueNumber, `InputNumber` = @InputNumber, `OutputNumber` = @OutputNumber, `HeartPacket` = @HeartPacket WHERE `Id` = @Id;", scriptVersion);
+                "`ValueNumber` = @ValueNumber, `InputNumber` = @InputNumber, `OutputNumber` = @OutputNumber, `MaxValuePointerAddress` = @MaxValuePointerAddress, " +
+                "`MaxInputPointerAddress` = @MaxInputPointerAddress, `MaxOutputPointerAddress` = @MaxOutputPointerAddress, `HeartPacket` = @HeartPacket WHERE `Id` = @Id;", scriptVersion);
 
             ServerConfig.ApiDb.Execute(
                 "UPDATE npc_proxy_link SET `Instruction` = @HeartPacket WHERE `Instruction` = @oldHeartPacket;", new { oldHeartPacket, scriptVersion.HeartPacket });
