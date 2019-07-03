@@ -242,7 +242,8 @@ namespace ApiManagement.Base.Helper
                             Task.Run(() =>
                             {
                                 ServerConfig.ApiDb.ExecuteTrans(
-                                "INSERT INTO npc_monitoring_process (`Time`, `DeviceId`, `ProcessCount`, `ProcessTime`, `State`) VALUES (@Time, @DeviceId, @ProcessCount, @ProcessTime, @State);",
+                                "INSERT INTO npc_monitoring_process (`Time`, `DeviceId`, `ProcessCount`, `TotalProcessCount`, `ProcessTime`, `TotalProcessTime`, `State`) " +
+                                "VALUES (@Time, @DeviceId, @ProcessCount, @TotalProcessCount, @ProcessTime, @TotalProcessTime, @State);",
                                 monitoringProcesses);
                             });
 
