@@ -21,6 +21,9 @@ namespace ApiManagement.Models
         public int ValueNumber { get; set; }
         public int InputNumber { get; set; }
         public int OutputNumber { get; set; }
+        public int MaxValuePointerAddress { get; set; }
+        public int MaxInputPointerAddress { get; set; }
+        public int MaxOutputPointerAddress { get; set; }
         [JsonIgnore]
         public string HeartPacket { get; set; }
     }
