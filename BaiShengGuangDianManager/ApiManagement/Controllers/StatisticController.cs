@@ -20,13 +20,15 @@ namespace ApiManagement.Controllers
     {
         public class StatisticRequest
         {
-            //加工记录 0 = 所有
-            public int DeviceId;
+            //加工记录 0 = 所有    对比图 1,2,3
+            public string DeviceId;
             public DateTime StartTime;
             public DateTime EndTime;
             public string Field;
             //0 小时 - 秒  1 天 - 小时 2 月 天 
             public int DataType;
+            //是否为对比图 （ 0  1 ）
+            public int Compare;
         }
         /// <summary>
         /// 趋势图
@@ -146,13 +148,32 @@ namespace ApiManagement.Controllers
             var result = new DataResult();
             try
             {
-                if (requestBody.DeviceId != 0)
+                if (requestBody.DeviceId != "0")
                 {
-                    var cnt =
-                        ServerConfig.ApiDb.Query<int>("SELECT COUNT(1) FROM `device_library` WHERE Id = @id AND `MarkedDelete` = 0;", new { id = requestBody.DeviceId }).FirstOrDefault();
-                    if (cnt == 0)
+                    if (requestBody.Compare == 0)
                     {
-                        return Result.GenError<DataResult>(Error.DeviceNotExist);
+                        var cnt =
+                            ServerConfig.ApiDb
+                                .Query<int>(
+                                    "SELECT COUNT(1) FROM `device_library` WHERE Id = @id AND `MarkedDelete` = 0;",
+                                    new { id = requestBody.DeviceId }).FirstOrDefault();
+                        if (cnt == 0)
+                        {
+                            return Result.GenError<DataResult>(Error.DeviceNotExist);
+                        }
+                    }
+                    else
+                    {
+                        var deviceIds = requestBody.DeviceId.Split(",");
+                        var cnt =
+                            ServerConfig.ApiDb
+                                .Query<int>(
+                                    "SELECT COUNT(1) FROM `device_library` WHERE Id IN @id AND `MarkedDelete` = 0;",
+                                    new { id = deviceIds }).FirstOrDefault();
+                        if (cnt != deviceIds.Length)
+                        {
+                            return Result.GenError<DataResult>(Error.DeviceNotExist);
+                        }
                     }
                 }
 
@@ -162,10 +183,12 @@ namespace ApiManagement.Controllers
                 switch (requestBody.DataType)
                 {
                     case 0:
+
                         #region 0 小时 - 秒
+
                         startTime = requestBody.StartTime;
                         endTime = requestBody.EndTime;
-                        if (requestBody.DeviceId == 0)
+                        if (requestBody.DeviceId == "0")
                         {
                             processSql =
                                 " SELECT `Time`, SUM(`ProcessCount`) `ProcessCount`, SUM(`TotalProcessCount`) `TotalProcessCount`, SUM(`ProcessTime`) `ProcessTime`, SUM(`TotalProcessTime`) " +
@@ -173,17 +196,31 @@ namespace ApiManagement.Controllers
                         }
                         else
                         {
-                            processSql = "SELECT `Time`, `DeviceId`, `ProcessCount`, `TotalProcessCount`, `ProcessTime`, `TotalProcessTime`, `State`, `Rate`, `Use`, `Total` FROM `npc_monitoring_process` " +
-                                         "WHERE DeviceId = @DeviceId AND Time >= @startTime AND Time <= @endTime ORDER BY Time";
+                            if (requestBody.Compare == 0)
+                            {
+                                processSql =
+                                    "SELECT `Time`, `DeviceId`, `ProcessCount`, `TotalProcessCount`, `ProcessTime`, `TotalProcessTime`, `State`, `Rate`, `Use`, `Total` FROM `npc_monitoring_process` " +
+                                    "WHERE DeviceId = @DeviceId AND Time >= @startTime AND Time <= @endTime ORDER BY Time";
+                            }
+                            else
+                            {
+                                processSql =
+                                    "SELECT `Time`, `DeviceId`, `ProcessCount`, `TotalProcessCount`, `ProcessTime`, `TotalProcessTime`, `State`, `Rate`, `Use`, `Total` FROM `npc_monitoring_process` " +
+                                    "WHERE DeviceId IN @DeviceId AND Time >= @startTime AND Time <= @endTime GROUP BY DeviceId ORDER BY Time";
+                            }
                         }
 
                         break;
+
                     #endregion
+
                     case 1:
+
                         #region 1 天 - 小时
+
                         startTime = requestBody.StartTime.DayBeginTime();
                         endTime = requestBody.EndTime.AddDays(1).DayBeginTime();
-                        if (requestBody.DeviceId == 0)
+                        if (requestBody.DeviceId == "0")
                         {
                             processSql =
                                 "SELECT DATE_FORMAT(Time, '%Y-%m-%d %H:00:00') Time, SUM(`ProcessCount`) `ProcessCount`, SUM(`TotalProcessCount`) `TotalProcessCount`, " +
@@ -193,18 +230,32 @@ namespace ApiManagement.Controllers
                         }
                         else
                         {
-                            processSql =
-                                "SELECT DATE_FORMAT(Time, '%Y-%m-%d %H:00:00') Time, `ProcessCount`, `TotalProcessCount`, `ProcessTime`, `TotalProcessTime`, `State`, `Rate`, `Use`, `Total` " +
-                                "FROM ( SELECT * FROM `npc_monitoring_process` WHERE DeviceId = @DeviceId AND Time >= @startTime AND Time <= @endTime " +
-                                "ORDER BY Time DESC ) a GROUP BY DATE(Time), HOUR (Time) ORDER BY Time;";
+                            if (requestBody.Compare == 0)
+                            {
+                                processSql =
+                                    "SELECT DATE_FORMAT(Time, '%Y-%m-%d %H:00:00') Time, `ProcessCount`, `TotalProcessCount`, `ProcessTime`, `TotalProcessTime`, `State`, `Rate`, `Use`, `Total` " +
+                                    "FROM ( SELECT * FROM `npc_monitoring_process` WHERE DeviceId = @DeviceId AND Time >= @startTime AND Time <= @endTime " +
+                                    "ORDER BY Time DESC ) a GROUP BY DATE(Time), HOUR (Time) ORDER BY Time;";
+                            }
+                            else
+                            {
+                                processSql =
+                                    "SELECT DATE_FORMAT(Time, '%Y-%m-%d %H:00:00') Time, `ProcessCount`, `TotalProcessCount`, `ProcessTime`, `TotalProcessTime`, `State`, `Rate`, `Use`, `Total` " +
+                                    "FROM ( SELECT * FROM `npc_monitoring_process` WHERE DeviceId IN @DeviceId AND Time >= @startTime AND Time <= @endTime " +
+                                    "ORDER BY Time DESC ) a GROUP BY DeviceId, DATE(Time), HOUR (Time) ORDER BY Time;";
+                            }
                         }
+
                         #endregion
+
                         break;
                     case 2:
+
                         #region 2 月 天 
+
                         startTime = requestBody.StartTime.StartOfMonth();
                         endTime = requestBody.EndTime.StartOfNextMonth().DayBeginTime();
-                        if (requestBody.DeviceId == 0)
+                        if (requestBody.DeviceId == "0")
                         {
                             processSql =
                                 "SELECT DATE(Time) Time, SUM(`ProcessCount`) `ProcessCount`, SUM(`TotalProcessCount`) `TotalProcessCount`, SUM(`ProcessTime`) `ProcessTime`, " +
@@ -213,21 +264,44 @@ namespace ApiManagement.Controllers
                         }
                         else
                         {
-                            processSql =
-                                "SELECT * FROM ( SELECT * FROM `npc_monitoring_process` WHERE DeviceId = @DeviceId AND Time >= @startTime AND Time <= @endTime ORDER BY Time DESC ) a GROUP BY DATE(Time) ORDER BY Time;";
+                            if (requestBody.Compare == 0)
+                            {
+                                processSql =
+                                    "SELECT * FROM ( SELECT * FROM `npc_monitoring_process` WHERE DeviceId = @DeviceId AND Time >= @startTime AND Time <= @endTime ORDER BY Time DESC ) a GROUP BY DATE(Time) ORDER BY Time;";
+                            }
+                            else
+                            {
+                                processSql =
+                                    "SELECT * FROM ( SELECT * FROM `npc_monitoring_process` WHERE DeviceId IN @DeviceId AND Time >= @startTime AND Time <= @endTime ORDER BY Time DESC ) a GROUP BY DeviceId, DATE(Time) ORDER BY Time;";
+                            }
                         }
+
                         #endregion
+
                         break;
                     default: return Result.GenError<DataResult>(Error.ParamError);
                 }
 
-                var data = ServerConfig.ApiDb.Query<MonitoringProcess>(processSql, new
+                if (requestBody.Compare == 0)
                 {
-                    requestBody.DeviceId,
-                    startTime,
-                    endTime
-                }, 60);
-                result.datas.AddRange(data);
+                    var data = ServerConfig.ApiDb.Query<MonitoringProcess>(processSql, new
+                    {
+                        DeviceId = requestBody.DeviceId,
+                        startTime,
+                        endTime
+                    }, 60);
+                    result.datas.AddRange(data);
+                }
+                else
+                {
+                    var data = ServerConfig.ApiDb.Query<MonitoringProcess>(processSql, new
+                    {
+                        DeviceId = requestBody.DeviceId.Split(","),
+                        startTime,
+                        endTime
+                    }, 60);
+                    result.datas.AddRange(data);
+                }
                 return result;
             }
             catch (Exception e)
