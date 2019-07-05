@@ -156,7 +156,7 @@ namespace ApiManagement.Controllers
                     }
                 }
 
-                string sql;
+                string processSql;
                 DateTime startTime;
                 DateTime endTime;
                 switch (requestBody.DataType)
@@ -165,40 +165,69 @@ namespace ApiManagement.Controllers
                         #region 0 小时 - 秒
                         startTime = requestBody.StartTime;
                         endTime = requestBody.EndTime;
-                        sql =
-                            $"SELECT Id, Time, ProcessCount FROM `npc_monitoring_process` WHERE {(requestBody.DeviceId != 0 ? "DeviceId = @DeviceId AND" : "")} Time >= @startTime AND Time <= @endTime ORDER BY Time";
+                        if (requestBody.DeviceId == 0)
+                        {
+                            processSql =
+                                " SELECT `Time`, SUM(`ProcessCount`) `ProcessCount`, SUM(`TotalProcessCount`) `TotalProcessCount`, SUM(`ProcessTime`) `ProcessTime`, SUM(`TotalProcessTime`) " +
+                                "`TotalProcessTime`, SUM(IF(`State` = 1, 1, 0)) `State`, `Rate`, `Use`, `Total` FROM `npc_monitoring_process` WHERE Time >= @startTime AND Time <= @endTime GROUP BY Time ORDER BY Time;";
+                        }
+                        else
+                        {
+                            processSql = "SELECT `Time`, `DeviceId`, `ProcessCount`, `TotalProcessCount`, `ProcessTime`, `TotalProcessTime`, `State`, `Rate`, `Use`, `Total` FROM `npc_monitoring_process` " +
+                                         "WHERE DeviceId = @DeviceId AND Time >= @startTime AND Time <= @endTime ORDER BY Time";
+                        }
+
                         break;
                     #endregion
                     case 1:
                         #region 1 天 - 小时
                         startTime = requestBody.StartTime.DayBeginTime();
                         endTime = requestBody.EndTime.AddDays(1).DayBeginTime();
-                        sql =
-                            $"SELECT Id, DATE_FORMAT(Time, '%Y-%m-%d %H:00:00') Time, ProcessCount FROM ( SELECT Id, Time, ProcessCount FROM `npc_monitoring_process` WHERE {(requestBody.DeviceId != 0 ? "DeviceId = @DeviceId AND" : "")} Time >= @startTime AND Time <= @endTime ORDER BY Time DESC ) a GROUP BY DATE(Time), HOUR(Time) ORDER BY Time;";
+                        if (requestBody.DeviceId == 0)
+                        {
+                            processSql =
+                                "SELECT DATE_FORMAT(Time, '%Y-%m-%d %H:00:00') Time, SUM(`ProcessCount`) `ProcessCount`, SUM(`TotalProcessCount`) `TotalProcessCount`, " +
+                                "SUM(`ProcessTime`) `ProcessTime`, SUM(`TotalProcessTime`) `TotalProcessTime`, SUM(IF(`State` = 1, 1, 0)) `State`, `Rate`, `Use`, `Total` FROM ( SELECT * FROM " +
+                                "( SELECT * FROM `npc_monitoring_process` WHERE Time >= @startTime AND Time <= @endTime ORDER BY Time DESC ) " +
+                                "a GROUP BY DeviceId, DATE(Time), HOUR (Time) ORDER BY Time ) a GROUP BY Time ORDER BY Time;";
+                        }
+                        else
+                        {
+                            processSql =
+                                "SELECT DATE_FORMAT(Time, '%Y-%m-%d %H:00:00') Time, `ProcessCount`, `TotalProcessCount`, `ProcessTime`, `TotalProcessTime`, `State`, `Rate`, `Use`, `Total` " +
+                                "FROM ( SELECT * FROM `npc_monitoring_process` WHERE DeviceId = @DeviceId AND Time >= @startTime AND Time <= @endTime " +
+                                "ORDER BY Time DESC ) a GROUP BY DATE(Time), HOUR (Time) ORDER BY Time;";
+                        }
                         #endregion
                         break;
                     case 2:
                         #region 2 月 天 
                         startTime = requestBody.StartTime.StartOfMonth();
                         endTime = requestBody.EndTime.StartOfNextMonth().DayBeginTime();
-                        sql =
-                            $"SELECT Id, DATE(Time) Time, ProcessCount FROM ( SELECT Id, Time, ProcessCount FROM `npc_monitoring_process` WHERE {(requestBody.DeviceId != 0 ? "DeviceId = @DeviceId AND" : "")} Time >= @startTime AND Time <= @endTime ORDER BY Time DESC ) a GROUP BY DATE(Time) ORDER BY Time;";
+                        if (requestBody.DeviceId == 0)
+                        {
+                            processSql =
+                                "SELECT DATE(Time) Time, SUM(`ProcessCount`) `ProcessCount`, SUM(`TotalProcessCount`) `TotalProcessCount`, SUM(`ProcessTime`) `ProcessTime`, " +
+                                "SUM(`TotalProcessTime`) `TotalProcessTime`, SUM(IF(`State` = 1, 1, 0)) `State`, `Rate`, `Use`, `Total` FROM ( SELECT * FROM ( SELECT * FROM `npc_monitoring_process` " +
+                                "WHERE Time >= @startTime AND Time <= @endTime ORDER BY Time DESC ) a GROUP BY DeviceId, DATE(Time) ORDER BY Time ) a GROUP BY Time ORDER BY Time;";
+                        }
+                        else
+                        {
+                            processSql =
+                                "SELECT * FROM ( SELECT * FROM `npc_monitoring_process` WHERE DeviceId = @DeviceId AND Time >= @startTime AND Time <= @endTime ORDER BY Time DESC ) a GROUP BY DATE(Time) ORDER BY Time;";
+                        }
                         #endregion
                         break;
                     default: return Result.GenError<DataResult>(Error.ParamError);
                 }
 
-                var data = ServerConfig.ApiDb.Query<MonitoringProcess>(sql, new
+                var data = ServerConfig.ApiDb.Query<MonitoringProcess>(processSql, new
                 {
                     requestBody.DeviceId,
                     startTime,
                     endTime
                 }, 60);
-                result.datas.AddRange(data.Select(x=>new
-                {
-                    x.Time,
-                    x.ProcessCount
-                }));
+                result.datas.AddRange(data);
                 return result;
             }
             catch (Exception e)

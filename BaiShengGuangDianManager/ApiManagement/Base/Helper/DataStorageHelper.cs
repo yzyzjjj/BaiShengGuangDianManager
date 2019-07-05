@@ -116,10 +116,9 @@ namespace ApiManagement.Base.Helper
                                 processCountDId,
                                 processTimeDId,
                             };
-                            var deviceList =
-                                ServerConfig.ApiDb.Query<MonitoringProcess>("SELECT b.DeviceId, b.State, b.TodayProcessCount, b.TotalProcessCount, b.Time FROM `device_library` a " +
-                                                                            "JOIN `npc_proxy_link` b ON a.Id = b.DeviceId WHERE a.MarkedDelete = 0;")
-                                                                            .Where(x => mData.Any(y => y.DeviceId == x.DeviceId)).ToDictionary(x => x.DeviceId);
+                            var allDeviceList = ServerConfig.ApiDb.Query<MonitoringProcess>(
+                                "SELECT b.* FROM `device_library` a JOIN `npc_proxy_link` b ON a.Id = b.DeviceId WHERE a.MarkedDelete = 0;");
+                            var deviceList = allDeviceList.Where(x => mData.Any(y => y.DeviceId == x.DeviceId)).ToDictionary(x => x.DeviceId);
                             var monitoringProcesses = new List<MonitoringProcess>();
                             if (deviceList.Any())
                             {
@@ -176,13 +175,13 @@ namespace ApiManagement.Base.Helper
                                                 if (analysisData.vals.Count >= actAddress)
                                                 {
                                                     var v = analysisData.vals[actAddress];
-                                                    deviceList[data.DeviceId].TodayProcessCount =
+                                                    deviceList[data.DeviceId].ProcessCount =
                                                         deviceList[data.DeviceId].Time.InSameDay(data.SendTime)
-                                                            ? deviceList[data.DeviceId].TodayProcessCount
+                                                            ? deviceList[data.DeviceId].ProcessCount
                                                             : 0;
                                                     if (deviceList[data.DeviceId].State == 0 && v > 0)
                                                     {
-                                                        deviceList[data.DeviceId].TodayProcessCount++;
+                                                        deviceList[data.DeviceId].ProcessCount++;
                                                     }
                                                     deviceList[data.DeviceId].State = v > 0 ? 1 : 0;
                                                 }
@@ -194,18 +193,12 @@ namespace ApiManagement.Base.Helper
                                                     var totalProcessTime = analysisData.vals[actAddress];
                                                     if (deviceList[data.DeviceId].TotalProcessTime != 0)
                                                     {
-                                                        deviceList[data.DeviceId].TodayProcessTime +=
+                                                        deviceList[data.DeviceId].ProcessTime +=
                                                         totalProcessTime - deviceList[data.DeviceId].TotalProcessTime;
                                                     }
                                                     deviceList[data.DeviceId].TotalProcessTime = totalProcessTime;
                                                 }
                                             }
-
-                                            deviceList[data.DeviceId].ProcessCount =
-                                                deviceList[data.DeviceId].TodayProcessCount;
-
-                                            deviceList[data.DeviceId].ProcessTime =
-                                                deviceList[data.DeviceId].TodayProcessTime;
                                         }
                                         deviceList[data.DeviceId].Time = data.SendTime.NoMillisecond();
 
@@ -214,10 +207,13 @@ namespace ApiManagement.Base.Helper
                                             DeviceId = deviceList[data.DeviceId].DeviceId,
                                             Time = deviceList[data.DeviceId].Time,
                                             State = deviceList[data.DeviceId].State,
-                                            ProcessCount = deviceList[data.DeviceId].TodayProcessCount,
+                                            ProcessCount = deviceList[data.DeviceId].ProcessCount,
                                             TotalProcessCount = deviceList[data.DeviceId].TotalProcessCount,
-                                            ProcessTime = deviceList[data.DeviceId].TodayProcessTime,
+                                            ProcessTime = deviceList[data.DeviceId].ProcessTime,
                                             TotalProcessTime = deviceList[data.DeviceId].TotalProcessTime,
+                                            Use = deviceList.Values.Count(x => x.State == 1),
+                                            Total = allDeviceList.Count(),
+                                            Rate = (decimal)deviceList.Values.Count(x => x.State == 1) * 100 / allDeviceList.Count(),
                                         });
                                     }
                                 }
@@ -225,7 +221,8 @@ namespace ApiManagement.Base.Helper
                             #endregion
 
                             ServerConfig.ApiDb.Execute(
-                                "UPDATE npc_proxy_link SET `Time` = @Time, `State` = @State, `TodayProcessCount` = @TodayProcessCount, `TotalProcessCount` = @TotalProcessCount, `TodayProcessTime` = @TodayProcessTime, `TotalProcessTime` = @TotalProcessTime WHERE `DeviceId` = @DeviceId;",
+                                "UPDATE npc_proxy_link SET `Time` = @Time, `State` = @State, `ProcessCount` = @ProcessCount, `TotalProcessCount` = @TotalProcessCount, " +
+                                "`ProcessTime` = @ProcessTime, `TotalProcessTime` = @TotalProcessTime WHERE `DeviceId` = @DeviceId;",
                                 deviceList.Values);
 
                             Task.Run(() =>
@@ -238,8 +235,8 @@ namespace ApiManagement.Base.Helper
                             Task.Run(() =>
                             {
                                 ServerConfig.ApiDb.ExecuteTrans(
-                                "INSERT INTO npc_monitoring_process (`Time`, `DeviceId`, `ProcessCount`, `TotalProcessCount`, `ProcessTime`, `TotalProcessTime`, `State`) " +
-                                "VALUES (@Time, @DeviceId, @ProcessCount, @TotalProcessCount, @ProcessTime, @TotalProcessTime, @State);",
+                                "INSERT INTO npc_monitoring_process (`Time`, `DeviceId`, `ProcessCount`, `TotalProcessCount`, `ProcessTime`, `TotalProcessTime`, `State`, `Rate`, `Use`, `Total`) " +
+                                "VALUES (@Time, @DeviceId, @ProcessCount, @TotalProcessCount, @ProcessTime, @TotalProcessTime, @State, @Rate, @Use, @Total);",
                                 monitoringProcesses);
                             });
 
