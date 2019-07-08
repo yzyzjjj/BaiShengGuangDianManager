@@ -185,7 +185,6 @@ namespace ApiManagement.Controllers
                     case 0:
 
                         #region 0 小时 - 秒
-
                         startTime = requestBody.StartTime;
                         endTime = requestBody.EndTime;
                         if (requestBody.DeviceId == "0")
@@ -206,7 +205,7 @@ namespace ApiManagement.Controllers
                             {
                                 processSql =
                                     "SELECT `Time`, `DeviceId`, `ProcessCount`, `TotalProcessCount`, `ProcessTime`, `TotalProcessTime`, `State`, `Rate`, `Use`, `Total` FROM `npc_monitoring_process` " +
-                                    "WHERE DeviceId IN @DeviceId AND Time >= @startTime AND Time <= @endTime GROUP BY DeviceId ORDER BY Time";
+                                    "WHERE DeviceId IN @DeviceId AND Time >= @startTime AND Time <= @endTime GROUP BY DeviceId ,Time ORDER BY Time";
                             }
                         }
 
@@ -267,12 +266,14 @@ namespace ApiManagement.Controllers
                             if (requestBody.Compare == 0)
                             {
                                 processSql =
-                                    "SELECT * FROM ( SELECT * FROM `npc_monitoring_process` WHERE DeviceId = @DeviceId AND Time >= @startTime AND Time <= @endTime ORDER BY Time DESC ) a GROUP BY DATE(Time) ORDER BY Time;";
+                                    "SELECT * FROM ( SELECT * FROM `npc_monitoring_process` WHERE DeviceId = @DeviceId AND Time >= @startTime AND Time <= @endTime ORDER BY Time DESC ) " +
+                                    "a GROUP BY DATE(Time) ORDER BY Time;";
                             }
                             else
                             {
                                 processSql =
-                                    "SELECT * FROM ( SELECT * FROM `npc_monitoring_process` WHERE DeviceId IN @DeviceId AND Time >= @startTime AND Time <= @endTime ORDER BY Time DESC ) a GROUP BY DeviceId, DATE(Time) ORDER BY Time;";
+                                    "SELECT * FROM ( SELECT * FROM `npc_monitoring_process` WHERE DeviceId IN @DeviceId AND Time >= @startTime AND Time <= @endTime ORDER BY Time DESC ) " +
+                                    "a GROUP BY DeviceId, DATE(Time) ORDER BY Time;";
                             }
                         }
 
