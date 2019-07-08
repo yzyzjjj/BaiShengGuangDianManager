@@ -19,7 +19,7 @@ namespace ApiManagement.Models
         public string Remarks { get; set; }
         public int Priority { get; set; }
         public DateTime CreateTime { get; set; }
-
+        public int WorkshopId { get; set; }
         public List<FlowCardSpecification> Specifications = new List<FlowCardSpecification>();
         public List<FlowCardProcessStepDetail> ProcessSteps = new List<FlowCardProcessStepDetail>();
 
@@ -35,5 +35,6 @@ namespace ApiManagement.Models
         public string QualifiedNumber { get; set; }
         public int DeviceId { get; set; }
         public string Code { get; set; }
+        public string WorkshopName { get; set; }
     }
 }

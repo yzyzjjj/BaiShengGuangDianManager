@@ -699,6 +699,7 @@ namespace ApiManagement.Controllers
             var result = new DataResult();
             var processManagements = ServerConfig.ApiDb.Query<ProcessManagementDetail>(
                 "SELECT * FROM `process_management` WHERE MarkedDelete = 0" + (request1.Pid == 0 ? ";" : " AND Id != @id;"), new { id = request1.Pid });
+
             if (request1.Pid != 0)
             {
                 var cnt =

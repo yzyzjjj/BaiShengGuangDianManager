@@ -23,7 +23,5 @@ namespace ApiManagement.Base.Server
             DataStorageHelper.Init(configuration);
             Log.InfoFormat("ServerConfig Done");
         }
-
-
     }
 }
