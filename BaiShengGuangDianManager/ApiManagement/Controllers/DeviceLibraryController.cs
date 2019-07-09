@@ -826,14 +826,18 @@ namespace ApiManagement.Controllers
                 messagePacket.Vals.Add(dictionaryIds.First(x => x.Id == 6).DictionaryId - 1, processInfo.FlowCardId);
             }
             var msg = messagePacket.Serialize();
-            url = ServerConfig.GateUrl + UrlMappings.Urls["sendBackGate"];
+            url = ServerConfig.GateUrl + UrlMappings.Urls["batchSendBackGate"];
             //向GateProxyLink请求数据
             resp = HttpServer.Post(url, new Dictionary<string, string>{
-                {"deviceInfo",new DeviceInfo
-                {
-                    DeviceId = processInfo.DeviceId,
-                    Instruction = msg
-                }.ToJSON()}
+                { "devicesList",(new List<DeviceInfo>
+                    {
+                        new DeviceInfo
+                        {
+                            DeviceId = processInfo.DeviceId,
+                            Instruction = msg
+                        }
+                    }).ToJSON()
+                }
             });
             var fRes = false;
             if (resp != "fail")

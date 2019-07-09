@@ -78,7 +78,8 @@ namespace ApiManagement.Models
         /// <summary>
         /// 当前加工流程卡号
         /// </summary>
-        public string FlowCard { get; set; }
+        public string FlowCard { get; set; } = string.Empty;
+
         /// <summary>
         /// 加工时间
         /// </summary>
