@@ -1,19 +1,19 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using ApiManagement.Base.Server;
+﻿using ApiManagement.Base.Server;
 using ApiManagement.Models;
 using Microsoft.AspNetCore.Mvc;
 using ModelBase.Base.EnumConfig;
 using ModelBase.Base.Utils;
 using ModelBase.Models.Result;
+using ServiceStack;
+using System;
+using System.Linq;
 
 namespace ApiManagement.Controllers
 {
     /// <summary>
     /// 脚本 常用变量对应类型表
     /// </summary>
-    [Route("api/[controller]")]
+    [Microsoft.AspNetCore.Mvc.Route("api/[controller]")]
     [ApiController]
     public class UsuallyDictionaryTypeController : ControllerBase
     {
@@ -62,37 +62,74 @@ namespace ApiManagement.Controllers
         /// <param name="id">自增Id</param>
         /// <param name="usuallyDictionaryType"></param>
         /// <returns></returns>
-        // PUT: api/UsuallyDictionaryType/Id/5
-        [HttpPut("Id/{id}")]
+        // PUT: api/UsuallyDictionaryType/5
+        [HttpPut("{id}")]
         public Result PutUsuallyDictionaryType([FromRoute] int id, [FromBody] UsuallyDictionaryType usuallyDictionaryType)
         {
-            var cnt =
-                ServerConfig.ApiDb.Query<int>("SELECT COUNT(1) FROM `usually_dictionary_type` WHERE Id = @id AND `MarkedDelete` = 0;", new { id }).FirstOrDefault();
-            if (cnt == 0)
+            var data =
+                ServerConfig.ApiDb.Query<UsuallyDictionaryType>("SELECT * FROM `usually_dictionary_type` WHERE Id = @Id;", new { Id = id }).FirstOrDefault();
+            if (data == null)
             {
                 return Result.GenError<Result>(Error.UsuallyDictionaryTypeNotExist);
+            }
+            var cnt =
+                ServerConfig.ApiDb.Query<int>("SELECT COUNT(1) FROM `usually_dictionary_type` WHERE VariableName = @VariableName;", new { usuallyDictionaryType.VariableName }).FirstOrDefault();
+            if (cnt > 0)
+            {
+                if (!usuallyDictionaryType.VariableName.IsNullOrEmpty() && data.VariableName != usuallyDictionaryType.VariableName)
+                {
+                    return Result.GenError<Result>(Error.UsuallyDictionaryTypeIsExist);
+                }
             }
 
             usuallyDictionaryType.Id = id;
             usuallyDictionaryType.CreateUserId = Request.GetIdentityInformation();
             usuallyDictionaryType.MarkedDateTime = DateTime.Now;
             ServerConfig.ApiDb.Execute(
-                "UPDATE usually_dictionary_type SET `MarkedDateTime` = @MarkedDateTime, " +
-                "`MarkedDelete` = @MarkedDelete, `ModifyId` = @ModifyId, `VariableName` = @VariableName WHERE `Id` = @Id;", usuallyDictionaryType);
+                "UPDATE usually_dictionary_type SET `CreateUserId` = @CreateUserId, `MarkedDateTime` = @MarkedDateTime, `VariableName` = @VariableName WHERE `Id` = @Id;", usuallyDictionaryType);
             ServerConfig.RedisHelper.PublishToTable();
             return Result.GenError<Result>(Error.Success);
         }
 
         // POST: api/UsuallyDictionaryType
         [HttpPost]
-        public Result PostUsuallyDictionaryType([FromBody] UsuallyDictionaryType usuallyDictionaryType)
+        public Result PostUsuallyDictionaryType([FromBody] UsuallyDictionaryTypeDetail usuallyDictionaryType)
         {
-            usuallyDictionaryType.CreateUserId = Request.GetIdentityInformation();
+            var cnt =
+                ServerConfig.ApiDb.Query<int>("SELECT COUNT(1) FROM `usually_dictionary_type` WHERE VariableName = @VariableName;", new { usuallyDictionaryType.VariableName }).FirstOrDefault();
+            if (cnt > 0)
+            {
+                return Result.GenError<Result>(Error.UsuallyDictionaryTypeIsExist);
+            }
+
+            cnt =
+              ServerConfig.ApiDb.Query<int>("SELECT COUNT(1) FROM `variable_type` WHERE Id = @id AND `MarkedDelete` = 0;", new { id = usuallyDictionaryType.VariableTypeId }).FirstOrDefault();
+            if (cnt == 0)
+            {
+                return Result.GenError<Result>(Error.VariableTypeNotExist);
+            }
+
+            var createUserId = Request.GetIdentityInformation();
+            usuallyDictionaryType.CreateUserId = createUserId;
             usuallyDictionaryType.MarkedDateTime = DateTime.Now;
-            ServerConfig.ApiDb.Execute(
+            var index = ServerConfig.ApiDb.Query<int>(
                 "INSERT INTO usually_dictionary_type (`CreateUserId`, `MarkedDateTime`, `MarkedDelete`, `ModifyId`, `VariableName`) " +
-                "VALUES (@CreateUserId, @MarkedDateTime, @MarkedDelete, @ModifyId, @VariableName);",
-                usuallyDictionaryType);
+                "VALUES (@CreateUserId, @MarkedDateTime, @MarkedDelete, @ModifyId, @VariableName);SELECT LAST_INSERT_ID();",
+                usuallyDictionaryType).FirstOrDefault();
+
+            var usuallyDictionary = new UsuallyDictionary
+            {
+                CreateUserId = createUserId,
+                MarkedDateTime = DateTime.Now,
+                ScriptId = 0,
+                VariableNameId = index,
+                DictionaryId = usuallyDictionaryType.DictionaryId + 1,
+                VariableTypeId = usuallyDictionaryType.VariableTypeId,
+            };
+            ServerConfig.ApiDb.Execute(
+                "INSERT INTO usually_dictionary(`CreateUserId`, `MarkedDateTime`, `MarkedDelete`, `ModifyId`, `ScriptId`, `VariableNameId`, `DictionaryId`, `VariableTypeId`) " +
+                "VALUES(@CreateUserId, @MarkedDateTime, @MarkedDelete, @ModifyId, @ScriptId, @VariableNameId, @DictionaryId, @VariableTypeId);",
+                usuallyDictionary);
 
             ServerConfig.RedisHelper.PublishToTable();
             return Result.GenError<Result>(Error.Success);
