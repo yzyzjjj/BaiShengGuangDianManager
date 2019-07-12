@@ -37,8 +37,11 @@ namespace ApiManagement.Base.Helper
         }
         private static void Call(object state)
         {
-            if(isDeal)
+            if (isDeal)
+            {
                 return;
+            }
+
             isDeal = true;
             var sTime =
                 ServerConfig.ApiDb.Query<string>("SELECT `CreateTime` FROM `flowcard_library` ORDER BY CreateTime DESC LIMIT 1;").FirstOrDefault();
@@ -142,7 +145,12 @@ namespace ApiManagement.Base.Helper
 
                 workshops = ServerConfig.ApiDb.Query<Workshop>("SELECT * FROM `workshop`;").ToDictionary(x => x.Id);
 
-                var r = res.data;
+                var r = res.data.Select(x => new ErpFlowCard
+                {
+                    f_lckh = x.f_lckh.TrimEnd(),
+                    f_jhh = x.f_jhh.TrimEnd(),
+                    f_mate = x.f_mate.TrimEnd(),
+                }).ToList();
                 if (r.Count <= 0)
                 {
                     return true;
