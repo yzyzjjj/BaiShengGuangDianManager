@@ -15,7 +15,7 @@ namespace ApiManagement.Models
         public int VariableTypeId { get; set; }
 
     }
-    public class UsuallyDictionaryDetail: UsuallyDictionary
+    public class UsuallyDictionaryDetail : UsuallyDictionary
     {
         public int Did { get; set; }
         public string VariableName { get; set; }

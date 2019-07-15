@@ -6,6 +6,7 @@ using ModelBase.Base.Utils;
 using ModelBase.Models.Result;
 using ServiceStack;
 using System;
+using System.Collections.Generic;
 using System.Linq;
 
 namespace ApiManagement.Controllers
@@ -117,19 +118,34 @@ namespace ApiManagement.Controllers
                 "VALUES (@CreateUserId, @MarkedDateTime, @MarkedDelete, @ModifyId, @VariableName);SELECT LAST_INSERT_ID();",
                 usuallyDictionaryType).FirstOrDefault();
 
-            var usuallyDictionary = new UsuallyDictionary
+            //var dataNameDictionaries = ServerConfig.ApiDb.Query<DataNameDictionary>(
+            //    "SELECT * FROM `data_name_dictionary` WHERE VariableTypeId = @VariableTypeId AND PointerAddress = @PointerAddress;",
+            //    new
+            //    {
+            //        VariableTypeId = usuallyDictionaryType.VariableTypeId,
+            //        PointerAddress = usuallyDictionaryType.DictionaryId,
+            //    });
+
+            var scripts = new List<int> { 0 };
+            scripts.AddRange(ServerConfig.ApiDb.Query<int>("SELECT Id FROM `script_version` WHERE MarkedDelete = 0;"));
+            var usuallyDictionaries = new List<UsuallyDictionary>();
+            foreach (var script in scripts)
             {
-                CreateUserId = createUserId,
-                MarkedDateTime = DateTime.Now,
-                ScriptId = 0,
-                VariableNameId = index,
-                DictionaryId = usuallyDictionaryType.DictionaryId + 1,
-                VariableTypeId = usuallyDictionaryType.VariableTypeId,
-            };
+                var usuallyDictionary = new UsuallyDictionary
+                {
+                    CreateUserId = createUserId,
+                    MarkedDateTime = DateTime.Now,
+                    ScriptId = script,
+                    VariableNameId = index,
+                    DictionaryId = usuallyDictionaryType.DictionaryId,
+                    VariableTypeId = usuallyDictionaryType.VariableTypeId,
+                };
+                usuallyDictionaries.Add(usuallyDictionary);
+            }
             ServerConfig.ApiDb.Execute(
-                "INSERT INTO usually_dictionary(`CreateUserId`, `MarkedDateTime`, `MarkedDelete`, `ModifyId`, `ScriptId`, `VariableNameId`, `DictionaryId`, `VariableTypeId`) " +
+                "INSERT INTO usually_dictionary (`CreateUserId`, `MarkedDateTime`, `MarkedDelete`, `ModifyId`, `ScriptId`, `VariableNameId`, `DictionaryId`, `VariableTypeId`) " +
                 "VALUES(@CreateUserId, @MarkedDateTime, @MarkedDelete, @ModifyId, @ScriptId, @VariableNameId, @DictionaryId, @VariableTypeId);",
-                usuallyDictionary);
+                usuallyDictionaries);
 
             ServerConfig.RedisHelper.PublishToTable();
             return Result.GenError<Result>(Error.Success);

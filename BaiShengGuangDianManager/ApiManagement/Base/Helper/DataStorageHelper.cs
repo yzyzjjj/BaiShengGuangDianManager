@@ -136,6 +136,12 @@ namespace ApiManagement.Base.Helper
                                         });
                                 }
 
+                                if (!variableNameIdList.All(x => usuallyDictionaries.Any(y => y.VariableNameId == x)))
+                                {
+                                    Log.ErrorFormat("缺少变量配置:{0}", variableNameIdList.Where(x => !usuallyDictionaries.Any(y => y.VariableNameId == x)).ToJSON());
+                                    ServerConfig.RedisHelper.Remove(lockKey);
+                                    return;
+                                }
                                 var uDies = new Dictionary<Tuple<int, int>, int>();
                                 foreach (var variableNameId in variableNameIdList)
                                 {
@@ -162,28 +168,28 @@ namespace ApiManagement.Base.Helper
                                             var analysisData = data.AnalysisData;
                                             if (analysisData != null)
                                             {
-                                                //总加工次数
-                                                var actAddress = uDies[new Tuple<int, int>(data.ScriptId, processCountDId)] - 1;
-                                                if (analysisData.vals.Count >= actAddress)
-                                                {
-                                                    deviceList[data.DeviceId].TotalProcessCount =
-                                                        analysisData.vals[actAddress];
-                                                }
-
-                                                //今日加工次数
-                                                actAddress = uDies[new Tuple<int, int>(data.ScriptId, stateDId)] - 1;
+                                                var actAddress = uDies[new Tuple<int, int>(data.ScriptId, stateDId)] - 1;
                                                 if (analysisData.vals.Count >= actAddress)
                                                 {
                                                     var v = analysisData.vals[actAddress];
-                                                    deviceList[data.DeviceId].ProcessCount =
-                                                        deviceList[data.DeviceId].Time.InSameDay(data.SendTime)
-                                                            ? deviceList[data.DeviceId].ProcessCount
-                                                            : 0;
-                                                    if (deviceList[data.DeviceId].State == 0 && v > 0)
-                                                    {
-                                                        deviceList[data.DeviceId].ProcessCount++;
-                                                    }
                                                     deviceList[data.DeviceId].State = v > 0 ? 1 : 0;
+                                                }
+
+                                                //总加工次数
+                                                actAddress = uDies[new Tuple<int, int>(data.ScriptId, processCountDId)] - 1;
+                                                if (analysisData.vals.Count >= actAddress)
+                                                {
+                                                    var totalProcessCount = analysisData.vals[actAddress];
+                                                    if (deviceList[data.DeviceId].TotalProcessTime != 0)
+                                                    {
+                                                        deviceList[data.DeviceId].ProcessCount =
+                                                            deviceList[data.DeviceId].Time.InSameDay(data.SendTime)
+                                                                ? deviceList[data.DeviceId].ProcessCount : 0;
+
+                                                        deviceList[data.DeviceId].ProcessCount +=
+                                                            totalProcessCount - deviceList[data.DeviceId].TotalProcessCount;
+                                                    }
+                                                    deviceList[data.DeviceId].TotalProcessCount = totalProcessCount;
                                                 }
 
                                                 //总加工时间
@@ -193,8 +199,12 @@ namespace ApiManagement.Base.Helper
                                                     var totalProcessTime = analysisData.vals[actAddress];
                                                     if (deviceList[data.DeviceId].TotalProcessTime != 0)
                                                     {
+                                                        deviceList[data.DeviceId].ProcessTime =
+                                                            deviceList[data.DeviceId].Time.InSameDay(data.SendTime)
+                                                                ? deviceList[data.DeviceId].ProcessTime : 0;
+
                                                         deviceList[data.DeviceId].ProcessTime +=
-                                                        totalProcessTime - deviceList[data.DeviceId].TotalProcessTime;
+                                                            totalProcessTime - deviceList[data.DeviceId].TotalProcessTime;
                                                     }
                                                     deviceList[data.DeviceId].TotalProcessTime = totalProcessTime;
                                                 }
