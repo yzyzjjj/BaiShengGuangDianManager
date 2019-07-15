@@ -42,7 +42,7 @@ namespace ApiManagement.Controllers
                 return Result.GenError<DataResult>(Error.ScriptVersionNotExist);
             }
             var result = new DataResult();
-            result.datas.AddRange(ServerConfig.ApiDb.Query<UsuallyDictionaryDetail>("SELECT a.Id, a.VariableNameId, b.VariableName, a.DictionaryId, IFNULL(c.Id, 0) Did, a.VariableTypeId, d.TypeName FROM ( SELECT Id, ScriptId, VariableNameId, DictionaryId,  IF ( VariableTypeId = 0, 1, VariableTypeId ) VariableTypeId FROM `usually_dictionary` WHERE ScriptId = @ScriptId AND MarkedDelete = 0 ) a LEFT JOIN usually_dictionary_type b ON a.VariableNameId = b.Id LEFT JOIN data_name_dictionary c ON a.ScriptId = c.ScriptId AND a.DictionaryId = c.PointerAddress AND a.VariableTypeId = c.VariableTypeId LEFT JOIN variable_type d ON a.VariableTypeId = d.Id ORDER BY a.Id;", new { ScriptId = scriptId }));
+            result.datas.AddRange(ServerConfig.ApiDb.Query<UsuallyDictionaryDetail>("SELECT a.Id, a.VariableNameId, b.VariableName, a.DictionaryId, IFNULL(c.Id, 0) Did, a.VariableTypeId, d.TypeName FROM ( SELECT Id, ScriptId, VariableNameId, DictionaryId,  IF ( VariableTypeId = 0, 1, VariableTypeId ) VariableTypeId FROM `usually_dictionary` WHERE ScriptId = @ScriptId AND MarkedDelete = 0 ) a LEFT JOIN usually_dictionary_type b ON a.VariableNameId = b.Id LEFT JOIN data_name_dictionary c ON a.ScriptId = c.ScriptId AND a.DictionaryId = c.PointerAddress AND a.VariableTypeId = c.VariableTypeId LEFT JOIN variable_type d ON a.VariableTypeId = d.Id WHERE c.Id IS NOT NULL ORDER BY a.Id;", new { ScriptId = scriptId }));
             return result;
         }
 
