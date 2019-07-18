@@ -87,7 +87,7 @@ namespace ApiManagement.Controllers
             usuallyDictionaryType.CreateUserId = Request.GetIdentityInformation();
             usuallyDictionaryType.MarkedDateTime = DateTime.Now;
             ServerConfig.ApiDb.Execute(
-                "UPDATE usually_dictionary_type SET `CreateUserId` = @CreateUserId, `MarkedDateTime` = @MarkedDateTime, `VariableName` = @VariableName WHERE `Id` = @Id;", usuallyDictionaryType);
+                "UPDATE usually_dictionary_type SET `CreateUserId` = @CreateUserId, `MarkedDateTime` = @MarkedDateTime, `VariableName` = @VariableName, `StatisticType` = @StatisticType WHERE `Id` = @Id;", usuallyDictionaryType);
             ServerConfig.RedisHelper.PublishToTable();
             return Result.GenError<Result>(Error.Success);
         }
@@ -114,17 +114,9 @@ namespace ApiManagement.Controllers
             usuallyDictionaryType.CreateUserId = createUserId;
             usuallyDictionaryType.MarkedDateTime = DateTime.Now;
             var index = ServerConfig.ApiDb.Query<int>(
-                "INSERT INTO usually_dictionary_type (`CreateUserId`, `MarkedDateTime`, `MarkedDelete`, `ModifyId`, `VariableName`) " +
-                "VALUES (@CreateUserId, @MarkedDateTime, @MarkedDelete, @ModifyId, @VariableName);SELECT LAST_INSERT_ID();",
+                "INSERT INTO usually_dictionary_type (`CreateUserId`, `MarkedDateTime`, `MarkedDelete`, `ModifyId`, `VariableName`, `StatisticType`) " +
+                "VALUES (@CreateUserId, @MarkedDateTime, @MarkedDelete, @ModifyId, @VariableName, @StatisticType);SELECT LAST_INSERT_ID();",
                 usuallyDictionaryType).FirstOrDefault();
-
-            //var dataNameDictionaries = ServerConfig.ApiDb.Query<DataNameDictionary>(
-            //    "SELECT * FROM `data_name_dictionary` WHERE VariableTypeId = @VariableTypeId AND PointerAddress = @PointerAddress;",
-            //    new
-            //    {
-            //        VariableTypeId = usuallyDictionaryType.VariableTypeId,
-            //        PointerAddress = usuallyDictionaryType.DictionaryId,
-            //    });
 
             var scripts = new List<int> { 0 };
             scripts.AddRange(ServerConfig.ApiDb.Query<int>("SELECT Id FROM `script_version` WHERE MarkedDelete = 0;"));

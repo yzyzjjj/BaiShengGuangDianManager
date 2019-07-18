@@ -826,7 +826,7 @@ namespace ApiManagement.Controllers
                 messagePacket.Vals.Add(dictionaryIds.First(x => x.Id == 6).DictionaryId - 1, processInfo.FlowCardId);
             }
             //当前配方
-            messagePacket.Vals.Add(99, 0);
+            messagePacket.Vals.Add(98, 0);
             var msg = messagePacket.Serialize();
             url = ServerConfig.GateUrl + UrlMappings.Urls["batchSendBackGate"];
             //向GateProxyLink请求数据
