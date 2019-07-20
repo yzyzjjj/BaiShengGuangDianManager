@@ -110,11 +110,14 @@ namespace ApiManagement.Base.Helper
                             var processCountDId = 63;
                             //总加工时间
                             var processTimeDId = 64;
+                            //当前加工流程卡号
+                            var currentFlowCard = 6;
                             var variableNameIdList = new List<int>
                             {
                                 stateDId,
                                 processCountDId,
                                 processTimeDId,
+                                currentFlowCard
                             };
                             var allDeviceList = ServerConfig.ApiDb.Query<MonitoringProcess>(
                                 "SELECT b.* FROM `device_library` a JOIN `npc_proxy_link` b ON a.Id = b.DeviceId WHERE a.MarkedDelete = 0;");
@@ -168,10 +171,58 @@ namespace ApiManagement.Base.Helper
                                             var analysisData = data.AnalysisData;
                                             if (analysisData != null)
                                             {
-                                                var actAddress = uDies[new Tuple<int, int>(data.ScriptId, stateDId)] - 1;
+
+                                                var actAddress = uDies[new Tuple<int, int>(data.ScriptId, currentFlowCard)] - 1;
+                                                //var currentFlowCard = analysisData.vals[actAddress];
+
+                                                //var deviceProcessStep =
+                                                //    ServerConfig.ApiDb.Query<DeviceProcessStep>("SELECT * FROM `device_process_step` WHERE DeviceCategoryId = @DeviceCategoryId AND MarkedDelete = 0 AND IsSurvey = 0;",
+                                                //        new { device.DeviceCategoryId }).ToDictionary(x => x.Id);
+                                                //if (deviceProcessStep.Any())
+                                                //{
+                                                //    var processorId = ServerConfig.ApiDb
+                                                //        .Query<int>("SELECT * FROM `processor` WHERE Account = @Account AND MarkedDelete = 0;", new { Account = account })
+                                                //        .FirstOrDefault();
+
+                                                //    var flowCardProcessStepDetails = ServerConfig.ApiDb.Query<FlowCardProcessStepDetail>("SELECT * FROM `flowcard_process_step` WHERE FlowCardId = @FlowCardId AND MarkedDelete = 0;", new
+                                                //    {
+                                                //        FlowCardId = flowCard.Id
+                                                //    });
+                                                //    var flowCardProcessStepDetail =
+                                                //        flowCardProcessStepDetails.FirstOrDefault(x => deviceProcessStep.ContainsKey(x.ProcessStepId) && x.ProcessTime == default(DateTime));
+                                                //    if (flowCardProcessStepDetail != null)
+                                                //    {
+                                                //        flowCardProcessStepDetail.MarkedDateTime = time;
+                                                //        flowCardProcessStepDetail.ProcessorId = processorId;
+                                                //        flowCardProcessStepDetail.ProcessTime = time;
+                                                //        flowCardProcessStepDetail.DeviceId = device.Id;
+
+                                                //        ServerConfig.ApiDb.Execute(
+                                                //            "UPDATE flowcard_process_step SET `MarkedDateTime` = @MarkedDateTime, `ProcessorId` = @ProcessorId, `ProcessTime` = @ProcessTime, `DeviceId` = @DeviceId " +
+                                                //            "WHERE `Id` = @Id;", flowCardProcessStepDetail);
+                                                //    }
+
+                                                //}
+
+
+
+
+
+
+
+                                                //var flowCardName =
+                                                //    ServerConfig.ApiDb.Query<string>("SELECT FlowCardName FROM `flowcard_library` WHERE Id = @Id;", new { Id = fid }).FirstOrDefault();
+
+                                                //if (flowCardName != null)
+                                                //{
+                                                //    DeviceInfo.FlowCard = flowCardName;
+                                                //}
+
+                                                actAddress = uDies[new Tuple<int, int>(data.ScriptId, stateDId)] - 1;
                                                 if (analysisData.vals.Count >= actAddress)
                                                 {
                                                     var v = analysisData.vals[actAddress];
+
                                                     deviceList[data.DeviceId].State = v > 0 ? 1 : 0;
                                                 }
 

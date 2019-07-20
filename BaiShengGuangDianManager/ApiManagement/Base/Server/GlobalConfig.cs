@@ -56,5 +56,50 @@ namespace ApiManagement.Base.Server
         ///// </summary>
         //[DataMember]
         //public static int AnalysisId;
+
+        /// <summary>
+        /// 正常运行设备数量
+        /// </summary>
+        public static int NormalDevice = 0;
+        /// <summary>
+        /// 故障设备数量
+        /// </summary>
+        public static int FaultDevice = 0;
+        /// <summary>
+        /// 使用率日最大
+        /// </summary>
+        public static decimal MaxUseRate = 0;
+        /// <summary>
+        /// 使用率日最小
+        /// </summary>
+        public static decimal MinUseRate = 0;
+        /// <summary>
+        /// 同时使用台数日最大
+        /// </summary>
+        public static decimal MaxSimultaneousUseRate = 0;
+        /// <summary>
+        /// 同时使用台数日最小
+        /// </summary>
+        public static decimal MinSimultaneousUseRate = 0;
+        /// <summary>
+        /// 单台加工利用率=加工时间/24h
+        /// </summary>
+        public static decimal SingleProcessRate = 0;
+        /// <summary>
+        /// 所有利用率=总加工时间/（机台号*24h）
+        /// </summary>
+        public static decimal AllProcessRate = 0;
+        /// <summary>
+        /// 运行时间
+        /// </summary>
+        public static int RunTime = 0;
+        /// <summary>
+        /// 加工时间
+        /// </summary>
+        public static int ProcessTime = 0;
+        /// <summary>
+        /// 闲置时间 = 运行时间-加工时间
+        /// </summary>
+        public static int IdleTime = 0;
     }
 }
