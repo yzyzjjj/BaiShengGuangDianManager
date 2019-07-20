@@ -96,12 +96,19 @@ namespace ApiManagement.Base.Helper
         }
         private static bool GetData(DateTime starTime, DateTime endTime)
         {
-            var f = HttpServer.Get(_url, new Dictionary<string, string>
+            var param = new Dictionary<string, string>
             {
-                { "type", "getHairpin" },
-                { "t1", starTime.ToStr()},
-                { "t2", endTime.ToStr()},
-            });
+                {"type", "getHairpin"},
+                {"t1", starTime.ToStr()},
+                {"t2", endTime.ToStr()},
+            };
+            var f = HttpServer.Get(_url, param);
+
+            //var dts = new ArrayOfString();
+            //dts.AddRange(param.Select(dt => $"{dt.Key}={dt.Value}"));
+            //var url = _url + "?" + dts.Join("&");
+            //Log.DebugFormat("请求erp获取流程卡数据,url:{0}", url);
+
             if (f == "fail")
             {
                 Log.ErrorFormat("请求erp获取流程卡数据失败,url:{0}", _url);
@@ -131,14 +138,14 @@ namespace ApiManagement.Base.Helper
                     WorkshopName = erpWorkshops[x.Key].name,
                     Abbre = erpWorkshops[x.Key].abbre
                 });
-                ServerConfig.ApiDb.Execute(
+                ServerConfig.ApiDb.ExecuteTrans(
                     "INSERT INTO workshop (`CreateUserId`, `MarkedDateTime`, `MarkedDelete`, `ModifyId`, `WorkshopName`, `Abbre`) " +
                     "VALUES (@CreateUserId, @MarkedDateTime, @MarkedDelete, @ModifyId, @WorkshopName, @Abbre);",
                     newWs);
 
                 var updateWs = erpWorkshops.Where(x => workshops.ContainsKey(x.Key) && (x.Value.name != workshops[x.Key].WorkshopName || x.Value.abbre != workshops[x.Key].Abbre));
 
-                ServerConfig.ApiDb.Execute(
+                ServerConfig.ApiDb.ExecuteTrans(
                     "UPDATE workshop SET `CreateUserId` = @CreateUserId, `MarkedDateTime` = @MarkedDateTime, `MarkedDelete` = @MarkedDelete, `ModifyId` = @ModifyId, " +
                     "`WorkshopName` = @WorkshopName, `Short` = @Short WHERE `Id` = @Id;",
                     updateWs);
@@ -169,7 +176,7 @@ namespace ApiManagement.Base.Helper
                     MarkedDateTime = now,
                     RawMateriaName = x.Key
                 });
-                ServerConfig.ApiDb.Execute(
+                ServerConfig.ApiDb.ExecuteTrans(
                     "INSERT INTO raw_materia (`CreateUserId`, `MarkedDateTime`, `MarkedDelete`, `ModifyId`, `RawMateriaName`) " +
                     "VALUES (@CreateUserId, @MarkedDateTime, @MarkedDelete, @ModifyId, @RawMateriaName);",
                     newRm);
@@ -187,7 +194,7 @@ namespace ApiManagement.Base.Helper
                 });
                 var newPlTmp = new List<ProductionLibrary>();
                 newPlTmp.AddRange(newPl);
-                ServerConfig.ApiDb.Execute(
+                ServerConfig.ApiDb.ExecuteTrans(
                     "INSERT INTO production_library (`CreateUserId`, `MarkedDateTime`, `MarkedDelete`, `ModifyId`, `ProductionProcessName`) " +
                     "VALUES (@CreateUserId, @MarkedDateTime, @MarkedDelete, @ModifyId, @ProductionProcessName);",
                     newPl);
@@ -223,11 +230,17 @@ namespace ApiManagement.Base.Helper
 
                             //计划号新工序
                             var newPps = new List<ProductionProcessStep>();
-                            foreach (var pl in newPlTmp)
+                            foreach (var pl in erpProductionLibraries)
                             {
-                                if (erpProductionProcessStep.ContainsKey(pl.ProductionProcessName))
+                                if (productionProcessStep.ContainsKey(productionLibraries[pl.Key].Id))
                                 {
-                                    var newProductionProcessStep = erpProductionProcessStep[pl.ProductionProcessName].gx;
+                                    continue;
+                                }
+
+                                var productionProcessName = productionLibraries[pl.Key].ProductionProcessName;
+                                if (erpProductionProcessStep.ContainsKey(productionProcessName))
+                                {
+                                    var newProductionProcessStep = erpProductionProcessStep[productionProcessName].gx;
                                     var i = 1;
                                     foreach (var processStep in newProductionProcessStep)
                                     {
@@ -240,7 +253,7 @@ namespace ApiManagement.Base.Helper
                                         {
                                             CreateUserId = _createUserId,
                                             MarkedDateTime = now,
-                                            ProductionProcessId = productionLibraries[pl.ProductionProcessName].Id,
+                                            ProductionProcessId = productionLibraries[productionProcessName].Id,
                                             ProcessStepOrder = i++,
                                             ProcessStepId = dps?.Id ?? 0,
                                             ProcessStepRequirements = processStep.v,
@@ -261,10 +274,10 @@ namespace ApiManagement.Base.Helper
                 }
 
                 //流程卡
-                var flowCardLibraries = ServerConfig.ApiDb.Query<FlowCardLibrary>("SELECT * FROM `flowcard_library`;").ToDictionary(x => x.FlowCardName);
+                var flowCardLibraries = ServerConfig.ApiDb.Query<FlowCardLibrary>("SELECT * FROM `flowcard_library` WHERE CreateTime >= @CreateTime;", new { CreateTime = starTime }).ToDictionary(x => x.FlowCardName);
                 var erpFlowCardLibraries = r.ToDictionary(x => $"{x.f_bz:d2}{x.f_lckh}");
                 var newFlowCardLibraries = erpFlowCardLibraries.Where(x => !flowCardLibraries.ContainsKey(x.Key)).ToDictionary(x => x.Key, x => x.Value);
-                var newFc = newFlowCardLibraries.OrderBy(x => x.Value.f_id).Select(x => new FlowCardLibrary
+                var newFc = newFlowCardLibraries.OrderBy(x => x.Value.f_inserttime).Select(x => new FlowCardLibrary
                 {
                     CreateUserId = _createUserId,
                     MarkedDateTime = now,
@@ -276,7 +289,7 @@ namespace ApiManagement.Base.Helper
                 });
                 var newFcTmp = new List<FlowCardLibrary>();
                 newFcTmp.AddRange(newFc);
-                ServerConfig.ApiDb.Execute(
+                ServerConfig.ApiDb.ExecuteTrans(
                     "INSERT INTO flowcard_library (`CreateUserId`, `MarkedDateTime`, `MarkedDelete`, `ModifyId`, `FlowCardName`, `ProductionProcessId`, `RawMateriaId`, `RawMaterialQuantity`, `Sender`, `InboundNum`, `Remarks`, `Priority`, `CreateTime`, `WorkshopId`) " +
                     "VALUES (@CreateUserId, @MarkedDateTime, @MarkedDelete, @ModifyId, @FlowCardName, @ProductionProcessId, @RawMateriaId, @RawMaterialQuantity, @Sender, @InboundNum, @Remarks, @Priority, @CreateTime, @WorkshopId);",
                     newFc);
@@ -310,7 +323,7 @@ namespace ApiManagement.Base.Helper
                         }
                     }
 
-                    ServerConfig.ApiDb.Execute(
+                    ServerConfig.ApiDb.ExecuteTrans(
                         "INSERT INTO flowcard_process_step (`CreateUserId`, `MarkedDateTime`, `MarkedDelete`, `ModifyId`, `FlowCardId`, `ProcessStepOrder`, `ProcessStepId`, `ProcessStepRequirements`, `ProcessStepRequirementMid`) " +
                         "VALUES (@CreateUserId, @MarkedDateTime, @MarkedDelete, @ModifyId, @FlowCardId, @ProcessStepOrder, @ProcessStepId, @ProcessStepRequirements, @ProcessStepRequirementMid);",
                         newFps.OrderBy(x => x.FlowCardId).ThenBy(x => x.ProcessStepOrder));
@@ -339,7 +352,7 @@ namespace ApiManagement.Base.Helper
                 //0.255±0.005mm
                 t = 1;
             }
-            else if (value.Contains("～"))
+            else if (value.Contains("～") || value.Contains("~"))
             {
                 //0.202～0.216mm
                 t = 2;
