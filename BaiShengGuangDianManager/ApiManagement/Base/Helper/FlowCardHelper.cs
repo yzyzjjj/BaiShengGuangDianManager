@@ -33,7 +33,7 @@ namespace ApiManagement.Base.Helper
         public static void Init(IConfiguration configuration)
         {
             _url = configuration.GetAppSettings<string>("ErpUrl");
-            _time = new Timer(Call, null, 5000, 1000 * 60 * 1);
+            _time = new Timer(Call, null, 5000, 1000 * 30 * 1);
         }
         private static void Call(object state)
         {
@@ -150,6 +150,9 @@ namespace ApiManagement.Base.Helper
                     f_lckh = x.f_lckh.TrimEnd(),
                     f_jhh = x.f_jhh.TrimEnd(),
                     f_mate = x.f_mate.TrimEnd(),
+                    f_id = x.f_id,
+                    f_inserttime = x.f_inserttime,
+                    f_bz = x.f_bz,
                 }).ToList();
                 if (r.Count <= 0)
                 {
