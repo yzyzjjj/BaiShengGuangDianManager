@@ -110,14 +110,17 @@ namespace ApiManagement.Base.Helper
                             var processCountDId = 63;
                             //总加工时间
                             var processTimeDId = 64;
+                            //当前加工流程卡号
+                            var currentFlowCardDId = 6;
                             var variableNameIdList = new List<int>
                             {
                                 stateDId,
                                 processCountDId,
                                 processTimeDId,
+                                currentFlowCardDId
                             };
                             var allDeviceList = ServerConfig.ApiDb.Query<MonitoringProcess>(
-                                "SELECT b.* FROM `device_library` a JOIN `npc_proxy_link` b ON a.Id = b.DeviceId WHERE a.MarkedDelete = 0;");
+                                "SELECT b.*, c.DeviceCategoryId FROM `device_library` a JOIN `npc_proxy_link` b ON a.Id = b.DeviceId JOIN `device_model` c ON a.DeviceModelId = c.Id WHERE a.MarkedDelete = 0;");
                             var deviceList = allDeviceList.Where(x => mData.Any(y => y.DeviceId == x.DeviceId)).ToDictionary(x => x.DeviceId);
                             var monitoringProcesses = new List<MonitoringProcess>();
                             if (deviceList.Any())
@@ -168,10 +171,74 @@ namespace ApiManagement.Base.Helper
                                             var analysisData = data.AnalysisData;
                                             if (analysisData != null)
                                             {
-                                                var actAddress = uDies[new Tuple<int, int>(data.ScriptId, stateDId)] - 1;
+                                                var actAddress = uDies[new Tuple<int, int>(data.ScriptId, currentFlowCardDId)] - 1;
+                                                var currentFlowCardId = 0;
+                                                if (analysisData.vals.Count >= actAddress)
+                                                {
+                                                    currentFlowCardId = analysisData.vals[actAddress];
+                                                }
+
+                                                actAddress = uDies[new Tuple<int, int>(data.ScriptId, stateDId)] - 1;
                                                 if (analysisData.vals.Count >= actAddress)
                                                 {
                                                     var v = analysisData.vals[actAddress];
+                                                    if (currentFlowCardId != 0)
+                                                    {
+                                                        //开始加工
+                                                        var bStart = deviceList[data.DeviceId].State == 0 && v == 1;
+                                                        //停止加工
+                                                        var bEnd = deviceList[data.DeviceId].State == 1 && v == 0;
+                                                        if (bStart || bEnd)
+                                                        {
+                                                            var flowCard =
+                                                                ServerConfig.ApiDb.Query<FlowCardLibrary>("SELECT * FROM `flowcard_library` WHERE Id = @Id;", new { Id = currentFlowCardId }).FirstOrDefault();
+
+                                                            if (flowCard != null)
+                                                            {
+                                                                var flowCardProcessStepDetails = ServerConfig.ApiDb.Query<FlowCardProcessStepDetail>(
+                                                                    "SELECT a.* FROM `flowcard_process_step` a JOIN `device_process_step` b ON a.ProcessStepId = b.Id WHERE b.IsSurvey = 0 AND a.FlowCardId = @FlowCardId AND a.DeviceId = @DeviceId;", new
+                                                                    {
+                                                                        FlowCardId = flowCard.Id,
+                                                                        DeviceId = data.DeviceId
+                                                                    });
+                                                                var flowCardProcessStepDetail = flowCardProcessStepDetails.FirstOrDefault();
+                                                                if (flowCardProcessStepDetail != null)
+                                                                {
+                                                                    var sql = string.Empty;
+                                                                    //开始加工
+                                                                    if (bStart)
+                                                                    {
+                                                                        if (flowCardProcessStepDetail.ProcessTime == default(DateTime))
+                                                                        {
+                                                                            flowCardProcessStepDetail.ProcessTime = data.ReceiveTime;
+                                                                            sql =
+                                                                                "UPDATE flowcard_process_step SET `ProcessTime` = @ProcessTime WHERE `Id` = @Id;";
+                                                                        }
+                                                                    }
+
+                                                                    //停止加工
+                                                                    if (bEnd)
+                                                                    {
+                                                                        //if (flowCardProcessStepDetail.ProcessEndTime == default(DateTime))
+                                                                        //{
+                                                                            flowCardProcessStepDetail.ProcessEndTime = data.ReceiveTime;
+                                                                            sql =
+                                                                                "UPDATE flowcard_process_step SET `ProcessEndTime` = @ProcessEndTime WHERE `Id` = @Id;";
+                                                                        //}
+                                                                    }
+                                                                    if (sql != string.Empty)
+                                                                    {
+                                                                        ServerConfig.ApiDb.Execute(sql, flowCardProcessStepDetail);
+                                                                    }
+                                                                }
+                                                            }
+                                                        }
+                                                        else if (deviceList[data.DeviceId].State == v && currentFlowCardId != 0)
+                                                        {
+                                                            deviceList[data.DeviceId].FlowCardId = currentFlowCardId;
+                                                        }
+                                                        deviceList[data.DeviceId].FlowCardId = currentFlowCardId;
+                                                    }
                                                     deviceList[data.DeviceId].State = v > 0 ? 1 : 0;
                                                 }
 

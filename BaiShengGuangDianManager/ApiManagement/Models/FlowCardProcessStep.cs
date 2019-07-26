@@ -16,6 +16,7 @@ namespace ApiManagement.Models
         public decimal ProcessStepRequirementMid { get; set; }
         public int ProcessorId { get; set; }
         public DateTime ProcessTime { get; set; }
+        public DateTime ProcessEndTime { get; set; }
         public int SurveyorId { get; set; }
         public DateTime SurveyTime { get; set; }
         public int QualifiedNumber { get; set; }

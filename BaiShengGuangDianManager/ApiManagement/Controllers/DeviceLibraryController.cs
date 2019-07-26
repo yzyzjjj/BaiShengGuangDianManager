@@ -894,14 +894,11 @@ namespace ApiManagement.Controllers
                     {
                         flowCardProcessStepDetail.MarkedDateTime = time;
                         flowCardProcessStepDetail.ProcessorId = processorId;
-                        flowCardProcessStepDetail.ProcessTime = time;
                         flowCardProcessStepDetail.DeviceId = device.Id;
 
                         ServerConfig.ApiDb.Execute(
-                            "UPDATE flowcard_process_step SET `MarkedDateTime` = @MarkedDateTime, `ProcessorId` = @ProcessorId, `ProcessTime` = @ProcessTime, `DeviceId` = @DeviceId " +
-                            "WHERE `Id` = @Id;", flowCardProcessStepDetail);
+                            "UPDATE flowcard_process_step SET `MarkedDateTime` = @MarkedDateTime, `ProcessorId` = @ProcessorId, `DeviceId` = @DeviceId WHERE `Id` = @Id;", flowCardProcessStepDetail);
                     }
-
                 }
             }
 
