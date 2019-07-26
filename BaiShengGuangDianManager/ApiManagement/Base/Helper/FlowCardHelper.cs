@@ -37,8 +37,11 @@ namespace ApiManagement.Base.Helper
         }
         private static void Call(object state)
         {
-            if(isDeal)
+            if (isDeal)
+            {
                 return;
+            }
+
             isDeal = true;
             var sTime =
                 ServerConfig.ApiDb.Query<string>("SELECT `CreateTime` FROM `flowcard_library` ORDER BY CreateTime DESC LIMIT 1;").FirstOrDefault();
@@ -46,7 +49,7 @@ namespace ApiManagement.Base.Helper
             {
                 _starTime = DateTime.Parse(sTime);
             }
-            var queryTime1 = _starTime;
+            var queryTime1 = _starTime.AddSeconds(1);
             var queryTime2 = DateTime.Now;
             var r = GetData(queryTime1, queryTime2);
             _starTime = !r ? queryTime1 : queryTime2;
@@ -250,8 +253,40 @@ namespace ApiManagement.Base.Helper
                 }
 
                 //流程卡
-                var flowCardLibraries = ServerConfig.ApiDb.Query<FlowCardLibrary>("SELECT * FROM `flowcard_library`;").ToDictionary(x => x.FlowCardName);
                 var erpFlowCardLibraries = r.ToDictionary(x => $"{x.f_bz:d2}{x.f_lckh}");
+
+                var fcIds = new List<int>();
+                fcIds.AddRange(ServerConfig.ApiDb.Query<int>("SELECT Id FROM `flowcard_library` WHERE FlowCardName IN @FlowCardName;", new
+                {
+                    FlowCardName = erpFlowCardLibraries.Keys
+                }));
+                fcIds.AddRange(ServerConfig.ApiDb.Query<int>("SELECT Id FROM `flowcard_library` GROUP BY FlowCardName HAVING COUNT(1) > 1;"));
+                if (fcIds.Any())
+                {
+                    ServerConfig.ApiDb.Execute(
+                        "UPDATE `flowcard_library` SET `MarkedDateTime`= @MarkedDateTime, `MarkedDelete`= @MarkedDelete WHERE `Id`IN @Id AND MarkedDelete = 0;", new
+                        {
+                            MarkedDateTime = DateTime.Now,
+                            MarkedDelete = true,
+                            Id = fcIds
+                        });
+                    ServerConfig.ApiDb.Execute(
+                        "UPDATE `flowcard_process_step` SET `MarkedDateTime`= @MarkedDateTime, `MarkedDelete`= @MarkedDelete WHERE `FlowCardId`IN @Id;", new
+                        {
+                            MarkedDateTime = DateTime.Now,
+                            MarkedDelete = true,
+                            Id = fcIds
+                        });
+                    ServerConfig.ApiDb.Execute(
+                        "UPDATE `flowcard_specification` SET `MarkedDateTime`= @MarkedDateTime, `MarkedDelete`= @MarkedDelete WHERE `FlowCardId`IN @Id;", new
+                        {
+                            MarkedDateTime = DateTime.Now,
+                            MarkedDelete = true,
+                            Id = fcIds
+                        });
+                }
+
+                var flowCardLibraries = ServerConfig.ApiDb.Query<FlowCardLibrary>("SELECT * FROM `flowcard_library` WHERE `MarkedDelete` = 0;").ToDictionary(x => x.FlowCardName);
                 var newFlowCardLibraries = erpFlowCardLibraries.Where(x => !flowCardLibraries.ContainsKey(x.Key)).ToDictionary(x => x.Key, x => x.Value);
                 var newFc = newFlowCardLibraries.OrderBy(x => x.Value.f_id).Select(x => new FlowCardLibrary
                 {
@@ -270,7 +305,11 @@ namespace ApiManagement.Base.Helper
                     "VALUES (@CreateUserId, @MarkedDateTime, @MarkedDelete, @ModifyId, @FlowCardName, @ProductionProcessId, @RawMateriaId, @RawMaterialQuantity, @Sender, @InboundNum, @Remarks, @Priority, @CreateTime, @WorkshopId);",
                     newFc);
 
-                flowCardLibraries = ServerConfig.ApiDb.Query<FlowCardLibrary>("SELECT * FROM `flowcard_library`;").ToDictionary(x => x.FlowCardName);
+                //流程卡更新
+                //todo
+
+                flowCardLibraries = ServerConfig.ApiDb.Query<FlowCardLibrary>("SELECT * FROM `flowcard_library` WHERE `MarkedDelete` = 0;").ToDictionary(x => x.FlowCardName);
+
                 newFc = flowCardLibraries.Values.Where(x => newFcTmp.Any(y => y.FlowCardName == x.FlowCardName));
                 if (productionProcessStep.Any())
                 {
@@ -307,7 +346,7 @@ namespace ApiManagement.Base.Helper
             }
             catch (Exception e)
             {
-                Log.ErrorFormat("erp数据解析失败,原因:{0}", e.Message);
+                Log.ErrorFormat("erp数据解析失败,原因:{0},错误:{1}", e.Message, e.StackTrace);
                 return false;
             }
             return true;

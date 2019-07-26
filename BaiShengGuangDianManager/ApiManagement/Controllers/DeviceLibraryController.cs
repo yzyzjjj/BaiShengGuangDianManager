@@ -873,37 +873,34 @@ namespace ApiManagement.Controllers
                     ProcessData = processDatas.ToJSON()
                 });
 
-            //if (fRes)
-            //{
-            //    var deviceProcessStep =
-            //        ServerConfig.ApiDb.Query<DeviceProcessStep>("SELECT * FROM `device_process_step` WHERE DeviceCategoryId = @DeviceCategoryId AND MarkedDelete = 0 AND IsSurvey = 0;",
-            //            new { device.DeviceCategoryId }).ToDictionary(x => x.Id);
-            //    if (deviceProcessStep.Any())
-            //    {
-            //        var processorId = ServerConfig.ApiDb
-            //            .Query<int>("SELECT * FROM `processor` WHERE Account = @Account AND MarkedDelete = 0;", new { Account = account })
-            //            .FirstOrDefault();
+            if (fRes)
+            {
+                var deviceProcessStep =
+                    ServerConfig.ApiDb.Query<DeviceProcessStep>("SELECT * FROM `device_process_step` WHERE DeviceCategoryId = @DeviceCategoryId AND MarkedDelete = 0 AND IsSurvey = 0;",
+                        new { device.DeviceCategoryId }).ToDictionary(x => x.Id);
+                if (deviceProcessStep.Any())
+                {
+                    var processorId = ServerConfig.ApiDb
+                        .Query<int>("SELECT * FROM `processor` WHERE Account = @Account AND MarkedDelete = 0;", new { Account = account })
+                        .FirstOrDefault();
 
-            //        var flowCardProcessStepDetails = ServerConfig.ApiDb.Query<FlowCardProcessStepDetail>("SELECT * FROM `flowcard_process_step` WHERE FlowCardId = @FlowCardId AND MarkedDelete = 0;", new
-            //        {
-            //            FlowCardId = flowCard.Id
-            //        });
-            //        var flowCardProcessStepDetail =
-            //            flowCardProcessStepDetails.FirstOrDefault(x => deviceProcessStep.ContainsKey(x.ProcessStepId) && x.ProcessTime == default(DateTime));
-            //        if (flowCardProcessStepDetail != null)
-            //        {
-            //            flowCardProcessStepDetail.MarkedDateTime = time;
-            //            flowCardProcessStepDetail.ProcessorId = processorId;
-            //            flowCardProcessStepDetail.ProcessTime = time;
-            //            flowCardProcessStepDetail.DeviceId = device.Id;
+                    var flowCardProcessStepDetails = ServerConfig.ApiDb.Query<FlowCardProcessStepDetail>("SELECT * FROM `flowcard_process_step` WHERE FlowCardId = @FlowCardId AND MarkedDelete = 0;", new
+                    {
+                        FlowCardId = flowCard.Id
+                    });
+                    var flowCardProcessStepDetail =
+                        flowCardProcessStepDetails.FirstOrDefault(x => deviceProcessStep.ContainsKey(x.ProcessStepId) && x.ProcessTime == default(DateTime));
+                    if (flowCardProcessStepDetail != null)
+                    {
+                        flowCardProcessStepDetail.MarkedDateTime = time;
+                        flowCardProcessStepDetail.ProcessorId = processorId;
+                        flowCardProcessStepDetail.DeviceId = device.Id;
 
-            //            ServerConfig.ApiDb.Execute(
-            //                "UPDATE flowcard_process_step SET `MarkedDateTime` = @MarkedDateTime, `ProcessorId` = @ProcessorId, `ProcessTime` = @ProcessTime, `DeviceId` = @DeviceId " +
-            //                "WHERE `Id` = @Id;", flowCardProcessStepDetail);
-            //        }
-
-            //    }
-            //}
+                        ServerConfig.ApiDb.Execute(
+                            "UPDATE flowcard_process_step SET `MarkedDateTime` = @MarkedDateTime, `ProcessorId` = @ProcessorId, `DeviceId` = @DeviceId WHERE `Id` = @Id;", flowCardProcessStepDetail);
+                    }
+                }
+            }
 
             return Result.GenError<Result>(fRes ? Error.Success : Error.Fail);
         }

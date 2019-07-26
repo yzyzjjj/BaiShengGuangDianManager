@@ -6,7 +6,9 @@ namespace ApiManagement.Models.Analysis
     {
         public DateTime Time { get; set; }
         public int DeviceId { get; set; }
+        public int DeviceCategoryId { get; set; }
         public int State { get; set; }
+        public int FlowCardId { get; set; }
         /// <summary>
         /// 今日加工次数
         /// </summary>
