@@ -363,9 +363,9 @@ namespace ApiManagement.Controllers
 
 
             var processSteps = ServerConfig.ApiDb.Query<FlowCardProcessStepDetail>("SELECT a.*, IFNULL(b.StepName, '') StepName  FROM `flowcard_process_step` a LEFT JOIN `device_process_step` b ON a.ProcessStepId = b.Id WHERE FlowCardId = @FlowCardId AND a.MarkedDelete = 0;", new
-                                                                                           {
-                                                                                               FlowCardId = flowCard.Id
-                                                                                           }).OrderBy(x => x.ProcessStepOrder);
+            {
+                FlowCardId = flowCard.Id
+            }).OrderBy(x => x.ProcessStepOrder);
             var currentProcessSteps = new List<FlowCardProcessStepDetail>();
             var deviceProcessSteps =
                 ServerConfig.ApiDb.Query<DeviceProcessStep>("SELECT * FROM `device_process_step` WHERE DeviceCategoryId = @DeviceCategoryId AND MarkedDelete = 0;",
@@ -621,7 +621,7 @@ namespace ApiManagement.Controllers
                                                                 "b ON a.ProcessorId = b.Id LEFT JOIN `surveyor` c ON a.SurveyorId = c.Id LEFT JOIN ( SELECT a.Id, " +
                                                                 "a.StepName, a.IsSurvey, b.CategoryName FROM `device_process_step` a JOIN `device_category` b " +
                                                                 "ON a.DeviceCategoryId = b.Id WHERE a.MarkedDelete = 0 ) d ON a.ProcessStepId = d.Id LEFT JOIN `device_library` " +
-                                                                "e ON a.DeviceId = e.Id WHERE FlowCardId = @Id AND a.MarkedDelete = 0;", new { queryProcessData.Id });
+                                                                "e ON a.DeviceId = e.Id WHERE FlowCardId = @Id AND a.MarkedDelete = 0;", new { queryProcessData.Id }).OrderBy(x => x.ProcessStepOrder);
 
             var processors = ServerConfig.ApiDb.Query<dynamic>("SELECT Id, `ProcessorName` FROM `processor` WHERE MarkedDelete = 0;");
             var surveyors = ServerConfig.ApiDb.Query<dynamic>("SELECT Id, `SurveyorName` FROM `surveyor` WHERE MarkedDelete = 0;");
