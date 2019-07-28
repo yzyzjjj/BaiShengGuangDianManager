@@ -8,6 +8,7 @@ using ModelBase.Models.Result;
 using Newtonsoft.Json.Linq;
 using ServiceStack;
 using System;
+using System.Collections.Generic;
 using System.Linq;
 
 namespace ApiManagement.Controllers
@@ -29,6 +30,8 @@ namespace ApiManagement.Controllers
             public string DeviceId;
             public DateTime StartTime;
             public DateTime EndTime;
+            public DateTime StartTime1;
+            public DateTime EndTime1;
             public string Field;
             //0 小时 - 秒  1 天 - 小时 2 月 天 
             public int DataType;
@@ -36,7 +39,7 @@ namespace ApiManagement.Controllers
             public int Compare;
         }
         /// <summary>
-        /// 趋势图
+        /// 趋势图   机台号对比
         /// </summary>
         /// <returns></returns>
         // POST: api/Statistic/Trend
@@ -52,11 +55,30 @@ namespace ApiManagement.Controllers
                     return Result.GenError<DataResult>(Error.ParamError);
                 }
 
-                var cnt =
-                    ServerConfig.ApiDb.Query<int>("SELECT COUNT(1) FROM `device_library` WHERE Id = @id AND `MarkedDelete` = 0;", new { id = requestBody.DeviceId }).FirstOrDefault();
-                if (cnt == 0)
+                if (requestBody.Compare == 0)
                 {
-                    return Result.GenError<DataResult>(Error.DeviceNotExist);
+                    var cnt =
+                        ServerConfig.ApiDb
+                            .Query<int>(
+                                "SELECT COUNT(1) FROM `device_library` WHERE Id = @id AND `MarkedDelete` = 0;",
+                                new { id = requestBody.DeviceId }).FirstOrDefault();
+                    if (cnt == 0)
+                    {
+                        return Result.GenError<DataResult>(Error.DeviceNotExist);
+                    }
+                }
+                else
+                {
+                    var deviceIds = requestBody.DeviceId.Split(",");
+                    var cnt =
+                        ServerConfig.ApiDb
+                            .Query<int>(
+                                "SELECT COUNT(1) FROM `device_library` WHERE Id IN @id AND `MarkedDelete` = 0;",
+                                new { id = deviceIds }).FirstOrDefault();
+                    if (cnt != deviceIds.Length)
+                    {
+                        return Result.GenError<DataResult>(Error.DeviceNotExist);
+                    }
                 }
 
                 string sql;
@@ -68,8 +90,18 @@ namespace ApiManagement.Controllers
                         #region 0 小时 - 秒
                         startTime = requestBody.StartTime;
                         endTime = requestBody.EndTime;
-                        sql =
-                            "SELECT Id, SendTime, `DATA`, ScriptId FROM `npc_monitoring_analysis` WHERE DeviceId = @DeviceId AND SendTime >= @startTime AND SendTime <= @endTime ORDER BY SendTime";
+
+                        if (requestBody.Compare == 0)
+                        {
+                            sql =
+                                "SELECT Id, SendTime, `Data`, `DeviceId`, ScriptId FROM `npc_monitoring_analysis` WHERE DeviceId = @DeviceId AND SendTime >= @startTime AND SendTime <= @endTime ORDER BY SendTime";
+                        }
+                        else
+                        {
+                            sql =
+                                "SELECT Id, SendTime, `Data`, `DeviceId`, ScriptId FROM `npc_monitoring_analysis` WHERE DeviceId IN @DeviceId AND SendTime >= @startTime AND SendTime <= @endTime ORDER BY SendTime";
+                        }
+
                         break;
                     #endregion
                     case 1:
@@ -78,27 +110,61 @@ namespace ApiManagement.Controllers
                         //endTime = requestBody.EndTime.AddDays(1).DayBeginTime();
                         startTime = requestBody.StartTime.NoMinute();
                         endTime = requestBody.EndTime.NoMinute();
-                        sql =
-                            "SELECT Id, DATE_FORMAT(SendTime, '%Y-%m-%d %H:00:00') SendTime, `DATA`, ScriptId FROM `npc_monitoring_analysis` WHERE DeviceId = @DeviceId AND SendTime >= @startTime AND SendTime <= @endTime GROUP BY DATE(SendTime), HOUR (SendTime) ORDER BY SendTime";
+
+                        if (requestBody.Compare == 0)
+                        {
+                            sql =
+                                "SELECT Id, DATE_FORMAT(SendTime, '%Y-%m-%d %H:00:00') SendTime, `Data`, `DeviceId`, ScriptId FROM `npc_monitoring_analysis` WHERE DeviceId = @DeviceId AND SendTime >= @startTime AND SendTime <= @endTime GROUP BY DATE(SendTime), HOUR (SendTime) ORDER BY SendTime";
+                        }
+                        else
+                        {
+                            sql =
+                                "SELECT Id, DATE_FORMAT(SendTime, '%Y-%m-%d %H:00:00') SendTime, `Data`, `DeviceId`, ScriptId FROM `npc_monitoring_analysis` WHERE DeviceId IN @DeviceId AND SendTime >= @startTime AND SendTime <= @endTime GROUP BY `DeviceId`, DATE(SendTime), HOUR (SendTime) ORDER BY SendTime";
+                        }
+
                         #endregion
                         break;
                     case 2:
                         #region 2 月 天 
                         startTime = requestBody.StartTime.StartOfMonth();
                         endTime = requestBody.EndTime.StartOfNextMonth().DayBeginTime();
-                        sql =
-                            "SELECT Id, DATE(SendTime) SendTime, `DATA`, ScriptId FROM `npc_monitoring_analysis` WHERE DeviceId = @DeviceId AND SendTime >= @startTime AND SendTime <= @endTime GROUP BY DATE(SendTime) ORDER BY SendTime";
+
+                        if (requestBody.Compare == 0)
+                        {
+                            sql =
+                                "SELECT Id, DATE(SendTime) SendTime, `Data`, `DeviceId`, ScriptId FROM `npc_monitoring_analysis` WHERE DeviceId = @DeviceId AND SendTime >= @startTime AND SendTime <= @endTime GROUP BY DATE(SendTime) ORDER BY SendTime";
+
+                        }
+                        else
+                        {
+                            sql =
+                                "SELECT Id, DATE(SendTime) SendTime, `Data`, `DeviceId`, ScriptId FROM `npc_monitoring_analysis` WHERE DeviceId = @DeviceId AND SendTime >= @startTime AND SendTime <= @endTime GROUP BY `DeviceId`, DATE(SendTime) ORDER BY SendTime";
+                        }
                         #endregion
                         break;
                     default: return Result.GenError<DataResult>(Error.ParamError);
                 }
 
-                var data = ServerConfig.ApiDb.Query<MonitoringAnalysis>(sql, new
+                IEnumerable<MonitoringAnalysis> data;
+                if (requestBody.Compare == 0)
                 {
-                    requestBody.DeviceId,
-                    startTime,
-                    endTime
-                }, 60);
+                    data = ServerConfig.ApiDb.Query<MonitoringAnalysis>(sql, new
+                    {
+                        DeviceId = requestBody.DeviceId,
+                        startTime,
+                        endTime
+                    }, 60);
+                }
+                else
+                {
+                    data = ServerConfig.ApiDb.Query<MonitoringAnalysis>(sql, new
+                    {
+                        DeviceId = requestBody.DeviceId.Split(","),
+                        startTime,
+                        endTime
+                    }, 60);
+                }
+
                 var scripts = data.GroupBy(x => x.ScriptId).Select(x => x.Key).ToList();
                 scripts.Add(0);
                 var usuallyDictionaries = ServerConfig.ApiDb.Query<UsuallyDictionary>(
@@ -141,6 +207,202 @@ namespace ApiManagement.Controllers
                 return Result.GenError<DataResult>(Error.ParamError);
             }
         }
+
+        /// <summary>
+        /// 趋势图  时间对比
+        /// </summary>
+        /// <returns></returns>
+        // POST: api/Statistic/Trend
+        [HttpPost("TimeTrend")]
+        public object TimeTrend([FromBody] StatisticRequest requestBody)
+        {
+            try
+            {
+                var fields = requestBody.Field.Split(",").Select(int.Parse);
+                if (!fields.Any())
+                {
+                    return Result.GenError<Result>(Error.ParamError);
+                }
+
+                var cnt =
+                    ServerConfig.ApiDb
+                        .Query<int>(
+                            "SELECT COUNT(1) FROM `device_library` WHERE Id = @id AND `MarkedDelete` = 0;",
+                            new { id = requestBody.DeviceId }).FirstOrDefault();
+                if (cnt == 0)
+                {
+                    return Result.GenError<Result>(Error.DeviceNotExist);
+                }
+
+                string sql;
+                DateTime startTime;
+                DateTime endTime;
+                switch (requestBody.DataType)
+                {
+                    case 0:
+                        #region 0 小时 - 秒
+                        startTime = requestBody.StartTime;
+                        endTime = requestBody.EndTime;
+
+                        sql =
+                            "SELECT Id, SendTime, `Data`, `DeviceId`, ScriptId FROM `npc_monitoring_analysis` WHERE DeviceId = @DeviceId AND SendTime >= @startTime AND SendTime <= @endTime ORDER BY SendTime";
+
+                        break;
+                    #endregion
+                    case 1:
+                        #region 1 天 - 小时
+                        //startTime = requestBody.StartTime.DayBeginTime();
+                        //endTime = requestBody.EndTime.AddDays(1).DayBeginTime();
+                        startTime = requestBody.StartTime.NoMinute();
+                        endTime = requestBody.EndTime.NoMinute();
+
+                        sql =
+                            "SELECT Id, DATE_FORMAT(SendTime, '%Y-%m-%d %H:00:00') SendTime, `Data`, `DeviceId`, ScriptId FROM `npc_monitoring_analysis` WHERE DeviceId = @DeviceId AND SendTime >= @startTime AND SendTime <= @endTime GROUP BY DATE(SendTime), HOUR (SendTime) ORDER BY SendTime";
+
+                        #endregion
+                        break;
+                    case 2:
+                        #region 2 月 天 
+                        startTime = requestBody.StartTime.StartOfMonth();
+                        endTime = requestBody.EndTime.StartOfNextMonth().DayBeginTime();
+
+                        sql =
+                            "SELECT Id, DATE(SendTime) SendTime, `Data`, `DeviceId`, ScriptId FROM `npc_monitoring_analysis` WHERE DeviceId = @DeviceId AND SendTime >= @startTime AND SendTime <= @endTime GROUP BY DATE(SendTime) ORDER BY SendTime";
+
+                        #endregion
+                        break;
+                    default: return Result.GenError<Result>(Error.ParamError);
+                }
+
+                var data1 = ServerConfig.ApiDb.Query<MonitoringAnalysis>(sql, new
+                {
+                    DeviceId = requestBody.DeviceId,
+                    startTime,
+                    endTime
+                }, 60);
+
+                switch (requestBody.DataType)
+                {
+                    case 0:
+                        #region 0 小时 - 秒
+                        startTime = requestBody.StartTime1;
+                        endTime = requestBody.EndTime1;
+
+                        sql =
+                            "SELECT Id, SendTime, `Data`, `DeviceId`, ScriptId FROM `npc_monitoring_analysis` WHERE DeviceId = @DeviceId AND SendTime >= @startTime AND SendTime <= @endTime ORDER BY SendTime";
+
+                        break;
+                    #endregion
+                    case 1:
+                        #region 1 天 - 小时
+                        //startTime = requestBody.StartTime.DayBeginTime();
+                        //endTime = requestBody.EndTime.AddDays(1).DayBeginTime();
+                        startTime = requestBody.StartTime1.NoMinute();
+                        endTime = requestBody.EndTime1.NoMinute();
+
+                        sql =
+                            "SELECT Id, DATE_FORMAT(SendTime, '%Y-%m-%d %H:00:00') SendTime, `Data`, `DeviceId`, ScriptId FROM `npc_monitoring_analysis` WHERE DeviceId = @DeviceId AND SendTime >= @startTime AND SendTime <= @endTime GROUP BY DATE(SendTime), HOUR (SendTime) ORDER BY SendTime";
+
+                        #endregion
+                        break;
+                    case 2:
+                        #region 2 月 天 
+                        startTime = requestBody.StartTime1.StartOfMonth();
+                        endTime = requestBody.EndTime1.StartOfNextMonth().DayBeginTime();
+
+                        sql =
+                            "SELECT Id, DATE(SendTime) SendTime, `Data`, `DeviceId`, ScriptId FROM `npc_monitoring_analysis` WHERE DeviceId = @DeviceId AND SendTime >= @startTime AND SendTime <= @endTime GROUP BY DATE(SendTime) ORDER BY SendTime";
+
+                        #endregion
+                        break;
+                    default: return Result.GenError<Result>(Error.ParamError);
+                }
+
+                var data2 = ServerConfig.ApiDb.Query<MonitoringAnalysis>(sql, new
+                {
+                    DeviceId = requestBody.DeviceId,
+                    startTime,
+                    endTime
+                }, 60);
+
+                var scripts = data1.GroupBy(x => x.ScriptId).Select(x => x.Key).ToList();
+                scripts.AddRange(data2.GroupBy(x => x.ScriptId).Select(x => x.Key).ToList());
+                scripts.Add(0);
+                var usuallyDictionaries = ServerConfig.ApiDb.Query<UsuallyDictionary>(
+                    "SELECT a.VariableNameId, a.ScriptId, a.DictionaryId FROM `usually_dictionary` a JOIN `usually_dictionary_type` b ON a.VariableNameId = b.Id " +
+                    "WHERE StatisticType = 1 AND a.VariableNameId IN @VariableNameId AND a.ScriptId IN @ScriptId;", new
+                    {
+                        ScriptId = scripts,
+                        VariableNameId = fields,
+                    });
+                var rData1 = new List<object>();
+                var rData2 = new List<object>();
+                if (usuallyDictionaries != null && usuallyDictionaries.Any())
+                {
+                    foreach (var da in data1)
+                    {
+                        var jObject = new JObject();
+                        jObject["time"] = da.SendTime;
+                        foreach (var field in fields)
+                        {
+                            var key = "v" + field;
+                            jObject[key] = 0;
+                            var analysisData = da.AnalysisData;
+                            if (analysisData != null)
+                            {
+                                //今日加工次数
+                                var udd = usuallyDictionaries.FirstOrDefault(x =>
+                                     x.ScriptId == da.ScriptId && x.VariableNameId == field);
+                                var address = udd?.DictionaryId ?? usuallyDictionaries.First(x => x.ScriptId == 0 && x.VariableNameId == field).DictionaryId;
+                                var actAddress = address - 1;
+                                var v = analysisData.vals[actAddress];
+                                jObject[key] = v;
+                            }
+                        }
+                        rData1.Add(jObject);
+                    }
+
+                    foreach (var da in data2)
+                    {
+                        var jObject = new JObject();
+                        jObject["time"] = da.SendTime;
+                        foreach (var field in fields)
+                        {
+                            var key = "v" + field;
+                            jObject[key] = 0;
+                            var analysisData = da.AnalysisData;
+                            if (analysisData != null)
+                            {
+                                //今日加工次数
+                                var udd = usuallyDictionaries.FirstOrDefault(x =>
+                                    x.ScriptId == da.ScriptId && x.VariableNameId == field);
+                                var address = udd?.DictionaryId ?? usuallyDictionaries.First(x => x.ScriptId == 0 && x.VariableNameId == field).DictionaryId;
+                                var actAddress = address - 1;
+                                var v = analysisData.vals[actAddress];
+                                jObject[key] = v;
+                            }
+                        }
+                        rData2.Add(jObject);
+                    }
+                }
+
+                return new
+                {
+                    errno = 0,
+                    errmsg = "成功",
+                    data1 = rData1,
+                    data2 = rData2,
+                };
+            }
+            catch (Exception e)
+            {
+                return Result.GenError<Result>(Error.ParamError);
+            }
+        }
+
+
+
+
 
         /// <summary>
         /// 趋势图 流程卡
@@ -339,7 +601,7 @@ namespace ApiManagement.Controllers
                             {
                                 processSql =
                                     "SELECT `Time`, `DeviceId`, `ProcessCount`, `TotalProcessCount`, `ProcessTime`, `TotalProcessTime`, `State`, `Rate`, `Use`, `Total` FROM `npc_monitoring_process` " +
-                                    "WHERE DeviceId IN @DeviceId AND Time >= @startTime AND Time <= @endTime GROUP BY DeviceId ,Time ORDER BY Time";
+                                    "WHERE DeviceId IN @DeviceId AND Time >= @startTime AND Time <= @endTime ORDER BY Time";
                             }
                         }
 
