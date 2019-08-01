@@ -16,11 +16,13 @@ namespace ApiManagement.Base.Helper
 {
     public class FlowCardHelper
     {
-        private static Timer _time;
-        private static DateTime _starTime = DateTime.Now.DayBeginTime();
+        private static Timer _insertTimer;
+        private static Timer _updateTimer;
+        private static int _id = 0;
         private static string _createUserId = "ErpSystem";
         private static string _url = "";
-        private static bool isDeal;
+        private static bool isInsert;
+        private static bool isUpdate;
         private static Dictionary<string, string> _processStepName = new Dictionary<string, string>
         {
             {"线切割", "线切割"},
@@ -33,78 +35,58 @@ namespace ApiManagement.Base.Helper
         public static void Init(IConfiguration configuration)
         {
             _url = configuration.GetAppSettings<string>("ErpUrl");
-            _time = new Timer(Call, null, 5000, 1000 * 60 * 1);
+            _insertTimer = new Timer(Insert, null, 5000, 1000 * 60 * 1);
+            _updateTimer = new Timer(Update, null, 5000, 1000 * 60 * 1);
         }
-        private static void Call(object state)
+
+        private static void Update(object state)
         {
-            if (isDeal)
+            if (isUpdate)
             {
                 return;
             }
 
-            isDeal = true;
-            var sTime =
-                ServerConfig.ApiDb.Query<string>("SELECT `CreateTime` FROM `flowcard_library` ORDER BY CreateTime DESC LIMIT 1;").FirstOrDefault();
-            if (!sTime.IsNullOrEmpty())
+            isUpdate = true;
+            var sId =
+                ServerConfig.ApiDb.Query<int>("SELECT FId FROM `flowcard_library` WHERE FId != 0 AND DATE(CreateTime) = @Time ORDER BY CreateTime LIMIT 1;", new
+                {
+                    Time = DateTime.Today.AddDays(-1)
+                }).FirstOrDefault();
+
+            if (sId != 0)
             {
-                _starTime = DateTime.Parse(sTime);
+                UpdateData(sId - 1);
             }
-            var queryTime1 = _starTime.AddSeconds(1);
-            var queryTime2 = DateTime.Now;
-            var r = GetData(queryTime1, queryTime2);
-            _starTime = !r ? queryTime1 : queryTime2;
-            isDeal = false;
+            isUpdate = false;
         }
 
-        public class ErpFlowCard
+        private static void Insert(object state)
         {
-            public int f_id;
-            public string f_lckh;
-            public string f_jhh;
-            public string f_mate;
-            public DateTime f_inserttime;
-            public int f_bz;
-        }
+            if (isInsert)
+            {
+                return;
+            }
 
-        public class ErpRelation
-        {
-            public int id;
-            public string abbre;
-            public string name;
-        }
+            isInsert = true;
+            var sId =
+                ServerConfig.ApiDb.Query<int>("SELECT `FId` FROM `flowcard_library` ORDER BY FId DESC LIMIT 1;").FirstOrDefault();
 
-        public class ErpRes
-        {
-            public string result;
-            public List<ErpFlowCard> data;
-            public ErpRelation[] relation;
+            var queryId1 = _id;
+            var queryId2 = sId;
+            var r = InsertData(queryId2);
+            _id = !r ? queryId1 : queryId2;
+            isInsert = false;
         }
-
-
-        /// <summary>
-        /// 计划号工序
-        /// </summary>
-        public class ErpGx
-        {
-            public string n;
-            public string v;
-        }
-        public class ErpJhhGx
-        {
-            public string jhh;
-            public ErpGx[] gx;
-        }
-        private static bool GetData(DateTime starTime, DateTime endTime)
+        private static bool InsertData(int id)
         {
             var f = HttpServer.Get(_url, new Dictionary<string, string>
             {
                 { "type", "getHairpin" },
-                { "t1", starTime.ToStr()},
-                { "t2", endTime.ToStr()},
+                { "id", id.ToString()},
             });
             if (f == "fail")
             {
-                Log.ErrorFormat("请求erp获取流程卡数据失败,url:{0}", _url);
+                Log.ErrorFormat("InsertData 请求erp获取流程卡数据失败,url:{0}", _url);
                 return false;
             }
 
@@ -115,7 +97,7 @@ namespace ApiManagement.Base.Helper
                 var res = JsonConvert.DeserializeObject<ErpRes>(rr);
                 if (res.result != "ok")
                 {
-                    Log.ErrorFormat("请求erp获取流程卡数据返回错误,原因:{0}", res.result);
+                    Log.ErrorFormat("InsertData 请求erp获取流程卡数据返回错误,原因:{0}", res.result);
                     return false;
                 }
 
@@ -198,7 +180,7 @@ namespace ApiManagement.Base.Helper
                     });
                     if (ff == "fail")
                     {
-                        Log.ErrorFormat("请求erp获取计划号工序数据失败,url:{0}", _url);
+                        Log.ErrorFormat("InsertData 请求erp获取计划号工序数据失败,url:{0}", _url);
                         return false;
                     }
                     var rrr = HttpUtility.UrlDecode(ff);
@@ -253,7 +235,8 @@ namespace ApiManagement.Base.Helper
                 }
 
                 //流程卡
-                var erpFlowCardLibraries = r.ToDictionary(x => $"{x.f_bz:d2}{x.f_lckh}");
+                //var erpFlowCardLibraries = r.ToDictionary(x => $"{x.f_bz:d2}{x.f_lckh}");
+                var erpFlowCardLibraries = r.ToDictionary(x => x.f_lckh);
 
                 var fcIds = new List<int>();
                 fcIds.AddRange(ServerConfig.ApiDb.Query<int>("SELECT Id FROM `flowcard_library` WHERE FlowCardName IN @FlowCardName;", new
@@ -290,19 +273,24 @@ namespace ApiManagement.Base.Helper
                 var newFlowCardLibraries = erpFlowCardLibraries.Where(x => !flowCardLibraries.ContainsKey(x.Key)).ToDictionary(x => x.Key, x => x.Value);
                 var newFc = newFlowCardLibraries.OrderBy(x => x.Value.f_id).Select(x => new FlowCardLibrary
                 {
+                    FId = x.Value.f_id,
                     CreateUserId = _createUserId,
                     MarkedDateTime = now,
                     FlowCardName = x.Key,
                     ProductionProcessId = productionLibraries[x.Value.f_jhh].Id,
                     RawMateriaId = rawMaterias[x.Value.f_mate].Id,
                     CreateTime = x.Value.f_inserttime,
-                    WorkshopId = x.Value.f_bz
+                    WorkshopId = x.Value.f_bz,
+                    RawMaterialQuantity = int.Parse(x.Value.f_qty),
+                    Sender = x.Value.f_fcygbh,
+                    InboundNum = x.Value.f_rkxh,
+                    Remarks = x.Value.f_note
                 });
                 var newFcTmp = new List<FlowCardLibrary>();
                 newFcTmp.AddRange(newFc);
                 ServerConfig.ApiDb.Execute(
-                    "INSERT INTO flowcard_library (`CreateUserId`, `MarkedDateTime`, `MarkedDelete`, `ModifyId`, `FlowCardName`, `ProductionProcessId`, `RawMateriaId`, `RawMaterialQuantity`, `Sender`, `InboundNum`, `Remarks`, `Priority`, `CreateTime`, `WorkshopId`) " +
-                    "VALUES (@CreateUserId, @MarkedDateTime, @MarkedDelete, @ModifyId, @FlowCardName, @ProductionProcessId, @RawMateriaId, @RawMaterialQuantity, @Sender, @InboundNum, @Remarks, @Priority, @CreateTime, @WorkshopId);",
+                    "INSERT INTO flowcard_library (`CreateUserId`, `MarkedDateTime`, `MarkedDelete`, `ModifyId`, `FlowCardName`, `ProductionProcessId`, `RawMateriaId`, `RawMaterialQuantity`, `Sender`, `InboundNum`, `Remarks`, `Priority`, `CreateTime`, `WorkshopId`, `FId`) " +
+                    "VALUES (@CreateUserId, @MarkedDateTime, @MarkedDelete, @ModifyId, @FlowCardName, @ProductionProcessId, @RawMateriaId, @RawMaterialQuantity, @Sender, @InboundNum, @Remarks, @Priority, @CreateTime, @WorkshopId, @FId);",
                     newFc);
 
                 //流程卡更新
@@ -346,12 +334,89 @@ namespace ApiManagement.Base.Helper
             }
             catch (Exception e)
             {
-                Log.ErrorFormat("erp数据解析失败,原因:{0},错误:{1}", e.Message, e.StackTrace);
+                Log.ErrorFormat("InsertData erp数据解析失败,原因:{0},错误:{1}", e.Message, e.StackTrace);
                 return false;
             }
             return true;
 
         }
+        private static void UpdateData(int id)
+        {
+            var f = HttpServer.Get(_url, new Dictionary<string, string>
+            {
+                { "type", "getHairpin" },
+                { "id", id.ToString()},
+            });
+            if (f == "fail")
+            {
+                Log.ErrorFormat("UpdateData 请求erp获取流程卡数据失败,url:{0}", _url);
+                return;
+            }
+
+            try
+            {
+                var rr = HttpUtility.UrlDecode(f);
+                var res = JsonConvert.DeserializeObject<ErpRes>(rr);
+                if (res.result != "ok")
+                {
+                    Log.ErrorFormat("UpdateData 请求erp获取流程卡数据返回错误,原因:{0}", res.result);
+                    return;
+                }
+
+                var r = res.data;
+                if (r.Count <= 0)
+                {
+                    return;
+                }
+
+                //流程卡
+                //var erpFlowCardLibraries = r.ToDictionary(x => $"{x.f_bz:d2}{x.f_lckh}");
+                var erpFlowCardLibraries = r.ToDictionary(x => x.f_lckh);
+
+                var flowCardLibraries = ServerConfig.ApiDb.Query<FlowCardLibrary>("SELECT * FROM `flowcard_library` WHERE `MarkedDelete` = 0 AND FID > @fid;", new
+                {
+                    fid = id
+                });
+
+                var update = new List<FlowCardLibrary>();
+                foreach (var flowCardLibrary in flowCardLibraries)
+                {
+                    if (erpFlowCardLibraries.ContainsKey(flowCardLibrary.FlowCardName))
+                    {
+                        var erpFlowCardLibrary = erpFlowCardLibraries[flowCardLibrary.FlowCardName];
+                        if (flowCardLibrary.Sender != erpFlowCardLibrary.f_fcygbh
+                            || flowCardLibrary.RawMaterialQuantity != int.Parse(erpFlowCardLibrary.f_qty)
+                            || flowCardLibrary.InboundNum != erpFlowCardLibrary.f_rkxh
+                            || flowCardLibrary.Remarks != erpFlowCardLibrary.f_note)
+                        {
+                            flowCardLibrary.Sender = erpFlowCardLibrary.f_fcygbh;
+                            flowCardLibrary.RawMaterialQuantity = int.Parse(erpFlowCardLibrary.f_qty);
+                            flowCardLibrary.InboundNum = erpFlowCardLibrary.f_rkxh;
+                            flowCardLibrary.Remarks = erpFlowCardLibrary.f_note;
+                            update.Add(flowCardLibrary);
+                        }
+                    }
+                    else
+                    {
+                        flowCardLibrary.MarkedDelete = true;
+                        update.Add(flowCardLibrary);
+                    }
+                }
+                ServerConfig.ApiDb.Execute(
+                    "UPDATE flowcard_library SET `MarkedDelete` = @MarkedDelete, `RawMaterialQuantity` = @RawMaterialQuantity, `Sender` = @Sender, " +
+                    "`InboundNum` = @InboundNum, `Remarks` = @Remarks WHERE `Id` = @Id;", update);
+
+            }
+            catch (Exception e)
+            {
+                Log.ErrorFormat("UpdateData erp数据解析失败,原因:{0},错误:{1}", e.Message, e.StackTrace);
+                return;
+            }
+
+            return;
+        }
+
+
 
         public static decimal GetMid(string value)
         {
@@ -446,6 +511,80 @@ namespace ApiManagement.Base.Helper
             }
 
             return p.ToRound(4);
+        }
+
+        public class ErpFlowCard
+        {
+            public int f_id;
+            /// <summary>
+            /// 流程卡号
+            /// </summary>
+            public string f_lckh;
+            /// <summary>
+            /// 计划号
+            /// </summary>
+            public string f_jhh;
+            /// <summary>
+            /// 原料
+            /// </summary>
+            public string f_mate;
+            /// <summary>
+            /// 发出厚度
+            /// </summary>
+            public string f_fchd;
+            /// <summary>
+            /// 发出数
+            /// </summary>
+            public string f_qty;
+            /// <summary>
+            /// 发出人
+            /// </summary>
+            public string f_fcygbh;
+            /// <summary>
+            /// 入库序号
+            /// </summary>
+            public string f_rkxh;
+            /// <summary>
+            /// 备注
+            /// </summary>
+            public string f_note;
+            /// <summary>
+            /// 
+            /// </summary>
+            public DateTime f_inserttime;
+            /// <summary>
+            /// 
+            /// </summary>
+            public int f_bz;
+        }
+
+        public class ErpRelation
+        {
+            public int id;
+            public string abbre;
+            public string name;
+        }
+
+        public class ErpRes
+        {
+            public string result;
+            public List<ErpFlowCard> data;
+            public ErpRelation[] relation;
+        }
+
+
+        /// <summary>
+        /// 计划号工序
+        /// </summary>
+        public class ErpGx
+        {
+            public string n;
+            public string v;
+        }
+        public class ErpJhhGx
+        {
+            public string jhh;
+            public ErpGx[] gx;
         }
     }
 }

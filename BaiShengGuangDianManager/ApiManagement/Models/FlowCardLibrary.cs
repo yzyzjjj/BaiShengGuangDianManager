@@ -6,6 +6,7 @@ namespace ApiManagement.Models
     public class FlowCardLibrary
     {
         public int Id { get; set; }
+        public int FId { get; set; }
         public string CreateUserId { get; set; }
         public DateTime MarkedDateTime { get; set; }
         public bool MarkedDelete { get; set; }

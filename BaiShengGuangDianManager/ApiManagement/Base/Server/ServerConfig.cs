@@ -1,4 +1,5 @@
 ﻿using ApiManagement.Base.Helper;
+using ApiManagement.Models.Analysis;
 using Microsoft.Extensions.Configuration;
 using ModelBase.Base.Dapper;
 using ModelBase.Base.Logger;
@@ -12,6 +13,7 @@ namespace ApiManagement.Base.Server
         public static DataBase DataStorageDb;
         public static string GateUrl;
         public static RedisCacheHelper RedisHelper;
+        public static MonitoringKanban MonitoringKanban;
         public static void Init(IConfiguration configuration)
         {
             ApiDb = new DataBase(configuration.GetConnectionString("ApiDb"));

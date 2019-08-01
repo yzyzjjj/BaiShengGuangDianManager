@@ -20,6 +20,22 @@ namespace ApiManagement.Controllers
     [ApiController]
     public class StatisticController : ControllerBase
     {
+        /// <summary>
+        /// 看板数据
+        /// </summary>
+        /// <returns></returns>
+        // POST: api/Statistic/Kanban
+        [HttpGet("Kanban")]
+        public object Kanban()
+        {
+            return new
+            {
+                errno = 0,
+                errmsg = "成功",
+                data = ServerConfig.MonitoringKanban
+            };
+        }
+
         public class StatisticRequest
         {
             //流程卡趋势图

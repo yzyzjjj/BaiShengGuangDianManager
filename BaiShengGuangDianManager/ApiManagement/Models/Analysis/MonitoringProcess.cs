@@ -6,6 +6,7 @@ namespace ApiManagement.Models.Analysis
     {
         public DateTime Time { get; set; }
         public int DeviceId { get; set; }
+        public string Code { get; set; }
         public int DeviceCategoryId { get; set; }
         public int State { get; set; }
         public int FlowCardId { get; set; }
@@ -25,6 +26,14 @@ namespace ApiManagement.Models.Analysis
         /// 总加工时间(秒）
         /// </summary>
         public int TotalProcessTime { get; set; }
+        /// <summary>
+        /// 今日运行时间(秒）
+        /// </summary>
+        public int RunTime { get; set; }
+        /// <summary>
+        /// 总运行时间(秒）
+        /// </summary>
+        public int TotalRunTime { get; set; }
         /// <summary>
         /// 使用台数
         /// </summary>
