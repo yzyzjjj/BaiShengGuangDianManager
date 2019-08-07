@@ -23,5 +23,6 @@ namespace ApiManagement.Models
     public class RepairRecordDetail : RepairRecord
     {
         public string FaultTypeName { get; set; }
+        public string SiteName { get; set; }
     }
 }

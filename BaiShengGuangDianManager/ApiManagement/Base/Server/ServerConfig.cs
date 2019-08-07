@@ -22,7 +22,7 @@ namespace ApiManagement.Base.Server
             GlobalConfig.LoadGlobalConfig();
             RedisHelper = new RedisCacheHelper(configuration);
             FlowCardHelper.Init(configuration);
-            DataStorageHelper.Init(configuration);
+            AnalysisHelper.Init(configuration);
             Log.InfoFormat("ServerConfig Done");
         }
     }

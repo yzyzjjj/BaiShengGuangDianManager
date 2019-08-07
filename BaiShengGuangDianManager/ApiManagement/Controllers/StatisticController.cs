@@ -42,6 +42,7 @@ namespace ApiManagement.Controllers
             public int FlowCardId = 0;
             public int Order;
 
+            public string WorkshopName;
             //加工记录 0 = 所有    对比图 1,2,3
             public string DeviceId;
             public DateTime StartTime;
@@ -416,10 +417,6 @@ namespace ApiManagement.Controllers
             }
         }
 
-
-
-
-
         /// <summary>
         /// 趋势图 流程卡
         /// </summary>
@@ -560,6 +557,7 @@ namespace ApiManagement.Controllers
             var result = new DataResult();
             try
             {
+                IEnumerable<int> siteIds = null;
                 if (requestBody.DeviceId != "0")
                 {
                     if (requestBody.Compare == 0)
@@ -588,22 +586,41 @@ namespace ApiManagement.Controllers
                         }
                     }
                 }
-
+                else
+                {
+                    if (requestBody.WorkshopName != "")
+                    {
+                        siteIds = ServerConfig.ApiDb.Query<int>(
+                            "SELECT Id FROM `site` WHERE MarkedDelete = 0 AND SiteName = @SiteName;", new
+                            {
+                                SiteName = requestBody.WorkshopName
+                            });
+                    }
+                }
                 string processSql;
                 DateTime startTime;
                 DateTime endTime;
+
                 switch (requestBody.DataType)
                 {
                     case 0:
-
                         #region 0 小时 - 秒
                         startTime = requestBody.StartTime;
                         endTime = requestBody.EndTime;
                         if (requestBody.DeviceId == "0")
                         {
-                            processSql =
-                                " SELECT `Time`, SUM(`ProcessCount`) `ProcessCount`, SUM(`TotalProcessCount`) `TotalProcessCount`, SUM(`ProcessTime`) `ProcessTime`, SUM(`TotalProcessTime`) " +
-                                "`TotalProcessTime`, SUM(IF(`State` = 1, 1, 0)) `State`, `Rate`, `Use`, `Total` FROM `npc_monitoring_process` WHERE Time >= @startTime AND Time <= @endTime GROUP BY Time ORDER BY Time;";
+                            if (requestBody.WorkshopName != "")
+                            {
+                                processSql =
+                                    " SELECT `Time`, SUM(`ProcessCount`) `ProcessCount`, SUM(`TotalProcessCount`) `TotalProcessCount`, SUM(`ProcessTime`) `ProcessTime`, SUM(`TotalProcessTime`) " +
+                                    "`TotalProcessTime`, SUM(IF(`State` = 1, 1, 0)) `State`, `Rate`, `Use`, `Total` FROM `npc_monitoring_process` WHERE DeviceId IN @DeviceId AND Time >= @startTime AND Time <= @endTime GROUP BY Time ORDER BY Time;";
+                            }
+                            else
+                            {
+                                processSql =
+                                    " SELECT `Time`, SUM(`ProcessCount`) `ProcessCount`, SUM(`TotalProcessCount`) `TotalProcessCount`, SUM(`ProcessTime`) `ProcessTime`, SUM(`TotalProcessTime`) " +
+                                    "`TotalProcessTime`, SUM(IF(`State` = 1, 1, 0)) `State`, `Rate`, `Use`, `Total` FROM `npc_monitoring_process` WHERE Time >= @startTime AND Time <= @endTime GROUP BY Time ORDER BY Time;";
+                            }
                         }
                         else
                         {
@@ -624,20 +641,28 @@ namespace ApiManagement.Controllers
                         break;
 
                     #endregion
-
                     case 1:
-
                         #region 1 天 - 小时
-
                         startTime = requestBody.StartTime.DayBeginTime();
                         endTime = requestBody.EndTime.AddDays(1).DayBeginTime();
                         if (requestBody.DeviceId == "0")
                         {
-                            processSql =
-                                "SELECT DATE_FORMAT(Time, '%Y-%m-%d %H:00:00') Time, SUM(`ProcessCount`) `ProcessCount`, SUM(`TotalProcessCount`) `TotalProcessCount`, " +
-                                "SUM(`ProcessTime`) `ProcessTime`, SUM(`TotalProcessTime`) `TotalProcessTime`, SUM(IF(`State` = 1, 1, 0)) `State`, `Rate`, `Use`, `Total` FROM ( SELECT * FROM " +
-                                "( SELECT * FROM `npc_monitoring_process` WHERE Time >= @startTime AND Time <= @endTime ORDER BY Time DESC ) " +
-                                "a GROUP BY DeviceId, DATE(Time), HOUR (Time) ORDER BY Time ) a GROUP BY Time ORDER BY Time;";
+                            if (requestBody.WorkshopName != "")
+                            {
+                                processSql =
+                                    "SELECT DATE_FORMAT(Time, '%Y-%m-%d %H:00:00') Time, SUM(`ProcessCount`) `ProcessCount`, SUM(`TotalProcessCount`) `TotalProcessCount`, " +
+                                    "SUM(`ProcessTime`) `ProcessTime`, SUM(`TotalProcessTime`) `TotalProcessTime`, SUM(IF(`State` = 1, 1, 0)) `State`, `Rate`, `Use`, `Total` FROM ( SELECT * FROM " +
+                                    "( SELECT * FROM `npc_monitoring_process` WHERE DeviceId IN @DeviceId AND Time >= @startTime AND Time <= @endTime ORDER BY Time DESC ) " +
+                                    "a GROUP BY DeviceId, DATE(Time), HOUR (Time) ORDER BY Time ) a GROUP BY Time ORDER BY Time;";
+                            }
+                            else
+                            {
+                                processSql =
+                                    "SELECT DATE_FORMAT(Time, '%Y-%m-%d %H:00:00') Time, SUM(`ProcessCount`) `ProcessCount`, SUM(`TotalProcessCount`) `TotalProcessCount`, " +
+                                    "SUM(`ProcessTime`) `ProcessTime`, SUM(`TotalProcessTime`) `TotalProcessTime`, SUM(IF(`State` = 1, 1, 0)) `State`, `Rate`, `Use`, `Total` FROM ( SELECT * FROM " +
+                                    "( SELECT * FROM `npc_monitoring_process` WHERE Time >= @startTime AND Time <= @endTime ORDER BY Time DESC ) " +
+                                    "a GROUP BY DeviceId, DATE(Time), HOUR (Time) ORDER BY Time ) a GROUP BY Time ORDER BY Time;";
+                            }
                         }
                         else
                         {
@@ -658,20 +683,27 @@ namespace ApiManagement.Controllers
                         }
 
                         #endregion
-
                         break;
                     case 2:
-
                         #region 2 月 天 
-
                         startTime = requestBody.StartTime.StartOfMonth();
                         endTime = requestBody.EndTime.StartOfNextMonth().DayBeginTime();
                         if (requestBody.DeviceId == "0")
                         {
-                            processSql =
-                                "SELECT DATE(Time) Time, SUM(`ProcessCount`) `ProcessCount`, SUM(`TotalProcessCount`) `TotalProcessCount`, SUM(`ProcessTime`) `ProcessTime`, " +
-                                "SUM(`TotalProcessTime`) `TotalProcessTime`, SUM(IF(`State` = 1, 1, 0)) `State`, `Rate`, `Use`, `Total` FROM ( SELECT * FROM ( SELECT * FROM `npc_monitoring_process` " +
-                                "WHERE Time >= @startTime AND Time <= @endTime ORDER BY Time DESC ) a GROUP BY DeviceId, DATE(Time) ORDER BY Time ) a GROUP BY Time ORDER BY Time;";
+                            if (requestBody.WorkshopName != "")
+                            {
+                                processSql =
+                                    "SELECT DATE(Time) Time, SUM(`ProcessCount`) `ProcessCount`, SUM(`TotalProcessCount`) `TotalProcessCount`, SUM(`ProcessTime`) `ProcessTime`, " +
+                                    "SUM(`TotalProcessTime`) `TotalProcessTime`, SUM(IF(`State` = 1, 1, 0)) `State`, `Rate`, `Use`, `Total` FROM ( SELECT * FROM ( SELECT * FROM `npc_monitoring_process` " +
+                                    "WHERE DeviceId IN @DeviceId AND Time >= @startTime AND Time <= @endTime ORDER BY Time DESC ) a GROUP BY DeviceId, DATE(Time) ORDER BY Time ) a GROUP BY Time ORDER BY Time;";
+                            }
+                            else
+                            {
+                                processSql =
+                                    "SELECT DATE(Time) Time, SUM(`ProcessCount`) `ProcessCount`, SUM(`TotalProcessCount`) `TotalProcessCount`, SUM(`ProcessTime`) `ProcessTime`, " +
+                                    "SUM(`TotalProcessTime`) `TotalProcessTime`, SUM(IF(`State` = 1, 1, 0)) `State`, `Rate`, `Use`, `Total` FROM ( SELECT * FROM ( SELECT * FROM `npc_monitoring_process` " +
+                                    "WHERE Time >= @startTime AND Time <= @endTime ORDER BY Time DESC ) a GROUP BY DeviceId, DATE(Time) ORDER BY Time ) a GROUP BY Time ORDER BY Time;";
+                            }
                         }
                         else
                         {
@@ -690,16 +722,15 @@ namespace ApiManagement.Controllers
                         }
 
                         #endregion
-
                         break;
                     default: return Result.GenError<DataResult>(Error.ParamError);
                 }
 
-                if (requestBody.Compare == 0)
+                if (requestBody.DeviceId == "0")
                 {
                     var data = ServerConfig.ApiDb.Query<MonitoringProcess>(processSql, new
                     {
-                        DeviceId = requestBody.DeviceId,
+                        DeviceId = siteIds,
                         startTime,
                         endTime
                     }, 60);
@@ -707,13 +738,26 @@ namespace ApiManagement.Controllers
                 }
                 else
                 {
-                    var data = ServerConfig.ApiDb.Query<MonitoringProcess>(processSql, new
+                    if (requestBody.Compare == 0)
                     {
-                        DeviceId = requestBody.DeviceId.Split(","),
-                        startTime,
-                        endTime
-                    }, 60);
-                    result.datas.AddRange(data);
+                        var data = ServerConfig.ApiDb.Query<MonitoringProcess>(processSql, new
+                        {
+                            DeviceId = requestBody.DeviceId,
+                            startTime,
+                            endTime
+                        }, 60);
+                        result.datas.AddRange(data);
+                    }
+                    else
+                    {
+                        var data = ServerConfig.ApiDb.Query<MonitoringProcess>(processSql, new
+                        {
+                            DeviceId = requestBody.DeviceId.Split(","),
+                            startTime,
+                            endTime
+                        }, 60);
+                        result.datas.AddRange(data);
+                    }
                 }
                 return result;
             }
@@ -722,5 +766,53 @@ namespace ApiManagement.Controllers
                 return Result.GenError<DataResult>(Error.ParamError);
             }
         }
+
+        /// <summary>
+        /// 故障统计
+        /// </summary>
+        /// <returns></returns>
+        // POST: api/Statistic/Fault
+        [HttpPost("Fault")]
+        public DataResult Fault([FromBody] StatisticRequest requestBody)
+        {
+            var result = new DataResult();
+            try
+            {
+                var startTime = requestBody.StartTime.DayBeginTime();
+                var endTime = requestBody.EndTime.AddDays(1).DayBeginTime();
+                string processSql;
+                if (requestBody.WorkshopName != "")
+                {
+                    var cnt = ServerConfig.ApiDb.Query<int>(
+                        "SELECT COUNT(1) FROM `site` WHERE MarkedDelete = 0 AND SiteName = @SiteName;", new
+                        {
+                            SiteName = requestBody.WorkshopName
+                        }).FirstOrDefault();
+                    if (cnt <= 0)
+                    {
+                        return Result.GenError<DataResult>(Error.WorkshopNotExist);
+                    }
+
+                    processSql = "SELECT * FROM `npc_monitoring_fault` WHERE Date >= @Date1 AND Date < @Date2 AND Workshop = @Workshop;";
+                }
+                else
+                {
+                    processSql = "SELECT * FROM `npc_monitoring_fault` WHERE Date >= @Date1 AND Date < @Date2;";
+                }
+                var data = ServerConfig.ApiDb.Query<MonitoringFault>(processSql, new
+                {
+                    Workshop = requestBody.WorkshopName,
+                    Date1 = startTime,
+                    Date2 = endTime
+                }, 60).OrderBy(x => x.Date);
+                result.datas.AddRange(data);
+                return result;
+            }
+            catch (Exception e)
+            {
+                return Result.GenError<DataResult>(Error.ParamError);
+            }
+        }
+
     }
 }

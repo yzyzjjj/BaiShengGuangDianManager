@@ -24,61 +24,72 @@ namespace ApiManagement.Controllers
     {
         // GET: api/DeviceLibrary
         [HttpGet]
-        public DataResult GetDeviceLibrary()
+        public DataResult GetDeviceLibrary([FromQuery] bool hard = false)
         {
-            var result = new DataResult();
-            var deviceLibraryDetails = ServerConfig.ApiDb.Query<DeviceLibraryDetail>(
-                "SELECT a.*, b.ModelName, b.DeviceCategoryId, b.CategoryName, c.FirmwareName, d.ApplicationName, e.HardwareName, f.SiteName, f.RegionDescription, g.ScriptName FROM device_library a " +
-                "JOIN (SELECT a.*, b.CategoryName FROM device_model a JOIN device_category b ON a.DeviceCategoryId = b.Id) b ON a.DeviceModelId = b.Id " +
-                "JOIN firmware_library c ON a.FirmwareId = c.Id " +
-                "JOIN application_library d ON a.ApplicationId = d.Id " +
-                "JOIN hardware_library e ON a.HardwareId = e.Id " +
-                "JOIN site f ON a.SiteId = f.Id " +
-                "JOIN script_version g ON a.ScriptId = g.Id WHERE a.`MarkedDelete` = 0 ORDER BY a.Id;").ToDictionary(x => x.Id);
-
-            var faultDevices = ServerConfig.ApiDb.Query<dynamic>("SELECT * FROM ( SELECT * FROM `fault_device` WHERE MarkedDelete = 0 ORDER BY DeviceCode, State DESC ) a GROUP BY DeviceCode;");
-            foreach (var faultDevice in faultDevices)
+            if (!hard)
             {
-                var device = deviceLibraryDetails.Values.FirstOrDefault(x => x.Code == faultDevice.DeviceCode);
-                if (device != null)
-                {
-                    device.RepairState = faultDevice.State;
-                }
+                var result = new DataResult();
+                result.datas.AddRange(ServerConfig.ApiDb.Query<DeviceLibrary>("SELECT * FROM `device_library` WHERE MarkedDelete = 0;"));
+                return result;
             }
-
-            var url = ServerConfig.GateUrl + UrlMappings.Urls["deviceListGate"];
-            //向GateProxyLink请求数据
-            var resp = HttpServer.Get(url);
-            if (resp != "fail")
+            else
             {
-                try
+                var result = new DataResult();
+                var deviceLibraryDetails = ServerConfig.ApiDb.Query<DeviceLibraryDetail>(
+                        "SELECT a.*, b.ModelName, b.DeviceCategoryId, b.CategoryName, c.FirmwareName, d.ApplicationName, e.HardwareName, f.SiteName, f.RegionDescription, g.ScriptName FROM device_library a " +
+                        "JOIN (SELECT a.*, b.CategoryName FROM device_model a JOIN device_category b ON a.DeviceCategoryId = b.Id) b ON a.DeviceModelId = b.Id " +
+                        "JOIN firmware_library c ON a.FirmwareId = c.Id " +
+                        "JOIN application_library d ON a.ApplicationId = d.Id " +
+                        "JOIN hardware_library e ON a.HardwareId = e.Id " +
+                        "JOIN site f ON a.SiteId = f.Id " +
+                        "JOIN script_version g ON a.ScriptId = g.Id WHERE a.`MarkedDelete` = 0 ORDER BY a.Id;")
+                    .ToDictionary(x => x.Id);
+
+                var faultDevices = ServerConfig.ApiDb.Query<dynamic>(
+                    "SELECT * FROM ( SELECT * FROM `fault_device` WHERE MarkedDelete = 0 ORDER BY DeviceCode, State DESC ) a GROUP BY DeviceCode;");
+                foreach (var faultDevice in faultDevices)
                 {
-                    var dataResult = JsonConvert.DeserializeObject<DeviceResult>(resp);
-                    if (dataResult.errno == Error.Success)
+                    var device = deviceLibraryDetails.Values.FirstOrDefault(x => x.Code == faultDevice.DeviceCode);
+                    if (device != null)
                     {
-                        foreach (DeviceInfo deviceInfo in dataResult.datas)
+                        device.RepairState = faultDevice.State;
+                    }
+                }
+
+                var url = ServerConfig.GateUrl + UrlMappings.Urls["deviceListGate"];
+                //向GateProxyLink请求数据
+                var resp = HttpServer.Get(url);
+                if (resp != "fail")
+                {
+                    try
+                    {
+                        var dataResult = JsonConvert.DeserializeObject<DeviceResult>(resp);
+                        if (dataResult.errno == Error.Success)
                         {
-                            var deviceId = deviceInfo.DeviceId;
-                            if (deviceLibraryDetails.ContainsKey(deviceId))
+                            foreach (DeviceInfo deviceInfo in dataResult.datas)
                             {
-                                deviceLibraryDetails[deviceId].State = deviceInfo.State;
-                                deviceLibraryDetails[deviceId].DeviceState = deviceInfo.DeviceState;
-                                deviceLibraryDetails[deviceId].ProcessTime = deviceInfo.ProcessTime;
-                                deviceLibraryDetails[deviceId].LeftTime = deviceInfo.LeftTime;
-                                deviceLibraryDetails[deviceId].FlowCard = deviceInfo.FlowCard;
+                                var deviceId = deviceInfo.DeviceId;
+                                if (deviceLibraryDetails.ContainsKey(deviceId))
+                                {
+                                    deviceLibraryDetails[deviceId].State = deviceInfo.State;
+                                    deviceLibraryDetails[deviceId].DeviceState = deviceInfo.DeviceState;
+                                    deviceLibraryDetails[deviceId].ProcessTime = deviceInfo.ProcessTime;
+                                    deviceLibraryDetails[deviceId].LeftTime = deviceInfo.LeftTime;
+                                    deviceLibraryDetails[deviceId].FlowCard = deviceInfo.FlowCard;
+                                }
                             }
                         }
                     }
+                    catch (Exception e)
+                    {
+                        Log.Error($"{UrlMappings.Urls["deviceListGate"]} 返回：{resp},信息:{e.Message}");
+                    }
                 }
-                catch (Exception e)
-                {
-                    Log.Error($"{UrlMappings.Urls["deviceListGate"]} 返回：{resp},信息:{e.Message}");
-                }
+
+                result.datas.AddRange(deviceLibraryDetails.Values);
+
+                return result;
             }
-
-            result.datas.AddRange(deviceLibraryDetails.Values);
-
-            return result;
         }
 
         // GET: api/DeviceLibrary/5
@@ -262,17 +273,23 @@ namespace ApiManagement.Controllers
             }
 
             var result = new DataResult();
-            var url = ServerConfig.GateUrl + UrlMappings.Urls["sendBackGate"];
+
+            var url = ServerConfig.GateUrl + UrlMappings.Urls["batchSendBackGate"];
             var msg = new DeviceInfoMessagePacket(scriptVersion.ValueNumber, scriptVersion.InputNumber,
                 scriptVersion.OutputNumber);
             //向GateProxyLink请求数据
             var resp = HttpServer.Post(url, new Dictionary<string, string>{
-                {"deviceInfo",new DeviceInfo
-                {
-                     DeviceId = id,
-                    Instruction = msg.Serialize()
-                }.ToJSON()}
+                {"devicesList",(new List<DeviceInfo>
+                    {
+                        new DeviceInfo
+                        {
+                             DeviceId = id,
+                            Instruction = msg.Serialize()
+                        }
+                    }).ToJSON()
+                }
             });
+
             if (resp != "fail")
             {
                 try
@@ -294,14 +311,14 @@ namespace ApiManagement.Controllers
                                     if (usuallyDictionary != null)
                                     {
                                         var v = string.Empty;
-                                        var dId = usuallyDictionary.DictionaryId;
+                                        var dId = usuallyDictionary.DictionaryId - 1;
                                         switch (usuallyDictionary.VariableTypeId)
                                         {
                                             case 1:
                                                 if (((List<int>)res.vals).Count >= usuallyDictionary.DictionaryId)
                                                 {
                                                     v = res.vals[dId].ToString();
-                                                    if (usuallyDictionary.Id == 6)
+                                                    if (usuallyDictionary.VariableNameId == 6)
                                                     {
                                                         var flowCard = ServerConfig.ApiDb.Query<dynamic>("SELECT FlowCardName, ProductionProcessId FROM `flowcard_library` WHERE Id = @id AND MarkedDelete = 0;",
                                                             new { id = v }).FirstOrDefault();

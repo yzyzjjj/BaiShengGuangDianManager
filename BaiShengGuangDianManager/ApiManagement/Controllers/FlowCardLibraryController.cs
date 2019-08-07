@@ -16,20 +16,14 @@ namespace ApiManagement.Controllers
     //[Authorize]
     public class FlowCardLibraryController : ControllerBase
     {
-        public class GetFlowCardBody
-        {
-            public int Id;
-            public DateTime StartTime;
-            public DateTime EndTime;
-        }
-        // Post: api/FlowCardLibrary/Query
-        [HttpPost("Query")]
-        public DataResult GetFlowCardLibrary([FromBody] GetFlowCardBody getFlowCardBody)
+        // Post: api/FlowCardLibrary
+        [HttpGet]
+        public DataResult GetFlowCardLibrary([FromQuery]DateTime startTime, DateTime endTime)
         {
             var result = new DataResult();
-            var datas = getFlowCardBody.Id == 0 ? ServerConfig.ApiDb.Query<FlowCardLibraryDetail>(
-                    "SELECT a.*, b.ProductionProcessName, c.RawMateriaName, d.ProcessStepId, d.CategoryName, d.StepName, d.ProcessTime, d.QualifiedNumber, d.DeviceId, e.WorkshopName FROM (SELECT * FROM `flowcard_library` WHERE CreateTime>= @StartTime AND CreateTime <= @EndTime) a LEFT JOIN `production_library` b ON a.ProductionProcessId = b.Id LEFT JOIN `raw_materia` c ON a.RawMateriaId = c.Id LEFT JOIN ( SELECT * FROM ( SELECT FlowCardId, ProcessStepOrder, ProcessStepId, b.CategoryName, b.StepName, QualifiedNumber, ProcessTime, DeviceId FROM `flowcard_process_step` a JOIN ( SELECT a.Id, a.StepName, b.CategoryName FROM `device_process_step` a JOIN `device_category` b ON a.DeviceCategoryId = b.Id WHERE a.MarkedDelete = 0 ) b ON a.ProcessStepId = b.Id WHERE a.MarkedDelete = 0 AND NOT ISNULL(ProcessTime) || ProcessTime = \'0001-01-01 00:00:00\' ORDER BY ProcessStepOrder DESC ) a GROUP BY a.FlowCardId ) d ON a.Id = d.FlowCardId LEFT JOIN `workshop` e ON a.WorkshopId = e.Id WHERE a.MarkedDelete = 0;", new { StartTime = getFlowCardBody.StartTime.DayBeginTime(), EndTime = getFlowCardBody.EndTime.DayEndTime() })
-                : ServerConfig.ApiDb.Query<FlowCardLibraryDetail>("SELECT a.*, b.ProductionProcessName, c.RawMateriaName, d.ProcessStepId, d.CategoryName, d.StepName, d.ProcessTime, d.QualifiedNumber, d.DeviceId, e.WorkshopName FROM (SELECT * FROM `flowcard_library` WHERE CreateTime>= @StartTime AND CreateTime <= @EndTime) a LEFT JOIN `production_library` b ON a.ProductionProcessId = b.Id LEFT JOIN `raw_materia` c ON a.RawMateriaId = c.Id LEFT JOIN ( SELECT * FROM ( SELECT FlowCardId, ProcessStepOrder, ProcessStepId, b.CategoryName, b.StepName, QualifiedNumber, ProcessTime, DeviceId FROM `flowcard_process_step` a JOIN ( SELECT a.Id, a.StepName, b.CategoryName FROM `device_process_step` a JOIN `device_category` b ON a.DeviceCategoryId = b.Id WHERE a.MarkedDelete = 0 ) b ON a.ProcessStepId = b.Id WHERE a.MarkedDelete = 0 AND NOT ISNULL(ProcessTime) || ProcessTime = \'0001-01-01 00:00:00\' ORDER BY ProcessStepOrder DESC ) a GROUP BY a.FlowCardId ) d ON a.Id = d.FlowCardId LEFT JOIN `workshop` e ON a.WorkshopId = e.Id WHERE a.MarkedDelete = 0 AND a.WorkshopId = @Id;", new { getFlowCardBody.Id, StartTime = getFlowCardBody.StartTime.DayBeginTime(), EndTime = getFlowCardBody.EndTime.DayEndTime() });
+            var datas = ServerConfig.ApiDb.Query<FlowCardLibraryDetail>(
+                "SELECT a.*, b.ProductionProcessName, c.RawMateriaName, d.ProcessStepId, d.CategoryName, d.StepName, d.ProcessTime, d.QualifiedNumber, d.DeviceId, e.TypeName FROM ( SELECT * FROM `flowcard_library` WHERE CreateTime >= @StartTime AND CreateTime <= @EndTime ) a LEFT JOIN `production_library` b ON a.ProductionProcessId = b.Id LEFT JOIN `raw_materia` c ON a.RawMateriaId = c.Id LEFT JOIN ( SELECT * FROM ( SELECT FlowCardId, ProcessStepOrder, ProcessStepId, b.CategoryName, b.StepName, QualifiedNumber, ProcessTime, DeviceId FROM `flowcard_process_step` a JOIN ( SELECT a.Id, a.StepName, b.CategoryName FROM `device_process_step` a JOIN `device_category` b ON a.DeviceCategoryId = b.Id WHERE a.MarkedDelete = 0 ) b ON a.ProcessStepId = b.Id WHERE a.MarkedDelete = 0 AND NOT ISNULL(ProcessTime) || ProcessTime = '0001-01-01 00:00:00' ORDER BY ProcessStepOrder DESC ) a GROUP BY a.FlowCardId ) d ON a.Id = d.FlowCardId LEFT JOIN `flowcard_type` e ON a.FlowCardTypeId = e.Id WHERE a.MarkedDelete = 0;",
+                new { StartTime = startTime.DayBeginTime(), EndTime = endTime.DayEndTime() });
 
             var device = datas.Select(x => x.DeviceId);
             if (device.Any())
@@ -46,7 +40,7 @@ namespace ApiManagement.Controllers
                     }
                 }
             }
-            result.datas.AddRange(datas);
+            result.datas.AddRange(datas.OrderByDescending(x => x.Id));
             return result;
         }
 
@@ -644,7 +638,6 @@ namespace ApiManagement.Controllers
         [HttpPost]
         public Result PostFlowCardLibrary([FromBody] FlowCardLibrary flowCardLibrary)
         {
-            flowCardLibrary.FlowCardName = $"{flowCardLibrary.WorkshopId:d2}{flowCardLibrary.FlowCardName}";
             var cnt =
                 ServerConfig.ApiDb.Query<int>("SELECT COUNT(1) FROM `flowcard_library` WHERE FlowCardName = @FlowCardName AND MarkedDelete = 0;", new { flowCardLibrary.FlowCardName }).FirstOrDefault();
             if (cnt > 0)
@@ -684,8 +677,8 @@ namespace ApiManagement.Controllers
             flowCardLibrary.MarkedDateTime = time;
             flowCardLibrary.CreateTime = time;
             var index = ServerConfig.ApiDb.Query<int>(
-                "INSERT INTO flowcard_library (`CreateUserId`, `MarkedDateTime`, `MarkedDelete`, `ModifyId`, `FlowCardName`, `ProductionProcessId`, `RawMateriaId`, `RawMaterialQuantity`, `Sender`, `InboundNum`, `Remarks`, `Priority`, `CreateTime`, `WorkshopId`) " +
-                "VALUES (@CreateUserId, @MarkedDateTime, @MarkedDelete, @ModifyId, @FlowCardName, @ProductionProcessId, @RawMateriaId, @RawMaterialQuantity, @Sender, @InboundNum, @Remarks, @Priority, @CreateTime, @WorkshopId);SELECT LAST_INSERT_ID();",
+                "INSERT INTO flowcard_library (`CreateUserId`, `MarkedDateTime`, `MarkedDelete`, `ModifyId`, `FlowCardName`, `ProductionProcessId`, `RawMateriaId`, `RawMaterialQuantity`, `Sender`, `InboundNum`, `Remarks`, `Priority`, `CreateTime`, `FlowCardTypeId`) " +
+                "VALUES (@CreateUserId, @MarkedDateTime, @MarkedDelete, @ModifyId, @FlowCardName, @ProductionProcessId, @RawMateriaId, @RawMaterialQuantity, @Sender, @InboundNum, @Remarks, @Priority, @CreateTime, @FlowCardTypeId);SELECT LAST_INSERT_ID();",
                     flowCardLibrary).FirstOrDefault();
 
             flowCardLibrary.Id = index;
@@ -732,7 +725,7 @@ namespace ApiManagement.Controllers
         {
             foreach (var flowCardLibrary in flowCardLibraries)
             {
-                flowCardLibrary.FlowCardName = $"{flowCardLibrary.WorkshopId:d2}{flowCardLibrary.FlowCardName}";
+                flowCardLibrary.FlowCardName = $"{flowCardLibrary.FlowCardTypeId:d2}{flowCardLibrary.FlowCardName}";
             }
 
             var flowCards = flowCardLibraries.GroupBy(x => x.FlowCardName);
@@ -790,8 +783,8 @@ namespace ApiManagement.Controllers
             }
 
             ServerConfig.ApiDb.Execute(
-                "INSERT INTO flowcard_library (`CreateUserId`, `MarkedDateTime`, `MarkedDelete`, `ModifyId`, `FlowCardName`, `ProductionProcessId`, `RawMateriaId`, `RawMaterialQuantity`, `Sender`, `InboundNum`, `Remarks`, `Priority`, `CreateTime`, `WorkshopId`) " +
-                "VALUES (@CreateUserId, @MarkedDateTime, @MarkedDelete, @ModifyId, @FlowCardName, @ProductionProcessId, @RawMateriaId, @RawMaterialQuantity, @Sender, @InboundNum, @Remarks, @Priority, @CreateTime, @WorkshopId);",
+                "INSERT INTO flowcard_library (`CreateUserId`, `MarkedDateTime`, `MarkedDelete`, `ModifyId`, `FlowCardName`, `ProductionProcessId`, `RawMateriaId`, `RawMaterialQuantity`, `Sender`, `InboundNum`, `Remarks`, `Priority`, `CreateTime`, `FlowCardTypeId`) " +
+                "VALUES (@CreateUserId, @MarkedDateTime, @MarkedDelete, @ModifyId, @FlowCardName, @ProductionProcessId, @RawMateriaId, @RawMaterialQuantity, @Sender, @InboundNum, @Remarks, @Priority, @CreateTime, @FlowCardTypeId);",
                 flowCardLibraries.OrderBy(x => x.FlowCardName));
 
             var insertDatas =

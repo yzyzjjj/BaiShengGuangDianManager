@@ -102,30 +102,35 @@ namespace ApiManagement.Base.Helper
                 }
 
                 var relation = res.relation;
-                //车间
-                var workshops = ServerConfig.ApiDb.Query<Workshop>("SELECT * FROM `workshop`;").ToDictionary(x => x.Id);
-                var erpWorkshops = relation.ToDictionary(x => x.id);
-                var newWorkshops = erpWorkshops.Where(x => !workshops.ContainsKey(x.Key));
-                var newWs = newWorkshops.Select(x => new Workshop
+                //卡类型
+                var flowCardTypes = ServerConfig.ApiDb.Query<FlowCardType>("SELECT * FROM `flowcard_type`;").ToDictionary(x => x.Id);
+                var erpFlowCardTypes = relation.ToDictionary(x => x.id);
+                var newFlowCardTypes = erpFlowCardTypes.Where(x => !flowCardTypes.ContainsKey(x.Key));
+                var newWs = newFlowCardTypes.Select(x => new FlowCardType
                 {
+                    Id = x.Key,
                     CreateUserId = _createUserId,
                     MarkedDateTime = now,
-                    WorkshopName = erpWorkshops[x.Key].name,
-                    Abbre = erpWorkshops[x.Key].abbre
+                    TypeName = erpFlowCardTypes[x.Key].name,
+                    Abbre = erpFlowCardTypes[x.Key].abbre
                 });
                 ServerConfig.ApiDb.Execute(
-                    "INSERT INTO workshop (`CreateUserId`, `MarkedDateTime`, `MarkedDelete`, `ModifyId`, `WorkshopName`, `Abbre`) " +
-                    "VALUES (@CreateUserId, @MarkedDateTime, @MarkedDelete, @ModifyId, @WorkshopName, @Abbre);",
+                    "INSERT INTO flowcard_type (`CreateUserId`, `MarkedDateTime`, `MarkedDelete`, `ModifyId`, `TypeName`, `Abbre`) " +
+                    "VALUES (@CreateUserId, @MarkedDateTime, @MarkedDelete, @ModifyId, @TypeName, @Abbre);",
                     newWs);
 
-                var updateWs = erpWorkshops.Where(x => workshops.ContainsKey(x.Key) && (x.Value.name != workshops[x.Key].WorkshopName || x.Value.abbre != workshops[x.Key].Abbre));
+                var updateFct = flowCardTypes.Values.Where(x => erpFlowCardTypes.ContainsKey(x.Id) && (x.TypeName != erpFlowCardTypes[x.Id].name || x.Abbre != erpFlowCardTypes[x.Id].abbre));
+                var updateFcts = new List<FlowCardType>();
+                foreach (var ws in updateFct)
+                {
+                    ws.MarkedDateTime = DateTime.Now;
+                    ws.TypeName = erpFlowCardTypes[ws.Id].name;
+                    ws.Abbre = erpFlowCardTypes[ws.Id].abbre;
+                    updateFcts.Add(ws);
+                }
+                ServerConfig.ApiDb.Execute("UPDATE flowcard_type SET `MarkedDateTime` = @MarkedDateTime, `TypeName` = @TypeName, `Abbre` = @Abbre WHERE `Id` = @Id;", updateFcts);
 
-                ServerConfig.ApiDb.Execute(
-                    "UPDATE workshop SET `CreateUserId` = @CreateUserId, `MarkedDateTime` = @MarkedDateTime, `MarkedDelete` = @MarkedDelete, `ModifyId` = @ModifyId, " +
-                    "`WorkshopName` = @WorkshopName, `Short` = @Short WHERE `Id` = @Id;",
-                    updateWs);
-
-                workshops = ServerConfig.ApiDb.Query<Workshop>("SELECT * FROM `workshop`;").ToDictionary(x => x.Id);
+                flowCardTypes = ServerConfig.ApiDb.Query<FlowCardType>("SELECT * FROM `flowcard_type`;").ToDictionary(x => x.Id);
 
                 var r = res.data;
                 if (r.Count <= 0)
@@ -280,7 +285,7 @@ namespace ApiManagement.Base.Helper
                     ProductionProcessId = productionLibraries[x.Value.f_jhh].Id,
                     RawMateriaId = rawMaterias[x.Value.f_mate].Id,
                     CreateTime = x.Value.f_inserttime,
-                    WorkshopId = x.Value.f_bz,
+                    FlowCardTypeId = x.Value.f_bz,
                     RawMaterialQuantity = int.Parse(x.Value.f_qty),
                     Sender = x.Value.f_fcygbh,
                     InboundNum = x.Value.f_rkxh,
@@ -289,8 +294,8 @@ namespace ApiManagement.Base.Helper
                 var newFcTmp = new List<FlowCardLibrary>();
                 newFcTmp.AddRange(newFc);
                 ServerConfig.ApiDb.Execute(
-                    "INSERT INTO flowcard_library (`CreateUserId`, `MarkedDateTime`, `MarkedDelete`, `ModifyId`, `FlowCardName`, `ProductionProcessId`, `RawMateriaId`, `RawMaterialQuantity`, `Sender`, `InboundNum`, `Remarks`, `Priority`, `CreateTime`, `WorkshopId`, `FId`) " +
-                    "VALUES (@CreateUserId, @MarkedDateTime, @MarkedDelete, @ModifyId, @FlowCardName, @ProductionProcessId, @RawMateriaId, @RawMaterialQuantity, @Sender, @InboundNum, @Remarks, @Priority, @CreateTime, @WorkshopId, @FId);",
+                    "INSERT INTO flowcard_library (`CreateUserId`, `MarkedDateTime`, `MarkedDelete`, `ModifyId`, `FlowCardName`, `ProductionProcessId`, `RawMateriaId`, `RawMaterialQuantity`, `Sender`, `InboundNum`, `Remarks`, `Priority`, `CreateTime`, `FlowCardTypeId`, `FId`) " +
+                    "VALUES (@CreateUserId, @MarkedDateTime, @MarkedDelete, @ModifyId, @FlowCardName, @ProductionProcessId, @RawMateriaId, @RawMaterialQuantity, @Sender, @InboundNum, @Remarks, @Priority, @CreateTime, @FlowCardTypeId, @FId);",
                     newFc);
 
                 //流程卡更新
@@ -432,15 +437,15 @@ namespace ApiManagement.Base.Helper
                 //0.255±0.005mm
                 t = 1;
             }
-            else if (value.Contains("～"))
-            {
-                //0.202～0.216mm
-                t = 2;
-            }
-            else if (value.Contains("+") && value.Contains("-"))
+            else if (value.Contains("+") && value.Contains("/") && value.Contains("-"))
             {
                 //0.21+0.013/-0.027mm
                 t = 3;
+            }
+            else if (value.Contains("~") || value.Contains("~") || value.Contains("-"))
+            {
+                //0.202～0.216mm
+                t = 2;
             }
 
             var num = new List<decimal>();
@@ -448,18 +453,37 @@ namespace ApiManagement.Base.Helper
             var n = "";
             foreach (var sf in s)
             {
-                if (int.TryParse(sf, out _) || sf == ".")
+                if (t == 3)
                 {
-                    n += sf;
+                    if (int.TryParse(sf, out _) || sf == "." || sf == "-")
+                    {
+                        n += sf;
+                    }
+                    else
+                    {
+                        if (decimal.TryParse(n, out var k))
+                        {
+                            num.Add(k);
+                        }
+
+                        n = "";
+                    }
                 }
                 else
                 {
-                    if (decimal.TryParse(n, out var k))
+                    if (int.TryParse(sf, out _) || sf == ".")
                     {
-                        num.Add(k);
+                        n += sf;
                     }
+                    else
+                    {
+                        if (decimal.TryParse(n, out var k))
+                        {
+                            num.Add(k);
+                        }
 
-                    n = "";
+                        n = "";
+                    }
                 }
             }
 
@@ -470,42 +494,36 @@ namespace ApiManagement.Base.Helper
                     if (num.Count >= 1)
                     {
                         p = num[0];
-                        break;
                     }
-                    else
-                    {
-                        break;
-                    }
+                    break;
                 case 2:
                     if (num.Count == 1)
                     {
-                        p = num[0]; break;
+                        p = num[0];
                     }
                     else if (num.Count >= 2)
                     {
-                        p = (num[0] + num[1]) / 2; break;
+                        p = (num[0] + num[1]) / 2;
                     }
-                    else
-                    {
-                        break;
-                    }
+                    break;
                 case 3:
                     if (num.Count == 1)
                     {
-                        p = num[0]; break;
+                        p = num[0];
                     }
                     else if (num.Count >= 3)
                     {
-                        p = num[0] + (num[1] + num[2]) / 2; break;
+                        p = num[0] + (num[1] + num[2]) / 2;
                     }
-                    else
-                    {
-                        break;
-                    }
+                    break;
                 default:
                     if (num.Count >= 1)
                     {
                         p = num[0];
+                    }
+                    else
+                    {
+                        p = 0;
                     }
                     break;
             }
