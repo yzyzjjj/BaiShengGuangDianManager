@@ -20,27 +20,36 @@ namespace ApiManagement.Base.Helper
     public class AnalysisHelper
     {
         private static bool _analysisFirst;
+
+        private static readonly string AnalysisPre = "Analysis";
+        private static readonly string AnalysisLock = $"{AnalysisPre}:Lock";
+        private static readonly string AnalysisKey = $"{AnalysisPre}:Id";
+
+        private static readonly string AnalysisOtherPre = "AnalysisOther";
+        private static readonly string AnalysisOtherLock = $"{AnalysisOtherPre}:Lock";
+        private static readonly string AnalysisOtherKey = $"{AnalysisOtherPre}:Time";
+
         private static Timer _analysis;
+        private static Timer _analysisOther;
         private static Timer _delete;
         private static Timer _fault;
+        private static bool _isFault;
         private static int _dealLength = 1000;
         private static MonitoringKanban _monitoringKanban;
         public static void Init(IConfiguration configuration)
         {
+            ServerConfig.RedisHelper.Remove(AnalysisOtherLock);
             var monitoringKanban = ServerConfig.ApiDb.Query<MonitoringKanban>("SELECT * FROM `npc_monitoring_kanban` WHERE `Date` = @Date;", new
             {
                 Date = DateTime.Today
             }).FirstOrDefault();
             ServerConfig.MonitoringKanban = monitoringKanban;
-            var _pre = "Analysis";
-            var lockKey = $"{_pre}:Lock";
-            var redisKey = $"{_pre}:Id";
             if (!_analysisFirst)
             {
                 _analysisFirst = true;
-                var startId1 = ServerConfig.RedisHelper.Get<int>(redisKey);
+                var startId1 = ServerConfig.RedisHelper.Get<int>(AnalysisKey);
                 Thread.Sleep(2000);
-                var startId2 = ServerConfig.RedisHelper.Get<int>(redisKey);
+                var startId2 = ServerConfig.RedisHelper.Get<int>(AnalysisKey);
                 if (startId1 == startId2)
                 {
                     var analysis = ServerConfig.ApiDb.Query<MonitoringAnalysis>(
@@ -55,14 +64,15 @@ namespace ApiManagement.Base.Helper
                                 analysis.DeviceId
                             }).FirstOrDefault();
 
-                        ServerConfig.RedisHelper.SetForever(redisKey, data.Id);
+                        ServerConfig.RedisHelper.SetForever(AnalysisKey, data.Id);
                     }
 
-                    ServerConfig.RedisHelper.Remove(lockKey);
+                    ServerConfig.RedisHelper.Remove(AnalysisLock);
                 }
             }
-            //_analysis = new Timer(Analysis, null, 10000, 2000);
-            //_delete = new Timer(Delete, null, 10000, 1000);
+            _analysis = new Timer(Analysis, null, 10000, 2000);
+            _analysisOther = new Timer(AnalysisOther, null, 12000, 2000);
+            _delete = new Timer(Delete, null, 10000, 1000);
             _fault = new Timer(Fault, null, 10000, 1000 * 10);
         }
 
@@ -461,13 +471,195 @@ namespace ApiManagement.Base.Helper
             return ServerConfig.MonitoringKanban.Update(_monitoringKanban);
         }
 
-        private static int c = 0;
+        private static void AnalysisOther(object state)
+        {
+            if (ServerConfig.RedisHelper.SetIfNotExist(AnalysisOtherLock, "lock"))
+            {
+                try
+                {
+                    var startTime = ServerConfig.RedisHelper.Get<DateTime>(AnalysisOtherKey);
+                    if (startTime == default(DateTime))
+                    {
+                        startTime = ServerConfig.ApiDb.Query<DateTime>(
+                            "SELECT Time FROM `npc_monitoring_process` ORDER BY Time LIMIT 1;").FirstOrDefault();
+                    }
+
+                    if (startTime == default(DateTime))
+                    {
+                        ServerConfig.RedisHelper.Remove(AnalysisOtherLock);
+                        return;
+                    }
+
+                    var deviceCount = ServerConfig.ApiDb.Query<int>(
+                        "SELECT COUNT(1) FROM `device_library` a JOIN `npc_proxy_link` b ON a.Id = b.DeviceId WHERE a.MarkedDelete = 0 AND b.Monitoring = 1;").FirstOrDefault();
+                    if (deviceCount <= 0)
+                    {
+                        ServerConfig.RedisHelper.Remove(AnalysisOtherLock);
+                        return;
+                    }
+                    var mData = ServerConfig.ApiDb.Query<MonitoringProcess>(
+                        "SELECT * FROM `npc_monitoring_process` WHERE Time >= @Time ORDER BY Time LIMIT @Limit;", new
+                        {
+                            Time = startTime,
+                            Limit = _dealLength
+                        });
+                    if (mData.Any())
+                    {
+                        startTime = mData.Last().Time;
+                        var l = 4;
+
+                        var table = new Dictionary<int, string>
+                        {
+                            {0, "npc_monitoring_process_min"},
+                            {1, "npc_monitoring_process_hour"},
+                            {2, "npc_monitoring_process_day"},
+                            {3, "npc_monitoring_process_month"},
+                        };
+                        var resLast = new Dictionary<int, MonitoringProcess>[l];
+                        for (var i = 0; i < l; i++)
+                        {
+                            var time = startTime;
+                            switch (i)
+                            {
+                                case 0:
+                                    time = startTime.NoSecond(); break;
+                                case 1:
+                                    time = startTime.NoMinute(); break;
+                                case 2:
+                                    time = startTime.NoHour(); break;
+                                case 3:
+                                    time = startTime.StartOfMonth(); break;
+                            }
+                            resLast[i] = ServerConfig.ApiDb.Query<MonitoringProcess>(
+                                $"SELECT * FROM ( SELECT DeviceId, Time FROM {table[i]} WHERE Time = @Time ORDER BY Time DESC LIMIT @Limit ) a GROUP BY a.DeviceId;", new
+                                {
+                                    Time = time,
+                                    Limit = deviceCount
+                                }).ToDictionary(x => x.DeviceId);
+                        }
+
+                        var res = new List<MonitoringProcess>[l];
+                        for (var i = 0; i < l; i++)
+                        {
+                            res[i] = new List<MonitoringProcess>();
+                        }
+
+                        foreach (var da in mData)
+                        {
+                            for (var i = 0; i < l; i++)
+                            {
+                                var data = (MonitoringProcess)da.Clone();
+                                switch (i)
+                                {
+                                    case 0:
+                                        data.Time = data.Time.NoSecond();
+                                        break;
+                                    case 1:
+                                        data.Time = data.Time.NoMinute();
+                                        break;
+                                    case 2:
+                                        data.Time = data.Time.NoHour();
+                                        break;
+                                    case 3:
+                                        data.Time = data.Time.StartOfMonth();
+                                        break;
+                                }
+                                var n = false;
+                                if (!resLast[i].ContainsKey(data.DeviceId))
+                                {
+                                    n = true;
+                                    resLast[i].Add(data.DeviceId, data);
+                                }
+
+                                var d = resLast[i][data.DeviceId];
+                                var f = false;
+                                switch (i)
+                                {
+                                    case 0:
+                                        f = d.Time.InSameMinute(data.Time);
+                                        break;
+                                    case 1:
+                                        f = d.Time.InSameHour(data.Time);
+                                        break;
+                                    case 2:
+                                        f = d.Time.InSameDay(data.Time);
+                                        break;
+                                    case 3:
+                                        f = d.Time.InSameMonth(data.Time);
+                                        break;
+                                }
+                                if (n)
+                                {
+                                    continue;
+                                }
+
+                                if (!f)
+                                {
+                                    res[i].Add(resLast[i][data.DeviceId]);
+                                }
+                                resLast[i][data.DeviceId] = data;
+                            }
+                        }
+                        for (var i = 0; i < l; i++)
+                        {
+                            foreach (var process in resLast[i].Values)
+                            {
+
+                                switch (i)
+                                {
+                                    case 0:
+                                        if (!res[i].Any(x => x.DeviceId == process.DeviceId && x.Time.InSameMinute(process.Time)))
+                                        {
+                                            res[i].Add(process);
+                                        }
+                                        break;
+                                    case 1:
+                                        if (!res[i].Any(x => x.DeviceId == process.DeviceId && x.Time.InSameHour(process.Time)))
+                                        {
+                                            res[i].Add(process);
+                                        }
+                                        break;
+                                    case 2:
+                                        if (!res[i].Any(x => x.DeviceId == process.DeviceId && x.Time.InSameDay(process.Time)))
+                                        {
+                                            res[i].Add(process);
+                                        }
+                                        break;
+                                    case 3:
+                                        if (!res[i].Any(x => x.DeviceId == process.DeviceId && x.Time.InSameMonth(process.Time)))
+                                        {
+                                            res[i].Add(process);
+                                        }
+                                        break;
+                                }
+                            }
+                            ServerConfig.ApiDb.Execute($"INSERT INTO {table[i]} (`Time`, `DeviceId`, `State`, `ProcessCount`, `TotalProcessCount`, `ProcessTime`, `TotalProcessTime`, `RunTime`, `TotalRunTime`, `Use`, `Total`, `Rate`) VALUES (@Time, @DeviceId, @State, @ProcessCount, @TotalProcessCount, @ProcessTime, @TotalProcessTime, @RunTime, @TotalRunTime, @Use, @Total, @Rate) " +
+                                                        "ON DUPLICATE KEY UPDATE `State` = @State, `ProcessCount` = @ProcessCount, `TotalProcessCount` = @TotalProcessCount, `ProcessTime` = @ProcessTime, `TotalProcessTime` = @TotalProcessTime, `RunTime` = @RunTime, `TotalRunTime` = @TotalRunTime, `Use` = @Use, `Total` = @Total, `Rate` = @Rate;"
+                                                       , res[i].OrderBy(x => x.Time));
+                        }
+                    }
+                    ServerConfig.RedisHelper.SetForever(AnalysisOtherKey, startTime);
+                }
+                catch (Exception e)
+                {
+                    Log.Error(e);
+                }
+                ServerConfig.RedisHelper.Remove(AnalysisOtherLock);
+            }
+        }
+
         private static void Fault(object state)
         {
+            if (_isFault)
+            {
+                return;
+            }
+
+            _isFault = true;
             try
             {
                 var today = DateTime.Today;
-                var all = ServerConfig.ApiDb.Query<int>("SELECT COUNT(1) FROM `device_library` WHERE MarkedDelete = 0;").FirstOrDefault();
+                var all = ServerConfig.ApiDb.Query<string>("SELECT b.SiteName FROM `device_library` a JOIN `site` b ON a.SiteId = b.Id WHERE b.SiteName IS NOT NULL AND a.MarkedDelete = 0;");
 
                 var faultDevices = ServerConfig.ApiDb.Query<FaultDeviceDetail>("SELECT a.*, b.SiteName, c.FaultTypeName FROM `fault_device` a LEFT JOIN ( SELECT a.*, b.SiteName FROM `device_library` a JOIN `site` b ON a.SiteId = b.Id ) b ON a.DeviceCode = b.`Code` JOIN `fault_type` c ON a.FaultTypeId = c.Id WHERE b.SiteName IS NOT NULL AND FaultTime >= @FaultTime1 AND FaultTime < @FaultTime2;", new
                 {
@@ -556,8 +748,8 @@ namespace ApiManagement.Base.Helper
                         State = 2,
                         SiteName = workshop,
                     }).FirstOrDefault();
-                    monitoringFault.ReportRepaired = faultDeviceDetails.Count(x => x.MarkedDelete && x.State == 2);
-                    monitoringFault.ReportFaultRate = all != 0 ? (monitoringFault.FaultDevice * 1.0m / all).ToRound(4) : 0;
+
+                    monitoringFault.AllDevice = all.Count(x => x == workshop);
 
                     #endregion
 
@@ -604,22 +796,22 @@ namespace ApiManagement.Base.Helper
 
                         var @operator = singleFaultType.Operators.First(x => x.Name == repairRecordDetail.FaultSolver);
                         @operator.Count++;
-                        @operator.Time += repairRecordDetail.SolveTime < repairRecordDetail.FaultTime ? (int)(repairRecordDetail.SolveTime - repairRecordDetail.FaultTime).TotalSeconds : 0;
+                        @operator.Time += repairRecordDetail.SolveTime > repairRecordDetail.FaultTime ? (int)(repairRecordDetail.SolveTime - repairRecordDetail.FaultTime).TotalSeconds : 0;
 
                         monitoringFault.RepairSingleFaultTypeStr = monitoringFault.RepairSingleFaultType.OrderBy(x => x.FaultId).ToJSON();
                     }
                     #endregion
                 }
                 ServerConfig.ApiDb.ExecuteTrans(
-                    "INSERT INTO npc_monitoring_fault (`Date`, `Workshop`, `FaultDevice`, `ReportFaultType`, `ReportCount`, `ReportSingleFaultTypeStr`, `ReportFaultRate`, `Confirmed`, `Repairing`, `ReportRepaired`, `ExtraRepaired`, `RepairFaultType`, `RepairCount`, `RepairSingleFaultTypeStr`) VALUES (@Date, @Workshop, @FaultDevice, @ReportFaultType, @ReportCount, @ReportSingleFaultTypeStr, @ReportFaultRate, @Confirmed, @Repairing, @ReportRepaired, @ExtraRepaired, @RepairFaultType, @RepairCount, @RepairSingleFaultTypeStr) " +
-                    "ON DUPLICATE KEY UPDATE `FaultDevice` = @FaultDevice, `ReportFaultType` = @ReportFaultType, `ReportCount` = @ReportCount, `ReportSingleFaultTypeStr` = @ReportSingleFaultTypeStr, `ReportFaultRate` = @ReportFaultRate, `Confirmed` = @Confirmed, `Repairing` = @Repairing, `ReportRepaired` = @ReportRepaired, `ExtraRepaired` = @ExtraRepaired, `RepairFaultType` = @RepairFaultType, `RepairCount` = @RepairCount, `RepairSingleFaultTypeStr` = @RepairSingleFaultTypeStr",
+                    "INSERT INTO npc_monitoring_fault (`Date`, `Workshop`, `AllDevice`, `FaultDevice`, `ReportFaultType`, `ReportCount`, `ReportSingleFaultTypeStr`, `ReportFaultRate`, `Confirmed`, `Repairing`, `ReportRepaired`, `ExtraRepaired`, `RepairFaultType`, `RepairCount`, `RepairSingleFaultTypeStr`) VALUES (@Date, @Workshop, @AllDevice, @FaultDevice, @ReportFaultType, @ReportCount, @ReportSingleFaultTypeStr, @ReportFaultRate, @Confirmed, @Repairing, @ReportRepaired, @ExtraRepaired, @RepairFaultType, @RepairCount, @RepairSingleFaultTypeStr) " +
+                    "ON DUPLICATE KEY UPDATE `AllDevice` = @AllDevice, `FaultDevice` = @FaultDevice, `ReportFaultType` = @ReportFaultType, `ReportCount` = @ReportCount, `ReportSingleFaultTypeStr` = @ReportSingleFaultTypeStr, `ReportFaultRate` = @ReportFaultRate, `Confirmed` = @Confirmed, `Repairing` = @Repairing, `ReportRepaired` = @ReportRepaired, `ExtraRepaired` = @ExtraRepaired, `RepairFaultType` = @RepairFaultType, `RepairCount` = @RepairCount, `RepairSingleFaultTypeStr` = @RepairSingleFaultTypeStr",
                     monitoringFaults.Values);
             }
             catch (Exception e)
             {
                 Log.Error(e);
             }
-
+            _isFault = false;
         }
     }
 }

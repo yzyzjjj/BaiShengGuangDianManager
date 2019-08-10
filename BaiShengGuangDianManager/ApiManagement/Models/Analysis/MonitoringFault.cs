@@ -1,7 +1,9 @@
-﻿using Newtonsoft.Json;
+﻿using ModelBase.Base.Utils;
+using Newtonsoft.Json;
 using ServiceStack;
 using System;
 using System.Collections.Generic;
+using System.Linq;
 
 namespace ApiManagement.Models.Analysis
 {
@@ -16,6 +18,10 @@ namespace ApiManagement.Models.Analysis
         /// </summary>
         public string Workshop { get; set; }
         /// <summary>
+        /// 设备总数
+        /// </summary>
+        public int AllDevice { get; set; }
+        /// <summary>
         /// 故障设备数量
         /// </summary>
         public int FaultDevice { get; set; }
@@ -28,12 +34,12 @@ namespace ApiManagement.Models.Analysis
         /// </summary>
         public int ReportCount { get; set; }
 
-        /// <summary>
-        /// 单个故障上报次数
-        /// </summary>
         [JsonIgnore]
         private List<SingleFaultType> _reportSingleFaultType;
 
+        /// <summary>
+        /// 单个故障上报次数
+        /// </summary>
         public List<SingleFaultType> ReportSingleFaultType => _reportSingleFaultType ?? (_reportSingleFaultType = !ReportSingleFaultTypeStr.IsNullOrEmpty()
                                                                   ? JsonConvert.DeserializeObject<List<SingleFaultType>>(ReportSingleFaultTypeStr)
                                                                   : new List<SingleFaultType>());
@@ -44,7 +50,7 @@ namespace ApiManagement.Models.Analysis
         /// <summary>
         /// 上报故障 故障率
         /// </summary>
-        public decimal ReportFaultRate { get; set; }
+        public decimal ReportFaultRate => AllDevice != 0 ? (FaultDevice * 1.0m / AllDevice).ToRound(4) : 0;
 
         /// <summary>
         /// 已确认故障
@@ -64,7 +70,7 @@ namespace ApiManagement.Models.Analysis
         /// <summary>
         /// 额外维修故障(直接添加维修记录)
         /// </summary>
-        public int ExtraRepaired => RepairCount - ReportRepaired;
+        public int ExtraRepaired { get; set; }
 
         /// <summary>
         /// 维修故障类型数量
@@ -74,12 +80,12 @@ namespace ApiManagement.Models.Analysis
         /// 维修故障总次数
         /// </summary>
         public int RepairCount { get; set; }
-        /// <summary>
-        /// 单个故障维修次数
-        /// </summary>
         [JsonIgnore]
         private List<SingleFaultType> _repairSingleFaultType;
 
+        /// <summary>
+        /// 单个故障维修次数
+        /// </summary>
         public List<SingleFaultType> RepairSingleFaultType => _repairSingleFaultType ?? (_repairSingleFaultType = !RepairSingleFaultTypeStr.IsNullOrEmpty()
                                                                   ? JsonConvert.DeserializeObject<List<SingleFaultType>>(RepairSingleFaultTypeStr)
                                                                   : new List<SingleFaultType>());
@@ -87,6 +93,89 @@ namespace ApiManagement.Models.Analysis
         [JsonIgnore]
         public string RepairSingleFaultTypeStr { get; set; }
 
+        /// <summary>
+        /// 机台号
+        /// </summary>
+        public string Code { get; set; }
+        /// <summary>
+        /// 机台号上报故障类型数量
+        /// </summary>
+        public int CodeReportFaultType { get; set; }
+
+        public void Add(MonitoringFault monitoringFault)
+        {
+            AllDevice += monitoringFault.AllDevice;
+            FaultDevice += monitoringFault.FaultDevice;
+            ReportCount += monitoringFault.ReportCount;
+            foreach (var singleFaultType in monitoringFault.ReportSingleFaultType)
+            {
+                if (ReportSingleFaultType.Any(x => x.FaultId == singleFaultType.FaultId))
+                {
+                    var faultType = ReportSingleFaultType.First(x => x.FaultId == singleFaultType.FaultId);
+                    faultType.Count += singleFaultType.Count;
+                    foreach (var deviceFaultType in faultType.DeviceFaultTypes)
+                    {
+                        if (faultType.DeviceFaultTypes.Any(x => x.Code == deviceFaultType.Code))
+                        {
+                            var first = faultType.DeviceFaultTypes.First(x => x.Code == deviceFaultType.Code);
+                            first.Count += deviceFaultType.Count;
+                        }
+                        else
+                        {
+                            faultType.DeviceFaultTypes.Add(deviceFaultType);
+                        }
+                    }
+                }
+                else
+                {
+                    ReportSingleFaultType.Add(singleFaultType);
+                }
+            }
+            ReportFaultType = ReportSingleFaultType.GroupBy(x => x.FaultId).Count();
+
+            Confirmed += monitoringFault.ReportCount;
+            Repairing += monitoringFault.Repairing;
+            RepairCount += monitoringFault.RepairCount;
+
+            foreach (var repairSingleFaultType in monitoringFault.RepairSingleFaultType)
+            {
+                if (RepairSingleFaultType.Any(x => x.FaultId == repairSingleFaultType.FaultId))
+                {
+                    var faultType = RepairSingleFaultType.First(x => x.FaultId == repairSingleFaultType.FaultId);
+                    faultType.Count += repairSingleFaultType.Count;
+                    foreach (var deviceFaultType in faultType.DeviceFaultTypes)
+                    {
+                        if (faultType.DeviceFaultTypes.Any(x => x.Code == deviceFaultType.Code))
+                        {
+                            var first = faultType.DeviceFaultTypes.First(x => x.Code == deviceFaultType.Code);
+                            first.Count += deviceFaultType.Count;
+                        }
+                        else
+                        {
+                            faultType.DeviceFaultTypes.Add(deviceFaultType);
+                        }
+                    }
+                    foreach (var @operator in faultType.Operators)
+                    {
+                        if (faultType.Operators.Any(x => x.Name == @operator.Name))
+                        {
+                            var operator1 = faultType.Operators.First(x => x.Name == @operator.Name);
+                            operator1.Count += @operator.Count;
+                            operator1.Time += @operator.Time;
+                        }
+                        else
+                        {
+                            faultType.Operators.Add(@operator);
+                        }
+                    }
+                }
+                else
+                {
+                    RepairSingleFaultType.Add(repairSingleFaultType);
+                }
+            }
+            RepairFaultType = RepairSingleFaultType.GroupBy(x => x.FaultId).Count();
+        }
     }
 
     /// <summary>

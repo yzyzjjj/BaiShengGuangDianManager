@@ -2,7 +2,7 @@
 
 namespace ApiManagement.Models.Analysis
 {
-    public class MonitoringProcess
+    public class MonitoringProcess : ICloneable
     {
         public DateTime Time { get; set; }
         public int DeviceId { get; set; }
@@ -47,5 +47,9 @@ namespace ApiManagement.Models.Analysis
         /// </summary>
         public decimal Rate { get; set; }
 
+        public object Clone()
+        {
+            return MemberwiseClone();
+        }
     }
 }
