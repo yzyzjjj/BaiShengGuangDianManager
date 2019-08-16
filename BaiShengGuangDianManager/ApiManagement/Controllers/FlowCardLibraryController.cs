@@ -89,6 +89,40 @@ namespace ApiManagement.Controllers
             return result;
         }
 
+
+        /// <summary>
+        /// 流程卡号
+        /// </summary>
+        /// <param name="id">流程卡号</param>
+        /// <returns></returns>
+        // GET: api/FlowCardLibrary/FlowCardName/5
+        [HttpGet("FlowCardName/{id}")]
+        public DataResult GetFlowCardLibraryByFlowCardName([FromRoute] string id)
+        {
+            var result = new DataResult();
+            var datas = ServerConfig.ApiDb.Query<FlowCardLibraryDetail>(
+                "SELECT a.*, b.ProductionProcessName, c.RawMateriaName, d.ProcessStepId, d.CategoryName, d.StepName, d.ProcessTime, d.QualifiedNumber, d.DeviceId, e.TypeName FROM ( SELECT * FROM `flowcard_library` WHERE FlowCardName = @FlowCardName ) a LEFT JOIN `production_library` b ON a.ProductionProcessId = b.Id LEFT JOIN `raw_materia` c ON a.RawMateriaId = c.Id LEFT JOIN ( SELECT * FROM ( SELECT FlowCardId, ProcessStepOrder, ProcessStepId, b.CategoryName, b.StepName, QualifiedNumber, ProcessTime, DeviceId FROM `flowcard_process_step` a JOIN ( SELECT a.Id, a.StepName, b.CategoryName FROM `device_process_step` a JOIN `device_category` b ON a.DeviceCategoryId = b.Id WHERE a.MarkedDelete = 0 ) b ON a.ProcessStepId = b.Id WHERE a.MarkedDelete = 0 AND NOT ISNULL(ProcessTime) || ProcessTime = '0001-01-01 00:00:00' ORDER BY ProcessStepOrder DESC ) a GROUP BY a.FlowCardId ) d ON a.Id = d.FlowCardId LEFT JOIN `flowcard_type` e ON a.FlowCardTypeId = e.Id WHERE a.MarkedDelete = 0;",
+                new { FlowCardName = id });
+
+            var device = datas.Select(x => x.DeviceId);
+            if (device.Any())
+            {
+                var deviceCodes = ServerConfig.ApiDb.Query<FlowCardLibraryDetail>(
+                    "SELECT Id, `Code` FROM `device_library` WHERE `Id` IN @Id AND MarkedDelete = 0;", new { Id = device });
+
+                foreach (var data in datas)
+                {
+                    var code = deviceCodes.FirstOrDefault(x => x.Id == data.DeviceId);
+                    if (code != null)
+                    {
+                        data.Code = code.Code;
+                    }
+                }
+            }
+            result.datas.AddRange(datas.OrderByDescending(x => x.Id));
+            return result;
+        }
+
         public class QueryProcessData
         {
             public int Id;
@@ -104,39 +138,34 @@ namespace ApiManagement.Controllers
         [HttpGet("ProductionProcessName/{productionProcessName}")]
         public DataResult GetFlowCardLibraryByProductionProcessName([FromRoute] string productionProcessName)
         {
-            var cnt =
-                ServerConfig.ApiDb.Query<int>("SELECT COUNT(1) FROM `production_library` WHERE ProductionProcessName = @productionProcessName;", new { productionProcessName }).FirstOrDefault();
-            if (cnt == 0)
+            var id =
+                ServerConfig.ApiDb.Query<int>("SELECT Id FROM `production_library` WHERE ProductionProcessName = @productionProcessName;", new { productionProcessName }).FirstOrDefault();
+            if (id == 0)
             {
                 return Result.GenError<DataResult>(Error.ProductionLibraryNotExist);
             }
 
             var result = new DataResult();
-            var datas = ServerConfig.ApiDb.Query<FlowCardLibraryDetail>("SELECT a.*, b.ProductionProcessName, c.RawMateriaName, d.ProcessStepId, d.QualifiedNumber, " +
-                                                                             "d.DeviceId FROM `flowcard_library` a LEFT JOIN `production_library` " +
-                                                                             "b ON a.ProductionProcessId = b.Id LEFT JOIN `raw_materia` c ON a.RawMateriaId = " +
-                                                                             "c.Id LEFT JOIN ( SELECT * FROM ( SELECT * FROM `production_process_step` WHERE ProcessTime " +
-                                                                             "IS NOT NULL ORDER BY ProcessStepOrder DESC ) a GROUP BY a.ProductionProcessId ) " +
-                                                                             "d ON a.ProductionProcessId = d.ProductionProcessId WHERE b.ProductionProcessName = @productionProcessName AND a.MarkedDelete = 0", new { productionProcessName });
-            if (!datas.Any())
-            {
-                result.errno = Error.FlowCardLibraryNotExist;
-                return result;
-            }
+            var datas = ServerConfig.ApiDb.Query<FlowCardLibraryDetail>(
+                "SELECT a.*, b.ProductionProcessName, c.RawMateriaName, d.ProcessStepId, d.CategoryName, d.StepName, d.ProcessTime, d.QualifiedNumber, d.DeviceId, e.TypeName FROM ( SELECT * FROM `flowcard_library` WHERE ProductionProcessId = @ProductionProcessId ) a LEFT JOIN `production_library` b ON a.ProductionProcessId = b.Id LEFT JOIN `raw_materia` c ON a.RawMateriaId = c.Id LEFT JOIN ( SELECT * FROM ( SELECT FlowCardId, ProcessStepOrder, ProcessStepId, b.CategoryName, b.StepName, QualifiedNumber, ProcessTime, DeviceId FROM `flowcard_process_step` a JOIN ( SELECT a.Id, a.StepName, b.CategoryName FROM `device_process_step` a JOIN `device_category` b ON a.DeviceCategoryId = b.Id WHERE a.MarkedDelete = 0 ) b ON a.ProcessStepId = b.Id WHERE a.MarkedDelete = 0 AND NOT ISNULL(ProcessTime) || ProcessTime = '0001-01-01 00:00:00' ORDER BY ProcessStepOrder DESC ) a GROUP BY a.FlowCardId ) d ON a.Id = d.FlowCardId LEFT JOIN `flowcard_type` e ON a.FlowCardTypeId = e.Id WHERE a.MarkedDelete = 0;",
+                new { ProductionProcessId = id });
 
-            var deviceCodes = ServerConfig.ApiDb.Query<FlowCardLibraryDetail>(
-                "SELECT Id, `Code` FROM `device_library` WHERE `Id` IN @Id AND MarkedDelete = 0;", new { Id = datas.Select(x => x.DeviceId) });
-
-            foreach (var data in datas)
+            var device = datas.Select(x => x.DeviceId);
+            if (device.Any())
             {
-                var code = deviceCodes.FirstOrDefault(x => x.Id == data.DeviceId);
-                if (code != null)
+                var deviceCodes = ServerConfig.ApiDb.Query<FlowCardLibraryDetail>(
+                    "SELECT Id, `Code` FROM `device_library` WHERE `Id` IN @Id AND MarkedDelete = 0;", new { Id = device });
+
+                foreach (var data in datas)
                 {
-                    data.Code = code.Code;
+                    var code = deviceCodes.FirstOrDefault(x => x.Id == data.DeviceId);
+                    if (code != null)
+                    {
+                        data.Code = code.Code;
+                    }
                 }
             }
-
-            result.datas.AddRange(datas);
+            result.datas.AddRange(datas.OrderByDescending(x => x.Id));
             return result;
         }
 
@@ -305,12 +334,6 @@ namespace ApiManagement.Controllers
                 result.datas.AddRange(datas);
             }
             return result;
-        }
-
-        public class FlowCardInfo
-        {
-            public int Id;
-            public string FlowCardName;
         }
 
         /// <summary>
@@ -572,8 +595,11 @@ namespace ApiManagement.Controllers
 
             return Result.GenError<Result>(Error.Success);
         }
-
-
+        public class FlowCardInfo
+        {
+            public int Id;
+            public string FlowCardName;
+        }
 
         /// <summary>
         /// 获取加工工序数据

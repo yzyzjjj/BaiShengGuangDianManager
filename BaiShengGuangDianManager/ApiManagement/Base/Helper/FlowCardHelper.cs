@@ -389,15 +389,33 @@ namespace ApiManagement.Base.Helper
                     if (erpFlowCardLibraries.ContainsKey(flowCardLibrary.FlowCardName))
                     {
                         var erpFlowCardLibrary = erpFlowCardLibraries[flowCardLibrary.FlowCardName];
-                        if (flowCardLibrary.Sender != erpFlowCardLibrary.f_fcygbh
-                            || flowCardLibrary.RawMaterialQuantity != int.Parse(erpFlowCardLibrary.f_qty)
-                            || flowCardLibrary.InboundNum != erpFlowCardLibrary.f_rkxh
-                            || flowCardLibrary.Remarks != erpFlowCardLibrary.f_note)
+                        var bUpdate = false;
+                        if (flowCardLibrary.Sender.IsNullOrEmpty() && flowCardLibrary.Sender != erpFlowCardLibrary.f_fcygbh)
                         {
+                            bUpdate = true;
                             flowCardLibrary.Sender = erpFlowCardLibrary.f_fcygbh;
+                        }
+
+                        if (flowCardLibrary.RawMaterialQuantity == 0 && flowCardLibrary.RawMaterialQuantity != int.Parse(erpFlowCardLibrary.f_qty))
+                        {
+                            bUpdate = true;
                             flowCardLibrary.RawMaterialQuantity = int.Parse(erpFlowCardLibrary.f_qty);
+                        }
+
+                        if (flowCardLibrary.InboundNum.IsNullOrEmpty() && flowCardLibrary.InboundNum != erpFlowCardLibrary.f_rkxh)
+                        {
+                            bUpdate = true;
                             flowCardLibrary.InboundNum = erpFlowCardLibrary.f_rkxh;
+                        }
+
+                        if (flowCardLibrary.Remarks.IsNullOrEmpty() && flowCardLibrary.Remarks != erpFlowCardLibrary.f_note)
+                        {
+                            bUpdate = true;
                             flowCardLibrary.Remarks = erpFlowCardLibrary.f_note;
+                        }
+
+                        if (bUpdate)
+                        {
                             update.Add(flowCardLibrary);
                         }
                     }
