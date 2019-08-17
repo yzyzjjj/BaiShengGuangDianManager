@@ -139,7 +139,7 @@ namespace ApiManagement.Base.Helper
                 }
 
                 //原料批号
-                var rawMaterias = ServerConfig.ApiDb.Query<RawMateria>("SELECT * FROM `raw_materia`;").ToDictionary(x => x.RawMateriaName);
+                var rawMaterias = ServerConfig.ApiDb.Query<RawMateria>("SELECT * FROM `raw_materia` WHERE MarkedDelete = 0;").ToDictionary(x => x.RawMateriaName);
                 var erpRawMaterias = r.GroupBy(x => x.f_mate).ToDictionary(x => x.Key);
                 var newRawMaterias = erpRawMaterias.Where(x => !rawMaterias.ContainsKey(x.Key));
                 var newRm = newRawMaterias.Select(x => new RawMateria
@@ -152,10 +152,10 @@ namespace ApiManagement.Base.Helper
                     "INSERT INTO raw_materia (`CreateUserId`, `MarkedDateTime`, `MarkedDelete`, `ModifyId`, `RawMateriaName`) " +
                     "VALUES (@CreateUserId, @MarkedDateTime, @MarkedDelete, @ModifyId, @RawMateriaName);",
                     newRm);
-                rawMaterias = ServerConfig.ApiDb.Query<RawMateria>("SELECT * FROM `raw_materia`;").ToDictionary(x => x.RawMateriaName);
+                rawMaterias = ServerConfig.ApiDb.Query<RawMateria>("SELECT * FROM `raw_materia` WHERE MarkedDelete = 0;").ToDictionary(x => x.RawMateriaName);
 
                 //计划号
-                var productionLibraries = ServerConfig.ApiDb.Query<ProductionLibrary>("SELECT * FROM `production_library`;").ToDictionary(x => x.ProductionProcessName);
+                var productionLibraries = ServerConfig.ApiDb.Query<ProductionLibrary>("SELECT * FROM `production_library` WHERE MarkedDelete = 0;").ToDictionary(x => x.ProductionProcessName);
                 var erpProductionLibraries = r.GroupBy(x => x.f_jhh);
                 var newProductionLibraries = erpProductionLibraries.Where(x => !productionLibraries.ContainsKey(x.Key));
                 var newPl = newProductionLibraries.Select(x => new ProductionLibrary
@@ -170,10 +170,10 @@ namespace ApiManagement.Base.Helper
                     "INSERT INTO production_library (`CreateUserId`, `MarkedDateTime`, `MarkedDelete`, `ModifyId`, `ProductionProcessName`) " +
                     "VALUES (@CreateUserId, @MarkedDateTime, @MarkedDelete, @ModifyId, @ProductionProcessName);",
                     newPl);
-                productionLibraries = ServerConfig.ApiDb.Query<ProductionLibrary>("SELECT * FROM `production_library`;").ToDictionary(x => x.ProductionProcessName);
+                productionLibraries = ServerConfig.ApiDb.Query<ProductionLibrary>("SELECT * FROM `production_library` WHERE MarkedDelete = 0;").ToDictionary(x => x.ProductionProcessName);
 
                 //数据库计划号工序
-                var productionProcessStep = ServerConfig.ApiDb.Query<ProductionProcessStepDetail>("SELECT a.*, b.ProductionProcessName FROM `production_process_step` a JOIN `production_library` b ON a.ProductionProcessId = b.Id; ")
+                var productionProcessStep = ServerConfig.ApiDb.Query<ProductionProcessStepDetail>("SELECT a.*, b.ProductionProcessName FROM `production_process_step` a JOIN `production_library` b ON a.ProductionProcessId = b.Id WHERE a.MarkedDelete = 0; ")
                     .GroupBy(x => x.ProductionProcessId).ToDictionary(x => x.Key);
                 //获取的流程卡用到的计划号
                 if (erpProductionLibraries.Any())
@@ -233,7 +233,7 @@ namespace ApiManagement.Base.Helper
                                 "VALUES (@CreateUserId, @MarkedDateTime, @MarkedDelete, @ModifyId, @ProductionProcessId, @ProcessStepOrder, @ProcessStepId, @ProcessStepRequirements, @ProcessStepRequirementMid);",
                                 newPps);
 
-                            productionProcessStep = ServerConfig.ApiDb.Query<ProductionProcessStepDetail>("SELECT a.*, b.ProductionProcessName FROM `production_process_step` a JOIN `production_library` b ON a.ProductionProcessId = b.Id; ")
+                            productionProcessStep = ServerConfig.ApiDb.Query<ProductionProcessStepDetail>("SELECT a.*, b.ProductionProcessName FROM `production_process_step` a JOIN `production_library` b ON a.ProductionProcessId = b.Id WHERE a.MarkedDelete = 0; ")
                               .GroupBy(x => x.ProductionProcessId).ToDictionary(x => x.Key);
                         }
                     }

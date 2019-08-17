@@ -2,6 +2,7 @@
 using ApiManagement.Base.Server;
 using ApiManagement.Models;
 using ApiManagement.Models.Analysis;
+using Microsoft.EntityFrameworkCore.Internal;
 using Microsoft.Extensions.Configuration;
 using ModelBase.Base.Logger;
 using ModelBase.Base.Utils;
@@ -401,17 +402,31 @@ namespace ApiManagement.Base.Helper
 
                             Task.Run(() =>
                             {
-                                ServerConfig.ApiDb.ExecuteTrans(
-                                    "INSERT INTO npc_monitoring_analysis (`SendTime`, `DeviceId`, `ScriptId`, `Ip`, `Port`, `Data`) " +
-                                    "VALUES (@SendTime, @DeviceId, @ScriptId, @Ip, @Port, @Data);",
-                                    mData);
+                                try
+                                {
+                                    ServerConfig.ApiDb.ExecuteTrans(
+                                        "INSERT INTO npc_monitoring_analysis (`SendTime`, `DeviceId`, `ScriptId`, `Ip`, `Port`, `Data`) VALUES (@SendTime, @DeviceId, @ScriptId, @Ip, @Port, @Data) " +
+                                            "ON DUPLICATE KEY UPDATE `SendTime` = @SendTime, `DeviceId` = @DeviceId, `ScriptId` = @ScriptId, `Ip` = @Ip, `Port` = @Port, `Data` = @Data;",
+                                        mData);
+                                }
+                                catch (Exception e)
+                                {
+                                    Log.Error(e);
+                                }
                             });
                             Task.Run(() =>
                             {
-                                ServerConfig.ApiDb.ExecuteTrans(
-                                "INSERT INTO npc_monitoring_process (`Time`, `DeviceId`, `ProcessCount`, `TotalProcessCount`, `ProcessTime`, `TotalProcessTime`, `RunTime`, `TotalRunTime`, `State`, `Rate`, `Use`, `Total`) " +
-                                "VALUES (@Time, @DeviceId, @ProcessCount, @TotalProcessCount, @ProcessTime, @TotalProcessTime, @RunTime, @TotalRunTime, @State, @Rate, @Use, @Total);",
-                                monitoringProcesses);
+                                try
+                                {
+                                    ServerConfig.ApiDb.ExecuteTrans(
+                                        "INSERT INTO npc_monitoring_process (`Time`, `DeviceId`, `ProcessCount`, `TotalProcessCount`, `ProcessTime`, `TotalProcessTime`, `RunTime`, `TotalRunTime`, `State`, `Rate`, `Use`, `Total`) VALUES (@Time, @DeviceId, @ProcessCount, @TotalProcessCount, @ProcessTime, @TotalProcessTime, @RunTime, @TotalRunTime, @State, @Rate, @Use, @Total) " +
+                                        "ON DUPLICATE KEY UPDATE `Time` = @Time, `DeviceId` = @DeviceId, `State` = @State, `ProcessCount` = @ProcessCount, `TotalProcessCount` = @TotalProcessCount, `ProcessTime` = @ProcessTime, `TotalProcessTime` = @TotalProcessTime, `RunTime` = @RunTime, `TotalRunTime` = @TotalRunTime, `Use` = @Use, `Total` = @Total, `Rate` = @Rate;",
+                                        monitoringProcesses);
+                                }
+                                catch (Exception e)
+                                {
+                                    Log.Error(e);
+                                }
                             });
 
                             ServerConfig.RedisHelper.SetForever(redisKey, endId);

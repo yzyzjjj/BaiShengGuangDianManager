@@ -3,12 +3,14 @@ using ApiManagement.Models;
 using ApiManagement.Models.Analysis;
 using Microsoft.AspNetCore.Mvc;
 using ModelBase.Base.EnumConfig;
+using ModelBase.Base.Logger;
 using ModelBase.Base.Utils;
 using ModelBase.Models.Result;
 using Newtonsoft.Json.Linq;
 using ServiceStack;
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Linq;
 
 namespace ApiManagement.Controllers
@@ -77,132 +79,52 @@ namespace ApiManagement.Controllers
                     return Result.GenError<DataResult>(Error.ParamError);
                 }
 
-                if (requestBody.Compare == 0)
+                var cnt =
+                    ServerConfig.ApiDb
+                        .Query<int>(
+                            "SELECT COUNT(1) FROM `device_library` WHERE Id = @id AND `MarkedDelete` = 0;",
+                            new { id = requestBody.DeviceId }).FirstOrDefault();
+                if (cnt == 0)
                 {
-                    var cnt =
-                        ServerConfig.ApiDb
-                            .Query<int>(
-                                "SELECT COUNT(1) FROM `device_library` WHERE Id = @id AND `MarkedDelete` = 0;",
-                                new { id = requestBody.DeviceId }).FirstOrDefault();
-                    if (cnt == 0)
-                    {
-                        return Result.GenError<DataResult>(Error.DeviceNotExist);
-                    }
-                }
-                else
-                {
-                    if (requestBody.DeviceId.IsNullOrEmpty())
-                    {
-                        return Result.GenError<DataResult>(Error.DeviceNotExist);
-                    }
-
-                    var deviceIds = requestBody.DeviceId.Split(",");
-                    var cnt =
-                        ServerConfig.ApiDb
-                            .Query<int>(
-                                "SELECT COUNT(1) FROM `device_library` WHERE Id IN @id AND `MarkedDelete` = 0;",
-                                new { id = deviceIds }).FirstOrDefault();
-                    if (cnt != deviceIds.Length)
-                    {
-                        return Result.GenError<DataResult>(Error.DeviceNotExist);
-                    }
+                    return Result.GenError<DataResult>(Error.DeviceNotExist);
                 }
 
-                string sql;
-                DateTime startTime;
-                DateTime endTime;
-                switch (requestBody.DataType)
+                var startTime = requestBody.StartTime;
+                var endTime = requestBody.EndTime;
+
+                var sql =
+                    "SELECT Id, SendTime, `Data`, `DeviceId`, ScriptId FROM `npc_monitoring_analysis` WHERE DeviceId = @DeviceId AND SendTime BETWEEN @startTime AND @endTime ORDER BY SendTime";
+                var data = ServerConfig.ApiDb.Query<MonitoringAnalysis>(sql, new
                 {
-                    case 0:
-                        #region 0 小时 - 秒
-                        startTime = requestBody.StartTime;
-                        endTime = requestBody.EndTime;
-
-                        if (requestBody.Compare == 0)
-                        {
-                            sql =
-                                "SELECT Id, SendTime, `Data`, `DeviceId`, ScriptId FROM `npc_monitoring_analysis` WHERE DeviceId = @DeviceId AND SendTime >= @startTime AND SendTime <= @endTime ORDER BY SendTime";
-                        }
-                        else
-                        {
-                            sql =
-                                "SELECT Id, SendTime, `Data`, `DeviceId`, ScriptId FROM `npc_monitoring_analysis` WHERE DeviceId IN @DeviceId AND SendTime >= @startTime AND SendTime <= @endTime ORDER BY SendTime";
-                        }
-
-                        break;
-                    #endregion
-                    case 1:
-                        #region 1 天 - 小时
-                        //startTime = requestBody.StartTime.DayBeginTime();
-                        //endTime = requestBody.EndTime.AddDays(1).DayBeginTime();
-                        startTime = requestBody.StartTime.NoMinute();
-                        endTime = requestBody.EndTime.NoMinute();
-
-                        if (requestBody.Compare == 0)
-                        {
-                            sql =
-                                "SELECT Id, DATE_FORMAT(SendTime, '%Y-%m-%d %H:00:00') SendTime, `Data`, `DeviceId`, ScriptId FROM `npc_monitoring_analysis` WHERE DeviceId = @DeviceId AND SendTime >= @startTime AND SendTime <= @endTime GROUP BY DATE(SendTime), HOUR (SendTime) ORDER BY SendTime";
-                        }
-                        else
-                        {
-                            sql =
-                                "SELECT Id, DATE_FORMAT(SendTime, '%Y-%m-%d %H:00:00') SendTime, `Data`, `DeviceId`, ScriptId FROM `npc_monitoring_analysis` WHERE DeviceId IN @DeviceId AND SendTime >= @startTime AND SendTime <= @endTime GROUP BY `DeviceId`, DATE(SendTime), HOUR (SendTime) ORDER BY SendTime";
-                        }
-
-                        #endregion
-                        break;
-                    case 2:
-                        #region 2 月 天 
-                        startTime = requestBody.StartTime.StartOfMonth();
-                        endTime = requestBody.EndTime.StartOfNextMonth().DayBeginTime();
-
-                        if (requestBody.Compare == 0)
-                        {
-                            sql =
-                                "SELECT Id, DATE(SendTime) SendTime, `Data`, `DeviceId`, ScriptId FROM `npc_monitoring_analysis` WHERE DeviceId = @DeviceId AND SendTime >= @startTime AND SendTime <= @endTime GROUP BY DATE(SendTime) ORDER BY SendTime";
-
-                        }
-                        else
-                        {
-                            sql =
-                                "SELECT Id, DATE(SendTime) SendTime, `Data`, `DeviceId`, ScriptId FROM `npc_monitoring_analysis` WHERE DeviceId = @DeviceId AND SendTime >= @startTime AND SendTime <= @endTime GROUP BY `DeviceId`, DATE(SendTime) ORDER BY SendTime";
-                        }
-                        #endregion
-                        break;
-                    default: return Result.GenError<DataResult>(Error.ParamError);
-                }
-
-                IEnumerable<MonitoringAnalysis> data;
-                if (requestBody.Compare == 0)
-                {
-                    data = ServerConfig.ApiDb.Query<MonitoringAnalysis>(sql, new
-                    {
-                        DeviceId = requestBody.DeviceId,
-                        startTime,
-                        endTime
-                    }, 60);
-                }
-                else
-                {
-                    data = ServerConfig.ApiDb.Query<MonitoringAnalysis>(sql, new
-                    {
-                        DeviceId = requestBody.DeviceId.Split(","),
-                        startTime,
-                        endTime
-                    }, 60);
-                }
+                    requestBody.DeviceId,
+                    startTime,
+                    endTime
+                }, 60);
 
                 var scripts = data.GroupBy(x => x.ScriptId).Select(x => x.Key).ToList();
                 scripts.Add(0);
                 var usuallyDictionaries = ServerConfig.ApiDb.Query<UsuallyDictionary>(
-                    "SELECT a.VariableNameId, a.ScriptId, a.DictionaryId FROM `usually_dictionary` a JOIN `usually_dictionary_type` b ON a.VariableNameId = b.Id " +
+                    "SELECT a.VariableNameId, a.ScriptId, a.DictionaryId, a.VariableTypeId FROM `usually_dictionary` a JOIN `usually_dictionary_type` b ON a.VariableNameId = b.Id " +
                     "WHERE StatisticType = 1 AND a.VariableNameId IN @VariableNameId AND a.ScriptId IN @ScriptId;", new
                     {
                         ScriptId = scripts,
                         VariableNameId = fields,
                     });
+
                 if (usuallyDictionaries != null && usuallyDictionaries.Any())
                 {
+                    scripts.Remove(0);
+                    var fieldDid = new Dictionary<Tuple<int, int>, Tuple<int, int>>();
+                    foreach (var field in fields)
+                    {
+                        foreach (var scriptId in scripts)
+                        {
+                            var udd = usuallyDictionaries.FirstOrDefault(x =>
+                                x.ScriptId == scriptId && x.VariableNameId == field);
+                            var usuallyDictionary = udd ?? usuallyDictionaries.First(x => x.ScriptId == 0 && x.VariableNameId == field);
+                            fieldDid.Add(new Tuple<int, int>(field, scriptId), new Tuple<int, int>(usuallyDictionary.VariableTypeId, usuallyDictionary.DictionaryId));
+                        }
+                    }
                     foreach (var da in data)
                     {
                         var jObject = new JObject();
@@ -214,12 +136,22 @@ namespace ApiManagement.Controllers
                             var analysisData = da.AnalysisData;
                             if (analysisData != null)
                             {
-                                //今日加工次数
-                                var udd = usuallyDictionaries.FirstOrDefault(x =>
-                                     x.ScriptId == da.ScriptId && x.VariableNameId == field);
-                                var address = udd?.DictionaryId ?? usuallyDictionaries.First(x => x.ScriptId == 0 && x.VariableNameId == field).DictionaryId;
-                                var actAddress = address - 1;
-                                var v = analysisData.vals[actAddress];
+                                var address = fieldDid[new Tuple<int, int>(field, da.ScriptId)];
+                                var actAddress = address.Item2 - 1;
+                                var v = 0;
+                                if (address.Item1 == 1)
+                                {
+                                    v = analysisData.vals[actAddress];
+                                }
+                                else if (address.Item1 == 2)
+                                {
+                                    v = analysisData.ins[actAddress];
+                                }
+                                else if (address.Item1 == 3)
+                                {
+                                    v = analysisData.outs[actAddress];
+                                }
+
                                 jObject[key] = v;
                             }
                         }
@@ -233,6 +165,176 @@ namespace ApiManagement.Controllers
             {
                 return Result.GenError<DataResult>(Error.ParamError);
             }
+
+            #region old
+
+            //var result = new DataResult();
+            //try
+            //{
+            //    var fields = requestBody.Field.Split(",").Select(int.Parse);
+            //    if (!fields.Any())
+            //    {
+            //        return Result.GenError<DataResult>(Error.ParamError);
+            //    }
+
+            //    if (requestBody.Compare == 0)
+            //    {
+            //        var cnt =
+            //            ServerConfig.ApiDb
+            //                .Query<int>(
+            //                    "SELECT COUNT(1) FROM `device_library` WHERE Id = @id AND `MarkedDelete` = 0;",
+            //                    new { id = requestBody.DeviceId }).FirstOrDefault();
+            //        if (cnt == 0)
+            //        {
+            //            return Result.GenError<DataResult>(Error.DeviceNotExist);
+            //        }
+            //    }
+            //    else
+            //    {
+            //        if (requestBody.DeviceId.IsNullOrEmpty())
+            //        {
+            //            return Result.GenError<DataResult>(Error.DeviceNotExist);
+            //        }
+
+            //        var deviceIds = requestBody.DeviceId.Split(",");
+            //        var cnt =
+            //            ServerConfig.ApiDb
+            //                .Query<int>(
+            //                    "SELECT COUNT(1) FROM `device_library` WHERE Id IN @id AND `MarkedDelete` = 0;",
+            //                    new { id = deviceIds }).FirstOrDefault();
+            //        if (cnt != deviceIds.Length)
+            //        {
+            //            return Result.GenError<DataResult>(Error.DeviceNotExist);
+            //        }
+            //    }
+
+            //    string sql;
+            //    DateTime startTime;
+            //    DateTime endTime;
+            //    switch (requestBody.DataType)
+            //    {
+            //        case 0:
+            //            #region 0 小时 - 秒
+            //            startTime = requestBody.StartTime;
+            //            endTime = requestBody.EndTime;
+
+            //            if (requestBody.Compare == 0)
+            //            {
+            //                sql =
+            //                    "SELECT Id, SendTime, `Data`, `DeviceId`, ScriptId FROM `npc_monitoring_analysis` WHERE DeviceId = @DeviceId AND SendTime >= @startTime AND SendTime <= @endTime ORDER BY SendTime";
+            //            }
+            //            else
+            //            {
+            //                sql =
+            //                    "SELECT Id, SendTime, `Data`, `DeviceId`, ScriptId FROM `npc_monitoring_analysis` WHERE DeviceId IN @DeviceId AND SendTime >= @startTime AND SendTime <= @endTime ORDER BY SendTime";
+            //            }
+
+            //            break;
+            //        #endregion
+            //        case 1:
+            //            #region 1 天 - 小时
+            //            //startTime = requestBody.StartTime.DayBeginTime();
+            //            //endTime = requestBody.EndTime.AddDays(1).DayBeginTime();
+            //            startTime = requestBody.StartTime.NoMinute();
+            //            endTime = requestBody.EndTime.NoMinute();
+
+            //            if (requestBody.Compare == 0)
+            //            {
+            //                sql =
+            //                    "SELECT Id, DATE_FORMAT(SendTime, '%Y-%m-%d %H:00:00') SendTime, `Data`, `DeviceId`, ScriptId FROM `npc_monitoring_analysis` WHERE DeviceId = @DeviceId AND SendTime >= @startTime AND SendTime <= @endTime GROUP BY DATE(SendTime), HOUR (SendTime) ORDER BY SendTime";
+            //            }
+            //            else
+            //            {
+            //                sql =
+            //                    "SELECT Id, DATE_FORMAT(SendTime, '%Y-%m-%d %H:00:00') SendTime, `Data`, `DeviceId`, ScriptId FROM `npc_monitoring_analysis` WHERE DeviceId IN @DeviceId AND SendTime >= @startTime AND SendTime <= @endTime GROUP BY `DeviceId`, DATE(SendTime), HOUR (SendTime) ORDER BY SendTime";
+            //            }
+
+            //            #endregion
+            //            break;
+            //        case 2:
+            //            #region 2 月 天 
+            //            startTime = requestBody.StartTime.StartOfMonth();
+            //            endTime = requestBody.EndTime.StartOfNextMonth().DayBeginTime();
+
+            //            if (requestBody.Compare == 0)
+            //            {
+            //                sql =
+            //                    "SELECT Id, DATE(SendTime) SendTime, `Data`, `DeviceId`, ScriptId FROM `npc_monitoring_analysis` WHERE DeviceId = @DeviceId AND SendTime >= @startTime AND SendTime <= @endTime GROUP BY DATE(SendTime) ORDER BY SendTime";
+
+            //            }
+            //            else
+            //            {
+            //                sql =
+            //                    "SELECT Id, DATE(SendTime) SendTime, `Data`, `DeviceId`, ScriptId FROM `npc_monitoring_analysis` WHERE DeviceId = @DeviceId AND SendTime >= @startTime AND SendTime <= @endTime GROUP BY `DeviceId`, DATE(SendTime) ORDER BY SendTime";
+            //            }
+            //            #endregion
+            //            break;
+            //        default: return Result.GenError<DataResult>(Error.ParamError);
+            //    }
+
+            //    IEnumerable<MonitoringAnalysis> data;
+            //    if (requestBody.Compare == 0)
+            //    {
+            //        data = ServerConfig.ApiDb.Query<MonitoringAnalysis>(sql, new
+            //        {
+            //            DeviceId = requestBody.DeviceId,
+            //            startTime,
+            //            endTime
+            //        }, 60);
+            //    }
+            //    else
+            //    {
+            //        data = ServerConfig.ApiDb.Query<MonitoringAnalysis>(sql, new
+            //        {
+            //            DeviceId = requestBody.DeviceId.Split(","),
+            //            startTime,
+            //            endTime
+            //        }, 60);
+            //    }
+
+            //    var scripts = data.GroupBy(x => x.ScriptId).Select(x => x.Key).ToList();
+            //    scripts.Add(0);
+            //    var usuallyDictionaries = ServerConfig.ApiDb.Query<UsuallyDictionary>(
+            //        "SELECT a.VariableNameId, a.ScriptId, a.DictionaryId FROM `usually_dictionary` a JOIN `usually_dictionary_type` b ON a.VariableNameId = b.Id " +
+            //        "WHERE StatisticType = 1 AND a.VariableNameId IN @VariableNameId AND a.ScriptId IN @ScriptId;", new
+            //        {
+            //            ScriptId = scripts,
+            //            VariableNameId = fields,
+            //        });
+            //    if (usuallyDictionaries != null && usuallyDictionaries.Any())
+            //    {
+            //        foreach (var da in data)
+            //        {
+            //            var jObject = new JObject();
+            //            jObject["time"] = da.SendTime;
+            //            foreach (var field in fields)
+            //            {
+            //                var key = "v" + field;
+            //                jObject[key] = 0;
+            //                var analysisData = da.AnalysisData;
+            //                if (analysisData != null)
+            //                {
+            //                    //今日加工次数
+            //                    var udd = usuallyDictionaries.FirstOrDefault(x =>
+            //                         x.ScriptId == da.ScriptId && x.VariableNameId == field);
+            //                    var address = udd?.DictionaryId ?? usuallyDictionaries.First(x => x.ScriptId == 0 && x.VariableNameId == field).DictionaryId;
+            //                    var actAddress = address - 1;
+            //                    var v = analysisData.vals[actAddress];
+            //                    jObject[key] = v;
+            //                }
+            //            }
+            //            result.datas.Add(jObject);
+            //        }
+            //    }
+
+            //    return result;
+            //}
+            //catch (Exception e)
+            //{
+            //    return Result.GenError<DataResult>(Error.ParamError);
+            //}
+
+            #endregion
         }
 
         /// <summary>
