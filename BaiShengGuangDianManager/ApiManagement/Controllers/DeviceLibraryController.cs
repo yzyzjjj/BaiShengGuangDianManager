@@ -455,14 +455,14 @@ namespace ApiManagement.Controllers
                 HttpResponseErrAsync(new DeviceInfo
                 {
                     DeviceId = deviceLibrary.Id,
-                }, "delDeviceGate", "PutDeviceLibrary", () =>
+                }, "batchDelDeviceGate", "PutDeviceLibrary", () =>
                 {
                     HttpResponseErrAsync(new DeviceInfo
                     {
                         DeviceId = deviceLibrary.Id,
                         Ip = deviceLibrary.Ip,
                         Port = deviceLibrary.Port,
-                    }, "addDeviceGate", "PutDeviceLibrary");
+                    }, "batchAddDeviceGate", "PutDeviceLibrary");
                 });
             }
 
@@ -562,14 +562,14 @@ namespace ApiManagement.Controllers
                 HttpResponseErrAsync(new DeviceInfo
                 {
                     DeviceId = deviceLibrary.Id,
-                }, "delDeviceGate", "PutDeviceLibrary", () =>
+                }, "batchDelDeviceGate", "PutDeviceLibrary", () =>
                 {
                     HttpResponseErrAsync(new DeviceInfo
                     {
                         DeviceId = deviceLibrary.Id,
                         Ip = deviceLibrary.Ip,
                         Port = deviceLibrary.Port,
-                    }, "addDeviceGate", "PutDeviceLibrary");
+                    }, "batchAddDeviceGate", "PutDeviceLibrary");
                 });
             }
 
@@ -657,9 +657,10 @@ namespace ApiManagement.Controllers
                 DeviceId = lastInsertId,
                 Ip = deviceLibrary.Ip,
                 Port = deviceLibrary.Port,
-            }, "addDeviceGate", "PostDeviceLibrary");
+            }, "batchAddDeviceGate", "PostDeviceLibrary");
             return Result.GenError<Result>(Error.Success);
         }
+
         public class ProcessInfo
         {
             //设备id
@@ -969,7 +970,7 @@ namespace ApiManagement.Controllers
             HttpResponseErrAsync(new DeviceInfo
             {
                 DeviceId = id,
-            }, "delDeviceGate", "DeleteDeviceLibrary");
+            }, "batchDelDeviceGate", "DeleteDeviceLibrary");
             return Result.GenError<Result>(Error.Success);
         }
 
@@ -998,7 +999,7 @@ namespace ApiManagement.Controllers
             HttpResponseErrAsync(new DeviceInfo
             {
                 DeviceId = data.Id,
-            }, "delDeviceGate", "DeleteDeviceLibrary");
+            }, "batchDelDeviceGate", "DeleteDeviceLibrary");
             return Result.GenError<Result>(Error.Success);
         }
         private static void HttpResponseErrAsync(DeviceInfo deviceInfo, string urlKey, string funName, Action callback = null)
@@ -1007,7 +1008,11 @@ namespace ApiManagement.Controllers
             //向NpcProxyLink请求数据
             HttpServer.PostAsync(url, new Dictionary<string, string>
             {
-                {"deviceInfo", deviceInfo.ToJSON()}
+                { "devicesList", new List<DeviceInfo>
+                    {
+                        deviceInfo
+                    }.ToJSON()
+                }
             }, (resp, exp) =>
             {
                 Log.DebugFormat("{0} Res:{1}", funName, resp);

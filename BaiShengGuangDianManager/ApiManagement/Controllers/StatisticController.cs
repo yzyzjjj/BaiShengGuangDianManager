@@ -3,14 +3,12 @@ using ApiManagement.Models;
 using ApiManagement.Models.Analysis;
 using Microsoft.AspNetCore.Mvc;
 using ModelBase.Base.EnumConfig;
-using ModelBase.Base.Logger;
 using ModelBase.Base.Utils;
 using ModelBase.Models.Result;
 using Newtonsoft.Json.Linq;
 using ServiceStack;
 using System;
 using System.Collections.Generic;
-using System.Diagnostics;
 using System.Linq;
 
 namespace ApiManagement.Controllers
@@ -93,13 +91,32 @@ namespace ApiManagement.Controllers
                 var endTime = requestBody.EndTime;
 
                 var sql =
-                    "SELECT Id, SendTime, `Data`, `DeviceId`, ScriptId FROM `npc_monitoring_analysis` WHERE DeviceId = @DeviceId AND SendTime BETWEEN @startTime AND @endTime ORDER BY SendTime";
-                var data = ServerConfig.ApiDb.Query<MonitoringAnalysis>(sql, new
+                    "SELECT Id, SendTime, `Data`, `DeviceId`, ScriptId FROM `npc_monitoring_analysis` WHERE DeviceId = @DeviceId AND SendTime >= @startTime AND SendTime <= @endTime ORDER BY SendTime";
+
+                var data = new List<MonitoringAnalysis>();
+                var tStartTime = startTime;
+                var tEndTime = tStartTime.AddMinutes(30);
+                
+                while (true)
                 {
-                    requestBody.DeviceId,
-                    startTime,
-                    endTime
-                }, 60);
+                    if (tEndTime > endTime)
+                    {
+                        tEndTime = endTime;
+                    }
+                    data.AddRange(ServerConfig.ApiDb.Query<MonitoringAnalysis>(sql, new
+                    {
+                        requestBody.DeviceId,
+                        startTime = tStartTime,
+                        endTime = tEndTime
+                    }, 60));
+                    if (tEndTime == endTime)
+                    {
+                        break;
+                    }
+
+                    tStartTime = tEndTime;
+                    tEndTime = tStartTime.AddMinutes(30);
+                }
 
                 var scripts = data.GroupBy(x => x.ScriptId).Select(x => x.Key).ToList();
                 scripts.Add(0);
