@@ -3,13 +3,16 @@ using ApiManagement.Models;
 using ApiManagement.Models.Analysis;
 using Microsoft.AspNetCore.Mvc;
 using ModelBase.Base.EnumConfig;
+using ModelBase.Base.Logger;
 using ModelBase.Base.Utils;
 using ModelBase.Models.Result;
 using Newtonsoft.Json.Linq;
 using ServiceStack;
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Linq;
+using System.Threading.Tasks;
 
 namespace ApiManagement.Controllers
 {
@@ -96,19 +99,24 @@ namespace ApiManagement.Controllers
                 var data = new List<MonitoringAnalysis>();
                 var tStartTime = startTime;
                 var tEndTime = tStartTime.AddMinutes(30);
-                
+                var tasks = new List<Task>();
                 while (true)
                 {
                     if (tEndTime > endTime)
                     {
                         tEndTime = endTime;
                     }
-                    data.AddRange(ServerConfig.ApiDb.Query<MonitoringAnalysis>(sql, new
+
+                    var task = Task.Factory.StartNew(() =>
                     {
-                        requestBody.DeviceId,
-                        startTime = tStartTime,
-                        endTime = tEndTime
-                    }, 60));
+                        data.AddRange(ServerConfig.ApiDb.Query<MonitoringAnalysis>(sql, new
+                        {
+                            requestBody.DeviceId,
+                            startTime = tStartTime,
+                            endTime = tEndTime
+                        }, 60));
+                    });
+                    tasks.Add(task);
                     if (tEndTime == endTime)
                     {
                         break;
@@ -118,7 +126,8 @@ namespace ApiManagement.Controllers
                     tEndTime = tStartTime.AddMinutes(30);
                 }
 
-                var scripts = data.GroupBy(x => x.ScriptId).Select(x => x.Key).ToList();
+                Task.WaitAll(tasks.ToArray());
+                var scripts = data.OrderBy(x => x.Id).GroupBy(x => x.ScriptId).Select(x => x.Key).ToList();
                 scripts.Add(0);
                 var usuallyDictionaries = ServerConfig.ApiDb.Query<UsuallyDictionary>(
                     "SELECT a.VariableNameId, a.ScriptId, a.DictionaryId, a.VariableTypeId FROM `usually_dictionary` a JOIN `usually_dictionary_type` b ON a.VariableNameId = b.Id " +
