@@ -71,10 +71,15 @@ namespace ApiManagement.Base.Helper
                     ServerConfig.RedisHelper.Remove(AnalysisLock);
                 }
             }
+#if DEBUG
+            Console.WriteLine("调试模式已开启");
+#else
+            Console.WriteLine("发布模式已开启");
             _analysis = new Timer(Analysis, null, 10000, 2000);
             _analysisOther = new Timer(AnalysisOther, null, 12000, 2000);
             _delete = new Timer(Delete, null, 10000, 1000);
             _fault = new Timer(Fault, null, 10000, 1000 * 10);
+#endif
         }
 
         private static void Delete(object state)

@@ -1,13 +1,13 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using ApiManagement.Base.Server;
+﻿using ApiManagement.Base.Server;
 using ApiManagement.Models;
 using Microsoft.AspNetCore.Mvc;
 using ModelBase.Base.EnumConfig;
 using ModelBase.Base.Utils;
 using ModelBase.Models.Result;
 using ServiceStack;
+using System;
+using System.Collections.Generic;
+using System.Linq;
 
 namespace ApiManagement.Controllers
 {
@@ -21,16 +21,43 @@ namespace ApiManagement.Controllers
 
         // GET: api/RawMateria
         [HttpGet]
-        public DataResult GetRawMateria()
+        public DataResult GetRawMateria([FromQuery]string rawMateriaName, DateTime startTime, DateTime endTime)
         {
             var result = new DataResult();
-            var rawMaterias = ServerConfig.ApiDb.Query<RawMateria>("SELECT * FROM `raw_materia` WHERE MarkedDelete = 0;");
-            var rawMateriaSpecifications = ServerConfig.ApiDb.Query<RawMateriaSpecification>("SELECT * FROM `raw_materia_specification` WHERE MarkedDelete = 0;");
-            foreach (var rawMateria in rawMaterias)
+            string sql;
+            if (!rawMateriaName.IsNullOrEmpty() && startTime != default(DateTime) && endTime != default(DateTime))
             {
-                var specifications = rawMateriaSpecifications.Where(x => x.RawMateriaId == rawMateria.Id);
-                rawMateria.RawMateriaSpecifications.AddRange(specifications);
+                sql =
+                    "SELECT * FROM `raw_materia` WHERE MarkedDelete = 0 AND RawMateriaName = @RawMateriaName AND MarkedDateTime >= @StartTime AND MarkedDateTime <= @EndTime;";
             }
+            else if (!rawMateriaName.IsNullOrEmpty())
+            {
+                sql =
+                    "SELECT * FROM `raw_materia` WHERE MarkedDelete = 0 AND RawMateriaName = @RawMateriaName;";
+            }
+            else if (startTime != default(DateTime) && endTime != default(DateTime))
+            {
+                sql =
+                    "SELECT * FROM `raw_materia` WHERE MarkedDelete = 0 AND MarkedDateTime >= @StartTime AND MarkedDateTime <= @EndTime;";
+            }
+            else
+            {
+                sql =
+                    "SELECT * FROM `raw_materia` WHERE MarkedDelete = 0;";
+            }
+
+            var rawMaterias = ServerConfig.ApiDb.Query<RawMateria>(sql, new
+            {
+                RawMateriaName = rawMateriaName,
+                StartTime = startTime,
+                EndTime = endTime
+            }).OrderByDescending(x => x.MarkedDateTime);
+            //var rawMateriaSpecifications = ServerConfig.ApiDb.Query<RawMateriaSpecification>("SELECT * FROM `raw_materia_specification` WHERE MarkedDelete = 0;");
+            //foreach (var rawMateria in rawMaterias)
+            //{
+            //    var specifications = rawMateriaSpecifications.Where(x => x.RawMateriaId == rawMateria.Id);
+            //    rawMateria.RawMateriaSpecifications.AddRange(specifications);
+            //}
 
             result.datas.AddRange(rawMaterias);
             return result;

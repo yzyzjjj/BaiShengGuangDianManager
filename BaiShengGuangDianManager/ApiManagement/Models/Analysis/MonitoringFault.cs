@@ -113,7 +113,7 @@ namespace ApiManagement.Models.Analysis
                 {
                     var faultType = ReportSingleFaultType.First(x => x.FaultId == singleFaultType.FaultId);
                     faultType.Count += singleFaultType.Count;
-                    foreach (var deviceFaultType in faultType.DeviceFaultTypes)
+                    foreach (var deviceFaultType in singleFaultType.DeviceFaultTypes)
                     {
                         if (faultType.DeviceFaultTypes.Any(x => x.Code == deviceFaultType.Code))
                         {
@@ -123,6 +123,19 @@ namespace ApiManagement.Models.Analysis
                         else
                         {
                             faultType.DeviceFaultTypes.Add(deviceFaultType);
+                        }
+                        foreach (var @operator in singleFaultType.Operators)
+                        {
+                            if (faultType.Operators.Any(x => x.Name == @operator.Name))
+                            {
+                                var operator1 = faultType.Operators.First(x => x.Name == @operator.Name);
+                                operator1.Count += @operator.Count;
+                                operator1.Time += @operator.Time;
+                            }
+                            else
+                            {
+                                faultType.Operators.Add(@operator);
+                            }
                         }
                     }
                 }
@@ -143,7 +156,7 @@ namespace ApiManagement.Models.Analysis
                 {
                     var faultType = RepairSingleFaultType.First(x => x.FaultId == repairSingleFaultType.FaultId);
                     faultType.Count += repairSingleFaultType.Count;
-                    foreach (var deviceFaultType in faultType.DeviceFaultTypes)
+                    foreach (var deviceFaultType in repairSingleFaultType.DeviceFaultTypes)
                     {
                         if (faultType.DeviceFaultTypes.Any(x => x.Code == deviceFaultType.Code))
                         {
@@ -155,7 +168,7 @@ namespace ApiManagement.Models.Analysis
                             faultType.DeviceFaultTypes.Add(deviceFaultType);
                         }
                     }
-                    foreach (var @operator in faultType.Operators)
+                    foreach (var @operator in repairSingleFaultType.Operators)
                     {
                         if (faultType.Operators.Any(x => x.Name == @operator.Name))
                         {

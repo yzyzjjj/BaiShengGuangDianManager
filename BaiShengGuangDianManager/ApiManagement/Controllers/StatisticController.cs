@@ -3,14 +3,12 @@ using ApiManagement.Models;
 using ApiManagement.Models.Analysis;
 using Microsoft.AspNetCore.Mvc;
 using ModelBase.Base.EnumConfig;
-using ModelBase.Base.Logger;
 using ModelBase.Base.Utils;
 using ModelBase.Models.Result;
 using Newtonsoft.Json.Linq;
 using ServiceStack;
 using System;
 using System.Collections.Generic;
-using System.Diagnostics;
 using System.Linq;
 using System.Threading.Tasks;
 
@@ -590,10 +588,8 @@ namespace ApiManagement.Controllers
                 {
                     return Result.GenError<DataResult>(Error.ProcessNotStart);
                 }
-                requestBody.StartTime = flowCardProcessStep.ProcessTime;
-                requestBody.EndTime = flowCardProcessStep.ProcessEndTime == default(DateTime) ? DateTime.Now : flowCardProcessStep.ProcessEndTime;
-                requestBody.DataType = (requestBody.EndTime - requestBody.StartTime).TotalDays > 1 ? 1 : 0;
-
+                var startTime = flowCardProcessStep.ProcessTime;
+                var endTime = flowCardProcessStep.ProcessEndTime == default(DateTime) ? DateTime.Now : flowCardProcessStep.ProcessEndTime;
                 var cnt =
                     ServerConfig.ApiDb.Query<int>("SELECT COUNT(1) FROM `device_library` WHERE Id = @id AND `MarkedDelete` = 0;", new { id = requestBody.DeviceId }).FirstOrDefault();
                 if (cnt == 0)
@@ -601,47 +597,39 @@ namespace ApiManagement.Controllers
                     return Result.GenError<DataResult>(Error.DeviceNotExist);
                 }
 
-                string sql;
-                DateTime startTime;
-                DateTime endTime;
-                switch (requestBody.DataType)
+                var sql = "SELECT Id, SendTime, `DATA`, ScriptId FROM `npc_monitoring_analysis` WHERE DeviceId = @DeviceId AND SendTime >= @startTime AND SendTime <= @endTime ORDER BY SendTime";
+                var data = new List<MonitoringAnalysis>();
+                var tStartTime = startTime;
+                var tEndTime = tStartTime.AddMinutes(30);
+                var tasks = new List<Task>();
+                while (true)
                 {
-                    case 0:
-                        #region 0 小时 - 秒
-                        startTime = requestBody.StartTime;
-                        endTime = requestBody.EndTime;
-                        sql =
-                            "SELECT Id, SendTime, `DATA`, ScriptId FROM `npc_monitoring_analysis` WHERE DeviceId = @DeviceId AND SendTime >= @startTime AND SendTime <= @endTime ORDER BY SendTime";
+                    if (tEndTime > endTime)
+                    {
+                        tEndTime = endTime;
+                    }
+
+                    var task = Task.Factory.StartNew(() =>
+                    {
+                        data.AddRange(ServerConfig.ApiDb.Query<MonitoringAnalysis>(sql, new
+                        {
+                            requestBody.DeviceId,
+                            startTime,
+                            endTime
+                        }, 60));
+                    });
+                    tasks.Add(task);
+                    if (tEndTime == endTime)
+                    {
                         break;
-                    #endregion
-                    case 1:
-                        #region 1 天 - 小时
-                        //startTime = requestBody.StartTime.DayBeginTime();
-                        //endTime = requestBody.EndTime.AddDays(1).DayBeginTime();
-                        startTime = requestBody.StartTime.NoMinute();
-                        endTime = requestBody.EndTime.NoMinute();
-                        sql =
-                            "SELECT Id, DATE_FORMAT(SendTime, '%Y-%m-%d %H:00:00') SendTime, `DATA`, ScriptId FROM `npc_monitoring_analysis` WHERE DeviceId = @DeviceId AND SendTime >= @startTime AND SendTime <= @endTime GROUP BY DATE(SendTime), HOUR (SendTime) ORDER BY SendTime";
-                        #endregion
-                        break;
-                    case 2:
-                        #region 2 月 天 
-                        startTime = requestBody.StartTime.StartOfMonth();
-                        endTime = requestBody.EndTime.StartOfNextMonth().DayBeginTime();
-                        sql =
-                            "SELECT Id, DATE(SendTime) SendTime, `DATA`, ScriptId FROM `npc_monitoring_analysis` WHERE DeviceId = @DeviceId AND SendTime >= @startTime AND SendTime <= @endTime GROUP BY DATE(SendTime) ORDER BY SendTime";
-                        #endregion
-                        break;
-                    default: return Result.GenError<DataResult>(Error.ParamError);
+                    }
+
+                    tStartTime = tEndTime;
+                    tEndTime = tStartTime.AddMinutes(30);
                 }
 
-                var data = ServerConfig.ApiDb.Query<MonitoringAnalysis>(sql, new
-                {
-                    requestBody.DeviceId,
-                    startTime,
-                    endTime
-                }, 60);
-                var scripts = data.GroupBy(x => x.ScriptId).Select(x => x.Key).ToList();
+                Task.WaitAll(tasks.ToArray());
+                var scripts = data.OrderBy(x => x.Id).GroupBy(x => x.ScriptId).Select(x => x.Key).ToList();
                 scripts.Add(0);
                 var usuallyDictionaries = ServerConfig.ApiDb.Query<UsuallyDictionary>(
                     "SELECT a.VariableNameId, a.ScriptId, a.DictionaryId FROM `usually_dictionary` a JOIN `usually_dictionary_type` b ON a.VariableNameId = b.Id " +
@@ -1151,7 +1139,7 @@ namespace ApiManagement.Controllers
                                 Date1 = startTime,
                                 Date2 = endTime
                             }, 60).OrderBy(x => x.Date);
-                            monitoringFault = new MonitoringFault { Date = startTime, Workshop = string.Empty };
+                            monitoringFault = new MonitoringFault { Date = startTime, Workshop = requestBody.WorkshopName };
                             foreach (var d in data)
                             {
                                 monitoringFault.Add(d);
@@ -1182,7 +1170,7 @@ namespace ApiManagement.Controllers
                                 Date1 = startTime,
                                 Date2 = endTime
                             }, 60).OrderBy(x => x.Date);
-                            monitoringFault = new MonitoringFault { Date = startTime, Workshop = string.Empty };
+                            monitoringFault = new MonitoringFault { Date = startTime, Workshop = requestBody.WorkshopName };
                             foreach (var d in data)
                             {
                                 monitoringFault.Add(d);
@@ -1219,7 +1207,7 @@ namespace ApiManagement.Controllers
                             Date1 = startTime,
                             Date2 = endTime
                         }, 60).OrderBy(x => x.Date);
-                        monitoringFault = new MonitoringFault { Date = startTime, Workshop = string.Empty };
+                        monitoringFault = new MonitoringFault { Date = startTime, Workshop = requestBody.WorkshopName };
                         foreach (var d in data)
                         {
                             monitoringFault.Add(d);
@@ -1239,7 +1227,7 @@ namespace ApiManagement.Controllers
                             Date1 = startTime,
                             Date2 = endTime
                         }, 60).OrderBy(x => x.Date);
-                        monitoringFault = new MonitoringFault { Date = startTime, Workshop = string.Empty };
+                        monitoringFault = new MonitoringFault { Date = startTime, Workshop = requestBody.WorkshopName };
                         foreach (var d in data)
                         {
                             monitoringFault.Add(d);
@@ -1274,7 +1262,7 @@ namespace ApiManagement.Controllers
                             Date1 = startTime,
                             Date2 = endTime
                         }, 60).OrderBy(x => x.Date);
-                        monitoringFault = new MonitoringFault { Date = startTime, Workshop = string.Empty };
+                        monitoringFault = new MonitoringFault { Date = startTime, Workshop = requestBody.WorkshopName };
                         foreach (var d in data)
                         {
                             monitoringFault.Add(d);
@@ -1293,7 +1281,7 @@ namespace ApiManagement.Controllers
                             Date1 = startTime,
                             Date2 = endTime
                         }, 60).OrderBy(x => x.Date);
-                        monitoringFault = new MonitoringFault { Date = startTime, Workshop = string.Empty };
+                        monitoringFault = new MonitoringFault { Date = startTime, Workshop = requestBody.WorkshopName };
                         foreach (var d in data)
                         {
                             monitoringFault.Add(d);
