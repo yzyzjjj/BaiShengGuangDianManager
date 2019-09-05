@@ -50,7 +50,13 @@ namespace ApiManagement.Controllers
             else if (!flowCardName.IsNullOrEmpty() && startTime != default(DateTime) && endTime != default(DateTime))
             {
                 sql =
-                    "SELECT a.*, b.ProductionProcessName, c.RawMateriaName, d.ProcessStepId, d.CategoryName, d.StepName, d.ProcessTime, d.QualifiedNumber, d.DeviceId, e.TypeName FROM ( SELECT * FROM `flowcard_library` WHERE FlowCardName = @FlowCardName AND CreateTime >= @StartTime AND CreateTime <= @EndTime ) a LEFT JOIN `production_library` b ON a.ProductionProcessId = b.Id LEFT JOIN `raw_materia` c ON a.RawMateriaId = c.Id LEFT JOIN ( SELECT * FROM ( SELECT FlowCardId, ProcessStepOrder, ProcessStepId, b.CategoryName, b.StepName, QualifiedNumber, ProcessTime, DeviceId FROM `flowcard_process_step` a JOIN ( SELECT a.Id, a.StepName, b.CategoryName FROM `device_process_step` a JOIN `device_category` b ON a.DeviceCategoryId = b.Id WHERE a.MarkedDelete = 0 ) b ON a.ProcessStepId = b.Id WHERE a.MarkedDelete = 0 AND NOT ISNULL(ProcessTime) || ProcessTime = '0001-01-01 00:00:00' ORDER BY ProcessStepOrder DESC ) a GROUP BY a.FlowCardId ) d ON a.Id = d.FlowCardId LEFT JOIN `flowcard_type` e ON a.FlowCardTypeId = e.Id WHERE a.MarkedDelete = 0;";
+                    "SELECT a.*, b.ProductionProcessName, c.RawMateriaName, d.ProcessStepId, d.CategoryName, d.StepName, d.ProcessTime, d.QualifiedNumber, " +
+                    "d.DeviceId, e.TypeName FROM ( SELECT * FROM `flowcard_library` WHERE FlowCardName = @FlowCardName AND CreateTime >= @StartTime AND CreateTime <= @EndTime ) a " +
+                    "LEFT JOIN `production_library` b ON a.ProductionProcessId = b.Id LEFT JOIN `raw_materia` c ON a.RawMateriaId = c.Id LEFT JOIN ( SELECT * FROM ( SELECT FlowCardId, " +
+                    "ProcessStepOrder, ProcessStepId, b.CategoryName, b.StepName, QualifiedNumber, ProcessTime, DeviceId FROM `flowcard_process_step` a JOIN ( SELECT a.Id, a.StepName, " +
+                    "b.CategoryName FROM `device_process_step` a JOIN `device_category` b ON a.DeviceCategoryId = b.Id WHERE a.MarkedDelete = 0 ) b ON a.ProcessStepId = b.Id WHERE a.MarkedDelete = " +
+                    "0 AND NOT ISNULL(ProcessTime) || ProcessTime = '0001-01-01 00:00:00' ORDER BY ProcessStepOrder DESC ) a GROUP BY a.FlowCardId ) d ON a.Id = d.FlowCardId LEFT JOIN " +
+                    "`flowcard_type` e ON a.FlowCardTypeId = e.Id WHERE a.MarkedDelete = 0;";
             }
             else if (!flowCardName.IsNullOrEmpty() && !productionProcessName.IsNullOrEmpty())
             {
@@ -61,17 +67,34 @@ namespace ApiManagement.Controllers
                     return Result.GenError<DataResult>(Error.ProductionLibraryNotExist);
                 }
                 sql =
-                    "SELECT a.*, b.ProductionProcessName, c.RawMateriaName, d.ProcessStepId, d.CategoryName, d.StepName, d.ProcessTime, d.QualifiedNumber, d.DeviceId, e.TypeName FROM ( SELECT * FROM `flowcard_library` WHERE FlowCardName = @FlowCardName AND ProductionProcessId = @ProductionProcessId ) a LEFT JOIN `production_library` b ON a.ProductionProcessId = b.Id LEFT JOIN `raw_materia` c ON a.RawMateriaId = c.Id LEFT JOIN ( SELECT * FROM ( SELECT FlowCardId, ProcessStepOrder, ProcessStepId, b.CategoryName, b.StepName, QualifiedNumber, ProcessTime, DeviceId FROM `flowcard_process_step` a JOIN ( SELECT a.Id, a.StepName, b.CategoryName FROM `device_process_step` a JOIN `device_category` b ON a.DeviceCategoryId = b.Id WHERE a.MarkedDelete = 0 ) b ON a.ProcessStepId = b.Id WHERE a.MarkedDelete = 0 AND NOT ISNULL(ProcessTime) || ProcessTime = '0001-01-01 00:00:00' ORDER BY ProcessStepOrder DESC ) a GROUP BY a.FlowCardId ) d ON a.Id = d.FlowCardId LEFT JOIN `flowcard_type` e ON a.FlowCardTypeId = e.Id WHERE a.MarkedDelete = 0;";
+                    "SELECT a.*, b.ProductionProcessName, c.RawMateriaName, d.ProcessStepId, d.CategoryName, d.StepName, d.ProcessTime, d.QualifiedNumber, d.DeviceId, e.TypeName FROM " +
+                    "( SELECT * FROM `flowcard_library` WHERE FlowCardName = @FlowCardName AND ProductionProcessId = @ProductionProcessId ) a LEFT JOIN `production_library` b ON a.ProductionProcessId " +
+                    "= b.Id LEFT JOIN `raw_materia` c ON a.RawMateriaId = c.Id LEFT JOIN ( SELECT * FROM ( SELECT FlowCardId, ProcessStepOrder, ProcessStepId, b.CategoryName, b.StepName," +
+                    " QualifiedNumber, ProcessTime, DeviceId FROM `flowcard_process_step` a JOIN ( SELECT a.Id, a.StepName, b.CategoryName FROM `device_process_step` a JOIN `device_category` " +
+                    "b ON a.DeviceCategoryId = b.Id WHERE a.MarkedDelete = 0 ) b ON a.ProcessStepId = b.Id WHERE a.MarkedDelete = 0 AND NOT ISNULL(ProcessTime) || ProcessTime = '0001-01-01 " +
+                    "00:00:00' ORDER BY ProcessStepOrder DESC ) a GROUP BY a.FlowCardId ) d ON a.Id = d.FlowCardId LEFT JOIN `flowcard_type` e ON a.FlowCardTypeId = e.Id WHERE a.MarkedDelete = 0;";
             }
             else if (!flowCardName.IsNullOrEmpty())
             {
                 sql =
-                    "SELECT a.*, b.ProductionProcessName, c.RawMateriaName, d.ProcessStepId, d.CategoryName, d.StepName, d.ProcessTime, d.QualifiedNumber, d.DeviceId, e.TypeName FROM ( SELECT * FROM `flowcard_library` WHERE FlowCardName = @FlowCardName AND CreateTime >= @StartTime AND CreateTime <= @EndTime ) a LEFT JOIN `production_library` b ON a.ProductionProcessId = b.Id LEFT JOIN `raw_materia` c ON a.RawMateriaId = c.Id LEFT JOIN ( SELECT * FROM ( SELECT FlowCardId, ProcessStepOrder, ProcessStepId, b.CategoryName, b.StepName, QualifiedNumber, ProcessTime, DeviceId FROM `flowcard_process_step` a JOIN ( SELECT a.Id, a.StepName, b.CategoryName FROM `device_process_step` a JOIN `device_category` b ON a.DeviceCategoryId = b.Id WHERE a.MarkedDelete = 0 ) b ON a.ProcessStepId = b.Id WHERE a.MarkedDelete = 0 AND NOT ISNULL(ProcessTime) || ProcessTime = '0001-01-01 00:00:00' ORDER BY ProcessStepOrder DESC ) a GROUP BY a.FlowCardId ) d ON a.Id = d.FlowCardId LEFT JOIN `flowcard_type` e ON a.FlowCardTypeId = e.Id WHERE a.MarkedDelete = 0;";
+                    "SELECT a.*, b.ProductionProcessName, c.RawMateriaName, d.ProcessStepId, d.CategoryName, d.StepName, d.ProcessTime, d.QualifiedNumber, d.DeviceId, e.TypeName FROM " +
+                    "( SELECT * FROM `flowcard_library` WHERE FlowCardName = @FlowCardName) a LEFT JOIN `production_library` b " +
+                    "ON a.ProductionProcessId = b.Id LEFT JOIN `raw_materia` c ON a.RawMateriaId = c.Id LEFT JOIN ( SELECT * FROM ( SELECT FlowCardId, ProcessStepOrder, ProcessStepId, " +
+                    "b.CategoryName, b.StepName, QualifiedNumber, ProcessTime, DeviceId FROM `flowcard_process_step` a JOIN ( SELECT a.Id, a.StepName, b.CategoryName FROM `device_process_step` " +
+                    "a JOIN `device_category` b ON a.DeviceCategoryId = b.Id WHERE a.MarkedDelete = 0 ) b ON a.ProcessStepId = b.Id WHERE a.MarkedDelete = 0 AND NOT ISNULL(ProcessTime) || " +
+                    "ProcessTime = '0001-01-01 00:00:00' ORDER BY ProcessStepOrder DESC ) a GROUP BY a.FlowCardId ) d ON a.Id = d.FlowCardId LEFT JOIN `flowcard_type` e ON a.FlowCardTypeId = " +
+                    "e.Id WHERE a.MarkedDelete = 0;";
             }
             else if (startTime != default(DateTime) && endTime != default(DateTime))
             {
                 sql =
-                    "SELECT a.*, b.ProductionProcessName, c.RawMateriaName, d.ProcessStepId, d.CategoryName, d.StepName, d.ProcessTime, d.QualifiedNumber, d.DeviceId, e.TypeName FROM ( SELECT * FROM `flowcard_library` WHERE CreateTime >= @StartTime AND CreateTime <= @EndTime ) a LEFT JOIN `production_library` b ON a.ProductionProcessId = b.Id LEFT JOIN `raw_materia` c ON a.RawMateriaId = c.Id LEFT JOIN ( SELECT * FROM ( SELECT FlowCardId, ProcessStepOrder, ProcessStepId, b.CategoryName, b.StepName, QualifiedNumber, ProcessTime, DeviceId FROM `flowcard_process_step` a JOIN ( SELECT a.Id, a.StepName, b.CategoryName FROM `device_process_step` a JOIN `device_category` b ON a.DeviceCategoryId = b.Id WHERE a.MarkedDelete = 0 ) b ON a.ProcessStepId = b.Id WHERE a.MarkedDelete = 0 AND NOT ISNULL(ProcessTime) || ProcessTime = '0001-01-01 00:00:00' ORDER BY ProcessStepOrder DESC ) a GROUP BY a.FlowCardId ) d ON a.Id = d.FlowCardId LEFT JOIN `flowcard_type` e ON a.FlowCardTypeId = e.Id WHERE a.MarkedDelete = 0;";
+                    "SELECT a.*, b.ProductionProcessName, c.RawMateriaName, d.ProcessStepId, d.CategoryName, d.StepName, d.ProcessTime, d.QualifiedNumber, d.DeviceId, e.TypeName FROM " +
+                    "( SELECT * FROM `flowcard_library` WHERE CreateTime >= @StartTime AND CreateTime <= @EndTime ) a LEFT JOIN `production_library` b ON a.ProductionProcessId = " +
+                    "b.Id LEFT JOIN `raw_materia` c ON a.RawMateriaId = c.Id LEFT JOIN ( SELECT * FROM ( SELECT FlowCardId, ProcessStepOrder, ProcessStepId, b.CategoryName, " +
+                    "b.StepName, QualifiedNumber, ProcessTime, DeviceId FROM `flowcard_process_step` a JOIN ( SELECT a.Id, a.StepName, b.CategoryName FROM `device_process_step` a JOIN " +
+                    "`device_category` b ON a.DeviceCategoryId = b.Id WHERE a.MarkedDelete = 0 ) b ON a.ProcessStepId = b.Id WHERE a.MarkedDelete = 0 AND NOT ISNULL(ProcessTime) || " +
+                    "ProcessTime = '0001-01-01 00:00:00' ORDER BY ProcessStepOrder DESC ) a GROUP BY a.FlowCardId ) d ON a.Id = d.FlowCardId LEFT JOIN `flowcard_type` e ON " +
+                    "a.FlowCardTypeId = e.Id WHERE a.MarkedDelete = 0;";
             }
             else if (!productionProcessName.IsNullOrEmpty())
             {
@@ -82,12 +105,22 @@ namespace ApiManagement.Controllers
                     return Result.GenError<DataResult>(Error.ProductionLibraryNotExist);
                 }
                 sql =
-                    "SELECT a.*, b.ProductionProcessName, c.RawMateriaName, d.ProcessStepId, d.CategoryName, d.StepName, d.ProcessTime, d.QualifiedNumber, d.DeviceId, e.TypeName FROM ( SELECT * FROM `flowcard_library` WHERE ProductionProcessId = @ProductionProcessId ) a LEFT JOIN `production_library` b ON a.ProductionProcessId = b.Id LEFT JOIN `raw_materia` c ON a.RawMateriaId = c.Id LEFT JOIN ( SELECT * FROM ( SELECT FlowCardId, ProcessStepOrder, ProcessStepId, b.CategoryName, b.StepName, QualifiedNumber, ProcessTime, DeviceId FROM `flowcard_process_step` a JOIN ( SELECT a.Id, a.StepName, b.CategoryName FROM `device_process_step` a JOIN `device_category` b ON a.DeviceCategoryId = b.Id WHERE a.MarkedDelete = 0 ) b ON a.ProcessStepId = b.Id WHERE a.MarkedDelete = 0 AND NOT ISNULL(ProcessTime) || ProcessTime = '0001-01-01 00:00:00' ORDER BY ProcessStepOrder DESC ) a GROUP BY a.FlowCardId ) d ON a.Id = d.FlowCardId LEFT JOIN `flowcard_type` e ON a.FlowCardTypeId = e.Id WHERE a.MarkedDelete = 0;";
+                    "SELECT a.*, b.ProductionProcessName, c.RawMateriaName, d.ProcessStepId, d.CategoryName, d.StepName, d.ProcessTime, d.QualifiedNumber, d.DeviceId, " +
+                    "e.TypeName FROM ( SELECT * FROM `flowcard_library` WHERE ProductionProcessId = @ProductionProcessId ) a LEFT JOIN `production_library` b ON a.ProductionProcessId = " +
+                    "b.Id LEFT JOIN `raw_materia` c ON a.RawMateriaId = c.Id LEFT JOIN ( SELECT * FROM ( SELECT FlowCardId, ProcessStepOrder, ProcessStepId, b.CategoryName, b.StepName, " +
+                    "QualifiedNumber, ProcessTime, DeviceId FROM `flowcard_process_step` a JOIN ( SELECT a.Id, a.StepName, b.CategoryName FROM `device_process_step` a JOIN `device_category` " +
+                    "b ON a.DeviceCategoryId = b.Id WHERE a.MarkedDelete = 0 ) b ON a.ProcessStepId = b.Id WHERE a.MarkedDelete = 0 AND NOT ISNULL(ProcessTime) || ProcessTime = '0001-01-01 " +
+                    "00:00:00' ORDER BY ProcessStepOrder DESC ) a GROUP BY a.FlowCardId ) d ON a.Id = d.FlowCardId LEFT JOIN `flowcard_type` e ON a.FlowCardTypeId = e.Id WHERE a.MarkedDelete = 0;";
             }
             else
             {
                 sql =
-                    "SELECT a.*, b.ProductionProcessName, c.RawMateriaName, d.ProcessStepId, d.CategoryName, d.StepName, d.ProcessTime, d.QualifiedNumber, d.DeviceId, e.TypeName FROM `flowcard_library` a LEFT JOIN `production_library` b ON a.ProductionProcessId = b.Id LEFT JOIN `raw_materia` c ON a.RawMateriaId = c.Id LEFT JOIN ( SELECT * FROM ( SELECT FlowCardId, ProcessStepOrder, ProcessStepId, b.CategoryName, b.StepName, QualifiedNumber, ProcessTime, DeviceId FROM `flowcard_process_step` a JOIN ( SELECT a.Id, a.StepName, b.CategoryName FROM `device_process_step` a JOIN `device_category` b ON a.DeviceCategoryId = b.Id WHERE a.MarkedDelete = 0 ) b ON a.ProcessStepId = b.Id WHERE a.MarkedDelete = 0 AND NOT ISNULL(ProcessTime) || ProcessTime = '0001-01-01 00:00:00' ORDER BY ProcessStepOrder DESC ) a GROUP BY a.FlowCardId ) d ON a.Id = d.FlowCardId LEFT JOIN `flowcard_type` e ON a.FlowCardTypeId = e.Id WHERE a.MarkedDelete = 0;";
+                    "SELECT a.*, b.ProductionProcessName, c.RawMateriaName, d.ProcessStepId, d.CategoryName, d.StepName, d.ProcessTime, d.QualifiedNumber, d.DeviceId, e.TypeName FROM `flowcard_library` " +
+                    "a LEFT JOIN `production_library` b ON a.ProductionProcessId = b.Id LEFT JOIN `raw_materia` c ON a.RawMateriaId = c.Id LEFT JOIN ( SELECT * FROM ( SELECT FlowCardId, " +
+                    "ProcessStepOrder, ProcessStepId, b.CategoryName, b.StepName, QualifiedNumber, ProcessTime, DeviceId FROM `flowcard_process_step` a JOIN ( SELECT a.Id, a.StepName, " +
+                    "b.CategoryName FROM `device_process_step` a JOIN `device_category` b ON a.DeviceCategoryId = b.Id WHERE a.MarkedDelete = 0 ) b ON a.ProcessStepId = b.Id WHERE a.MarkedDelete = " +
+                    "0 AND NOT ISNULL(ProcessTime) || ProcessTime = '0001-01-01 00:00:00' ORDER BY ProcessStepOrder DESC ) a GROUP BY a.FlowCardId ) d ON a.Id = d.FlowCardId LEFT JOIN `flowcard_type` " +
+                    "e ON a.FlowCardTypeId = e.Id WHERE a.MarkedDelete = 0;";
             }
 
             var datas = ServerConfig.ApiDb.Query<FlowCardLibraryDetail>(sql,
@@ -823,11 +856,6 @@ namespace ApiManagement.Controllers
         [HttpPost("FlowCardLibraries")]
         public Result PostFlowcardLibraries([FromBody] List<FlowCardLibrary> flowCardLibraries)
         {
-            foreach (var flowCardLibrary in flowCardLibraries)
-            {
-                flowCardLibrary.FlowCardName = $"{flowCardLibrary.FlowCardTypeId:d2}{flowCardLibrary.FlowCardName}";
-            }
-
             var flowCards = flowCardLibraries.GroupBy(x => x.FlowCardName);
             var cnt =
                 ServerConfig.ApiDb.Query<int>("SELECT COUNT(1) FROM `flowcard_library` WHERE FlowCardName IN @FlowCardName AND MarkedDelete = 0;", new

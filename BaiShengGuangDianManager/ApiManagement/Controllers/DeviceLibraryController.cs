@@ -86,7 +86,9 @@ namespace ApiManagement.Controllers
                     }
                 }
 
-                result.datas.AddRange(deviceLibraryDetails.Values);
+                result.datas.AddRange(deviceLibraryDetails.Values.All(x => int.TryParse(x.Code, out _))
+                    ? deviceLibraryDetails.Values.OrderByDescending(x => x.DeviceState).ThenBy(x => int.Parse(x.Code))
+                    : deviceLibraryDetails.Values.OrderByDescending(x => x.DeviceState).ThenBy(x => x.Code));
 
                 return result;
             }
@@ -455,15 +457,9 @@ namespace ApiManagement.Controllers
                 HttpResponseErrAsync(new DeviceInfo
                 {
                     DeviceId = deviceLibrary.Id,
-                }, "batchDelDeviceGate", "PutDeviceLibrary", () =>
-                {
-                    HttpResponseErrAsync(new DeviceInfo
-                    {
-                        DeviceId = deviceLibrary.Id,
-                        Ip = deviceLibrary.Ip,
-                        Port = deviceLibrary.Port,
-                    }, "batchAddDeviceGate", "PutDeviceLibrary");
-                });
+                    Ip = deviceLibrary.Ip,
+                    Port = deviceLibrary.Port,
+                }, "batchUpdateDeviceGate", "PutDeviceLibrary");
             }
 
             return Result.GenError<Result>(Error.Success);
@@ -670,7 +666,7 @@ namespace ApiManagement.Controllers
             //流程卡id
             public int FlowCardId;
 
-            public List<ProcessData> ProcessDatas;
+            public List<ProcessDataSimple> ProcessDatas;
         }
         // POST: api/DeviceLibrary/SetProcessStep
         [HttpPost("SetProcessStep")]

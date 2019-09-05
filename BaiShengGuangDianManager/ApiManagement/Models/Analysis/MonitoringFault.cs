@@ -7,7 +7,7 @@ using System.Linq;
 
 namespace ApiManagement.Models.Analysis
 {
-    public class MonitoringFault
+    public class MonitoringFault : ICloneable
     {
         /// <summary>
         /// 时间
@@ -35,7 +35,7 @@ namespace ApiManagement.Models.Analysis
         public int ReportCount { get; set; }
 
         [JsonIgnore]
-        private List<SingleFaultType> _reportSingleFaultType;
+        public List<SingleFaultType> _reportSingleFaultType;
 
         /// <summary>
         /// 单个故障上报次数
@@ -81,7 +81,7 @@ namespace ApiManagement.Models.Analysis
         /// </summary>
         public int RepairCount { get; set; }
         [JsonIgnore]
-        private List<SingleFaultType> _repairSingleFaultType;
+        public List<SingleFaultType> _repairSingleFaultType;
 
         /// <summary>
         /// 单个故障维修次数
@@ -145,6 +145,7 @@ namespace ApiManagement.Models.Analysis
                 }
             }
             ReportFaultType = ReportSingleFaultType.GroupBy(x => x.FaultId).Count();
+            ReportSingleFaultTypeStr = ReportSingleFaultType.OrderBy(x => x.FaultId).ToJSON();
 
             Confirmed += monitoringFault.ReportCount;
             Repairing += monitoringFault.Repairing;
@@ -188,6 +189,102 @@ namespace ApiManagement.Models.Analysis
                 }
             }
             RepairFaultType = RepairSingleFaultType.GroupBy(x => x.FaultId).Count();
+            RepairSingleFaultTypeStr = RepairSingleFaultType.OrderBy(x => x.FaultId).ToJSON();
+        }
+
+        public void DayAdd(MonitoringFault monitoringFault)
+        {
+            AllDevice = monitoringFault.AllDevice;
+            ReportCount += monitoringFault.ReportCount;
+            foreach (var singleFaultType in monitoringFault.ReportSingleFaultType)
+            {
+                if (ReportSingleFaultType.Any(x => x.FaultId == singleFaultType.FaultId))
+                {
+                    var faultType = ReportSingleFaultType.First(x => x.FaultId == singleFaultType.FaultId);
+                    faultType.Count += singleFaultType.Count;
+                    foreach (var deviceFaultType in singleFaultType.DeviceFaultTypes)
+                    {
+                        if (faultType.DeviceFaultTypes.Any(x => x.Code == deviceFaultType.Code))
+                        {
+                            var first = faultType.DeviceFaultTypes.First(x => x.Code == deviceFaultType.Code);
+                            first.Count += deviceFaultType.Count;
+                        }
+                        else
+                        {
+                            faultType.DeviceFaultTypes.Add(deviceFaultType);
+                        }
+                        foreach (var @operator in singleFaultType.Operators)
+                        {
+                            if (faultType.Operators.Any(x => x.Name == @operator.Name))
+                            {
+                                var operator1 = faultType.Operators.First(x => x.Name == @operator.Name);
+                                operator1.Count += @operator.Count;
+                                operator1.Time += @operator.Time;
+                            }
+                            else
+                            {
+                                faultType.Operators.Add(@operator);
+                            }
+                        }
+                    }
+                }
+                else
+                {
+                    ReportSingleFaultType.Add(singleFaultType);
+                }
+            }
+            ReportFaultType = ReportSingleFaultType.GroupBy(x => x.FaultId).Count();
+            FaultDevice = ReportSingleFaultType.SelectMany(x => x.DeviceFaultTypes).GroupBy(y => y.Code).Count();
+            ReportSingleFaultTypeStr = ReportSingleFaultType.OrderBy(x => x.FaultId).ToJSON();
+
+            Confirmed += monitoringFault.ReportCount;
+            Repairing += monitoringFault.Repairing;
+            RepairCount += monitoringFault.RepairCount;
+
+            foreach (var repairSingleFaultType in monitoringFault.RepairSingleFaultType)
+            {
+                if (RepairSingleFaultType.Any(x => x.FaultId == repairSingleFaultType.FaultId))
+                {
+                    var faultType = RepairSingleFaultType.First(x => x.FaultId == repairSingleFaultType.FaultId);
+                    faultType.Count += repairSingleFaultType.Count;
+                    foreach (var deviceFaultType in repairSingleFaultType.DeviceFaultTypes)
+                    {
+                        if (faultType.DeviceFaultTypes.Any(x => x.Code == deviceFaultType.Code))
+                        {
+                            var first = faultType.DeviceFaultTypes.First(x => x.Code == deviceFaultType.Code);
+                            first.Count += deviceFaultType.Count;
+                        }
+                        else
+                        {
+                            faultType.DeviceFaultTypes.Add(deviceFaultType);
+                        }
+                    }
+                    foreach (var @operator in repairSingleFaultType.Operators)
+                    {
+                        if (faultType.Operators.Any(x => x.Name == @operator.Name))
+                        {
+                            var operator1 = faultType.Operators.First(x => x.Name == @operator.Name);
+                            operator1.Count += @operator.Count;
+                            operator1.Time += @operator.Time;
+                        }
+                        else
+                        {
+                            faultType.Operators.Add(@operator);
+                        }
+                    }
+                }
+                else
+                {
+                    RepairSingleFaultType.Add(repairSingleFaultType);
+                }
+            }
+            RepairFaultType = RepairSingleFaultType.GroupBy(x => x.FaultId).Count();
+            RepairSingleFaultTypeStr = RepairSingleFaultType.OrderBy(x => x.FaultId).ToJSON();
+
+        }
+        public object Clone()
+        {
+            return MemberwiseClone();
         }
     }
 

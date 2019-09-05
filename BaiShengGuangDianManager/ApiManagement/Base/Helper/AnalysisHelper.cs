@@ -39,6 +39,9 @@ namespace ApiManagement.Base.Helper
         private static MonitoringKanban _monitoringKanban;
         public static void Init(IConfiguration configuration)
         {
+#if DEBUG
+            Console.WriteLine("调试模式已开启");
+#else
             ServerConfig.RedisHelper.Remove(AnalysisOtherLock);
             var monitoringKanban = ServerConfig.ApiDb.Query<MonitoringKanban>("SELECT * FROM `npc_monitoring_kanban` WHERE `Date` = @Date;", new
             {
@@ -71,9 +74,6 @@ namespace ApiManagement.Base.Helper
                     ServerConfig.RedisHelper.Remove(AnalysisLock);
                 }
             }
-#if DEBUG
-            Console.WriteLine("调试模式已开启");
-#else
             Console.WriteLine("发布模式已开启");
             _analysis = new Timer(Analysis, null, 10000, 2000);
             _analysisOther = new Timer(AnalysisOther, null, 12000, 2000);
@@ -245,6 +245,7 @@ namespace ApiManagement.Base.Helper
 
                                                 var actAddress = uDies[new Tuple<int, int>(data.ScriptId, currentFlowCardDId)] - 1;
                                                 var currentFlowCardId = 0;
+                                                FlowCardProcessStepDetail flowCardProcessStepDetail = null;
                                                 if (analysisData.vals.Count >= actAddress)
                                                 {
                                                     currentFlowCardId = analysisData.vals[actAddress];
@@ -254,12 +255,12 @@ namespace ApiManagement.Base.Helper
                                                 if (analysisData.vals.Count >= actAddress)
                                                 {
                                                     var v = analysisData.vals[actAddress];
+                                                    //开始加工
+                                                    var bStart = deviceList[data.DeviceId].State == 0 && v == 1;
+                                                    //停止加工
+                                                    var bEnd = deviceList[data.DeviceId].State == 1 && v == 0;
                                                     if (currentFlowCardId != 0)
                                                     {
-                                                        //开始加工
-                                                        var bStart = deviceList[data.DeviceId].State == 0 && v == 1;
-                                                        //停止加工
-                                                        var bEnd = deviceList[data.DeviceId].State == 1 && v == 0;
                                                         if (bStart || bEnd)
                                                         {
                                                             var flowCard =
@@ -273,7 +274,7 @@ namespace ApiManagement.Base.Helper
                                                                         FlowCardId = flowCard.Id,
                                                                         DeviceId = data.DeviceId
                                                                     });
-                                                                var flowCardProcessStepDetail = flowCardProcessStepDetails.FirstOrDefault();
+                                                                flowCardProcessStepDetail = flowCardProcessStepDetails.FirstOrDefault();
                                                                 if (flowCardProcessStepDetail != null)
                                                                 {
                                                                     var sql = string.Empty;
@@ -286,6 +287,16 @@ namespace ApiManagement.Base.Helper
                                                                             sql =
                                                                                 "UPDATE flowcard_process_step SET `ProcessTime` = @ProcessTime WHERE `Id` = @Id;";
                                                                         }
+
+                                                                        ServerConfig.ApiDb.Execute(
+                                                                            "INSERT INTO npc_monitoring_process_log(`DeviceId`, `StartTime`, `FlowCardId`, `ProcessorId`) VALUES(@DeviceId, @StartTime, @FlowCardId, @ProcessorId);",
+                                                                            new MonitoringProcessLog
+                                                                            {
+                                                                                DeviceId = data.DeviceId,
+                                                                                StartTime = data.ReceiveTime,
+                                                                                FlowCardId = currentFlowCardId,
+                                                                                ProcessorId = flowCardProcessStepDetail.ProcessorId
+                                                                            });
                                                                     }
 
                                                                     //停止加工
@@ -297,6 +308,14 @@ namespace ApiManagement.Base.Helper
                                                                         sql =
                                                                             "UPDATE flowcard_process_step SET `ProcessEndTime` = @ProcessEndTime WHERE `Id` = @Id;";
                                                                         //}
+
+                                                                        ServerConfig.ApiDb.Execute(
+                                                                            "UPDATE`npc_monitoring_process_log` SET EndTime = @EndTime WHERE Id = ((SELECT Id FROM ( SELECT MAX(Id) Id FROM `npc_monitoring_process_log` WHERE DeviceId = @DeviceId) a)) AND ISNULL(EndTime);",
+                                                                            new MonitoringProcessLog
+                                                                            {
+                                                                                DeviceId = data.DeviceId,
+                                                                                EndTime = data.ReceiveTime,
+                                                                            });
                                                                     }
                                                                     if (sql != string.Empty)
                                                                     {
@@ -311,7 +330,31 @@ namespace ApiManagement.Base.Helper
                                                         }
                                                         deviceList[data.DeviceId].FlowCardId = currentFlowCardId;
                                                     }
+                                                    //开始加工
+                                                    if (bStart)
+                                                    {
+                                                        ServerConfig.ApiDb.Execute(
+                                                            "INSERT INTO npc_monitoring_process_log(`DeviceId`, `StartTime`, `FlowCardId`, `ProcessorId`) VALUES(@DeviceId, @StartTime, @FlowCardId, @ProcessorId);",
+                                                            new MonitoringProcessLog
+                                                            {
+                                                                DeviceId = data.DeviceId,
+                                                                StartTime = data.ReceiveTime,
+                                                                FlowCardId = currentFlowCardId,
+                                                                ProcessorId = flowCardProcessStepDetail?.ProcessorId ?? 0
+                                                            });
+                                                    }
 
+                                                    //停止加工
+                                                    if (bEnd)
+                                                    {
+                                                        ServerConfig.ApiDb.Execute(
+                                                            "UPDATE`npc_monitoring_process_log` SET EndTime = @EndTime WHERE Id = ((SELECT Id FROM ( SELECT MAX(Id) Id FROM `npc_monitoring_process_log` WHERE DeviceId = @DeviceId) a)) AND ISNULL(EndTime);",
+                                                            new MonitoringProcessLog
+                                                            {
+                                                                DeviceId = data.DeviceId,
+                                                                EndTime = data.ReceiveTime,
+                                                            });
+                                                    }
                                                     if (v > 0 && !_monitoringKanban.UseList.Contains(data.DeviceId))
                                                     {
                                                         _monitoringKanban.UseList.Add(data.DeviceId);
@@ -678,16 +721,21 @@ namespace ApiManagement.Base.Helper
             _isFault = true;
             try
             {
+                var now = DateTime.Now;
                 var today = DateTime.Today;
+                if ((now - now.Date).TotalSeconds < 10)
+                {
+                    today = today.AddDays(-1);
+                }
                 var all = ServerConfig.ApiDb.Query<string>("SELECT b.SiteName FROM `device_library` a JOIN `site` b ON a.SiteId = b.Id WHERE b.SiteName IS NOT NULL AND a.MarkedDelete = 0;");
 
-                var faultDevices = ServerConfig.ApiDb.Query<FaultDeviceDetail>("SELECT a.*, b.SiteName, c.FaultTypeName FROM `fault_device` a LEFT JOIN ( SELECT a.*, b.SiteName FROM `device_library` a JOIN `site` b ON a.SiteId = b.Id ) b ON a.DeviceCode = b.`Code` JOIN `fault_type` c ON a.FaultTypeId = c.Id WHERE b.SiteName IS NOT NULL AND FaultTime >= @FaultTime1 AND FaultTime < @FaultTime2;", new
+                var faultDevicesAll = ServerConfig.ApiDb.Query<FaultDeviceDetail>("SELECT a.*, b.SiteName, c.FaultTypeName FROM `fault_device` a LEFT JOIN ( SELECT a.*, b.SiteName FROM `device_library` a JOIN `site` b ON a.SiteId = b.Id ) b ON a.DeviceCode = b.`Code` JOIN `fault_type` c ON a.FaultTypeId = c.Id WHERE b.SiteName IS NOT NULL AND FaultTime >= @FaultTime1 AND FaultTime < @FaultTime2;", new
                 {
                     FaultTime1 = today,
                     FaultTime2 = today.AddDays(1),
                 });
 
-                var repairRecords = ServerConfig.ApiDb.Query<RepairRecordDetail>("SELECT a.*, b.SiteName, c.FaultTypeName FROM `repair_record` a LEFT JOIN ( SELECT a.*, b.SiteName FROM `device_library` a JOIN `site` b ON a.SiteId = b.Id ) b ON a.DeviceCode = b.`Code` JOIN `fault_type` c ON a.FaultTypeId1 = c.Id WHERE b.SiteName IS NOT NULL AND SolveTime >= @SolveTime1 AND SolveTime < @SolveTime2;", new
+                var repairRecordsAll = ServerConfig.ApiDb.Query<RepairRecordDetail>("SELECT a.*, b.SiteName, c.FaultTypeName FROM `repair_record` a LEFT JOIN ( SELECT a.*, b.SiteName FROM `device_library` a JOIN `site` b ON a.SiteId = b.Id ) b ON a.DeviceCode = b.`Code` JOIN `fault_type` c ON a.FaultTypeId1 = c.Id WHERE b.SiteName IS NOT NULL AND SolveTime >= @SolveTime1 AND SolveTime < @SolveTime2;", new
                 {
                     SolveTime1 = today,
                     SolveTime2 = today.AddDays(1),
@@ -697,135 +745,164 @@ namespace ApiManagement.Base.Helper
                     ServerConfig.ApiDb.Query<string>(
                         "SELECT SiteName FROM `site` WHERE MarkedDelete = 0 GROUP BY SiteName ORDER BY Id;");
                 var monitoringFaults = new Dictionary<Tuple<DateTime, string>, MonitoringFault>();
+                var h = 24;
+                for (int i = 0; i < h; i++)
+                {
+                    var time1 = today.AddHours(i);
+                    var time2 = time1.AddHours(1);
+                    foreach (var workshop in workshops)
+                    {
+                        var key = new Tuple<DateTime, string>(time1, workshop);
+                        if (!monitoringFaults.ContainsKey(key))
+                        {
+                            monitoringFaults.Add(key, new MonitoringFault
+                            {
+                                Date = time1,
+                                Workshop = workshop
+                            });
+                        }
+                        var monitoringFault = monitoringFaults[key];
+                        #region 上报
 
+                        var faultDevices = faultDevicesAll.Where(x => x.FaultTime >= time1 && x.FaultTime < time2);
+                        var faultDeviceDetails = faultDevices.Where(x => x.SiteName == workshop);
+                        monitoringFault.FaultDevice = faultDeviceDetails.GroupBy(x => x.DeviceCode).Count();
+                        monitoringFault.ReportFaultType = faultDeviceDetails.GroupBy(x => x.FaultTypeId).Count();
+                        monitoringFault.ReportCount = faultDeviceDetails.Count();
+
+                        foreach (var faultDeviceDetail in faultDeviceDetails)
+                        {
+                            var faultId = faultDeviceDetail.FaultTypeId;
+                            var faultName = faultDeviceDetail.FaultTypeName;
+                            if (monitoringFault.ReportSingleFaultType.All(x => x.FaultId != faultId))
+                            {
+                                monitoringFault.ReportSingleFaultType.Add(new SingleFaultType
+                                {
+                                    FaultId = faultId,
+                                    FaultName = faultName
+                                });
+                            }
+
+                            var singleFaultType = monitoringFault.ReportSingleFaultType.First(x => x.FaultId == faultId);
+                            singleFaultType.Count++;
+
+                            if (singleFaultType.DeviceFaultTypes.All(x => x.Code != faultDeviceDetail.DeviceCode))
+                            {
+                                singleFaultType.DeviceFaultTypes.Add(new DeviceFaultType
+                                {
+                                    Code = faultDeviceDetail.DeviceCode,
+                                });
+                            }
+
+                            var deviceFaultType = singleFaultType.DeviceFaultTypes.First(x => x.Code == faultDeviceDetail.DeviceCode);
+                            deviceFaultType.Count++;
+
+                            if (singleFaultType.Operators.All(x => x.Name != faultDeviceDetail.Proposer))
+                            {
+                                singleFaultType.Operators.Add(new Operator
+                                {
+                                    Name = faultDeviceDetail.Proposer,
+                                });
+                            }
+
+                            var @operator = singleFaultType.Operators.First(x => x.Name == faultDeviceDetail.Proposer);
+                            @operator.Count++;
+                            monitoringFault.ReportSingleFaultTypeStr = monitoringFault.ReportSingleFaultType.OrderBy(x => x.FaultId).ToJSON();
+                        }
+
+                        monitoringFault.Confirmed = ServerConfig.ApiDb.Query<int>("SELECT COUNT(1) FROM `fault_device` a LEFT JOIN ( SELECT a.*, b.SiteName FROM `device_library` a JOIN `site` b ON a.SiteId = b.Id ) b ON a.DeviceCode = b.`Code` JOIN `fault_type` c ON a.FaultTypeId = c.Id WHERE b.SiteName IS NOT NULL AND a.MarkedDelete = @MarkedDelete AND a.State = @State AND b.SiteName= @SiteName;", new
+                        {
+                            MarkedDelete = 0,
+                            State = 1,
+                            SiteName = workshop,
+                        }).FirstOrDefault();
+                        monitoringFault.Repairing = ServerConfig.ApiDb.Query<int>("SELECT COUNT(1) FROM `fault_device` a LEFT JOIN ( SELECT a.*, b.SiteName FROM `device_library` a JOIN `site` b ON a.SiteId = b.Id ) b ON a.DeviceCode = b.`Code` JOIN `fault_type` c ON a.FaultTypeId = c.Id WHERE b.SiteName IS NOT NULL AND a.MarkedDelete = @MarkedDelete AND a.State = @State AND b.SiteName= @SiteName;", new
+                        {
+                            MarkedDelete = 0,
+                            State = 2,
+                            SiteName = workshop,
+                        }).FirstOrDefault();
+
+                        monitoringFault.AllDevice = all.Count(x => x == workshop);
+
+                        #endregion
+
+                        #region 维修
+                        var repairRecords = repairRecordsAll.Where(x => x.SolveTime >= time1 && x.SolveTime < time2);
+                        var repairRecordDetails = repairRecords.Where(x => x.SiteName == workshop);
+                        monitoringFault.RepairCount = repairRecordDetails.Count();
+                        monitoringFault.RepairFaultType = repairRecordDetails.GroupBy(x => x.FaultTypeId1).Count();
+
+                        foreach (var repairRecordDetail in repairRecordDetails)
+                        {
+                            var faultId = repairRecordDetail.FaultTypeId1;
+                            var faultName = repairRecordDetail.FaultTypeName;
+
+                            if (monitoringFault.RepairSingleFaultType.All(x => x.FaultId != faultId))
+                            {
+                                monitoringFault.RepairSingleFaultType.Add(new SingleFaultType
+                                {
+                                    FaultId = faultId,
+                                    FaultName = faultName
+                                });
+                            }
+
+                            var singleFaultType = monitoringFault.RepairSingleFaultType.First(x => x.FaultId == faultId);
+                            singleFaultType.Count++;
+
+                            if (singleFaultType.DeviceFaultTypes.All(x => x.Code != repairRecordDetail.DeviceCode))
+                            {
+                                singleFaultType.DeviceFaultTypes.Add(new DeviceFaultType
+                                {
+                                    Code = repairRecordDetail.DeviceCode,
+                                });
+                            }
+
+                            var deviceFaultType = singleFaultType.DeviceFaultTypes.First(x => x.Code == repairRecordDetail.DeviceCode);
+                            deviceFaultType.Count++;
+
+                            if (singleFaultType.Operators.All(x => x.Name != repairRecordDetail.FaultSolver))
+                            {
+                                singleFaultType.Operators.Add(new Operator
+                                {
+                                    Name = repairRecordDetail.FaultSolver,
+                                });
+                            }
+
+                            var @operator = singleFaultType.Operators.First(x => x.Name == repairRecordDetail.FaultSolver);
+                            @operator.Count++;
+                            @operator.Time += repairRecordDetail.SolveTime > repairRecordDetail.FaultTime ? (int)(repairRecordDetail.SolveTime - repairRecordDetail.FaultTime).TotalSeconds : 0;
+
+                            monitoringFault.RepairSingleFaultTypeStr = monitoringFault.RepairSingleFaultType.OrderBy(x => x.FaultId).ToJSON();
+                        }
+                        #endregion
+                    }
+                }
+
+                ServerConfig.ApiDb.ExecuteTrans(
+                    "INSERT INTO npc_monitoring_fault_hour (`Date`, `Workshop`, `AllDevice`, `FaultDevice`, `ReportFaultType`, `ReportCount`, `ReportSingleFaultTypeStr`, `ReportFaultRate`, `Confirmed`, `Repairing`, `ReportRepaired`, `ExtraRepaired`, `RepairFaultType`, `RepairCount`, `RepairSingleFaultTypeStr`) VALUES (@Date, @Workshop, @AllDevice, @FaultDevice, @ReportFaultType, @ReportCount, @ReportSingleFaultTypeStr, @ReportFaultRate, @Confirmed, @Repairing, @ReportRepaired, @ExtraRepaired, @RepairFaultType, @RepairCount, @RepairSingleFaultTypeStr) " +
+                    "ON DUPLICATE KEY UPDATE `AllDevice` = @AllDevice, `FaultDevice` = @FaultDevice, `ReportFaultType` = @ReportFaultType, `ReportCount` = @ReportCount, `ReportSingleFaultTypeStr` = @ReportSingleFaultTypeStr, `ReportFaultRate` = @ReportFaultRate, `Confirmed` = @Confirmed, `Repairing` = @Repairing, `ReportRepaired` = @ReportRepaired, `ExtraRepaired` = @ExtraRepaired, `RepairFaultType` = @RepairFaultType, `RepairCount` = @RepairCount, `RepairSingleFaultTypeStr` = @RepairSingleFaultTypeStr",
+                    monitoringFaults.Values.OrderBy(x => x.Date));
+
+                var npcMonitoringDay = new Dictionary<string, MonitoringFault>();
                 foreach (var workshop in workshops)
                 {
-                    var key = new Tuple<DateTime, string>(today, workshop);
-                    if (!monitoringFaults.ContainsKey(key))
+                    npcMonitoringDay.Add(workshop, new MonitoringFault
                     {
-                        monitoringFaults.Add(key, new MonitoringFault
-                        {
-                            Date = today,
-                            Workshop = workshop
-                        });
-                    }
-                    var monitoringFault = monitoringFaults[key];
-                    #region 上报
-                    var faultDeviceDetails = faultDevices.Where(x => x.SiteName == workshop);
-                    monitoringFault.FaultDevice = faultDeviceDetails.GroupBy(x => x.DeviceCode).Count();
-                    monitoringFault.ReportFaultType = faultDeviceDetails.GroupBy(x => x.FaultTypeId).Count();
-                    monitoringFault.ReportCount = faultDeviceDetails.Count();
-
-                    foreach (var faultDeviceDetail in faultDeviceDetails)
-                    {
-                        var faultId = faultDeviceDetail.FaultTypeId;
-                        var faultName = faultDeviceDetail.FaultTypeName;
-                        if (monitoringFault.ReportSingleFaultType.All(x => x.FaultId != faultId))
-                        {
-                            monitoringFault.ReportSingleFaultType.Add(new SingleFaultType
-                            {
-                                FaultId = faultId,
-                                FaultName = faultName
-                            });
-                        }
-
-                        var singleFaultType = monitoringFault.ReportSingleFaultType.First(x => x.FaultId == faultId);
-                        singleFaultType.Count++;
-
-                        if (singleFaultType.DeviceFaultTypes.All(x => x.Code != faultDeviceDetail.DeviceCode))
-                        {
-                            singleFaultType.DeviceFaultTypes.Add(new DeviceFaultType
-                            {
-                                Code = faultDeviceDetail.DeviceCode,
-                            });
-                        }
-
-                        var deviceFaultType = singleFaultType.DeviceFaultTypes.First(x => x.Code == faultDeviceDetail.DeviceCode);
-                        deviceFaultType.Count++;
-
-                        if (singleFaultType.Operators.All(x => x.Name != faultDeviceDetail.Proposer))
-                        {
-                            singleFaultType.Operators.Add(new Operator
-                            {
-                                Name = faultDeviceDetail.Proposer,
-                            });
-                        }
-
-                        var @operator = singleFaultType.Operators.First(x => x.Name == faultDeviceDetail.Proposer);
-                        @operator.Count++;
-                        monitoringFault.ReportSingleFaultTypeStr = monitoringFault.ReportSingleFaultType.OrderBy(x => x.FaultId).ToJSON();
-                    }
-
-                    monitoringFault.Confirmed = ServerConfig.ApiDb.Query<int>("SELECT COUNT(1) FROM `fault_device` a LEFT JOIN ( SELECT a.*, b.SiteName FROM `device_library` a JOIN `site` b ON a.SiteId = b.Id ) b ON a.DeviceCode = b.`Code` JOIN `fault_type` c ON a.FaultTypeId = c.Id WHERE b.SiteName IS NOT NULL AND a.MarkedDelete = @MarkedDelete AND a.State = @State AND b.SiteName= @SiteName;", new
-                    {
-                        MarkedDelete = 0,
-                        State = 1,
-                        SiteName = workshop,
-                    }).FirstOrDefault();
-                    monitoringFault.Repairing = ServerConfig.ApiDb.Query<int>("SELECT COUNT(1) FROM `fault_device` a LEFT JOIN ( SELECT a.*, b.SiteName FROM `device_library` a JOIN `site` b ON a.SiteId = b.Id ) b ON a.DeviceCode = b.`Code` JOIN `fault_type` c ON a.FaultTypeId = c.Id WHERE b.SiteName IS NOT NULL AND a.MarkedDelete = @MarkedDelete AND a.State = @State AND b.SiteName= @SiteName;", new
-                    {
-                        MarkedDelete = 0,
-                        State = 2,
-                        SiteName = workshop,
-                    }).FirstOrDefault();
-
-                    monitoringFault.AllDevice = all.Count(x => x == workshop);
-
-                    #endregion
-
-                    #region 维修
-                    var repairRecordDetails = repairRecords.Where(x => x.SiteName == workshop);
-                    monitoringFault.RepairCount = repairRecordDetails.Count();
-                    monitoringFault.RepairFaultType = repairRecordDetails.GroupBy(x => x.FaultTypeId1).Count();
-
-                    foreach (var repairRecordDetail in repairRecordDetails)
-                    {
-                        var faultId = repairRecordDetail.FaultTypeId1;
-                        var faultName = repairRecordDetail.FaultTypeName;
-
-                        if (monitoringFault.RepairSingleFaultType.All(x => x.FaultId != faultId))
-                        {
-                            monitoringFault.RepairSingleFaultType.Add(new SingleFaultType
-                            {
-                                FaultId = faultId,
-                                FaultName = faultName
-                            });
-                        }
-
-                        var singleFaultType = monitoringFault.RepairSingleFaultType.First(x => x.FaultId == faultId);
-                        singleFaultType.Count++;
-
-                        if (singleFaultType.DeviceFaultTypes.All(x => x.Code != repairRecordDetail.DeviceCode))
-                        {
-                            singleFaultType.DeviceFaultTypes.Add(new DeviceFaultType
-                            {
-                                Code = repairRecordDetail.DeviceCode,
-                            });
-                        }
-
-                        var deviceFaultType = singleFaultType.DeviceFaultTypes.First(x => x.Code == repairRecordDetail.DeviceCode);
-                        deviceFaultType.Count++;
-
-                        if (singleFaultType.Operators.All(x => x.Name != repairRecordDetail.FaultSolver))
-                        {
-                            singleFaultType.Operators.Add(new Operator
-                            {
-                                Name = repairRecordDetail.FaultSolver,
-                            });
-                        }
-
-                        var @operator = singleFaultType.Operators.First(x => x.Name == repairRecordDetail.FaultSolver);
-                        @operator.Count++;
-                        @operator.Time += repairRecordDetail.SolveTime > repairRecordDetail.FaultTime ? (int)(repairRecordDetail.SolveTime - repairRecordDetail.FaultTime).TotalSeconds : 0;
-
-                        monitoringFault.RepairSingleFaultTypeStr = monitoringFault.RepairSingleFaultType.OrderBy(x => x.FaultId).ToJSON();
-                    }
-                    #endregion
+                        Date = today,
+                        Workshop = workshop
+                    });
                 }
+
+                foreach (var monitoringFault in monitoringFaults.Values)
+                {
+                    npcMonitoringDay[monitoringFault.Workshop].DayAdd(monitoringFault);
+                }
+
                 ServerConfig.ApiDb.ExecuteTrans(
                     "INSERT INTO npc_monitoring_fault (`Date`, `Workshop`, `AllDevice`, `FaultDevice`, `ReportFaultType`, `ReportCount`, `ReportSingleFaultTypeStr`, `ReportFaultRate`, `Confirmed`, `Repairing`, `ReportRepaired`, `ExtraRepaired`, `RepairFaultType`, `RepairCount`, `RepairSingleFaultTypeStr`) VALUES (@Date, @Workshop, @AllDevice, @FaultDevice, @ReportFaultType, @ReportCount, @ReportSingleFaultTypeStr, @ReportFaultRate, @Confirmed, @Repairing, @ReportRepaired, @ExtraRepaired, @RepairFaultType, @RepairCount, @RepairSingleFaultTypeStr) " +
                     "ON DUPLICATE KEY UPDATE `AllDevice` = @AllDevice, `FaultDevice` = @FaultDevice, `ReportFaultType` = @ReportFaultType, `ReportCount` = @ReportCount, `ReportSingleFaultTypeStr` = @ReportSingleFaultTypeStr, `ReportFaultRate` = @ReportFaultRate, `Confirmed` = @Confirmed, `Repairing` = @Repairing, `ReportRepaired` = @ReportRepaired, `ExtraRepaired` = @ExtraRepaired, `RepairFaultType` = @RepairFaultType, `RepairCount` = @RepairCount, `RepairSingleFaultTypeStr` = @RepairSingleFaultTypeStr",
-                    monitoringFaults.Values);
+                    npcMonitoringDay.Values);
             }
             catch (Exception e)
             {

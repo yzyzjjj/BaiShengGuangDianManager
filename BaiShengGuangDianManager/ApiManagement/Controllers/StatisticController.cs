@@ -48,6 +48,8 @@ namespace ApiManagement.Controllers
             public string DeviceId;
             public DateTime StartTime;
             public DateTime EndTime;
+            public int StartHour;
+            public int EndHour;
             public DateTime StartTime1;
             public DateTime EndTime1;
             public string Field;
@@ -920,6 +922,70 @@ namespace ApiManagement.Controllers
         }
 
         /// <summary>
+        /// 设备加工详情
+        /// </summary>
+        /// <returns></returns>
+        // POST: api/Statistic/ProcessDetail
+        [HttpPost("ProcessDetail")]
+        public DataResult ProcessDetail([FromBody] StatisticRequest requestBody)
+        {
+            try
+            {
+                if (requestBody.StartTime == default(DateTime) || requestBody.DeviceId.IsNullOrEmpty())
+                {
+                    return Result.GenError<DataResult>(Error.ParamError);
+                }
+                var deviceIds = requestBody.DeviceId.Split(",");
+                if (deviceIds.Length == 0)
+                {
+                    return Result.GenError<DataResult>(Error.DeviceNotExist);
+                }
+                var cnt =
+                    ServerConfig.ApiDb
+                        .Query<int>(
+                            "SELECT COUNT(1) FROM `device_library` WHERE Id IN @id AND `MarkedDelete` = 0;",
+                            new { id = deviceIds }).FirstOrDefault();
+                if (cnt != deviceIds.Length)
+                {
+                    return Result.GenError<DataResult>(Error.DeviceNotExist);
+                }
+
+                var sql = "SELECT * FROM `npc_monitoring_process_day` WHERE Time = @Time AND DeviceId IN @DeviceId";
+                var monitoringProcess = ServerConfig.ApiDb.Query<MonitoringProcess>(sql, new
+                {
+                    Time = requestBody.StartTime,
+                    DeviceId = requestBody.DeviceId,
+                }, 60).ToDictionary(x => x.DeviceId.ToString());
+
+                sql = "SELECT a.*, b.`Code`, c.ProcessorName, d.FlowCardName FROM `npc_monitoring_process_log` a JOIN `device_library` b " +
+                      "ON a.DeviceId = b.Id LEFT JOIN `processor` c ON a.ProcessorId = c.Id  JOIN `flowcard_library` d ON a.FlowCardId = d.Id " +
+                      "WHERE a.DeviceId IN @DeviceId AND StartTime >= @StartTime1 AND StartTime <= @StartTime2 ORDER BY a.StartTime;";
+                var data = ServerConfig.ApiDb.Query<dynamic>(sql, new
+                {
+                    DeviceId = requestBody.DeviceId,
+                    StartTime1 = requestBody.StartTime.DayBeginTime(),
+                    StartTime2 = requestBody.StartTime.DayEndTime(),
+                }, 60).ToDictionary(x => x.DeviceId.ToString());
+                var result = new DataResult();
+                foreach (var device in deviceIds)
+                {
+                    result.datas.Add(new
+                    {
+                        ProcessCount = monitoringProcess[device]?.ProcessCount ?? 0,
+                        ProcessLog = data[device]
+                    });
+                }
+
+                return result;
+            }
+            catch (Exception e)
+            {
+                return Result.GenError<DataResult>(Error.ParamError);
+            }
+        }
+
+
+        /// <summary>
         /// 故障统计
         /// </summary>
         /// <returns></returns>
@@ -931,7 +997,7 @@ namespace ApiManagement.Controllers
             try
             {
                 string sql;
-                //故障统计 0 无数据对比 1 车间对比 2 机台号对比 2 机台号对比 3 日数据 4 周数据 5 月数据
+                //故障统计 0 无数据对比 1 车间对比 2 机台号对比 2 机台号对比 3 日数据 4 周数据 5 月数据 6 时间段数据
                 int cnt;
                 IEnumerable<MonitoringFault> data;
                 List<MonitoringFault> r;
@@ -1062,7 +1128,7 @@ namespace ApiManagement.Controllers
                         cnt =
                             ServerConfig.ApiDb
                                 .Query<int>(
-                                    "SELECT COUNT(1) FROM `device_library` WHERE Id IN @id AND `MarkedDelete` = 0;",
+                                    "SELECT COUNT(1) FROM `device_library` WHERE Code IN @id AND `MarkedDelete` = 0;",
                                     new { id = deviceIds }).FirstOrDefault();
                         if (cnt != deviceIds.Length)
                         {
@@ -1088,12 +1154,68 @@ namespace ApiManagement.Controllers
                                     Date = time,
                                     Code = device,
                                     Workshop = !requestBody.WorkshopName.IsNullOrEmpty() ? requestBody.WorkshopName : string.Empty,
-                                    ReportFaultType = data.All(x => x.Date != time) ? 0 : data.First(x => x.Date == time).ReportSingleFaultType.Count(x => x.DeviceFaultTypes.Any(y => y.Code == device)),
-                                    CodeReportFaultType = data.All(x => x.Date != time) ? 0 : data.First(x => x.Date == time).ReportSingleFaultType.Sum(x => x.DeviceFaultTypes.Where(y => y.Code == device).Sum(y => y.Count)),
-                                    ReportCount = data.All(x => x.Date != time) ? 0 : data.First(x => x.Date == time).ReportCount,
-                                    RepairFaultType = data.All(x => x.Date != time) ? 0 : data.First(x => x.Date == time).RepairSingleFaultType.Count(x => x.DeviceFaultTypes.Any(y => y.Code == device)),
-                                    RepairCount = data.All(x => x.Date != time) ? 0 : data.First(x => x.Date == time).RepairSingleFaultType.Sum(x => x.DeviceFaultTypes.Where(y => y.Code == device).Sum(y => y.Count)),
+                                    ReportFaultType = data.All(x => x.Date != time) ? 0 : data.Where(x => x.Date == time).Sum(z => z.ReportSingleFaultType.Count(x => x.DeviceFaultTypes.Any(y => y.Code == device))),
+                                    CodeReportFaultType = data.All(x => x.Date != time) ? 0 : data.Where(x => x.Date == time).Sum(z => z.ReportSingleFaultType.Sum(x => x.DeviceFaultTypes.Where(y => y.Code == device).Sum(y => y.Count))),
+                                    ReportCount = data.All(x => x.Date != time) ? 0 : data.Where(x => x.Date == time).Sum(z => z.ReportCount),
+                                    RepairFaultType = data.All(x => x.Date != time) ? 0 : data.Where(x => x.Date == time).Sum(z => z.RepairSingleFaultType.Count(x => x.DeviceFaultTypes.Any(y => y.Code == device))),
+                                    RepairCount = data.All(x => x.Date != time) ? 0 : data.Where(x => x.Date == time).Sum(z => z.RepairSingleFaultType.Sum(x => x.DeviceFaultTypes.Where(y => y.Code == device).Sum(y => y.Count))),
                                 };
+                                if (data.Any(x => x.Date == time))
+                                {
+                                    foreach (var da in data.Where(x => x.Date == time))
+                                    {
+                                        foreach (var d in da.ReportSingleFaultType)
+                                        {
+                                            if (d.DeviceFaultTypes.Any(y => y.Code == device))
+                                            {
+                                                if (mf.ReportSingleFaultType.All(x => x.FaultId != d.FaultId))
+                                                {
+                                                    var add = new SingleFaultType
+                                                    {
+                                                        FaultId = d.FaultId,
+                                                        FaultName = d.FaultName,
+                                                    };
+                                                    add.DeviceFaultTypes.Add(new DeviceFaultType
+                                                    {
+                                                        Code = device,
+                                                    });
+                                                    mf._reportSingleFaultType.Add(add);
+                                                }
+                                                mf.ReportSingleFaultType.First(x => x.FaultId == d.FaultId).DeviceFaultTypes.First(x => x.Code == device).Count +=
+                                                    d.DeviceFaultTypes.First(x => x.Code == device).Count;
+                                                mf.ReportSingleFaultType.First(x => x.FaultId == d.FaultId).Count = mf.ReportSingleFaultType.First(x => x.FaultId == d.FaultId)
+                                                        .DeviceFaultTypes.Sum(x => x.Count);
+                                            }
+                                        }
+
+                                        foreach (var d in da.RepairSingleFaultType)
+                                        {
+                                            if (d.DeviceFaultTypes.Any(y => y.Code == device))
+                                            {
+                                                if (mf.RepairSingleFaultType.All(x => x.FaultId != d.FaultId))
+                                                {
+                                                    var add = new SingleFaultType
+                                                    {
+                                                        FaultId = d.FaultId,
+                                                        FaultName = d.FaultName,
+                                                    };
+                                                    add.DeviceFaultTypes.Add(new DeviceFaultType
+                                                    {
+                                                        Code = device,
+                                                    });
+                                                    mf._repairSingleFaultType.Add(add);
+                                                }
+                                                mf.RepairSingleFaultType.First(x => x.FaultId == d.FaultId).DeviceFaultTypes.First(x => x.Code == device).Count +=
+                                                    d.DeviceFaultTypes.First(x => x.Code == device).Count;
+                                                mf.RepairSingleFaultType.First(x => x.FaultId == d.FaultId).Count = mf.RepairSingleFaultType.First(x => x.FaultId == d.FaultId)
+                                                    .DeviceFaultTypes.Sum(x => x.Count);
+                                            }
+                                        }
+
+
+                                    }
+                                }
+
                                 mf.AllDevice = mf.ReportCount;
                                 mf.FaultDevice = mf.CodeReportFaultType;
                                 r.Add(mf);
@@ -1287,6 +1409,78 @@ namespace ApiManagement.Controllers
                             monitoringFault.Add(d);
                         }
                         result.datas.Add(monitoringFault);
+                        #endregion
+                        break;
+                    case 6:
+                        #region 时间段数据
+                        if (!requestBody.WorkshopName.IsNullOrEmpty())
+                        {
+                            cnt = ServerConfig.ApiDb.Query<int>(
+                                "SELECT COUNT(1) FROM `site` WHERE MarkedDelete = 0 AND SiteName = @SiteName;", new
+                                {
+                                    SiteName = requestBody.WorkshopName
+                                }).FirstOrDefault();
+                            if (cnt <= 0)
+                            {
+                                return Result.GenError<DataResult>(Error.WorkshopNotExist);
+                            }
+                        }
+
+                        startTime = requestBody.StartTime.DayBeginTime();
+                        endTime = requestBody.EndTime.DayEndTime().AddDays(1);
+
+                        sql = !requestBody.WorkshopName.IsNullOrEmpty()
+                            ? "SELECT * FROM `npc_monitoring_fault_hour` WHERE Date >= @Date1 AND Date < @Date2 AND HOUR (Date) >= @Hour1 AND HOUR (Date) < @Hour2 AND Workshop = @Workshop;"
+                            : "SELECT * FROM `npc_monitoring_fault_hour` WHERE Date >= @Date1 AND Date < @Date2 AND HOUR (Date) >= @Hour1 AND HOUR (Date) < @Hour2;";
+                        data = ServerConfig.ApiDb.Query<MonitoringFault>(sql, new
+                        {
+                            Workshop = requestBody.WorkshopName,
+                            Date1 = startTime,
+                            Date2 = endTime,
+                            Hour1 = requestBody.StartHour,
+                            Hour2 = requestBody.EndHour + 1,
+                        }, 60).OrderBy(x => x.Date.Hour);
+                        r = new List<MonitoringFault>();
+                        monitoringFault = new MonitoringFault { Date = startTime.AddHours(requestBody.StartHour), Workshop = requestBody.WorkshopName };
+                        foreach (var d in data)
+                        {
+                            if (monitoringFault.Date.Hour == d.Date.Hour)
+                            {
+                                monitoringFault.Add(d);
+                            }
+                            else
+                            {
+                                r.Add(monitoringFault);
+                                monitoringFault = new MonitoringFault { Date = d.Date, Workshop = requestBody.WorkshopName };
+                                monitoringFault.Add(d);
+                            }
+                        }
+                        r.Add(monitoringFault);
+                        result.datas.AddRange(r);
+
+                        var rr = new List<MonitoringFault>();
+                        monitoringFault = new MonitoringFault { Date = startTime.AddHours(requestBody.StartHour), Workshop = requestBody.WorkshopName };
+                        foreach (var d in data)
+                        {
+                            if (monitoringFault.Date.InSameDay(d.Date))
+                            {
+                                monitoringFault.DayAdd(d);
+                            }
+                            else
+                            {
+                                r.Add(monitoringFault);
+                                monitoringFault = new MonitoringFault { Date = d.Date, Workshop = requestBody.WorkshopName };
+                                monitoringFault.DayAdd(d);
+                            }
+                        }
+                        rr.Add(monitoringFault);
+
+                        var all = new MonitoringFault { Date = startTime.AddHours(requestBody.EndHour), Workshop = requestBody.WorkshopName }; ;
+                        foreach (var d in data)
+                        {
+                            all.Add(d);
+                        }
+                        result.datas.Add(all);
                         #endregion
                         break;
                     default:

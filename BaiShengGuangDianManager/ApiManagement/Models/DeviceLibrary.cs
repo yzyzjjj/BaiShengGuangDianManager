@@ -71,7 +71,7 @@ namespace ApiManagement.Models
                         case 2: return "维修中";
                     }
                 }
-                return "连接异常";
+                return State == SocketState.Connected ? "数据异常" : "连接异常";
             }
         }
 
