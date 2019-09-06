@@ -16,6 +16,7 @@ namespace ApiManagement.Models
         public int Priority { get; set; }
         public int State { get; set; }
         public int FaultTypeId { get; set; }
+        public bool Cancel { get; set; }
     }
     public class FaultDeviceDetail : FaultDevice
     {

@@ -4,7 +4,6 @@ using Microsoft.AspNetCore.Mvc;
 using ModelBase.Base.EnumConfig;
 using ModelBase.Base.Utils;
 using ModelBase.Models.Result;
-using ServiceStack;
 using System;
 using System.Linq;
 
@@ -45,7 +44,7 @@ namespace ApiManagement.Controllers
         public Result PutDeviceModel([FromRoute] int id, [FromBody] DeviceModel deviceModel)
         {
             var data =
-                ServerConfig.ApiDb.Query<DeviceModel>("SELECT COUNT(1) FROM `device_model` WHERE Id = @id AND MarkedDelete = 0;", new { id }).FirstOrDefault();
+                ServerConfig.ApiDb.Query<DeviceModel>("SELECT * FROM `device_model` WHERE Id = @id AND MarkedDelete = 0;", new { id }).FirstOrDefault();
             if (data == null)
             {
                 return Result.GenError<Result>(Error.DeviceModelNotExist);
@@ -58,16 +57,13 @@ namespace ApiManagement.Controllers
                 return Result.GenError<Result>(Error.DeviceCategoryNotExist);
             }
 
-            cnt =
-               ServerConfig.ApiDb.Query<int>("SELECT COUNT(1) FROM `device_model` WHERE ModelName = @ModelName AND DeviceCategoryId = @DeviceCategoryId AND MarkedDelete = 0;", new { deviceModel.ModelName, deviceModel.DeviceCategoryId }).FirstOrDefault();
-            if (cnt > 0)
-            {
-                if (!deviceModel.ModelName.IsNullOrEmpty() && data.ModelName != deviceModel.ModelName)
-                {
-                    return Result.GenError<Result>(Error.DeviceModelIsExist);
-                }
-            }
+            var dataN =
+               ServerConfig.ApiDb.Query<DeviceModel>("SELECT * FROM `device_model` WHERE ModelName = @ModelName AND DeviceCategoryId = @DeviceCategoryId AND MarkedDelete = 0;", new { deviceModel.ModelName, deviceModel.DeviceCategoryId }).FirstOrDefault();
 
+            if (dataN != null && data.Id != dataN.Id)
+            {
+                return Result.GenError<Result>(Error.DeviceModelIsExist);
+            }
             deviceModel.Id = id;
             deviceModel.CreateUserId = Request.GetIdentityInformation();
             deviceModel.MarkedDateTime = DateTime.Now;

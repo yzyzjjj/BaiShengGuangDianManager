@@ -1,12 +1,13 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
+﻿using ApiManagement.Base.Helper;
 using ApiManagement.Base.Server;
 using ApiManagement.Models;
 using Microsoft.AspNetCore.Mvc;
 using ModelBase.Base.EnumConfig;
 using ModelBase.Base.Utils;
 using ModelBase.Models.Result;
+using System;
+using System.Collections.Generic;
+using System.Linq;
 
 namespace ApiManagement.Controllers
 {
@@ -19,12 +20,48 @@ namespace ApiManagement.Controllers
     {
         // GET: api/FaultDevice
         [HttpGet]
-        public DataResult GetFaultDevice()
+        public DataResult GetFaultDevice([FromQuery]DateTime startTime, DateTime endTime)
         {
+            string sql;
+            if (startTime == default(DateTime) || endTime == default(DateTime))
+            {
+                sql =
+                    "SELECT a.*, b.FaultTypeName FROM `fault_device` a JOIN `fault_type` b ON a.FaultTypeId = b.Id WHERE a.MarkedDelete = 0 ORDER BY DeviceCode, a.Id;";
+            }
+            else
+            {
+                sql =
+                    "SELECT a.*, b.FaultTypeName FROM `fault_device` a JOIN `fault_type` b ON a.FaultTypeId = b.Id WHERE a.MarkedDelete = 0 AND a.MarkedDateTime >= @startTime AND a.MarkedDateTime <= @endTime ORDER BY DeviceCode, a.Id;";
+            }
             var result = new DataResult();
-            result.datas.AddRange(ServerConfig.ApiDb.Query<FaultDeviceDetail>("SELECT a.*, b.FaultTypeName FROM `fault_device` a JOIN `fault_type` b ON a.FaultTypeId = b.Id WHERE a.MarkedDelete = 0 ORDER BY DeviceCode, a.Id;"));
+            result.datas.AddRange(ServerConfig.ApiDb.Query<FaultDeviceDetail>(sql, new { startTime, endTime }).OrderBy(x => x.DeviceCode).ThenByDescending(x => x.FaultTime));
             return result;
         }
+
+        /// <summary>
+        ///
+        /// </summary>
+        // GET: api/FaultDevice/DeleteLog
+        [HttpGet("DeleteLog")]
+        public DataResult GetFaultDeviceDeleteLog([FromQuery]DateTime startTime, DateTime endTime)
+        {
+            string sql;
+            if (startTime == default(DateTime) || endTime == default(DateTime))
+            {
+                sql =
+                    "SELECT a.*, b.FaultTypeName FROM `fault_device` a JOIN `fault_type` b ON a.FaultTypeId = b.Id WHERE a.MarkedDelete = 1 AND a.Cancel = 1;";
+            }
+            else
+            {
+                sql =
+                    "SELECT a.*, b.FaultTypeName FROM `fault_device` a JOIN `fault_type` b ON a.FaultTypeId = b.Id WHERE a.MarkedDelete = 1 AND a.Cancel = 1 AND a.MarkedDateTime >= @startTime AND a.MarkedDateTime <= @endTime;";
+            }
+            var result = new DataResult();
+            var data = ServerConfig.ApiDb.Query<FaultDeviceDetail>(sql, new { startTime, endTime }).OrderBy(x => x.DeviceCode).ThenByDescending(x => x.FaultTime);
+            result.datas.AddRange(data);
+            return result;
+        }
+
 
         /// <summary>
         /// 自增Id
@@ -152,22 +189,24 @@ namespace ApiManagement.Controllers
         [HttpDelete("{id}")]
         public Result DeleteFaultDevice([FromRoute] int id)
         {
-            var cnt =
-                ServerConfig.ApiDb.Query<int>("SELECT COUNT(1) FROM `fault_device` WHERE Id = @id AND MarkedDelete = 0;", new { id }).FirstOrDefault();
-            if (cnt == 0)
+            var data =
+                ServerConfig.ApiDb.Query<FaultDevice>("SELECT * FROM `fault_device` WHERE Id = @id AND MarkedDelete = 0;", new { id }).FirstOrDefault();
+            if (data == null)
             {
                 return Result.GenError<Result>(Error.FaultDeviceNotExist);
             }
 
             ServerConfig.ApiDb.Execute(
-                "UPDATE `fault_device` SET `MarkedDateTime`= @MarkedDateTime, `MarkedDelete`= @MarkedDelete WHERE `Id`= @Id;", new
+                "UPDATE `fault_device` SET `MarkedDateTime`= @MarkedDateTime, `MarkedDelete`= @MarkedDelete, `Cancel`= @Cancel WHERE `Id`= @Id;", new
                 {
                     MarkedDateTime = DateTime.Now,
                     MarkedDelete = true,
+                    Cancel = true,
                     Id = id
                 });
+
+            AnalysisHelper.FaultCal(data.FaultTime);
             return Result.GenError<Result>(Error.Success);
         }
-
     }
 }

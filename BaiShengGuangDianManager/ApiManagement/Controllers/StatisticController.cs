@@ -954,7 +954,7 @@ namespace ApiManagement.Controllers
                 var monitoringProcess = ServerConfig.ApiDb.Query<MonitoringProcess>(sql, new
                 {
                     Time = requestBody.StartTime,
-                    DeviceId = requestBody.DeviceId,
+                    DeviceId = deviceIds,
                 }, 60).ToDictionary(x => x.DeviceId.ToString());
 
                 sql = "SELECT a.*, b.`Code`, c.ProcessorName, d.FlowCardName FROM `npc_monitoring_process_log` a JOIN `device_library` b " +
@@ -962,17 +962,18 @@ namespace ApiManagement.Controllers
                       "WHERE a.DeviceId IN @DeviceId AND StartTime >= @StartTime1 AND StartTime <= @StartTime2 ORDER BY a.StartTime;";
                 var data = ServerConfig.ApiDb.Query<dynamic>(sql, new
                 {
-                    DeviceId = requestBody.DeviceId,
+                    DeviceId = deviceIds,
                     StartTime1 = requestBody.StartTime.DayBeginTime(),
                     StartTime2 = requestBody.StartTime.DayEndTime(),
-                }, 60).ToDictionary(x => x.DeviceId.ToString());
+                }, 60);
                 var result = new DataResult();
                 foreach (var device in deviceIds)
                 {
                     result.datas.Add(new
                     {
-                        ProcessCount = monitoringProcess[device]?.ProcessCount ?? 0,
-                        ProcessLog = data[device]
+                        DeviceId = device,
+                        ProcessCount = monitoringProcess.ContainsKey(device) ? monitoringProcess[device].ProcessCount : 0,
+                        ProcessLog = data.Where(x => x.DeviceId.ToString() == device)
                     });
                 }
 
@@ -1427,22 +1428,22 @@ namespace ApiManagement.Controllers
                         }
 
                         startTime = requestBody.StartTime.DayBeginTime();
-                        endTime = requestBody.EndTime.DayEndTime().AddDays(1);
+                        endTime = requestBody.EndTime.DayEndTime();
 
                         sql = !requestBody.WorkshopName.IsNullOrEmpty()
-                            ? "SELECT * FROM `npc_monitoring_fault_hour` WHERE Date >= @Date1 AND Date < @Date2 AND HOUR (Date) >= @Hour1 AND HOUR (Date) < @Hour2 AND Workshop = @Workshop;"
-                            : "SELECT * FROM `npc_monitoring_fault_hour` WHERE Date >= @Date1 AND Date < @Date2 AND HOUR (Date) >= @Hour1 AND HOUR (Date) < @Hour2;";
+                            ? "SELECT * FROM `npc_monitoring_fault_hour` WHERE Date >= @Date1 AND Date < @Date2 AND HOUR(Date) >= @Hour1 AND HOUR(Date) <= @Hour2 AND Workshop = @Workshop;"
+                            : "SELECT * FROM `npc_monitoring_fault_hour` WHERE Date >= @Date1 AND Date < @Date2 AND HOUR(Date) >= @Hour1 AND HOUR(Date) <= @Hour2;";
                         data = ServerConfig.ApiDb.Query<MonitoringFault>(sql, new
                         {
                             Workshop = requestBody.WorkshopName,
                             Date1 = startTime,
                             Date2 = endTime,
                             Hour1 = requestBody.StartHour,
-                            Hour2 = requestBody.EndHour + 1,
-                        }, 60).OrderBy(x => x.Date.Hour);
+                            Hour2 = requestBody.EndHour,
+                        }, 60);
                         r = new List<MonitoringFault>();
                         monitoringFault = new MonitoringFault { Date = startTime.AddHours(requestBody.StartHour), Workshop = requestBody.WorkshopName };
-                        foreach (var d in data)
+                        foreach (var d in data.OrderBy(x => x.Date.Hour))
                         {
                             if (monitoringFault.Date.Hour == d.Date.Hour)
                             {
@@ -1458,25 +1459,33 @@ namespace ApiManagement.Controllers
                         r.Add(monitoringFault);
                         result.datas.AddRange(r);
 
-                        var rr = new List<MonitoringFault>();
-                        monitoringFault = new MonitoringFault { Date = startTime.AddHours(requestBody.StartHour), Workshop = requestBody.WorkshopName };
-                        foreach (var d in data)
+                        data = ServerConfig.ApiDb.Query<MonitoringFault>(sql, new
                         {
-                            if (monitoringFault.Date.InSameDay(d.Date))
+                            Workshop = requestBody.WorkshopName,
+                            Date1 = startTime,
+                            Date2 = endTime,
+                            Hour1 = requestBody.StartHour,
+                            Hour2 = requestBody.EndHour,
+                        }, 60);
+                        var rr = new List<MonitoringFault>();
+                        var monitoringFaultDay = new MonitoringFault { Date = startTime.AddHours(requestBody.StartHour), Workshop = requestBody.WorkshopName };
+                        foreach (var d in data.OrderBy(x => x.Date))
+                        {
+                            if (monitoringFaultDay.Date.InSameDay(d.Date))
                             {
-                                monitoringFault.DayAdd(d);
+                                monitoringFaultDay.DayAdd(d);
                             }
                             else
                             {
-                                r.Add(monitoringFault);
-                                monitoringFault = new MonitoringFault { Date = d.Date, Workshop = requestBody.WorkshopName };
-                                monitoringFault.DayAdd(d);
+                                rr.Add(monitoringFaultDay);
+                                monitoringFaultDay = new MonitoringFault { Date = d.Date, Workshop = requestBody.WorkshopName };
+                                monitoringFaultDay.DayAdd(d);
                             }
                         }
-                        rr.Add(monitoringFault);
+                        rr.Add(monitoringFaultDay);
 
                         var all = new MonitoringFault { Date = startTime.AddHours(requestBody.EndHour), Workshop = requestBody.WorkshopName }; ;
-                        foreach (var d in data)
+                        foreach (var d in rr)
                         {
                             all.Add(d);
                         }

@@ -41,12 +41,15 @@ namespace ApiManagement.Base.Helper
             _url = configuration.GetAppSettings<string>("ErpUrl");
             _timer = new Timer(DoSth, null, 5000, 1000 * 60 * 1);
         }
-        
+
         /// <summary>
         /// 
         /// </summary>
         private static void DoSth(object state)
         {
+#if DEBUG
+            Console.WriteLine("FlowCardHelper 调试模式已开启");
+#else
             UpdateProductionProcessStep();
             UpdateProductionSpecification();
 
@@ -54,6 +57,7 @@ namespace ApiManagement.Base.Helper
             Update();
 
             UpdateFlowCardProcessStep();
+#endif
         }
 
         /// <summary>
@@ -89,7 +93,7 @@ namespace ApiManagement.Base.Helper
             });
             if (f == "fail")
             {
-                Log.ErrorFormat("InsertData 请求erp获取流程卡数据失败,url:{0}", _url);
+                Log.ErrorFormat("InsertFlowCard 请求erp获取流程卡数据失败,url:{0}", _url);
                 return false;
             }
 
@@ -141,6 +145,12 @@ namespace ApiManagement.Base.Helper
                     return true;
                 }
 
+                foreach (var dr in r)
+                {
+                    dr.f_jhh = dr.f_jhh.Trim();
+                    dr.f_lckh = dr.f_lckh.Trim();
+                    dr.f_mate = dr.f_mate.Trim();
+                }
                 //原料批号
                 var rawMaterias = ServerConfig.ApiDb.Query<RawMateria>("SELECT * FROM `raw_materia` WHERE MarkedDelete = 0;").ToDictionary(x => x.RawMateriaName);
                 var erpRawMaterias = r.GroupBy(x => x.f_mate).ToDictionary(x => x.Key);
@@ -197,6 +207,15 @@ namespace ApiManagement.Base.Helper
                         var erpJhhes = JsonConvert.DeserializeObject<ErpJhh[]>(rrr);
                         if (erpJhhes.Any())
                         {
+                            foreach (var dr in erpJhhes)
+                            {
+                                dr.jhh = dr.jhh.Trim();
+                                foreach (var ddr in dr.gx)
+                                {
+                                    ddr.n = ddr.n.Trim();
+                                    ddr.v = ddr.v.Trim();
+                                }
+                            }
                             var deviceProcessSteps = ServerConfig.ApiDb.Query<DeviceProcessStep>("SELECT Id, StepName FROM `device_process_step` WHERE MarkedDelete = 0;");
 
                             //erp计划号工序
@@ -342,7 +361,7 @@ namespace ApiManagement.Base.Helper
             }
             catch (Exception e)
             {
-                Log.ErrorFormat("InsertData erp数据解析失败,原因:{0},错误:{1}", e.Message, e.StackTrace);
+                Log.ErrorFormat("InsertFlowCard erp数据解析失败,原因:{0},错误:{1}", e.Message, e.StackTrace);
                 return false;
             }
             return true;
@@ -385,7 +404,7 @@ namespace ApiManagement.Base.Helper
             });
             if (f == "fail")
             {
-                Log.ErrorFormat("UpdateData 请求erp获取流程卡数据失败,url:{0}", _url);
+                Log.ErrorFormat("UpdateFlowCard 请求erp获取流程卡数据失败,url:{0}", _url);
                 return;
             }
 
@@ -404,7 +423,12 @@ namespace ApiManagement.Base.Helper
                 {
                     return;
                 }
-
+                foreach (var dr in r)
+                {
+                    dr.f_jhh = dr.f_jhh.Trim();
+                    dr.f_lckh = dr.f_lckh.Trim();
+                    dr.f_mate = dr.f_mate.Trim();
+                }
                 //流程卡
                 //var erpFlowCardLibraries = r.ToDictionary(x => $"{x.f_bz:d2}{x.f_lckh}");
                 var erpFlowCardLibraries = r.ToDictionary(x => x.f_lckh);
@@ -463,7 +487,7 @@ namespace ApiManagement.Base.Helper
             }
             catch (Exception e)
             {
-                Log.ErrorFormat("UpdateData erp数据解析失败,原因:{0},错误:{1}", e.Message, e.StackTrace);
+                Log.ErrorFormat("UpdateFlowCard erp数据解析失败,原因:{0},错误:{1}", e.Message, e.StackTrace);
                 return;
             }
 
@@ -568,6 +592,15 @@ namespace ApiManagement.Base.Helper
                         var erpJhhes = JsonConvert.DeserializeObject<ErpJhh[]>(rrr);
                         if (erpJhhes.Any())
                         {
+                            foreach (var dr in erpJhhes)
+                            {
+                                dr.jhh = dr.jhh.Trim();
+                                foreach (var ddr in dr.gx)
+                                {
+                                    ddr.n = ddr.n.Trim();
+                                    ddr.v = ddr.v.Trim();
+                                }
+                            }
                             //erp计划号工序
                             var erpProductionProcessStep = erpJhhes.ToDictionary(x => x.jhh);
                             //var newProductionProcessStep = erpProductionProcessStep.Where(x => !productionProcessStep.ContainsKey(x.Key));
@@ -652,6 +685,16 @@ namespace ApiManagement.Base.Helper
                         var erpJhhes = JsonConvert.DeserializeObject<ErpJhh[]>(rrr);
                         if (erpJhhes.Any())
                         {
+                            foreach (var dr in erpJhhes)
+                            {
+                                dr.jhh = dr.jhh.Trim();
+                                foreach (var ddr in dr.gx)
+                                {
+                                    ddr.n = ddr.n.Trim();
+                                    ddr.v = ddr.v.Trim();
+                                }
+                            }
+
                             //erp计划号规格 客户要求
                             var erpProductionProcessStep = erpJhhes.ToDictionary(x => x.jhh);
                             var now = DateTime.Now;

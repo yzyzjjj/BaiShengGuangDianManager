@@ -40,9 +40,17 @@ namespace ApiManagement.Models.Analysis
         /// <summary>
         /// 单个故障上报次数
         /// </summary>
-        public List<SingleFaultType> ReportSingleFaultType => _reportSingleFaultType ?? (_reportSingleFaultType = !ReportSingleFaultTypeStr.IsNullOrEmpty()
-                                                                  ? JsonConvert.DeserializeObject<List<SingleFaultType>>(ReportSingleFaultTypeStr)
-                                                                  : new List<SingleFaultType>());
+        public List<SingleFaultType> ReportSingleFaultType
+        {
+            get => _reportSingleFaultType ?? (_reportSingleFaultType = !ReportSingleFaultTypeStr.IsNullOrEmpty()
+                       ? JsonConvert.DeserializeObject<List<SingleFaultType>>(ReportSingleFaultTypeStr)
+                       : new List<SingleFaultType>());
+            set
+            {
+                _reportSingleFaultType = value;
+                ReportSingleFaultTypeStr = _reportSingleFaultType.ToJSON();
+            }
+        }
 
         [JsonIgnore]
         public string ReportSingleFaultTypeStr { get; set; }
@@ -86,9 +94,17 @@ namespace ApiManagement.Models.Analysis
         /// <summary>
         /// 单个故障维修次数
         /// </summary>
-        public List<SingleFaultType> RepairSingleFaultType => _repairSingleFaultType ?? (_repairSingleFaultType = !RepairSingleFaultTypeStr.IsNullOrEmpty()
-                                                                  ? JsonConvert.DeserializeObject<List<SingleFaultType>>(RepairSingleFaultTypeStr)
-                                                                  : new List<SingleFaultType>());
+        public List<SingleFaultType> RepairSingleFaultType
+        {
+            get => _repairSingleFaultType ?? (_repairSingleFaultType = !RepairSingleFaultTypeStr.IsNullOrEmpty()
+                       ? JsonConvert.DeserializeObject<List<SingleFaultType>>(RepairSingleFaultTypeStr)
+                       : new List<SingleFaultType>());
+            set
+            {
+                _repairSingleFaultType = value;
+                RepairSingleFaultTypeStr = _repairSingleFaultType.ToJSON();
+            }
+        }
 
         [JsonIgnore]
         public string RepairSingleFaultTypeStr { get; set; }
@@ -101,6 +117,11 @@ namespace ApiManagement.Models.Analysis
         /// 机台号上报故障类型数量
         /// </summary>
         public int CodeReportFaultType { get; set; }
+
+        /// <summary>
+        /// 取消故障
+        /// </summary>
+        public int Cancel { get; set; }
 
         public void Add(MonitoringFault monitoringFault)
         {
@@ -124,18 +145,19 @@ namespace ApiManagement.Models.Analysis
                         {
                             faultType.DeviceFaultTypes.Add(deviceFaultType);
                         }
-                        foreach (var @operator in singleFaultType.Operators)
+                    }
+
+                    foreach (var @operator in singleFaultType.Operators)
+                    {
+                        if (faultType.Operators.Any(x => x.Name == @operator.Name))
                         {
-                            if (faultType.Operators.Any(x => x.Name == @operator.Name))
-                            {
-                                var operator1 = faultType.Operators.First(x => x.Name == @operator.Name);
-                                operator1.Count += @operator.Count;
-                                operator1.Time += @operator.Time;
-                            }
-                            else
-                            {
-                                faultType.Operators.Add(@operator);
-                            }
+                            var operator1 = faultType.Operators.First(x => x.Name == @operator.Name);
+                            operator1.Count += @operator.Count;
+                            operator1.Time += @operator.Time;
+                        }
+                        else
+                        {
+                            faultType.Operators.Add(@operator);
                         }
                     }
                 }
@@ -147,7 +169,7 @@ namespace ApiManagement.Models.Analysis
             ReportFaultType = ReportSingleFaultType.GroupBy(x => x.FaultId).Count();
             ReportSingleFaultTypeStr = ReportSingleFaultType.OrderBy(x => x.FaultId).ToJSON();
 
-            Confirmed += monitoringFault.ReportCount;
+            Confirmed += monitoringFault.Confirmed;
             Repairing += monitoringFault.Repairing;
             RepairCount += monitoringFault.RepairCount;
 
@@ -213,18 +235,18 @@ namespace ApiManagement.Models.Analysis
                         {
                             faultType.DeviceFaultTypes.Add(deviceFaultType);
                         }
-                        foreach (var @operator in singleFaultType.Operators)
+                    }
+                    foreach (var @operator in singleFaultType.Operators)
+                    {
+                        if (faultType.Operators.Any(x => x.Name == @operator.Name))
                         {
-                            if (faultType.Operators.Any(x => x.Name == @operator.Name))
-                            {
-                                var operator1 = faultType.Operators.First(x => x.Name == @operator.Name);
-                                operator1.Count += @operator.Count;
-                                operator1.Time += @operator.Time;
-                            }
-                            else
-                            {
-                                faultType.Operators.Add(@operator);
-                            }
+                            var operator1 = faultType.Operators.First(x => x.Name == @operator.Name);
+                            operator1.Count += @operator.Count;
+                            operator1.Time += @operator.Time;
+                        }
+                        else
+                        {
+                            faultType.Operators.Add(@operator);
                         }
                     }
                 }
@@ -237,7 +259,7 @@ namespace ApiManagement.Models.Analysis
             FaultDevice = ReportSingleFaultType.SelectMany(x => x.DeviceFaultTypes).GroupBy(y => y.Code).Count();
             ReportSingleFaultTypeStr = ReportSingleFaultType.OrderBy(x => x.FaultId).ToJSON();
 
-            Confirmed += monitoringFault.ReportCount;
+            Confirmed += monitoringFault.Confirmed;
             Repairing += monitoringFault.Repairing;
             RepairCount += monitoringFault.RepairCount;
 

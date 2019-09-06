@@ -19,6 +19,9 @@ namespace ApiManagement.Models
         public string SolvePlan { get; set; }
         public int FaultTypeId { get; set; }
         public int FaultTypeId1 { get; set; }
+        public int FaultLogId { get; set; }
+        public bool Cancel { get; set; }
+
     }
     public class RepairRecordDetail : RepairRecord
     {

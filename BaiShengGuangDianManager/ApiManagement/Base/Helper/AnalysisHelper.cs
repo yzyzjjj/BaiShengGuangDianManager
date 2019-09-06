@@ -40,7 +40,7 @@ namespace ApiManagement.Base.Helper
         public static void Init(IConfiguration configuration)
         {
 #if DEBUG
-            Console.WriteLine("调试模式已开启");
+            Console.WriteLine("AnalysisHelper 调试模式已开启");
 #else
             ServerConfig.RedisHelper.Remove(AnalysisOtherLock);
             var monitoringKanban = ServerConfig.ApiDb.Query<MonitoringKanban>("SELECT * FROM `npc_monitoring_kanban` WHERE `Date` = @Date;", new
@@ -719,23 +719,34 @@ namespace ApiManagement.Base.Helper
             }
 
             _isFault = true;
+            var now = DateTime.Now;
+            var today = DateTime.Today;
+            if ((now - now.Date).TotalSeconds < 10)
+            {
+                today = today.AddDays(-1);
+            }
+
+            FaultCal(today);
+            _isFault = false;
+        }
+
+        public static void FaultCal(DateTime today, bool isStatistic = true)
+        {
+            if (!isStatistic && DateTime.Now.InSameDay(today))
+            {
+                return;
+            }
             try
             {
-                var now = DateTime.Now;
-                var today = DateTime.Today;
-                if ((now - now.Date).TotalSeconds < 10)
-                {
-                    today = today.AddDays(-1);
-                }
                 var all = ServerConfig.ApiDb.Query<string>("SELECT b.SiteName FROM `device_library` a JOIN `site` b ON a.SiteId = b.Id WHERE b.SiteName IS NOT NULL AND a.MarkedDelete = 0;");
 
-                var faultDevicesAll = ServerConfig.ApiDb.Query<FaultDeviceDetail>("SELECT a.*, b.SiteName, c.FaultTypeName FROM `fault_device` a LEFT JOIN ( SELECT a.*, b.SiteName FROM `device_library` a JOIN `site` b ON a.SiteId = b.Id ) b ON a.DeviceCode = b.`Code` JOIN `fault_type` c ON a.FaultTypeId = c.Id WHERE b.SiteName IS NOT NULL AND FaultTime >= @FaultTime1 AND FaultTime < @FaultTime2;", new
+                var faultDevicesAll = ServerConfig.ApiDb.Query<FaultDeviceDetail>("SELECT a.*, b.SiteName, c.FaultTypeName FROM `fault_device` a LEFT JOIN ( SELECT a.*, b.SiteName FROM `device_library` a JOIN `site` b ON a.SiteId = b.Id ) b ON a.DeviceCode = b.`Code` JOIN `fault_type` c ON a.FaultTypeId = c.Id WHERE b.SiteName IS NOT NULL AND FaultTime >= @FaultTime1 AND FaultTime < @FaultTime2 AND Cancel = 0;", new
                 {
                     FaultTime1 = today,
                     FaultTime2 = today.AddDays(1),
                 });
 
-                var repairRecordsAll = ServerConfig.ApiDb.Query<RepairRecordDetail>("SELECT a.*, b.SiteName, c.FaultTypeName FROM `repair_record` a LEFT JOIN ( SELECT a.*, b.SiteName FROM `device_library` a JOIN `site` b ON a.SiteId = b.Id ) b ON a.DeviceCode = b.`Code` JOIN `fault_type` c ON a.FaultTypeId1 = c.Id WHERE b.SiteName IS NOT NULL AND SolveTime >= @SolveTime1 AND SolveTime < @SolveTime2;", new
+                var repairRecordsAll = ServerConfig.ApiDb.Query<RepairRecordDetail>("SELECT a.*, b.SiteName, c.FaultTypeName FROM `repair_record` a LEFT JOIN ( SELECT a.*, b.SiteName FROM `device_library` a JOIN `site` b ON a.SiteId = b.Id ) b ON a.DeviceCode = b.`Code` JOIN `fault_type` c ON a.FaultTypeId1 = c.Id WHERE b.SiteName IS NOT NULL AND SolveTime >= @SolveTime1 AND SolveTime < @SolveTime2 AND Cancel = 0;", new
                 {
                     SolveTime1 = today,
                     SolveTime2 = today.AddDays(1),
@@ -908,7 +919,6 @@ namespace ApiManagement.Base.Helper
             {
                 Log.Error(e);
             }
-            _isFault = false;
         }
     }
 }
