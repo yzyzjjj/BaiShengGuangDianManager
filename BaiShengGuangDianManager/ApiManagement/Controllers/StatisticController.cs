@@ -1156,8 +1156,8 @@ namespace ApiManagement.Controllers
                                     Code = device,
                                     Workshop = !requestBody.WorkshopName.IsNullOrEmpty() ? requestBody.WorkshopName : string.Empty,
                                     ReportFaultType = data.All(x => x.Date != time) ? 0 : data.Where(x => x.Date == time).Sum(z => z.ReportSingleFaultType.Count(x => x.DeviceFaultTypes.Any(y => y.Code == device))),
-                                    CodeReportFaultType = data.All(x => x.Date != time) ? 0 : data.Where(x => x.Date == time).Sum(z => z.ReportSingleFaultType.Sum(x => x.DeviceFaultTypes.Where(y => y.Code == device).Sum(y => y.Count))),
-                                    ReportCount = data.All(x => x.Date != time) ? 0 : data.Where(x => x.Date == time).Sum(z => z.ReportCount),
+                                    CodeReportFaultType = data.All(x => x.Date != time) ? 0 : data.Where(x => x.Date == time).Sum(z => z.ReportSingleFaultType.Count(x => x.DeviceFaultTypes.Any(y => y.Code == device))),
+                                    ReportCount = data.All(x => x.Date != time) ? 0 : data.Where(x => x.Date == time).Sum(z => z.ReportSingleFaultType.Sum(x => x.DeviceFaultTypes.Where(y => y.Code == device).Sum(y => y.Count))),
                                     RepairFaultType = data.All(x => x.Date != time) ? 0 : data.Where(x => x.Date == time).Sum(z => z.RepairSingleFaultType.Count(x => x.DeviceFaultTypes.Any(y => y.Code == device))),
                                     RepairCount = data.All(x => x.Date != time) ? 0 : data.Where(x => x.Date == time).Sum(z => z.RepairSingleFaultType.Sum(x => x.DeviceFaultTypes.Where(y => y.Code == device).Sum(y => y.Count))),
                                 };

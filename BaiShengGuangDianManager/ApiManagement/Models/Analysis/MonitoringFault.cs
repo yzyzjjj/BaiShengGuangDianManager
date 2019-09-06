@@ -119,15 +119,20 @@ namespace ApiManagement.Models.Analysis
         public int CodeReportFaultType { get; set; }
 
         /// <summary>
-        /// 取消故障
+        /// 取消上报故障
         /// </summary>
-        public int Cancel { get; set; }
+        public int ReportCancel { get; set; }
+        /// <summary>
+        /// 取消维修记录
+        /// </summary>
+        public int RepairCancel { get; set; }
 
         public void Add(MonitoringFault monitoringFault)
         {
             AllDevice += monitoringFault.AllDevice;
             FaultDevice += monitoringFault.FaultDevice;
             ReportCount += monitoringFault.ReportCount;
+            ReportCancel += monitoringFault.ReportCancel;
             foreach (var singleFaultType in monitoringFault.ReportSingleFaultType)
             {
                 if (ReportSingleFaultType.Any(x => x.FaultId == singleFaultType.FaultId))
@@ -172,6 +177,7 @@ namespace ApiManagement.Models.Analysis
             Confirmed += monitoringFault.Confirmed;
             Repairing += monitoringFault.Repairing;
             RepairCount += monitoringFault.RepairCount;
+            RepairCancel += monitoringFault.RepairCancel;
 
             foreach (var repairSingleFaultType in monitoringFault.RepairSingleFaultType)
             {
@@ -218,6 +224,7 @@ namespace ApiManagement.Models.Analysis
         {
             AllDevice = monitoringFault.AllDevice;
             ReportCount += monitoringFault.ReportCount;
+            ReportCancel += monitoringFault.ReportCancel;
             foreach (var singleFaultType in monitoringFault.ReportSingleFaultType)
             {
                 if (ReportSingleFaultType.Any(x => x.FaultId == singleFaultType.FaultId))
@@ -262,6 +269,7 @@ namespace ApiManagement.Models.Analysis
             Confirmed += monitoringFault.Confirmed;
             Repairing += monitoringFault.Repairing;
             RepairCount += monitoringFault.RepairCount;
+            RepairCancel += monitoringFault.RepairCancel;
 
             foreach (var repairSingleFaultType in monitoringFault.RepairSingleFaultType)
             {
