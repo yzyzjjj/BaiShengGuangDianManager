@@ -78,8 +78,12 @@ namespace ApiManagement.Base.Control
             var i = 0;
             for (i = 0; i < ValNum; i++)
             {
-                var str = trueData.Skip(i * 4).Take(4).Reverse().Join("");
-                var v = Convert.ToInt32(str, 16);
+                var v = 0;
+                if (i * 4 + 4 <= trueData.Count())
+                {
+                    var str = trueData.Skip(i * 4).Take(4).Reverse().Join("");
+                    v = Convert.ToInt32(str, 16);
+                }
                 vals.Add(v);
             }
             //I口数据    

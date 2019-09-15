@@ -34,14 +34,16 @@ namespace ApiManagement.Base.Helper
         private static Timer _analysisOther;
         private static Timer _delete;
         private static Timer _fault;
+        private static Timer _script;
         private static bool _isFault;
+        private static bool _isScript;
         private static int _dealLength = 1000;
         private static MonitoringKanban _monitoringKanban;
         public static void Init(IConfiguration configuration)
         {
+            _script = new Timer(Script, null, 5000, Timeout.Infinite);
 #if DEBUG
             Console.WriteLine("AnalysisHelper 调试模式已开启");
-            //_fault = new Timer(Fault, null, 10000, 1000 * 10);
 #else
             ServerConfig.RedisHelper.Remove(AnalysisOtherLock);
             var monitoringKanban = ServerConfig.ApiDb.Query<MonitoringKanban>("SELECT * FROM `npc_monitoring_kanban` WHERE `Date` = @Date;", new
@@ -148,6 +150,12 @@ namespace ApiManagement.Base.Helper
                                 currentFlowCardDId,
                                 runTimeDId
                             };
+                            var actProcessDid = 65;
+                            var processCnt = 48;
+                            for (var i = 0; i < processCnt; i++)
+                            {
+                                variableNameIdList.Add(actProcessDid + i);
+                            }
                             var allDeviceList = ServerConfig.ApiDb.Query<MonitoringProcess>(
                                 "SELECT b.*, c.DeviceCategoryId, a.`Code` FROM `device_library` a JOIN `npc_proxy_link` b ON a.Id = b.DeviceId JOIN `device_model` c ON a.DeviceModelId = c.Id WHERE a.MarkedDelete = 0;");
                             var deviceList = allDeviceList.Where(x => mData.Any(y => y.DeviceId == x.DeviceId)).ToDictionary(x => x.DeviceId);
@@ -257,7 +265,7 @@ namespace ApiManagement.Base.Helper
                                                 {
                                                     var v = analysisData.vals[actAddress];
                                                     //开始加工
-                                                    var bStart = deviceList[data.DeviceId].State == 0 && v == 1;
+                                                    var bStart = deviceList[data.DeviceId].State == 0 && v > 0;
                                                     //停止加工
                                                     var bEnd = deviceList[data.DeviceId].State == 1 && v == 0;
                                                     if (currentFlowCardId != 0)
@@ -288,16 +296,6 @@ namespace ApiManagement.Base.Helper
                                                                             sql =
                                                                                 "UPDATE flowcard_process_step SET `ProcessTime` = @ProcessTime WHERE `Id` = @Id;";
                                                                         }
-
-                                                                        ServerConfig.ApiDb.Execute(
-                                                                            "INSERT INTO npc_monitoring_process_log(`DeviceId`, `StartTime`, `FlowCardId`, `ProcessorId`) VALUES(@DeviceId, @StartTime, @FlowCardId, @ProcessorId);",
-                                                                            new MonitoringProcessLog
-                                                                            {
-                                                                                DeviceId = data.DeviceId,
-                                                                                StartTime = data.ReceiveTime,
-                                                                                FlowCardId = currentFlowCardId,
-                                                                                ProcessorId = flowCardProcessStepDetail.ProcessorId
-                                                                            });
                                                                     }
 
                                                                     //停止加工
@@ -309,14 +307,6 @@ namespace ApiManagement.Base.Helper
                                                                         sql =
                                                                             "UPDATE flowcard_process_step SET `ProcessEndTime` = @ProcessEndTime WHERE `Id` = @Id;";
                                                                         //}
-
-                                                                        ServerConfig.ApiDb.Execute(
-                                                                            "UPDATE`npc_monitoring_process_log` SET EndTime = @EndTime WHERE Id = ((SELECT Id FROM ( SELECT MAX(Id) Id FROM `npc_monitoring_process_log` WHERE DeviceId = @DeviceId) a)) AND ISNULL(EndTime);",
-                                                                            new MonitoringProcessLog
-                                                                            {
-                                                                                DeviceId = data.DeviceId,
-                                                                                EndTime = data.ReceiveTime,
-                                                                            });
                                                                     }
                                                                     if (sql != string.Empty)
                                                                     {
@@ -331,17 +321,39 @@ namespace ApiManagement.Base.Helper
                                                         }
                                                         deviceList[data.DeviceId].FlowCardId = currentFlowCardId;
                                                     }
+
+                                                    var processData = new Dictionary<int, int[]>(); ;
+                                                    var pActAddress = uDies[new Tuple<int, int>(data.ScriptId, actProcessDid + processCnt - 1)] - 1;
+                                                    if (analysisData.vals.Count >= pActAddress)
+                                                    {
+                                                        for (var i = 0; i < processCnt; i++)
+                                                        {
+                                                            pActAddress = uDies[new Tuple<int, int>(data.ScriptId, actProcessDid + i)] - 1;
+                                                            var pv = analysisData.vals[pActAddress];
+
+                                                            var key = i / 6 + 1;
+                                                            if (!processData.ContainsKey(key))
+                                                            {
+                                                                processData.Add(key, new int[6]);
+                                                            }
+
+                                                            var index = i % 6;
+                                                            processData[key][index] = pv;
+                                                        }
+                                                    }
+
                                                     //开始加工
                                                     if (bStart)
                                                     {
                                                         ServerConfig.ApiDb.Execute(
-                                                            "INSERT INTO npc_monitoring_process_log(`DeviceId`, `StartTime`, `FlowCardId`, `ProcessorId`) VALUES(@DeviceId, @StartTime, @FlowCardId, @ProcessorId);",
+                                                            "INSERT INTO npc_monitoring_process_log (`DeviceId`, `StartTime`, `FlowCardId`, `ProcessorId`, `ProcessData`) VALUES(@DeviceId, @StartTime, @FlowCardId, @ProcessorId, @ProcessData);",
                                                             new MonitoringProcessLog
                                                             {
                                                                 DeviceId = data.DeviceId,
-                                                                StartTime = data.ReceiveTime,
+                                                                StartTime = data.ReceiveTime.NoMillisecond(),
                                                                 FlowCardId = currentFlowCardId,
-                                                                ProcessorId = flowCardProcessStepDetail?.ProcessorId ?? 0
+                                                                ProcessorId = flowCardProcessStepDetail?.ProcessorId ?? 0,
+                                                                ProcessData = processData.ToJson()
                                                             });
                                                     }
 
@@ -349,11 +361,11 @@ namespace ApiManagement.Base.Helper
                                                     if (bEnd)
                                                     {
                                                         ServerConfig.ApiDb.Execute(
-                                                            "UPDATE`npc_monitoring_process_log` SET EndTime = @EndTime WHERE Id = ((SELECT Id FROM ( SELECT MAX(Id) Id FROM `npc_monitoring_process_log` WHERE DeviceId = @DeviceId) a)) AND ISNULL(EndTime);",
+                                                            "UPDATE`npc_monitoring_process_log` SET EndTime = @EndTime WHERE Id = ((SELECT Id FROM ( SELECT MAX(Id) Id FROM `npc_monitoring_process_log` WHERE DeviceId = @DeviceId) a)) AND ISNULL(EndTime) AND @EndTime >= StartTime;",
                                                             new MonitoringProcessLog
                                                             {
                                                                 DeviceId = data.DeviceId,
-                                                                EndTime = data.ReceiveTime,
+                                                                EndTime = data.ReceiveTime.NoMillisecond(),
                                                             });
                                                     }
                                                     if (v > 0 && !_monitoringKanban.UseList.Contains(data.DeviceId))
@@ -923,6 +935,44 @@ namespace ApiManagement.Base.Helper
             {
                 Log.Error(e);
             }
+        }
+
+        private static void Script(object state)
+        {
+            if (_isScript)
+            {
+                return;
+            }
+
+            _isScript = true;
+
+            var all = ServerConfig.ApiDb.Query<UsuallyDictionary>("SELECT * FROM `usually_dictionary` WHERE MarkedDelete = 0;");
+            var scripts = new List<ScriptVersion>();
+            foreach (var grouping in all.GroupBy(x => x.ScriptId))
+            {
+                var scriptId = grouping.Key;
+                var us = all.Where(x => x.ScriptId == scriptId).OrderBy(x => x.VariableNameId)
+                    .ThenByDescending(y => y.VariableTypeId);
+
+                var script = new ScriptVersion();
+                script.Id = scriptId;
+                script.ValueNumber = us.Count(x => x.VariableTypeId == 1);
+                script.InputNumber = us.Count(x => x.VariableTypeId == 2);
+                script.OutputNumber = us.Count(x => x.VariableTypeId == 3);
+                script.MaxValuePointerAddress = us.Any(x => x.VariableTypeId == 1) ? us.Where(x => x.VariableTypeId == 1).Max(x => x.DictionaryId) < 300 ? 300 : us.Where(x => x.VariableTypeId == 1).Max(x => x.DictionaryId) : 300;
+                script.MaxInputPointerAddress = us.Any(x => x.VariableTypeId == 2) ? us.Where(x => x.VariableTypeId == 2).Max(x => x.DictionaryId) < 255 ? 255 : us.Where(x => x.VariableTypeId == 2).Max(x => x.DictionaryId) : 255;
+                script.MaxOutputPointerAddress = us.Any(x => x.VariableTypeId == 3) ? us.Where(x => x.VariableTypeId == 3).Max(x => x.DictionaryId) < 255 ? 255 : us.Where(x => x.VariableTypeId == 3).Max(x => x.DictionaryId) : 255;
+                var msg = new DeviceInfoMessagePacket(script.MaxValuePointerAddress, script.MaxInputPointerAddress, script.MaxOutputPointerAddress);
+                script.HeartPacket = msg.Serialize();
+                scripts.Add(script);
+            }
+
+            ServerConfig.ApiDb.Execute(
+                "UPDATE script_version SET `ValueNumber` = @ValueNumber, `InputNumber` = @InputNumber, `OutputNumber` = @OutputNumber, " +
+                "`MaxValuePointerAddress` = @MaxValuePointerAddress, `MaxInputPointerAddress` = @MaxInputPointerAddress, `MaxOutputPointerAddress` = @MaxOutputPointerAddress, " +
+                "`HeartPacket` = @HeartPacket WHERE `Id` = @Id;", scripts);
+
+            _isScript = false;
         }
     }
 }

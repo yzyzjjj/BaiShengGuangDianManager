@@ -57,7 +57,7 @@ namespace ApiManagement.Controllers
                     "SELECT a.*, b.FaultTypeName FROM `fault_device` a JOIN `fault_type` b ON a.FaultTypeId = b.Id WHERE a.MarkedDelete = 1 AND a.Cancel = 1 AND a.MarkedDateTime >= @startTime AND a.MarkedDateTime <= @endTime;";
             }
             var result = new DataResult();
-            var data = ServerConfig.ApiDb.Query<FaultDeviceDetail>(sql, new { startTime, endTime }).OrderBy(x => x.DeviceCode).ThenByDescending(x => x.FaultTime);
+            var data = ServerConfig.ApiDb.Query<FaultDeviceDetail>(sql, new { startTime, endTime }).OrderByDescending(x => x.FaultTime);
             result.datas.AddRange(data);
             return result;
         }

@@ -957,15 +957,17 @@ namespace ApiManagement.Controllers
                     DeviceId = deviceIds,
                 }, 60).ToDictionary(x => x.DeviceId.ToString());
 
-                sql = "SELECT a.*, b.`Code`, c.ProcessorName, d.FlowCardName FROM `npc_monitoring_process_log` a JOIN `device_library` b " +
-                      "ON a.DeviceId = b.Id LEFT JOIN `processor` c ON a.ProcessorId = c.Id  JOIN `flowcard_library` d ON a.FlowCardId = d.Id " +
+                sql = "SELECT a.*, b.`Code`, c.ProcessorName, d.FlowCardName, d.ProductionProcessName FROM `npc_monitoring_process_log` a " +
+                      "LEFT JOIN `device_library` b ON a.DeviceId = b.Id " +
+                      "LEFT JOIN `processor` c ON a.ProcessorId = c.Id " +
+                      "LEFT JOIN ( SELECT a.*, b.ProductionProcessName FROM `flowcard_library` a JOIN `production_library` b ON a.ProductionProcessId = b.Id ) d ON a.FlowCardId = d.Id " +
                       "WHERE a.DeviceId IN @DeviceId AND StartTime >= @StartTime1 AND StartTime <= @StartTime2 ORDER BY a.StartTime;";
-                var data = ServerConfig.ApiDb.Query<dynamic>(sql, new
+                var data = ServerConfig.ApiDb.Query<MonitoringProcessLogDetail>(sql, new
                 {
                     DeviceId = deviceIds,
                     StartTime1 = requestBody.StartTime.DayBeginTime(),
                     StartTime2 = requestBody.StartTime.DayEndTime(),
-                }, 60);
+                }, 60).OrderByDescending(x => x.StartTime);
                 var result = new DataResult();
                 foreach (var device in deviceIds)
                 {

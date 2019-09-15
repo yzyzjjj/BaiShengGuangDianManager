@@ -659,11 +659,17 @@ namespace ApiManagement.Controllers
 
         public class ProcessInfo
         {
-            //设备id
+            /// <summary>
+            /// 设备id
+            /// </summary>
             public int DeviceId;
-            //工艺编号id
+            /// <summary>
+            /// 工艺编号id
+            /// </summary>
             public int ProcessId;
-            //流程卡id
+            /// <summary>
+            /// 流程卡id
+            /// </summary>
             public int FlowCardId;
 
             public List<ProcessDataSimple> ProcessDatas;
@@ -795,7 +801,7 @@ namespace ApiManagement.Controllers
                 j++;
                 if (dictionaryIds.Any(x => x.VariableName == key[j] + i))
                 {
-                    messagePacket.Vals.Add(dictionaryIds.First(x => x.VariableName == key[j] + i).DictionaryId - 1, processData.Speed);
+                    messagePacket.Vals.Add(dictionaryIds.First(x => x.VariableName == key[j] + i).DictionaryId - 1, processData.Speed * 100);
                 }
 
                 i++;
@@ -895,7 +901,7 @@ namespace ApiManagement.Controllers
                 if (deviceProcessStep.Any())
                 {
                     var processorId = ServerConfig.ApiDb
-                        .Query<int>("SELECT * FROM `processor` WHERE Account = @Account AND MarkedDelete = 0;", new { Account = account })
+                        .Query<int>("SELECT Id FROM `processor` WHERE Account = @Account AND MarkedDelete = 0;", new { Account = account })
                         .FirstOrDefault();
 
                     var flowCardProcessStepDetails = ServerConfig.ApiDb.Query<FlowCardProcessStepDetail>("SELECT * FROM `flowcard_process_step` WHERE FlowCardId = @FlowCardId AND MarkedDelete = 0;", new
@@ -919,6 +925,154 @@ namespace ApiManagement.Controllers
             return Result.GenError<Result>(fRes ? Error.Success : Error.Fail);
         }
 
+
+        public class DataSet
+        {
+            //设备id
+            public int DeviceId;
+            //变量类型
+            public int UsuallyDictionaryId;
+            //设置的值
+            public int Value;
+        }
+
+        // POST: api/DeviceLibrary/DataSet
+        [HttpPost("DataSet")]
+        public Result PostDeviceLibraryDataSet([FromBody] DataSet dataInfo)
+        {
+            var device =
+                ServerConfig.ApiDb.Query<DeviceLibraryDetail>("SELECT a.*, IFNULL(b.DeviceCategoryId, 0) DeviceCategoryId FROM `device_library` a JOIN `device_model` b ON a.DeviceModelId = b.Id " +
+                                                              "WHERE a.Id = @DeviceId AND a.`MarkedDelete` = 0 AND b.`MarkedDelete` = 0;", new { dataInfo.DeviceId }).FirstOrDefault();
+            if (device == null)
+            {
+                return Result.GenError<Result>(Error.DeviceNotExist);
+            }
+
+            var url = ServerConfig.GateUrl + UrlMappings.Urls["deviceSingleGate"];
+            //向GateProxyLink请求数据
+            var resp = HttpServer.Get(url, new Dictionary<string, string>
+            {
+                { "id", dataInfo.DeviceId.ToString()}
+            });
+            if (resp == "fail")
+            {
+                return Result.GenError<Result>(Error.ExceptionHappen);
+            }
+
+            try
+            {
+                var dataResult = JsonConvert.DeserializeObject<DeviceResult>(resp);
+                if (dataResult.errno == Error.Success)
+                {
+                    if (dataResult.datas.Any())
+                    {
+                        var deviceInfo = dataResult.datas.First();
+                        if (deviceInfo.DeviceState != DeviceState.Waiting)
+                        {
+                            return Result.GenError<Result>(deviceInfo.DeviceState == DeviceState.Processing ? Error.ProcessingNotSet : Error.DeviceStateErrorNotSet);
+                        }
+                    }
+                }
+            }
+            catch (Exception e)
+            {
+                Log.Error($"{UrlMappings.Urls["deviceSingleGate"]} 返回：{resp},信息:{e.Message}");
+                return Result.GenError<Result>(Error.AnalysisFail);
+            }
+
+            var dictionaryId =
+                ServerConfig.ApiDb.Query<UsuallyDictionaryDetail>("SELECT * FROM `usually_dictionary` WHERE ScriptId = @ScriptId AND VariableNameId = @VariableNameId AND MarkedDelete = 0;", new
+                {
+                    device.ScriptId,
+                    VariableNameId = dataInfo.UsuallyDictionaryId
+                }).FirstOrDefault();
+            if (dictionaryId == null)
+            {
+                return Result.GenError<Result>(Error.UsuallyDictionaryTypeNotExist);
+            }
+            var messagePacket = new SetValMessagePacket();
+            if (dictionaryId.VariableTypeId == 1)
+            {
+                messagePacket.Vals.Add(dictionaryId.DictionaryId - 1, dataInfo.Value);
+            }
+            else
+            {
+                return Result.GenError<Result>(Error.ParamError);
+            }
+
+            var msg = messagePacket.Serialize();
+            url = ServerConfig.GateUrl + UrlMappings.Urls["batchSendBackGate"];
+            //向GateProxyLink请求数据
+            resp = HttpServer.Post(url, new Dictionary<string, string>{
+                { "devicesList",(new List<DeviceInfo>
+                    {
+                        new DeviceInfo
+                        {
+                            DeviceId = dataInfo.DeviceId,
+                            Instruction = msg
+                        }
+                    }).ToJSON()
+                }
+            });
+            var fRes = false;
+            if (resp != "fail")
+            {
+                var dataResult = JsonConvert.DeserializeObject<MessageResult>(resp);
+                if (dataResult.errno == Error.Success)
+                {
+
+                    if (dataResult.messages.Any())
+                    {
+                        var data = dataResult.messages.First().Item2;
+                        var res = messagePacket.Deserialize(data);
+                        fRes = res == 0;
+                    }
+                }
+            }
+
+            return Result.GenError<Result>(fRes ? Error.Success : Error.Fail);
+        }
+
+        public class DeviceOperate
+        {
+            //设备id
+            public int DeviceId;
+            //操作时间
+            public DateTime Time;
+            //操作名称
+            public string OpName;
+        }
+
+        // POST: api/DeviceLibrary/DeviceOperate
+        [HttpPost("DeviceOperate")]
+        public Result PostDeviceLibraryDeviceOperate([FromBody] DeviceOperate deviceOperate)
+        {
+            var cnt =
+                ServerConfig.ApiDb.Query<int>("SELECT COUNT(1) FROM `device_library` WHERE Id = @Id AND `MarkedDelete` = 0;", new
+                {
+                    Id = deviceOperate.DeviceId
+                }).FirstOrDefault();
+            if (cnt == 0)
+            {
+                return Result.GenError<Result>(Error.DeviceNotExist);
+            }
+            var account = Request.GetIdentityInformation();
+            var processorId = ServerConfig.ApiDb
+                .Query<int>("SELECT Id FROM `processor` WHERE Account = @Account AND MarkedDelete = 0;", new { Account = account }).FirstOrDefault();
+
+            ServerConfig.ApiDb.Execute(
+                "INSERT INTO npc_monitoring_process_log (`OpName`, `DeviceId`, `StartTime`, `EndTime`, `ProcessorId`) VALUES (@OpName, @DeviceId, @StartTime, @EndTime, @ProcessorId);",
+                    new
+                    {
+                        deviceOperate.OpName,
+                        deviceOperate.DeviceId,
+                        StartTime = deviceOperate.Time,
+                        EndTime = deviceOperate.Time,
+                        ProcessorId = processorId
+                    });
+
+            return Result.GenError<Result>(Error.Success);
+        }
 
         public class UpgradeInfo
         {

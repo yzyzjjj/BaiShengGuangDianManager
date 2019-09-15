@@ -27,6 +27,25 @@ namespace ApiManagement.Controllers
             return result;
         }
 
+        // GET: api/UsuallyDictionaryType
+        [HttpGet("Device")]
+        public DataResult GetUsuallyDictionaryTypeDevice([FromQuery] int deviceId)
+        {
+            var device =
+                ServerConfig.ApiDb.Query<DeviceLibraryDetail>("SELECT * FROM `device_library` WHERE Id = @DeviceId AND `MarkedDelete` = 0;", new { DeviceId = deviceId }).FirstOrDefault();
+            if (device == null)
+            {
+                return Result.GenError<DataResult>(Error.DeviceNotExist);
+            }
+
+            var result = new DataResult();
+            result.datas.AddRange(ServerConfig.ApiDb.Query<UsuallyDictionaryType>("SELECT a.* FROM `usually_dictionary_type` a JOIN `usually_dictionary` b ON a.Id = b.VariableNameId WHERE a.`MarkedDelete` = 0 AND b.`MarkedDelete` = 0 AND b.ScriptId = @ScriptId AND b.VariableTypeId = 1;", new
+            {
+                ScriptId = device.ScriptId
+            }));
+            return result;
+        }
+
         // GET: api/UsuallyDictionaryType/Statistic
         [HttpGet("Statistic")]
         public DataResult GetUsuallyDictionaryStatistics()

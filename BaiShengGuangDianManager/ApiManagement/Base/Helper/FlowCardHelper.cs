@@ -39,7 +39,11 @@ namespace ApiManagement.Base.Helper
         public static void Init(IConfiguration configuration)
         {
             _url = configuration.GetAppSettings<string>("ErpUrl");
+#if DEBUG
+            Console.WriteLine("FlowCardHelper 调试模式已开启");
+#else
             _timer = new Timer(DoSth, null, 5000, 1000 * 60 * 1);
+#endif
         }
 
         /// <summary>
@@ -47,9 +51,6 @@ namespace ApiManagement.Base.Helper
         /// </summary>
         private static void DoSth(object state)
         {
-#if DEBUG
-            Console.WriteLine("FlowCardHelper 调试模式已开启");
-#else
             UpdateProductionProcessStep();
             UpdateProductionSpecification();
 
@@ -57,7 +58,6 @@ namespace ApiManagement.Base.Helper
             Update();
 
             UpdateFlowCardProcessStep();
-#endif
         }
 
         /// <summary>
