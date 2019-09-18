@@ -14,6 +14,8 @@ namespace ApiManagement.Base.Server
         public static string GateUrl;
         public static RedisCacheHelper RedisHelper;
         public static MonitoringKanban MonitoringKanban;
+        public static string IsSetProcessDataKey = "IsSetProcessDataKey";
+
         public static void Init(IConfiguration configuration)
         {
             ApiDb = new DataBase(configuration.GetConnectionString("ApiDb"));
@@ -23,6 +25,12 @@ namespace ApiManagement.Base.Server
             RedisHelper = new RedisCacheHelper(configuration);
             FlowCardHelper.Init(configuration);
             AnalysisHelper.Init(configuration);
+
+            if (!RedisHelper.Exists(IsSetProcessDataKey))
+            {
+                RedisHelper.SetForever(IsSetProcessDataKey, 1);
+            }
+
             Log.InfoFormat("ServerConfig Done");
         }
     }

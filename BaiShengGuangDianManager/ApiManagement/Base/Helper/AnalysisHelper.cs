@@ -35,8 +35,10 @@ namespace ApiManagement.Base.Helper
         private static Timer _delete;
         private static Timer _fault;
         private static Timer _script;
+        private static Timer _processLog;
         private static bool _isFault;
         private static bool _isScript;
+        private static bool _isProcessLog;
         private static int _dealLength = 1000;
         private static MonitoringKanban _monitoringKanban;
         public static void Init(IConfiguration configuration)
@@ -82,6 +84,7 @@ namespace ApiManagement.Base.Helper
             _analysisOther = new Timer(AnalysisOther, null, 12000, 2000);
             _delete = new Timer(Delete, null, 10000, 1000);
             _fault = new Timer(Fault, null, 10000, 1000 * 10);
+            _processLog = new Timer(UpdateProcessLog, null, 5000, 1000 * 60);
 #endif
         }
 
@@ -346,14 +349,16 @@ namespace ApiManagement.Base.Helper
                                                     if (bStart)
                                                     {
                                                         ServerConfig.ApiDb.Execute(
-                                                            "INSERT INTO npc_monitoring_process_log (`DeviceId`, `StartTime`, `FlowCardId`, `ProcessorId`, `ProcessData`) VALUES(@DeviceId, @StartTime, @FlowCardId, @ProcessorId, @ProcessData);",
+                                                            "INSERT INTO npc_monitoring_process_log (`DeviceId`, `StartTime`, `FlowCardId`, `ProcessorId`, `ProcessData`, `RequirementMid`) " +
+                                                            "VALUES(@DeviceId, @StartTime, @FlowCardId, @ProcessorId, @ProcessData, @RequirementMid);",
                                                             new MonitoringProcessLog
                                                             {
                                                                 DeviceId = data.DeviceId,
                                                                 StartTime = data.ReceiveTime.NoMillisecond(),
                                                                 FlowCardId = currentFlowCardId,
                                                                 ProcessorId = flowCardProcessStepDetail?.ProcessorId ?? 0,
-                                                                ProcessData = processData.ToJson()
+                                                                ProcessData = processData.ToJson(),
+                                                                RequirementMid = flowCardProcessStepDetail?.ProcessStepRequirementMid ?? 0,
                                                             });
                                                     }
 
@@ -973,6 +978,94 @@ namespace ApiManagement.Base.Helper
                 "`HeartPacket` = @HeartPacket WHERE `Id` = @Id;", scripts);
 
             _isScript = false;
+        }
+
+        private static void UpdateProcessLog(object state)
+        {
+            if (_isProcessLog)
+            {
+                return;
+            }
+
+            _isProcessLog = true;
+
+            try
+            {
+                var all = ServerConfig.ApiDb.Query<dynamic>("SELECT a.Id, a.DeviceId, a.StartTime, ScriptId FROM ( SELECT a.Id, DeviceId, StartTime, ScriptId FROM `npc_monitoring_process_log` a JOIN `device_library` b ON a.DeviceId = b.Id WHERE ISNULL(EndTime) GROUP BY DeviceId ) a JOIN ( SELECT MAX(Id) Id, DeviceId FROM `npc_monitoring_process_log` GROUP BY DeviceId ) b ON a.DeviceId = b.DeviceId WHERE a.Id != b.Id;");
+
+                //设备状态
+                var stateDId = 1;
+
+                var deviceList = all.ToDictionary(x => x.DeviceId);
+                if (deviceList.Any())
+                {
+                    var scripts = all.GroupBy(x => x.ScriptId).Select(x => x.Key).ToList();
+                    scripts.Add(0);
+                    IEnumerable<UsuallyDictionary> usuallyDictionaries = null;
+                    if (scripts.Any())
+                    {
+                        usuallyDictionaries = ServerConfig.ApiDb.Query<UsuallyDictionary>(
+                            "SELECT * FROM `usually_dictionary` WHERE ScriptId IN @ScriptId AND VariableNameId = @VariableNameId;",
+                            new
+                            {
+                                ScriptId = scripts,
+                                VariableNameId = stateDId,
+                            });
+                    }
+
+                    var uDies = new Dictionary<Tuple<int, int>, int>();
+                    foreach (var script in scripts.Where(x => x != 0))
+                    {
+                        var udd = usuallyDictionaries.FirstOrDefault(x =>
+                            x.ScriptId == script && x.VariableNameId == stateDId);
+                        var address =
+                            udd?.DictionaryId ?? usuallyDictionaries.First(x =>
+                                    x.ScriptId == 0 && x.VariableNameId == stateDId)
+                                .DictionaryId;
+
+                        uDies.Add(new Tuple<int, int>(script, stateDId), address);
+                    }
+
+                    foreach (var a in all)
+                    {
+                        var nextStartTime = ServerConfig.ApiDb.Query<DateTime>("SELECT StartTime FROM `npc_monitoring_process_log` WHERE DeviceId = @DeviceId AND Id > @Id LIMIT 1;", new
+                        {
+                            DeviceId = a.DeviceId,
+                            Id = a.Id
+                        }).FirstOrDefault();
+                        if (nextStartTime != default(DateTime))
+                        {
+                            var d = ServerConfig.ApiDb.Query<MonitoringAnalysis>(
+                                "SELECT * FROM `npc_monitoring_analysis` WHERE DeviceId = @DeviceId AND SendTime BETWEEN @SendTime1 AND @SendTime2;",
+                                new
+                                {
+                                    DeviceId = a.DeviceId,
+                                    SendTime1 = a.StartTime,
+                                    SendTime2 = nextStartTime,
+                                }).OrderBy(x => x.SendTime);
+
+                            var actAddress = uDies[new Tuple<int, int>(a.ScriptId, stateDId)] - 1;
+                            var analysis = d.FirstOrDefault(x => x.AnalysisData.vals[actAddress] == 0);
+                            if (analysis != null)
+                            {
+                                ServerConfig.ApiDb.Execute(
+                                    "UPDATE`npc_monitoring_process_log` SET EndTime = @EndTime WHERE Id = @Id;",
+                                    new MonitoringProcessLog
+                                    {
+                                        EndTime = analysis.SendTime.NoMillisecond(),
+                                        Id = a.Id
+                                    });
+                            }
+                        }
+                    }
+                }
+            }
+            catch (Exception e)
+            {
+                Log.Error(e);
+            }
+
+            _isProcessLog = false;
         }
     }
 }

@@ -9,6 +9,7 @@ using Newtonsoft.Json.Linq;
 using ServiceStack;
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Linq;
 using System.Threading.Tasks;
 
@@ -99,7 +100,7 @@ namespace ApiManagement.Controllers
                 var data = new List<MonitoringAnalysis>();
                 var tStartTime = startTime;
                 var tEndTime = tStartTime.AddMinutes(30);
-                var tasks = new List<Task>();
+                var tasks = new List<Task<IEnumerable<MonitoringAnalysis>>>();
                 while (true)
                 {
                     if (tEndTime > endTime)
@@ -107,15 +108,12 @@ namespace ApiManagement.Controllers
                         tEndTime = endTime;
                     }
 
-                    var task = Task.Factory.StartNew(() =>
+                    var task = Task.Run(() => ServerConfig.ApiDb.Query<MonitoringAnalysis>(sql, new
                     {
-                        data.AddRange(ServerConfig.ApiDb.Query<MonitoringAnalysis>(sql, new
-                        {
-                            requestBody.DeviceId,
-                            startTime = tStartTime,
-                            endTime = tEndTime
-                        }, 60));
-                    });
+                        requestBody.DeviceId,
+                        startTime = tStartTime,
+                        endTime = tEndTime
+                    }, 60));
                     tasks.Add(task);
                     if (tEndTime == endTime)
                     {
@@ -125,8 +123,11 @@ namespace ApiManagement.Controllers
                     tStartTime = tEndTime;
                     tEndTime = tStartTime.AddMinutes(30);
                 }
-
-                Task.WaitAll(tasks.ToArray());
+                //Task.WaitAll(tasks.ToArray());
+                foreach (var task in tasks)
+                {
+                    data.AddRange(task.Result);
+                }
                 var scripts = data.OrderBy(x => x.Id).GroupBy(x => x.ScriptId).Select(x => x.Key).ToList();
                 scripts.Add(0);
                 var usuallyDictionaries = ServerConfig.ApiDb.Query<UsuallyDictionary>(

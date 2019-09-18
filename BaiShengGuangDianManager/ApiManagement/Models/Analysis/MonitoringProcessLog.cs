@@ -13,11 +13,13 @@ namespace ApiManagement.Models.Analysis
         public int FlowCardId { get; set; }
         public int ProcessorId { get; set; }
         public string ProcessData { get; set; }
+        public decimal RequirementMid { get; set; }
+        public decimal ActualThickness { get; set; }
     }
 
     public class MonitoringProcessLogDetail : MonitoringProcessLog
     {
-        public int TotalTime => StartTime != default(DateTime) && StartTime != default(DateTime) ? (int)(EndTime - StartTime).TotalSeconds : StartTime != default(DateTime) ? (int)(EndTime - StartTime).TotalSeconds : 0;
+        public int TotalTime => StartTime != default(DateTime) && EndTime != default(DateTime) ? (int)(EndTime - StartTime).TotalSeconds : StartTime != default(DateTime) ? (int)(DateTime.Now - StartTime).TotalSeconds : 0;
         public string Code { get; set; }
         public string ProcessorName { get; set; }
         public string FlowCardName { get; set; }

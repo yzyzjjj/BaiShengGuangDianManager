@@ -1,6 +1,7 @@
 ﻿using ApiManagement.Base.Control;
 using ApiManagement.Base.Server;
 using ApiManagement.Models;
+using ApiManagement.Models.Analysis;
 using Microsoft.AspNetCore.Mvc;
 using ModelBase.Base.EnumConfig;
 using ModelBase.Base.HttpServer;
@@ -770,88 +771,93 @@ namespace ApiManagement.Controllers
                 "设定压力",
                 "下盘速度",
             };
-            var i = 1;
-            foreach (var processData in processDatas)
+
+            var isSetProcessData = ServerConfig.RedisHelper.Get<int>(ServerConfig.IsSetProcessDataKey) == 1;
+            if (isSetProcessData)
             {
-                var j = 0;
-                if (dictionaryIds.Any(x => x.VariableName == key[j] + i))
+                //当前配方
+                messagePacket.Vals.Add(98, 0);
+                var i = 1;
+                foreach (var processData in processDatas)
                 {
-                    messagePacket.Vals.Add(dictionaryIds.First(x => x.VariableName == key[j] + i).DictionaryId - 1, processData.PressurizeMinute);
-                }
-                j++;
-                if (dictionaryIds.Any(x => x.VariableName == key[j] + i))
-                {
-                    messagePacket.Vals.Add(dictionaryIds.First(x => x.VariableName == key[j] + i).DictionaryId - 1, processData.PressurizeSecond);
-                }
-                j++;
-                if (dictionaryIds.Any(x => x.VariableName == key[j] + i))
-                {
-                    messagePacket.Vals.Add(dictionaryIds.First(x => x.VariableName == key[j] + i).DictionaryId - 1, processData.ProcessMinute);
-                }
-                j++;
-                if (dictionaryIds.Any(x => x.VariableName == key[j] + i))
-                {
-                    messagePacket.Vals.Add(dictionaryIds.First(x => x.VariableName == key[j] + i).DictionaryId - 1, processData.ProcessSecond);
-                }
-                j++;
-                if (dictionaryIds.Any(x => x.VariableName == key[j] + i))
-                {
-                    messagePacket.Vals.Add(dictionaryIds.First(x => x.VariableName == key[j] + i).DictionaryId - 1, processData.Pressure);
-                }
-                j++;
-                if (dictionaryIds.Any(x => x.VariableName == key[j] + i))
-                {
-                    messagePacket.Vals.Add(dictionaryIds.First(x => x.VariableName == key[j] + i).DictionaryId - 1, processData.Speed * 100);
+                    var j = 0;
+                    if (dictionaryIds.Any(x => x.VariableName == key[j] + i))
+                    {
+                        messagePacket.Vals.Add(dictionaryIds.First(x => x.VariableName == key[j] + i).DictionaryId - 1, processData.PressurizeMinute);
+                    }
+                    j++;
+                    if (dictionaryIds.Any(x => x.VariableName == key[j] + i))
+                    {
+                        messagePacket.Vals.Add(dictionaryIds.First(x => x.VariableName == key[j] + i).DictionaryId - 1, processData.PressurizeSecond);
+                    }
+                    j++;
+                    if (dictionaryIds.Any(x => x.VariableName == key[j] + i))
+                    {
+                        messagePacket.Vals.Add(dictionaryIds.First(x => x.VariableName == key[j] + i).DictionaryId - 1, processData.ProcessMinute);
+                    }
+                    j++;
+                    if (dictionaryIds.Any(x => x.VariableName == key[j] + i))
+                    {
+                        messagePacket.Vals.Add(dictionaryIds.First(x => x.VariableName == key[j] + i).DictionaryId - 1, processData.ProcessSecond);
+                    }
+                    j++;
+                    if (dictionaryIds.Any(x => x.VariableName == key[j] + i))
+                    {
+                        messagePacket.Vals.Add(dictionaryIds.First(x => x.VariableName == key[j] + i).DictionaryId - 1, processData.Pressure);
+                    }
+                    j++;
+                    if (dictionaryIds.Any(x => x.VariableName == key[j] + i))
+                    {
+                        messagePacket.Vals.Add(dictionaryIds.First(x => x.VariableName == key[j] + i).DictionaryId - 1, processData.Speed * 100);
+                    }
+
+                    i++;
                 }
 
-                i++;
+                for (; i <= 8; i++)
+                {
+                    var j = 0;
+                    if (dictionaryIds.Any(x => x.VariableName == key[j] + i))
+                    {
+                        messagePacket.Vals.Add(dictionaryIds.First(x => x.VariableName == key[j] + i).DictionaryId - 1, 0);
+                    }
+                    j++;
+                    if (dictionaryIds.Any(x => x.VariableName == key[j] + i))
+                    {
+                        messagePacket.Vals.Add(dictionaryIds.First(x => x.VariableName == key[j] + i).DictionaryId - 1, 0);
+                    }
+                    j++;
+                    if (dictionaryIds.Any(x => x.VariableName == key[j] + i))
+                    {
+                        messagePacket.Vals.Add(dictionaryIds.First(x => x.VariableName == key[j] + i).DictionaryId - 1, 0);
+                    }
+                    j++;
+                    if (dictionaryIds.Any(x => x.VariableName == key[j] + i))
+                    {
+                        messagePacket.Vals.Add(dictionaryIds.First(x => x.VariableName == key[j] + i).DictionaryId - 1, 0);
+                    }
+                    j++;
+                    if (dictionaryIds.Any(x => x.VariableName == key[j] + i))
+                    {
+                        messagePacket.Vals.Add(dictionaryIds.First(x => x.VariableName == key[j] + i).DictionaryId - 1, 0);
+                    }
+                    j++;
+                    if (dictionaryIds.Any(x => x.VariableName == key[j] + i))
+                    {
+                        messagePacket.Vals.Add(dictionaryIds.First(x => x.VariableName == key[j] + i).DictionaryId - 1, 0);
+                    }
+                }
+
             }
-
-            for (; i <= 8; i++)
-            {
-                var j = 0;
-                if (dictionaryIds.Any(x => x.VariableName == key[j] + i))
-                {
-                    messagePacket.Vals.Add(dictionaryIds.First(x => x.VariableName == key[j] + i).DictionaryId - 1, 0);
-                }
-                j++;
-                if (dictionaryIds.Any(x => x.VariableName == key[j] + i))
-                {
-                    messagePacket.Vals.Add(dictionaryIds.First(x => x.VariableName == key[j] + i).DictionaryId - 1, 0);
-                }
-                j++;
-                if (dictionaryIds.Any(x => x.VariableName == key[j] + i))
-                {
-                    messagePacket.Vals.Add(dictionaryIds.First(x => x.VariableName == key[j] + i).DictionaryId - 1, 0);
-                }
-                j++;
-                if (dictionaryIds.Any(x => x.VariableName == key[j] + i))
-                {
-                    messagePacket.Vals.Add(dictionaryIds.First(x => x.VariableName == key[j] + i).DictionaryId - 1, 0);
-                }
-                j++;
-                if (dictionaryIds.Any(x => x.VariableName == key[j] + i))
-                {
-                    messagePacket.Vals.Add(dictionaryIds.First(x => x.VariableName == key[j] + i).DictionaryId - 1, 0);
-                }
-                j++;
-                if (dictionaryIds.Any(x => x.VariableName == key[j] + i))
-                {
-                    messagePacket.Vals.Add(dictionaryIds.First(x => x.VariableName == key[j] + i).DictionaryId - 1, 0);
-                }
-            }
-
             if (dictionaryIds.Any(x => x.Id == 6))
             {
                 messagePacket.Vals.Add(dictionaryIds.First(x => x.Id == 6).DictionaryId - 1, processInfo.FlowCardId);
             }
-            //当前配方
-            messagePacket.Vals.Add(98, 0);
             var msg = messagePacket.Serialize();
             url = ServerConfig.GateUrl + UrlMappings.Urls["batchSendBackGate"];
             //向GateProxyLink请求数据
             resp = HttpServer.Post(url, new Dictionary<string, string>{
-                { "devicesList",(new List<DeviceInfo>
+                { "devicesList", (new List<DeviceInfo>
                     {
                         new DeviceInfo
                         {
@@ -1041,6 +1047,8 @@ namespace ApiManagement.Controllers
             public DateTime Time;
             //操作名称
             public string OpName;
+            //操作参数
+            public decimal Thickness;
         }
 
         // POST: api/DeviceLibrary/DeviceOperate
@@ -1061,14 +1069,15 @@ namespace ApiManagement.Controllers
                 .Query<int>("SELECT Id FROM `processor` WHERE Account = @Account AND MarkedDelete = 0;", new { Account = account }).FirstOrDefault();
 
             ServerConfig.ApiDb.Execute(
-                "INSERT INTO npc_monitoring_process_log (`OpName`, `DeviceId`, `StartTime`, `EndTime`, `ProcessorId`) VALUES (@OpName, @DeviceId, @StartTime, @EndTime, @ProcessorId);",
-                    new
+                "INSERT INTO npc_monitoring_process_log (`OpName`, `DeviceId`, `StartTime`, `EndTime`, `ProcessorId`, `ActualThickness`) VALUES (@OpName, @DeviceId, @StartTime, @EndTime, @ProcessorId, @ActualThickness);",
+                    new MonitoringProcessLog
                     {
-                        deviceOperate.OpName,
-                        deviceOperate.DeviceId,
+                        OpName = deviceOperate.OpName,
+                        DeviceId = deviceOperate.DeviceId,
                         StartTime = deviceOperate.Time,
                         EndTime = deviceOperate.Time,
-                        ProcessorId = processorId
+                        ProcessorId = processorId,
+                        ActualThickness = deviceOperate.Thickness,
                     });
 
             return Result.GenError<Result>(Error.Success);
