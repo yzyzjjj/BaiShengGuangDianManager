@@ -1028,7 +1028,7 @@ namespace ApiManagement.Base.Helper
 
                     foreach (var a in all)
                     {
-                        var nextStartTime = ServerConfig.ApiDb.Query<DateTime>("SELECT StartTime FROM `npc_monitoring_process_log` WHERE DeviceId = @DeviceId AND Id > @Id LIMIT 1;", new
+                        var nextStartTime = ServerConfig.ApiDb.Query<DateTime>("SELECT StartTime FROM `npc_monitoring_process_log` WHERE DeviceId = @DeviceId AND OpName = '加工' AND Id > @Id LIMIT 1;", new
                         {
                             DeviceId = a.DeviceId,
                             Id = a.Id
