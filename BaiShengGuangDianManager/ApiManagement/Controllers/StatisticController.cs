@@ -108,12 +108,12 @@ namespace ApiManagement.Controllers
                         tEndTime = endTime;
                     }
 
-                    var task = Task.Run(() => ServerConfig.ApiDb.Query<MonitoringAnalysis>(sql, new
+                    var task = ServerConfig.ApiDb.QueryAsync<MonitoringAnalysis>(sql, new
                     {
                         requestBody.DeviceId,
                         startTime = tStartTime,
                         endTime = tEndTime
-                    }, 60));
+                    }, 60);
                     tasks.Add(task);
                     if (tEndTime == endTime)
                     {
@@ -612,15 +612,15 @@ namespace ApiManagement.Controllers
                         tEndTime = endTime;
                     }
 
-                    var task = Task.Factory.StartNew(() =>
+                    var task = Task.Factory.StartNew((Action)(() =>
                     {
-                        data.AddRange(ServerConfig.ApiDb.Query<MonitoringAnalysis>(sql, new
+                        data.AddRange(ServerConfig.ApiDb.Query<MonitoringAnalysis>((string)sql, (object)(new
                         {
                             requestBody.DeviceId,
                             startTime,
                             endTime
-                        }, 60));
-                    });
+                        }), (int?)60));
+                    }));
                     tasks.Add(task);
                     if (tEndTime == endTime)
                     {
@@ -770,8 +770,8 @@ namespace ApiManagement.Controllers
                         break;
                     case 1:
                         #region 1 天 - 小时
-                        startTime = requestBody.StartTime.DayBeginTime();
-                        endTime = requestBody.EndTime.DayEndTime();
+                        startTime = requestBody.StartTime;
+                        endTime = requestBody.EndTime;
                         if (requestBody.DeviceId == "0")
                         {
                             if (requestBody.WorkshopName == "")
@@ -807,8 +807,8 @@ namespace ApiManagement.Controllers
                         break;
                     case 2:
                         #region 2 月 天 
-                        startTime = requestBody.StartTime.StartOfMonth();
-                        endTime = requestBody.EndTime.EndOfMonth();
+                        startTime = requestBody.StartTime;
+                        endTime = requestBody.EndTime;
                         if (requestBody.DeviceId == "0")
                         {
                             if (requestBody.WorkshopName == "")

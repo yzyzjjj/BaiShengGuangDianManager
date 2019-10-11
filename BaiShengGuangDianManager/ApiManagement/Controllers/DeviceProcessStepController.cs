@@ -56,9 +56,9 @@ namespace ApiManagement.Controllers
             }
 
             cnt =
-               ServerConfig.ApiDb.Query<int>("SELECT COUNT(1) FROM `device_process_step` WHERE DeviceCategoryId = @DeviceCategoryId AND StepName = @StepName AND IsSurvey = @IsSurvey AND `MarkedDelete` = 0;",
-                   new { deviceProcessStep.DeviceCategoryId, deviceProcessStep.StepName, deviceProcessStep.IsSurvey }).FirstOrDefault();
-            if (cnt > 0 && data.StepName != deviceProcessStep.StepName)
+               ServerConfig.ApiDb.Query<int>("SELECT COUNT(1) FROM `device_process_step` WHERE DeviceCategoryId = @DeviceCategoryId AND StepName = @StepName AND IsSurvey = @IsSurvey AND `MarkedDelete` = 0 AND Id != @id;",
+                   new { deviceProcessStep.DeviceCategoryId, deviceProcessStep.StepName, deviceProcessStep.IsSurvey, id }).FirstOrDefault();
+            if (cnt > 0)
             {
                 return Result.GenError<Result>(Error.DeviceProcessStepIsExist);
             }

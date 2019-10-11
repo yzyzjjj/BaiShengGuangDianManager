@@ -11,6 +11,7 @@ using ModelBase.Base.Utils;
 using ModelBase.Models.Device;
 using ModelBase.Models.Result;
 using Newtonsoft.Json;
+using ServiceStack;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -18,7 +19,7 @@ using System.Net;
 
 namespace ApiManagement.Controllers
 {
-    [Route("api/[controller]")]
+    [Microsoft.AspNetCore.Mvc.Route("api/[controller]")]
     [ApiController]
     //[Authorize]
     public class DeviceLibraryController : ControllerBase
@@ -74,9 +75,9 @@ namespace ApiManagement.Controllers
                                 {
                                     deviceLibraryDetails[deviceId].State = deviceInfo.State;
                                     deviceLibraryDetails[deviceId].DeviceState = deviceInfo.DeviceState;
-                                    deviceLibraryDetails[deviceId].ProcessTime = deviceInfo.ProcessTime;
-                                    deviceLibraryDetails[deviceId].LeftTime = deviceInfo.LeftTime;
                                     deviceLibraryDetails[deviceId].FlowCard = deviceInfo.FlowCard;
+                                    deviceLibraryDetails[deviceId].ProcessTime = deviceInfo.ProcessTime.IsNullOrEmpty() ? "0" : deviceInfo.ProcessTime;
+                                    deviceLibraryDetails[deviceId].LeftTime = deviceInfo.LeftTime.IsNullOrEmpty() ? "0" : deviceInfo.LeftTime;
                                 }
                             }
                         }
@@ -278,8 +279,8 @@ namespace ApiManagement.Controllers
             var result = new DataResult();
 
             var url = ServerConfig.GateUrl + UrlMappings.Urls["batchSendBackGate"];
-            var msg = new DeviceInfoMessagePacket(scriptVersion.ValueNumber, scriptVersion.InputNumber,
-                scriptVersion.OutputNumber);
+            var msg = new DeviceInfoMessagePacket(scriptVersion.MaxValuePointerAddress, scriptVersion.MaxInputPointerAddress,
+                scriptVersion.MaxOutputPointerAddress);
             //向GateProxyLink请求数据
             var resp = HttpServer.Post(url, new Dictionary<string, string>{
                 {"devicesList",(new List<DeviceInfo>

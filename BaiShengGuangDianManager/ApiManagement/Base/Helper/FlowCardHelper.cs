@@ -505,11 +505,11 @@ namespace ApiManagement.Base.Helper
             }
 
             isUpdateFlowCardProcessStep = true;
-            //计划号
-            var flowCardLibraries = ServerConfig.ApiDb.Query<FlowCardLibrary>("SELECT a.Id, a.FlowCardName, a.ProductionProcessId FROM `flowcard_library` a LEFT JOIN flowcard_process_step b ON a.Id = b.FlowCardId WHERE a.MarkedDelete = 0 AND ISNULL(b.Id) ORDER BY a.Id;").ToDictionary(x => x.Id);
-            if (flowCardLibraries.Any())
+            try
             {
-                try
+                //计划号
+                var flowCardLibraries = ServerConfig.ApiDb.Query<FlowCardLibrary>("SELECT a.Id, a.FlowCardName, a.ProductionProcessId FROM `flowcard_library` a LEFT JOIN flowcard_process_step b ON a.Id = b.FlowCardId WHERE a.MarkedDelete = 0 AND ISNULL(b.Id) ORDER BY a.Id;", 60).ToDictionary(x => x.Id);
+                if (flowCardLibraries.Any())
                 {
                     //数据库计划号工序
                     var productionProcessStep = ServerConfig.ApiDb.Query<ProductionProcessStepDetail>("SELECT a.*, b.ProductionProcessName FROM `production_process_step` a JOIN `production_library` b ON a.ProductionProcessId = b.Id WHERE a.MarkedDelete = 0; ")
@@ -548,13 +548,13 @@ namespace ApiManagement.Base.Helper
                             "VALUES (@CreateUserId, @MarkedDateTime, @MarkedDelete, @ModifyId, @FlowCardId, @ProcessStepOrder, @ProcessStepId, @ProcessStepRequirements, @ProcessStepRequirementMid);",
                             newFps.OrderBy(x => x.FlowCardId).ThenBy(x => x.ProcessStepOrder));
                     }
-                }
-                catch (Exception e)
-                {
-                    Log.ErrorFormat("UpdateFlowCardProcessStep erp数据解析失败,原因:{0},错误:{1}", e.Message, e.StackTrace);
+
                 }
             }
-
+            catch (Exception e)
+            {
+                Log.ErrorFormat("UpdateFlowCardProcessStep erp数据解析失败,原因:{0},错误:{1}", e.Message, e.StackTrace);
+            }
             isUpdateFlowCardProcessStep = false;
         }
 
