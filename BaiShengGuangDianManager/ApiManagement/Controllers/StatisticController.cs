@@ -49,6 +49,7 @@ namespace ApiManagement.Controllers
             public string DeviceId;
             public DateTime StartTime;
             public DateTime EndTime;
+            public int ProductionId;
             public int StartHour;
             public int EndHour;
             public DateTime StartTime1;
@@ -932,7 +933,7 @@ namespace ApiManagement.Controllers
         {
             try
             {
-                if (requestBody.StartTime == default(DateTime) || requestBody.DeviceId.IsNullOrEmpty())
+                if (requestBody.StartTime == default(DateTime) || requestBody.EndTime == default(DateTime) || requestBody.DeviceId.IsNullOrEmpty())
                 {
                     return Result.GenError<DataResult>(Error.ParamError);
                 }
@@ -963,11 +964,20 @@ namespace ApiManagement.Controllers
                       "LEFT JOIN `processor` c ON a.ProcessorId = c.Id " +
                       "LEFT JOIN ( SELECT a.*, b.ProductionProcessName FROM `flowcard_library` a JOIN `production_library` b ON a.ProductionProcessId = b.Id ) d ON a.FlowCardId = d.Id " +
                       "WHERE a.DeviceId IN @DeviceId AND StartTime >= @StartTime1 AND StartTime <= @StartTime2 ORDER BY a.StartTime;";
+                if (requestBody.ProductionId != 0)
+                {
+                    sql = "SELECT a.*, b.`Code`, c.ProcessorName, d.FlowCardName, d.ProductionProcessName FROM `npc_monitoring_process_log` a " +
+                        "LEFT JOIN `device_library` b ON a.DeviceId = b.Id " +
+                        "LEFT JOIN `processor` c ON a.ProcessorId = c.Id " +
+                        "JOIN ( SELECT a.*, b.ProductionProcessName FROM `flowcard_library` a JOIN `production_library` b ON a.ProductionProcessId = b.Id WHERE b.Id = @ProductionId) d ON a.FlowCardId = d.Id " +
+                        "WHERE a.DeviceId IN @DeviceId AND StartTime >= @StartTime1 AND StartTime <= @StartTime2 ORDER BY a.StartTime;";
+                }
                 var data = ServerConfig.ApiDb.Query<MonitoringProcessLogDetail>(sql, new
                 {
                     DeviceId = deviceIds,
                     StartTime1 = requestBody.StartTime.DayBeginTime(),
-                    StartTime2 = requestBody.StartTime.DayEndTime(),
+                    StartTime2 = requestBody.EndTime.DayEndTime(),
+                    ProductionId = requestBody.ProductionId,
                 }, 60).OrderByDescending(x => x.StartTime);
                 var result = new DataResult();
                 foreach (var device in deviceIds)

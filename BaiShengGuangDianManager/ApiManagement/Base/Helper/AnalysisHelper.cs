@@ -333,7 +333,7 @@ namespace ApiManagement.Base.Helper
                                                                 {
                                                                     if (flowCardProcessStepDetail.ProcessTime == default(DateTime))
                                                                     {
-                                                                        flowCardProcessStepDetail.ProcessTime = data.ReceiveTime;
+                                                                        flowCardProcessStepDetail.ProcessTime = data.SendTime;
                                                                         sql =
                                                                             "UPDATE flowcard_process_step SET `ProcessTime` = @ProcessTime WHERE `Id` = @Id;";
                                                                     }
@@ -344,7 +344,7 @@ namespace ApiManagement.Base.Helper
                                                                 {
                                                                     //if (flowCardProcessStepDetail.ProcessEndTime == default(DateTime))
                                                                     //{
-                                                                    flowCardProcessStepDetail.ProcessEndTime = data.ReceiveTime;
+                                                                    flowCardProcessStepDetail.ProcessEndTime = data.SendTime;
                                                                     sql =
                                                                         "UPDATE flowcard_process_step SET `ProcessEndTime` = @ProcessEndTime WHERE `Id` = @Id;";
                                                                     //}
