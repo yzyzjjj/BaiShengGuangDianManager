@@ -4,7 +4,6 @@ using Microsoft.AspNetCore.Mvc;
 using ModelBase.Base.EnumConfig;
 using ModelBase.Base.Utils;
 using ModelBase.Models.Result;
-using ServiceStack;
 using System;
 using System.Linq;
 
@@ -51,14 +50,11 @@ namespace ApiManagement.Controllers
                 return Result.GenError<Result>(Error.SiteNotExist);
             }
 
-            var cnt =
-                ServerConfig.ApiDb.Query<int>("SELECT COUNT(1) FROM `site` WHERE SiteName = @SiteName AND RegionDescription = @RegionDescription AND MarkedDelete = 0;", new { site.SiteName, site.RegionDescription }).FirstOrDefault();
-            if (cnt > 0)
+            var firstOrDefault =
+                ServerConfig.ApiDb.Query<int>("SELECT Id FROM `site` WHERE SiteName = @SiteName AND RegionDescription = @RegionDescription AND MarkedDelete = 0;", new { site.SiteName, site.RegionDescription }).FirstOrDefault();
+            if (firstOrDefault != 0 && firstOrDefault != id)
             {
-                if (!site.SiteName.IsNullOrEmpty() && data.SiteName != site.SiteName)
-                {
-                    return Result.GenError<Result>(Error.SiteIsExist);
-                }
+                return Result.GenError<Result>(Error.SiteIsExist);
             }
             site.Id = id;
             site.CreateUserId = Request.GetIdentityInformation();
@@ -99,6 +95,13 @@ namespace ApiManagement.Controllers
             if (cnt == 0)
             {
                 return Result.GenError<Result>(Error.SiteNotExist);
+            }
+
+            cnt =
+                ServerConfig.ApiDb.Query<int>("SELECT COUNT(1) FROM `device_library` WHERE SiteId = @id AND `MarkedDelete` = 0;", new { id }).FirstOrDefault();
+            if (cnt > 0)
+            {
+                return Result.GenError<Result>(Error.DeviceLibraryUseSite);
             }
 
             ServerConfig.ApiDb.Execute(

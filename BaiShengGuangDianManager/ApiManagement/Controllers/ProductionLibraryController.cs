@@ -453,6 +453,13 @@ namespace ApiManagement.Controllers
                     MarkedDelete = true,
                     Id = id
                 });
+            ServerConfig.ApiDb.Execute(
+                "UPDATE `process_management` SET `MarkedDateTime`= @MarkedDateTime, `MarkedDelete`= @MarkedDelete WHERE `ProductModels`= @Id;", new
+                {
+                    MarkedDateTime = DateTime.Now,
+                    MarkedDelete = true,
+                    Id = id
+                });
             return Result.GenError<Result>(Error.Success);
         }
     }

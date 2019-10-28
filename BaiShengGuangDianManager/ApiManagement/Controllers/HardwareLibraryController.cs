@@ -105,6 +105,13 @@ namespace ApiManagement.Controllers
                 return Result.GenError<Result>(Error.HardwareLibraryNotExist);
             }
 
+            cnt =
+                ServerConfig.ApiDb.Query<int>("SELECT COUNT(1) FROM `device_library` WHERE HardwareId = @id AND `MarkedDelete` = 0;", new { id }).FirstOrDefault();
+            if (cnt > 0)
+            {
+                return Result.GenError<Result>(Error.DeviceLibraryUseHardware);
+            }
+
             ServerConfig.ApiDb.Execute(
                 "UPDATE `hardware_library` SET `MarkedDateTime`= @MarkedDateTime, `MarkedDelete`= @MarkedDelete WHERE `Id`= @Id;", new
                 {

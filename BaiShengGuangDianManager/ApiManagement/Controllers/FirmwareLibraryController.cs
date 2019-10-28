@@ -10,6 +10,9 @@ using ServiceStack;
 
 namespace ApiManagement.Controllers
 {
+    /// <summary>
+    /// 固件
+    /// </summary>
     [Microsoft.AspNetCore.Mvc.Route("api/[controller]")]
     [ApiController]
     //[Authorize]
@@ -101,6 +104,13 @@ namespace ApiManagement.Controllers
             if (cnt == 0)
             {
                 return Result.GenError<Result>(Error.FirmwareLibraryNotExist);
+            }
+
+            cnt =
+                ServerConfig.ApiDb.Query<int>("SELECT COUNT(1) FROM `device_library` WHERE FirmwareId = @id AND `MarkedDelete` = 0;", new { id }).FirstOrDefault();
+            if (cnt > 0)
+            {
+                return Result.GenError<Result>(Error.DeviceLibraryUseFirmware);
             }
 
             ServerConfig.ApiDb.Execute(

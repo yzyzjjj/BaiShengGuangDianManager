@@ -48,10 +48,10 @@ namespace ApiManagement.Controllers
                     .ToDictionary(x => x.Id);
 
                 var faultDevices = ServerConfig.ApiDb.Query<dynamic>(
-                    "SELECT * FROM ( SELECT * FROM `fault_device` WHERE MarkedDelete = 0 ORDER BY DeviceCode, State DESC ) a GROUP BY DeviceCode;");
+                    "SELECT * FROM (SELECT a.* FROM `fault_device` a JOIN `device_library` b ON a.DeviceId = b.Id WHERE a.MarkedDelete = 0 ORDER BY a.DeviceId, a.State DESC ) a GROUP BY DeviceCode;");
                 foreach (var faultDevice in faultDevices)
                 {
-                    var device = deviceLibraryDetails.Values.FirstOrDefault(x => x.Code == faultDevice.DeviceCode);
+                    var device = deviceLibraryDetails.Values.FirstOrDefault(x => x.Id == faultDevice.DeviceId);
                     if (device != null)
                     {
                         device.RepairState = faultDevice.State;
@@ -114,7 +114,8 @@ namespace ApiManagement.Controllers
                 result.errno = Error.DeviceNotExist;
                 return result;
             }
-            var faultDevice = ServerConfig.ApiDb.Query<dynamic>("SELECT * FROM `fault_device` WHERE MarkedDelete = 0 AND DeviceCode = @DeviceCode;", new { DeviceCode = data.Code }).FirstOrDefault();
+
+            var faultDevice = ServerConfig.ApiDb.Query<dynamic>("SELECT a.* FROM `fault_device` a JOIN `device_library` b ON a.DeviceId = b.Id WHERE a.MarkedDelete = 0 AND DeviceId = @DeviceId;", new { DeviceId = data.Id }).FirstOrDefault();
             if (faultDevice != null)
             {
                 data.RepairState = faultDevice.State;
@@ -173,7 +174,8 @@ namespace ApiManagement.Controllers
                 result.errno = Error.DeviceNotExist;
                 return result;
             }
-            var faultDevice = ServerConfig.ApiDb.Query<dynamic>("SELECT * FROM `fault_device` WHERE MarkedDelete = 0 AND DeviceCode = @DeviceCode;", new { DeviceCode = data.Code }).FirstOrDefault();
+
+            var faultDevice = ServerConfig.ApiDb.Query<dynamic>("SELECT a.* FROM `fault_device` a JOIN `device_library` b ON a.DeviceId = b.Id WHERE MarkedDelete = 0 AND DeviceId = @DeviceId;", new { DeviceId = data.Id }).FirstOrDefault();
             if (faultDevice != null)
             {
                 data.RepairState = faultDevice.State;

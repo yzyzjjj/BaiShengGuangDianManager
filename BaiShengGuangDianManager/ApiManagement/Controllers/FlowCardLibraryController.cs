@@ -485,7 +485,6 @@ namespace ApiManagement.Controllers
             var processData = ServerConfig.ApiDb.Query<ProcessData>(
                 "SELECT * FROM `process_data` WHERE ProcessManagementId = @Id AND MarkedDelete = 0;", new { processNumber.Id });
 
-
             var processSteps = ServerConfig.ApiDb.Query<FlowCardProcessStepDetail>("SELECT a.*, IFNULL(b.StepName, '') StepName  FROM `flowcard_process_step` a LEFT JOIN `device_process_step` b ON a.ProcessStepId = b.Id WHERE FlowCardId = @FlowCardId AND a.MarkedDelete = 0;", new
             {
                 FlowCardId = flowCard.Id
@@ -1080,6 +1079,7 @@ namespace ApiManagement.Controllers
                     MarkedDelete = true,
                     rawMateriaId = data.Id
                 });
+
             return Result.GenError<Result>(Error.Success);
         }
     }

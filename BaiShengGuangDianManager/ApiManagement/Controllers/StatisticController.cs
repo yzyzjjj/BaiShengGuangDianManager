@@ -9,7 +9,6 @@ using Newtonsoft.Json.Linq;
 using ServiceStack;
 using System;
 using System.Collections.Generic;
-using System.Diagnostics;
 using System.Linq;
 using System.Threading.Tasks;
 
@@ -1056,27 +1055,30 @@ namespace ApiManagement.Controllers
                                 Date1 = startTime,
                                 Date2 = endTime
                             }, 60).OrderBy(x => x.Date);
-                            r = new List<MonitoringFault>();
-                            monitoringFault = null;
-                            foreach (var d in data)
+                            if (data.Any())
                             {
-                                if (monitoringFault == null)
+                                r = new List<MonitoringFault>();
+                                monitoringFault = null;
+                                foreach (var d in data)
                                 {
-                                    monitoringFault = new MonitoringFault { Date = d.Date, Workshop = string.Empty };
-                                }
+                                    if (monitoringFault == null)
+                                    {
+                                        monitoringFault = new MonitoringFault { Date = d.Date, Workshop = string.Empty };
+                                    }
 
-                                if (!monitoringFault.Date.InSameDay(d.Date))
-                                {
-                                    r.Add(monitoringFault);
-                                    monitoringFault = null;
+                                    if (!monitoringFault.Date.InSameDay(d.Date))
+                                    {
+                                        r.Add(monitoringFault);
+                                        monitoringFault = null;
+                                    }
+                                    else
+                                    {
+                                        monitoringFault.Add(d);
+                                    }
                                 }
-                                else
-                                {
-                                    monitoringFault.Add(d);
-                                }
+                                r.Add(monitoringFault);
+                                result.datas.AddRange(r);
                             }
-                            r.Add(monitoringFault);
-                            result.datas.AddRange(r);
                         }
                         #endregion
                         break;
@@ -1275,12 +1277,15 @@ namespace ApiManagement.Controllers
                                 Date1 = startTime,
                                 Date2 = endTime
                             }, 60).OrderBy(x => x.Date);
-                            monitoringFault = new MonitoringFault { Date = startTime, Workshop = requestBody.WorkshopName };
-                            foreach (var d in data)
+                            if (data.Any())
                             {
-                                monitoringFault.Add(d);
+                                monitoringFault = new MonitoringFault { Date = startTime, Workshop = requestBody.WorkshopName };
+                                foreach (var d in data)
+                                {
+                                    monitoringFault.Add(d);
+                                }
+                                result.datas.Add(monitoringFault);
                             }
-                            result.datas.Add(monitoringFault);
                         }
 
                         startTime = requestBody.EndTime.DayBeginTime();
@@ -1306,12 +1311,15 @@ namespace ApiManagement.Controllers
                                 Date1 = startTime,
                                 Date2 = endTime
                             }, 60).OrderBy(x => x.Date);
-                            monitoringFault = new MonitoringFault { Date = startTime, Workshop = requestBody.WorkshopName };
-                            foreach (var d in data)
+                            if (data.Any())
                             {
-                                monitoringFault.Add(d);
+                                monitoringFault = new MonitoringFault { Date = startTime, Workshop = requestBody.WorkshopName };
+                                foreach (var d in data)
+                                {
+                                    monitoringFault.Add(d);
+                                }
+                                result.datas.Add(monitoringFault);
                             }
-                            result.datas.Add(monitoringFault);
                         }
                         #endregion
                         break;
@@ -1343,12 +1351,16 @@ namespace ApiManagement.Controllers
                             Date1 = startTime,
                             Date2 = endTime
                         }, 60).OrderBy(x => x.Date);
-                        monitoringFault = new MonitoringFault { Date = startTime, Workshop = requestBody.WorkshopName };
-                        foreach (var d in data)
+
+                        if (data.Any())
                         {
-                            monitoringFault.Add(d);
+                            monitoringFault = new MonitoringFault { Date = startTime, Workshop = requestBody.WorkshopName };
+                            foreach (var d in data)
+                            {
+                                monitoringFault.Add(d);
+                            }
+                            result.datas.Add(monitoringFault);
                         }
-                        result.datas.Add(monitoringFault);
 
                         weeks = DateTimeExtend.GetWeek(0, requestBody.EndTime);
                         startTime = weeks.Item1;
@@ -1363,12 +1375,16 @@ namespace ApiManagement.Controllers
                             Date1 = startTime,
                             Date2 = endTime
                         }, 60).OrderBy(x => x.Date);
-                        monitoringFault = new MonitoringFault { Date = startTime, Workshop = requestBody.WorkshopName };
-                        foreach (var d in data)
+
+                        if (data.Any())
                         {
-                            monitoringFault.Add(d);
+                            monitoringFault = new MonitoringFault { Date = startTime, Workshop = requestBody.WorkshopName };
+                            foreach (var d in data)
+                            {
+                                monitoringFault.Add(d);
+                            }
+                            result.datas.Add(monitoringFault);
                         }
-                        result.datas.Add(monitoringFault);
                         #endregion
                         break;
                     case 5:
@@ -1398,12 +1414,18 @@ namespace ApiManagement.Controllers
                             Date1 = startTime,
                             Date2 = endTime
                         }, 60).OrderBy(x => x.Date);
-                        monitoringFault = new MonitoringFault { Date = startTime, Workshop = requestBody.WorkshopName };
-                        foreach (var d in data)
+
+                        if (data.Any())
                         {
-                            monitoringFault.Add(d);
+                            monitoringFault = new MonitoringFault
+                            { Date = startTime, Workshop = requestBody.WorkshopName };
+                            foreach (var d in data)
+                            {
+                                monitoringFault.Add(d);
+                            }
+
+                            result.datas.Add(monitoringFault);
                         }
-                        result.datas.Add(monitoringFault);
 
                         months = DateTimeExtend.GetMonth(0, requestBody.EndTime);
                         startTime = months.Item1;
@@ -1417,12 +1439,16 @@ namespace ApiManagement.Controllers
                             Date1 = startTime,
                             Date2 = endTime
                         }, 60).OrderBy(x => x.Date);
-                        monitoringFault = new MonitoringFault { Date = startTime, Workshop = requestBody.WorkshopName };
-                        foreach (var d in data)
+
+                        if (data.Any())
                         {
-                            monitoringFault.Add(d);
+                            monitoringFault = new MonitoringFault { Date = startTime, Workshop = requestBody.WorkshopName };
+                            foreach (var d in data)
+                            {
+                                monitoringFault.Add(d);
+                            }
+                            result.datas.Add(monitoringFault);
                         }
-                        result.datas.Add(monitoringFault);
                         #endregion
                         break;
                     case 6:
@@ -1454,23 +1480,26 @@ namespace ApiManagement.Controllers
                             Hour1 = requestBody.StartHour,
                             Hour2 = requestBody.EndHour,
                         }, 60);
-                        r = new List<MonitoringFault>();
-                        monitoringFault = new MonitoringFault { Date = startTime.AddHours(requestBody.StartHour), Workshop = requestBody.WorkshopName };
-                        foreach (var d in data.OrderBy(x => x.Date.Hour))
+                        if (data.Any())
                         {
-                            if (monitoringFault.Date.Hour == d.Date.Hour)
+                            r = new List<MonitoringFault>();
+                            monitoringFault = new MonitoringFault { Date = startTime.AddHours(requestBody.StartHour), Workshop = requestBody.WorkshopName };
+                            foreach (var d in data.OrderBy(x => x.Date.Hour))
                             {
-                                monitoringFault.Add(d);
+                                if (monitoringFault.Date.Hour == d.Date.Hour)
+                                {
+                                    monitoringFault.Add(d);
+                                }
+                                else
+                                {
+                                    r.Add(monitoringFault);
+                                    monitoringFault = new MonitoringFault { Date = d.Date, Workshop = requestBody.WorkshopName };
+                                    monitoringFault.Add(d);
+                                }
                             }
-                            else
-                            {
-                                r.Add(monitoringFault);
-                                monitoringFault = new MonitoringFault { Date = d.Date, Workshop = requestBody.WorkshopName };
-                                monitoringFault.Add(d);
-                            }
+                            r.Add(monitoringFault);
+                            result.datas.AddRange(r);
                         }
-                        r.Add(monitoringFault);
-                        result.datas.AddRange(r);
 
                         data = ServerConfig.ApiDb.Query<MonitoringFault>(sql, new
                         {
@@ -1480,29 +1509,32 @@ namespace ApiManagement.Controllers
                             Hour1 = requestBody.StartHour,
                             Hour2 = requestBody.EndHour,
                         }, 60);
-                        var rr = new List<MonitoringFault>();
-                        var monitoringFaultDay = new MonitoringFault { Date = startTime.AddHours(requestBody.StartHour), Workshop = requestBody.WorkshopName };
-                        foreach (var d in data.OrderBy(x => x.Date))
+                        if (data.Any())
                         {
-                            if (monitoringFaultDay.Date.InSameDay(d.Date))
+                            var rr = new List<MonitoringFault>();
+                            var monitoringFaultDay = new MonitoringFault { Date = startTime.AddHours(requestBody.StartHour), Workshop = requestBody.WorkshopName };
+                            foreach (var d in data.OrderBy(x => x.Date))
                             {
-                                monitoringFaultDay.DayAdd(d);
+                                if (monitoringFaultDay.Date.InSameDay(d.Date))
+                                {
+                                    monitoringFaultDay.DayAdd(d);
+                                }
+                                else
+                                {
+                                    rr.Add(monitoringFaultDay);
+                                    monitoringFaultDay = new MonitoringFault { Date = d.Date, Workshop = requestBody.WorkshopName };
+                                    monitoringFaultDay.DayAdd(d);
+                                }
                             }
-                            else
-                            {
-                                rr.Add(monitoringFaultDay);
-                                monitoringFaultDay = new MonitoringFault { Date = d.Date, Workshop = requestBody.WorkshopName };
-                                monitoringFaultDay.DayAdd(d);
-                            }
-                        }
-                        rr.Add(monitoringFaultDay);
+                            rr.Add(monitoringFaultDay);
 
-                        var all = new MonitoringFault { Date = startTime.AddHours(requestBody.EndHour), Workshop = requestBody.WorkshopName }; ;
-                        foreach (var d in rr)
-                        {
-                            all.Add(d);
+                            var all = new MonitoringFault { Date = startTime.AddHours(requestBody.EndHour), Workshop = requestBody.WorkshopName }; ;
+                            foreach (var d in rr)
+                            {
+                                all.Add(d);
+                            }
+                            result.datas.Add(all);
                         }
-                        result.datas.Add(all);
                         #endregion
                         break;
                     default:

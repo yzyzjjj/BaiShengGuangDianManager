@@ -148,6 +148,13 @@ namespace ApiManagement.Controllers
                 return Result.GenError<Result>(Error.FaultTypeNotExist);
             }
 
+            cnt =
+                ServerConfig.ApiDb.Query<int>("SELECT COUNT(1) FROM `fault_device` WHERE FaultTypeId = @id AND `MarkedDelete` = 0;", new { id }).FirstOrDefault();
+            if (cnt > 0)
+            {
+                return Result.GenError<Result>(Error.FaultDeviceUseFaultType);
+            }
+
             ServerConfig.ApiDb.Execute(
                 "UPDATE `fault_type` SET `MarkedDateTime`= @MarkedDateTime, `MarkedDelete`= @MarkedDelete WHERE `Id`= @Id;", new
                 {
@@ -155,6 +162,7 @@ namespace ApiManagement.Controllers
                     MarkedDelete = true,
                     Id = id
                 });
+
             return Result.GenError<Result>(Error.Success);
         }
 

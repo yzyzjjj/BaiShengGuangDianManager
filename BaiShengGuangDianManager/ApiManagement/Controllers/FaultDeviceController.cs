@@ -23,15 +23,16 @@ namespace ApiManagement.Controllers
         public DataResult GetFaultDevice([FromQuery]DateTime startTime, DateTime endTime)
         {
             string sql;
+            var field = FaultDevice.GetField(new List<string> { "DeviceCode" }, "a.");
             if (startTime == default(DateTime) || endTime == default(DateTime))
             {
                 sql =
-                    "SELECT a.*, b.FaultTypeName FROM `fault_device` a JOIN `fault_type` b ON a.FaultTypeId = b.Id WHERE a.MarkedDelete = 0 ORDER BY DeviceCode, a.Id;";
+                    $"SELECT a.*, b.FaultTypeName FROM (SELECT {field}, IFNULL(b.`Code`, a.DeviceCode) DeviceCode FROM `fault_device` a LEFT JOIN `device_library` b ON a.DeviceId = b.Id) a JOIN `fault_type` b ON a.FaultTypeId = b.Id WHERE a.MarkedDelete = 0 ORDER BY DeviceId, a.Id;";
             }
             else
             {
                 sql =
-                    "SELECT a.*, b.FaultTypeName FROM `fault_device` a JOIN `fault_type` b ON a.FaultTypeId = b.Id WHERE a.MarkedDelete = 0 AND a.MarkedDateTime >= @startTime AND a.MarkedDateTime <= @endTime ORDER BY DeviceCode, a.Id;";
+                    $"SELECT a.*, b.FaultTypeName FROM (SELECT {field}, IFNULL(b.`Code`, a.DeviceCode) DeviceCode FROM `fault_device` a LEFT JOIN `device_library` b ON a.DeviceId = b.Id) a JOIN `fault_type` b ON a.FaultTypeId = b.Id WHERE a.MarkedDelete = 0 AND a.MarkedDateTime >= @startTime AND a.MarkedDateTime <= @endTime ORDER BY DeviceId, a.Id;";
             }
             var result = new DataResult();
             result.datas.AddRange(ServerConfig.ApiDb.Query<FaultDeviceDetail>(sql, new { startTime, endTime }).OrderBy(x => x.DeviceCode).ThenByDescending(x => x.FaultTime));
@@ -46,15 +47,16 @@ namespace ApiManagement.Controllers
         public DataResult GetFaultDeviceDeleteLog([FromQuery]DateTime startTime, DateTime endTime)
         {
             string sql;
+            var field = FaultDevice.GetField(new List<string> { "DeviceCode" }, "a.");
             if (startTime == default(DateTime) || endTime == default(DateTime))
             {
                 sql =
-                    "SELECT a.*, b.FaultTypeName FROM `fault_device` a JOIN `fault_type` b ON a.FaultTypeId = b.Id WHERE a.MarkedDelete = 1 AND a.Cancel = 1;";
+                    $"SELECT a.*, b.FaultTypeName FROM (SELECT {field}, IFNULL(b.`Code`, a.DeviceCode) DeviceCode FROM `fault_device` a LEFT JOIN `device_library` b ON a.DeviceId = b.Id) a JOIN `fault_type` b ON a.FaultTypeId = b.Id WHERE a.MarkedDelete = 1 AND a.Cancel = 1;";
             }
             else
             {
                 sql =
-                    "SELECT a.*, b.FaultTypeName FROM `fault_device` a JOIN `fault_type` b ON a.FaultTypeId = b.Id WHERE a.MarkedDelete = 1 AND a.Cancel = 1 AND a.MarkedDateTime >= @startTime AND a.MarkedDateTime <= @endTime;";
+                    $"SELECT a.*, b.FaultTypeName FROM (SELECT {field}, IFNULL(b.`Code`, a.DeviceCode) DeviceCode FROM `fault_device` a LEFT JOIN `device_library` b ON a.DeviceId = b.Id) a JOIN `fault_type` b ON a.FaultTypeId = b.Id WHERE a.MarkedDelete = 1 AND a.Cancel = 1 AND a.MarkedDateTime >= @startTime AND a.MarkedDateTime <= @endTime;";
             }
             var result = new DataResult();
             var data = ServerConfig.ApiDb.Query<FaultDeviceDetail>(sql, new { startTime, endTime }).OrderByDescending(x => x.FaultTime);
@@ -73,8 +75,9 @@ namespace ApiManagement.Controllers
         public DataResult GetFaultDevice([FromRoute] int id)
         {
             var result = new DataResult();
+            var field = FaultDevice.GetField(new List<string> { "DeviceCode" }, "a.");
             var data =
-                ServerConfig.ApiDb.Query<FaultDeviceDetail>("SELECT a.*, b.FaultTypeName FROM `fault_device` a JOIN `fault_type` b ON a.FaultTypeId = b.Id WHERE a.MarkedDelete = 0 AND a.Id = @id;", new { id }).FirstOrDefault();
+                ServerConfig.ApiDb.Query<FaultDeviceDetail>($"SELECT a.*, b.FaultTypeName FROM (SELECT {field}, IFNULL(b.`Code`, a.DeviceCode) DeviceCode FROM `fault_device` a LEFT JOIN `device_library` b ON a.DeviceId = b.Id) a JOIN `fault_type` b ON a.FaultTypeId = b.Id WHERE a.MarkedDelete = 0 AND a.Id = @id;", new { id }).FirstOrDefault();
             if (data == null)
             {
                 result.errno = Error.FaultDeviceNotExist;
@@ -94,14 +97,15 @@ namespace ApiManagement.Controllers
         public DataResult GetFaultDeviceByCode([FromRoute] string code)
         {
             var result = new DataResult();
-            var datas =
-                ServerConfig.ApiDb.Query<FaultDeviceDetail>("SELECT a.*, b.FaultTypeName FROM `fault_device` a JOIN `fault_type` b ON a.FaultTypeId = b.Id WHERE a.MarkedDelete = 0 AND a.DeviceCode = @code;", new { code });
-            if (!datas.Any())
+            var field = FaultDevice.GetField(new List<string> { "DeviceCode" }, "a.");
+            var data =
+                ServerConfig.ApiDb.Query<FaultDeviceDetail>($"SELECT a.*, b.FaultTypeName FROM (SELECT {field}, IFNULL(b.`Code`, a.DeviceCode) DeviceCode FROM `fault_device` a LEFT JOIN `device_library` b ON a.DeviceId = b.Id) a JOIN `fault_type` b ON a.FaultTypeId = b.Id WHERE a.MarkedDelete = 0 AND a.DeviceCode = @code;", new { code });
+            if (!data.Any())
             {
                 result.errno = Error.FaultDeviceNotExist;
                 return result;
             }
-            result.datas.AddRange(datas);
+            result.datas.AddRange(data);
             return result;
         }
 
@@ -129,7 +133,7 @@ namespace ApiManagement.Controllers
             }
             ServerConfig.ApiDb.Execute(
                 "UPDATE fault_device SET `MarkedDateTime` = @MarkedDateTime, `MarkedDelete` = @MarkedDelete, `ModifyId` = @ModifyId, " +
-                "`DeviceCode` = @DeviceCode, `FaultTime` = @FaultTime, `Proposer` = @Proposer, `FaultDescription` = @FaultDescription, `Priority` = @Priority, " +
+                "`DeviceId` = @DeviceId, `DeviceCode` = @DeviceCode, `FaultTime` = @FaultTime, `Proposer` = @Proposer, `FaultDescription` = @FaultDescription, `Priority` = @Priority, " +
                 "`State` = @State WHERE `Id` = @Id;", faultDevices);
 
             return Result.GenError<Result>(Error.Success);
@@ -145,11 +149,21 @@ namespace ApiManagement.Controllers
             //{
             //    return Result.GenError<Result>(Error.FaultDeviceIsExist);
             //}
+
+            if (faultDevice.DeviceId == 0)
+            {
+                var cnt =
+                    ServerConfig.ApiDb.Query<int>("SELECT COUNT(1) FROM `device_library` WHERE `Code` = @Code AND `MarkedDelete` = 0;", new { Code = faultDevice.DeviceCode }).FirstOrDefault();
+                if (cnt > 0)
+                {
+                    return Result.GenError<Result>(Error.ReportDeviceCodeIsExist);
+                }
+            }
             faultDevice.CreateUserId = Request.GetIdentityInformation();
             faultDevice.MarkedDateTime = DateTime.Now;
             ServerConfig.ApiDb.Execute(
-                "INSERT INTO fault_device (`CreateUserId`, `MarkedDateTime`, `MarkedDelete`, `ModifyId`, `DeviceCode`, `FaultTime`, `Proposer`, `FaultDescription`, `Priority`, `State`, `FaultTypeId`) " +
-                "VALUES (@CreateUserId, @MarkedDateTime, @MarkedDelete, @ModifyId, @DeviceCode, @FaultTime, @Proposer, @FaultDescription, @Priority, @State, @FaultTypeId);",
+                "INSERT INTO fault_device (`CreateUserId`, `MarkedDateTime`, `MarkedDelete`, `ModifyId`, `DeviceId`, `DeviceCode`, `FaultTime`, `Proposer`, `FaultDescription`, `Priority`, `State`, `FaultTypeId`) " +
+                "VALUES (@CreateUserId, @MarkedDateTime, @MarkedDelete, @ModifyId, @DeviceId, @DeviceCode, @FaultTime, @Proposer, @FaultDescription, @Priority, @State, @FaultTypeId);",
                 faultDevice);
 
             return Result.GenError<Result>(Error.Success);
@@ -165,6 +179,17 @@ namespace ApiManagement.Controllers
             //{
             //    return Result.GenError<Result>(Error.FaultDeviceIsExist);
             //}
+
+            if (faultDevices.Any(x => x.DeviceId == 0))
+            {
+                var cnt =
+                    ServerConfig.ApiDb.Query<int>("SELECT COUNT(1) FROM `device_library` WHERE `Code` IN @Code AND `MarkedDelete` = 0;",
+                        new { Code = faultDevices.Where(x => x.DeviceId == 0).Select(y => y.DeviceCode) }).FirstOrDefault();
+                if (cnt > 0)
+                {
+                    return Result.GenError<Result>(Error.ReportDeviceCodeIsExist);
+                }
+            }
             var createUserId = Request.GetIdentityInformation();
             var time = DateTime.Now;
             foreach (var faultDevice in faultDevices)
@@ -173,8 +198,8 @@ namespace ApiManagement.Controllers
                 faultDevice.MarkedDateTime = time;
             }
             ServerConfig.ApiDb.Execute(
-                "INSERT INTO fault_device (`CreateUserId`, `MarkedDateTime`, `MarkedDelete`, `ModifyId`, `DeviceCode`, `FaultTime`, `Proposer`, `FaultDescription`, `Priority`, `State`, `FaultTypeId`) " +
-                "VALUES (@CreateUserId, @MarkedDateTime, @MarkedDelete, @ModifyId, @DeviceCode, @FaultTime, @Proposer, @FaultDescription, @Priority, @State, @FaultTypeId);",
+                "INSERT INTO fault_device (`CreateUserId`, `MarkedDateTime`, `MarkedDelete`, `ModifyId`, `DeviceId`, `DeviceCode`, `FaultTime`, `Proposer`, `FaultDescription`, `Priority`, `State`, `FaultTypeId`) " +
+                "VALUES (@CreateUserId, @MarkedDateTime, @MarkedDelete, @ModifyId, @DeviceId, @DeviceCode, @FaultTime, @Proposer, @FaultDescription, @Priority, @State, @FaultTypeId);",
                 faultDevices);
 
             return Result.GenError<Result>(Error.Success);

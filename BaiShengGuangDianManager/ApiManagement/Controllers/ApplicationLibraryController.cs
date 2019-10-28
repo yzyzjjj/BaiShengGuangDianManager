@@ -102,6 +102,13 @@ namespace ApiManagement.Controllers
                 return Result.GenError<Result>(Error.ApplicationLibraryNotExist);
             }
 
+            cnt =
+                ServerConfig.ApiDb.Query<int>("SELECT COUNT(1) FROM `device_library` WHERE ApplicationId = @id AND `MarkedDelete` = 0;", new { id }).FirstOrDefault();
+            if (cnt > 0)
+            {
+                return Result.GenError<Result>(Error.DeviceLibraryUseApplication);
+            }
+
             ServerConfig.ApiDb.Execute(
                 "UPDATE `application_library` SET `MarkedDateTime`= @MarkedDateTime, `MarkedDelete`= @MarkedDelete WHERE `Id`= @Id;", new
                 {

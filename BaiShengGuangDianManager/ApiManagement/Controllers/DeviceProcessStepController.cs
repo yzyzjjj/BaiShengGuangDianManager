@@ -120,6 +120,22 @@ namespace ApiManagement.Controllers
                     MarkedDelete = true,
                     Id = id
                 });
+
+            ServerConfig.ApiDb.Execute(
+                "UPDATE `flowcard_process_step` SET `MarkedDateTime`= @MarkedDateTime, `MarkedDelete`= @MarkedDelete WHERE `ProcessStepId`= @Id;", new
+                {
+                    MarkedDateTime = DateTime.Now,
+                    MarkedDelete = true,
+                    Id = id
+                });
+
+            ServerConfig.ApiDb.Execute(
+                "UPDATE `production_process_step` SET `MarkedDateTime`= @MarkedDateTime, `MarkedDelete`= @MarkedDelete WHERE `ProcessStepId`= @Id;", new
+                {
+                    MarkedDateTime = DateTime.Now,
+                    MarkedDelete = true,
+                    Id = id
+                });
             return Result.GenError<Result>(Error.Success);
         }
     }
