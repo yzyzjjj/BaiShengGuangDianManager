@@ -109,6 +109,13 @@ namespace ApiManagement.Controllers
                 return Result.GenError<Result>(Error.DeviceModelUseDeviceCategory);
             }
 
+            cnt =
+                ServerConfig.ApiDb.Query<int>("SELECT COUNT(1) FROM `device_process_step` WHERE DeviceCategoryId = @id AND `MarkedDelete` = 0;", new { id }).FirstOrDefault();
+            if (cnt > 0)
+            {
+                return Result.GenError<Result>(Error.DeviceProcessStepUseDeviceCategory);
+            }
+
             ServerConfig.ApiDb.Execute(
                 "UPDATE `device_category` SET `MarkedDateTime`= @MarkedDateTime, `MarkedDelete`= @MarkedDelete WHERE `Id`= @Id;", new
                 {
