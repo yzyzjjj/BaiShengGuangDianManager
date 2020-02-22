@@ -1,7 +1,6 @@
 ﻿using ApiManagement.Base.Control;
 using ApiManagement.Base.Server;
 using ApiManagement.Models;
-using ApiManagement.Models.Analysis;
 using Microsoft.EntityFrameworkCore.Internal;
 using Microsoft.Extensions.Configuration;
 using ModelBase.Base.Logger;
@@ -12,6 +11,11 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
+using ApiManagement.Models.DeviceManagementModel;
+using ApiManagement.Models.FlowCardManagementModel;
+using ApiManagement.Models.OtherModel;
+using ApiManagement.Models.RepairManagementModel;
+using ApiManagement.Models.StatisticManagementModel;
 
 namespace ApiManagement.Base.Helper
 {
@@ -29,6 +33,14 @@ namespace ApiManagement.Base.Helper
         private static readonly string AnalysisOtherLock = $"{AnalysisOtherPre}:Lock";
         private static readonly string AnalysisOtherKey = $"{AnalysisOtherPre}:Time";
 
+        private static readonly string ProcessPre = "Process";
+        private static readonly string ProcessDeviceKey = $"{ProcessPre}:Device";
+        private static readonly string ProcessLockKey = $"{ProcessPre}:Lock";
+        private static readonly string ProcessRedisKey = $"{ProcessPre}:Id";
+
+        public static readonly string FlowCardPre = "FlowCard";
+        public static readonly string FlowCardDeviceKey = $"{FlowCardPre}:Device";
+        private static readonly string FlowCardLockKey = $"{FlowCardPre}:Lock";
         private static Timer _analysis;
         private static Timer _analysisOther;
         private static Timer _delete;
@@ -48,9 +60,10 @@ namespace ApiManagement.Base.Helper
             try
             {
                 _script = new Timer(Script, null, 5000, Timeout.Infinite);
-                _processTime = new Timer(ProcessTime, null, 5000, 1000 * 10);
 #if DEBUG
                 Console.WriteLine("AnalysisHelper 调试模式已开启");
+                //_analysis = new Timer(Analysis, null, 10000, 2000);
+                //_processLog = new Timer(UpdateProcessLog, null, 5000, 1000 * 60);
 #else
                 if (!ServerConfig.RedisHelper.Exists(Debug))
                 {
@@ -58,11 +71,7 @@ namespace ApiManagement.Base.Helper
                 }
 
                 ServerConfig.RedisHelper.Remove(AnalysisOtherLock);
-                var monitoringKanban = ServerConfig.ApiDb.Query<MonitoringKanban>("SELECT * FROM `npc_monitoring_kanban` WHERE `Date` = @Date;", new
-                {
-                    Date = DateTime.Today
-                }).FirstOrDefault();
-                ServerConfig.MonitoringKanban = monitoringKanban;
+                ServerConfig.MonitoringKanban = ServerConfig.ApiDb.Query<MonitoringKanban>("SELECT * FROM `npc_monitoring_kanban` ORDER BY `Date` DESC LIMIT 1;").FirstOrDefault();
                 var startId1 = ServerConfig.RedisHelper.Get<int>(AnalysisKey);
                 Thread.Sleep(2000);
                 var startId2 = ServerConfig.RedisHelper.Get<int>(AnalysisKey);
@@ -95,6 +104,10 @@ namespace ApiManagement.Base.Helper
             }
         }
 
+        /// <summary>
+        /// 加工统计  分析
+        /// </summary>
+        /// <param name="state"></param>
         private static void ProcessSum(object state)
         {
 
@@ -105,16 +118,11 @@ namespace ApiManagement.Base.Helper
             }
 #endif
 
-            var _pre = "Process";
-            var deviceKey = $"{_pre}:Device";
-            var lockKey = $"{_pre}:Lock";
-            var redisKey = $"{_pre}:Id";
-
-            if (ServerConfig.RedisHelper.SetIfNotExist(lockKey, "lock"))
+            if (ServerConfig.RedisHelper.SetIfNotExist(ProcessLockKey, "lock"))
             {
                 try
                 {
-                    var startId = ServerConfig.RedisHelper.Get<int>(redisKey);
+                    var startId = ServerConfig.RedisHelper.Get<int>(ProcessRedisKey);
                     var mData = ServerConfig.ApiDb.Query<MonitoringProcessLog>(
                         "SELECT * FROM `npc_monitoring_process_log` WHERE Id > @Id AND OpName = '加工' AND NOT ISNULL(EndTime) LIMIT @limit;", new
                         {
@@ -128,9 +136,9 @@ namespace ApiManagement.Base.Helper
                         {
                             #region  加工记录
                             var deviceList = new Dictionary<int, MonitoringProcessSum>();
-                            if (ServerConfig.RedisHelper.Exists(deviceKey))
+                            if (ServerConfig.RedisHelper.Exists(ProcessDeviceKey))
                             {
-                                deviceList = ServerConfig.RedisHelper.Get<Dictionary<int, MonitoringProcessSum>>(deviceKey);
+                                deviceList = ServerConfig.RedisHelper.Get<Dictionary<int, MonitoringProcessSum>>(ProcessDeviceKey);
                             }
 
                             var monitoringProcessSums = new List<MonitoringProcessSum>();
@@ -172,7 +180,7 @@ namespace ApiManagement.Base.Helper
 
                             #endregion
 
-                            ServerConfig.RedisHelper.SetForever(deviceKey, deviceList);
+                            ServerConfig.RedisHelper.SetForever(ProcessDeviceKey, deviceList);
 
                             Task.Run(() =>
                             {
@@ -188,7 +196,7 @@ namespace ApiManagement.Base.Helper
                                 }
                             });
 
-                            ServerConfig.RedisHelper.SetForever(redisKey, endId);
+                            ServerConfig.RedisHelper.SetForever(ProcessRedisKey, endId);
                         }
                     }
                 }
@@ -196,11 +204,15 @@ namespace ApiManagement.Base.Helper
                 {
                     Log.Error(e);
                 }
-                ServerConfig.RedisHelper.Remove(lockKey);
+                ServerConfig.RedisHelper.Remove(ProcessLockKey);
             }
 
         }
 
+        /// <summary>
+        /// 加工次数  分析
+        /// </summary>
+        /// <param name="state"></param>
         private static void ProcessTime(object state)
         {
 
@@ -322,6 +334,7 @@ namespace ApiManagement.Base.Helper
             }
 
         }
+
         private static void Delete(object state)
         {
             try
@@ -333,7 +346,20 @@ namespace ApiManagement.Base.Helper
 
                 _isDelete = true;
                 ServerConfig.DataStorageDb.Execute(
-                    "DELETE FROM npc_monitoring_data WHERE SendTime < ADDDATE(DATE(NOW()), -3) LIMIT 1000", 60);
+                    "DELETE FROM npc_monitoring_data WHERE SendTime < @SendTime LIMIT 1000;", new
+                    {
+                        SendTime = DateTime.Today.AddDays(-3)
+                    }, 60);
+                //ServerConfig.DataStorageDb.Execute(
+                //    "DELETE FROM npc_monitoring_data WHERE SendTime < @SendTime LIMIT 1000;OPTIMIZE TABLE npc_monitoring_data;", new
+                //    {
+                //        SendTime = DateTime.Today.AddDays(-3)
+                //    }, 60);
+                //ServerConfig.DataStorageDb.Execute(
+                //    "DELETE FROM npc_monitoring_analysis WHERE SendTime < @SendTime LIMIT 1000;OPTIMIZE TABLE npc_monitoring_data;", new
+                //    {
+                //        SendTime = DateTime.Today.AddMonths(-3)
+                //    }, 60);
                 _isDelete = false;
             }
             catch (Exception e)
@@ -376,24 +402,6 @@ namespace ApiManagement.Base.Helper
                         var endId = mData.Last().Id;
                         if (endId > startId)
                         {
-                            foreach (var data in mData)
-                            {
-                                var infoMessagePacket = new DeviceInfoMessagePacket(data.ValNum, data.InNum, data.OutNum);
-                                var analysisData = infoMessagePacket.Deserialize(data.Data);
-                                data.AnalysisData = new DeviceData();
-                                if (analysisData != null)
-                                {
-                                    data.AnalysisData.vals = analysisData.vals;
-                                    data.AnalysisData.ins = analysisData.ins;
-                                    data.AnalysisData.outs = analysisData.outs;
-                                }
-                                else
-                                {
-                                    data.AnalysisData = null;
-                                }
-                                data.Data = data.AnalysisData.ToJSON();
-                            }
-
                             #region  加工记录
                             //设备状态
                             var stateDId = 1;
@@ -478,56 +486,42 @@ namespace ApiManagement.Base.Helper
                                     }
                                 }
 
+                                if (ServerConfig.MonitoringKanban == null)
+                                {
+                                    ServerConfig.MonitoringKanban = new MonitoringKanban
+                                    {
+                                        Time = mData.FirstOrDefault().SendTime.NoMillisecond(),
+                                    };
+                                }
                                 var faultDeviceCount = ServerConfig.ApiDb.Query<int>(
-                                    "SELECT COUNT(1) FROM (SELECT * FROM `fault_device` WHERE MarkedDelete = 0 AND DeviceId != 0 GROUP BY DeviceCode) a;").FirstOrDefault();
+                                    "SELECT COUNT(1) FROM (SELECT * FROM `fault_device` WHERE DeviceId != 0 AND FaultTime >= @FaultTime1 AND FaultTime <= @FaultTime2 GROUP BY DeviceCode) a;", new
+                                    {
+                                        FaultTime1 = ServerConfig.MonitoringKanban != null ? ServerConfig.MonitoringKanban.Time.DayBeginTime() : DateTime.Now.DayBeginTime(),
+                                        FaultTime2 = ServerConfig.MonitoringKanban != null ? ServerConfig.MonitoringKanban.Time.DayEndTime() : DateTime.Now.DayEndTime()
+
+                                    }).FirstOrDefault();
 
                                 _monitoringKanban = _monitoringKanban ?? new MonitoringKanban
                                 {
-                                    Time = DateTime.Now.NoMillisecond(),
+                                    Time = ServerConfig.MonitoringKanban.Time.NoMillisecond(),
                                     FaultDevice = faultDeviceCount,
                                     AllDevice = allDeviceList.Count(),
                                 };
-                                if (mData.Any())
+                                if (usuallyDictionaries != null && usuallyDictionaries.Any())
                                 {
-                                    var time = DateTime.Now.NoMillisecond();
-                                    var lastData = mData.OrderBy(x => x.DeviceId).ThenBy(x => x.SendTime);
-                                    foreach (var data in lastData)
+                                    foreach (var data in mData.OrderBy(x => x.SendTime))
                                     {
-                                        time = data.SendTime.NoMillisecond();
-                                        if (_monitoringKanban.Time != time)
-                                        {
-                                            if (_monitoringKanban.InitCount > 0 || _monitoringKanban.Init)
-                                            {
-                                                if (Update(allDeviceList, time))
-                                                {
-                                                    _monitoringKanban = new MonitoringKanban
-                                                    {
-                                                        Time = time,
-                                                        FaultDevice = faultDeviceCount,
-                                                        AllDevice = allDeviceList.Count(),
-                                                    };
-                                                    if (_monitoringKanban.Time.InSameDay(DateTime.Now))
-                                                    {
-                                                        _monitoringKanban.UseList = ServerConfig.MonitoringKanban.UseList;
-                                                        _monitoringKanban.SingleProcessRate = ServerConfig.MonitoringKanban.SingleProcessRate;
-                                                    }
-                                                }
-                                            }
-                                        }
-
-                                        if (usuallyDictionaries == null || !usuallyDictionaries.Any())
-                                        {
-                                            continue;
-                                        }
-
-                                        var analysisData = data.AnalysisData;
+                                        var time = data.SendTime.NoMillisecond();
+                                        var infoMessagePacket = new DeviceInfoMessagePacket(data.ValNum, data.InNum, data.OutNum);
+                                        var analysisData = infoMessagePacket.Deserialize(data.Data);
                                         if (analysisData != null)
                                         {
-                                            if (time == _monitoringKanban.Time.NoMillisecond())
+                                            data.AnalysisData = new DeviceData
                                             {
-                                                _monitoringKanban.Init = true;
-                                                _monitoringKanban.InitCount++;
-                                            }
+                                                vals = analysisData.vals,
+                                                ins = analysisData.ins,
+                                                outs = analysisData.outs
+                                            };
 
                                             var actAddress = uDies[new Tuple<int, int>(data.ScriptId, currentFlowCardDId)] - 1;
                                             var currentFlowCardId = 0;
@@ -620,6 +614,7 @@ namespace ApiManagement.Base.Helper
                                                     }
                                                 }
 
+                                                currentFlowCardId = 0;
                                                 //开始加工
                                                 if (bStart)
                                                 {
@@ -728,8 +723,30 @@ namespace ApiManagement.Base.Helper
                                                 Rate = (decimal)deviceList.Values.Count(x => x.State == 1) * 100 / allDeviceList.Count(),
                                             });
                                         }
+                                        else
+                                        {
+                                            data.AnalysisData = null;
+                                        }
+                                        data.Data = data.AnalysisData.ToJSON();
+
+                                        Update(allDeviceList, time);
+                                        if (!_monitoringKanban.Time.InSameDay(time))
+                                        {
+                                            _monitoringKanban = new MonitoringKanban
+                                            {
+                                                Time = time,
+                                                FaultDevice = faultDeviceCount,
+                                                AllDevice = allDeviceList.Count(),
+                                            };
+                                        }
+                                        //else
+                                        //{
+                                        //    _monitoringKanban.UseList = ServerConfig.MonitoringKanban.UseList;
+                                        //    _monitoringKanban.SingleProcessRate =
+                                        //        ServerConfig.MonitoringKanban.SingleProcessRate;
+                                        //}
                                     }
-                                    Update(allDeviceList, time);
+                                    //Update(allDeviceList, time);
                                 }
                             }
                             #endregion
@@ -791,9 +808,8 @@ namespace ApiManagement.Base.Helper
             }
         }
 
-        private static bool Update(IEnumerable<MonitoringProcess> allDeviceList, DateTime time)
+        private static void Update(IEnumerable<MonitoringProcess> allDeviceList, DateTime time)
         {
-            _monitoringKanban.InitCount = 0;
             _monitoringKanban.Time = time;
             var validDevice = allDeviceList.Where(x => Math.Abs((x.Time - _monitoringKanban.Time).TotalSeconds) < 5);
             _monitoringKanban.NormalDevice = validDevice.Count();
@@ -828,12 +844,7 @@ namespace ApiManagement.Base.Helper
             _monitoringKanban.ProcessTime = todayDevice.Sum(x => x.ProcessTime);
 
             _monitoringKanban.UseCodeList = allDeviceList.OrderBy(x => x.DeviceId).Where(x => _monitoringKanban.UseList.Contains(x.DeviceId)).Select(x => x.Code).ToList();
-            if (ServerConfig.MonitoringKanban == null)
-            {
-                ServerConfig.MonitoringKanban = new MonitoringKanban();
-            }
-
-            return ServerConfig.MonitoringKanban.Update(_monitoringKanban);
+            ServerConfig.MonitoringKanban.Update(_monitoringKanban);
         }
 
         /// <summary>
@@ -1300,7 +1311,7 @@ namespace ApiManagement.Base.Helper
                 return;
             }
 #endif
-
+            FlowCardReport();
             if (_isProcessLog)
             {
                 return;
@@ -1385,6 +1396,54 @@ namespace ApiManagement.Base.Helper
             }
 
             _isProcessLog = false;
+        }
+
+        /// <summary>
+        ///流程卡上报初始化
+        /// </summary>
+        public static void FlowCardReport(bool isReport = false)
+        {
+#if !DEBUG
+            if (ServerConfig.RedisHelper.Get<int>("Debug") != 0)
+            {
+                return;
+            }
+#endif
+            var change = false;
+            if (ServerConfig.RedisHelper.SetIfNotExist(FlowCardLockKey, "lock"))
+            {
+                try
+                {
+                    var deviceList = new List<FlowCardReport>();
+                    var dl = ServerConfig.RedisHelper.Get<IEnumerable<FlowCardReport>>(FlowCardDeviceKey);
+                    var deviceListDb = ServerConfig.ApiDb.Query<FlowCardReport>(
+                        "SELECT MAX(id) Id, DeviceId FROM `npc_monitoring_process_log` WHERE OpName = '加工' AND NOT ISNULL(EndTime) GROUP BY DeviceId;");
+                    if (dl != null)
+                    {
+                        deviceList.AddRange(dl);
+                    }
+
+                    foreach (var device in deviceListDb)
+                    {
+                        if (deviceList.All(x => x.DeviceId != device.DeviceId))
+                        {
+                            change = true;
+                            deviceList.Add(device);
+                        }
+                    }
+
+                    if (change)
+                    {
+                        ServerConfig.RedisHelper.SetForever(FlowCardDeviceKey, deviceList);
+                    }
+                }
+                catch (Exception e)
+                {
+                    Log.Error(e);
+                }
+
+                ServerConfig.RedisHelper.Remove(FlowCardLockKey);
+            }
         }
     }
 }

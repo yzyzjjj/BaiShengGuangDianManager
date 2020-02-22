@@ -1,5 +1,6 @@
 ﻿using ApiManagement.Base.Server;
-using ApiManagement.Models;
+using ApiManagement.Models.DeviceManagementModel;
+using ApiManagement.Models.FlowCardManagementModel;
 using Microsoft.Extensions.Configuration;
 using ModelBase.Base.HttpServer;
 using ModelBase.Base.Logger;
@@ -51,13 +52,27 @@ namespace ApiManagement.Base.Helper
         /// </summary>
         private static void DoSth(object state)
         {
-            UpdateProductionProcessStep();
-            UpdateProductionSpecification();
+            var _pre = "FlowCard";
+            var lockKey = $"{_pre}:Lock";
+            if (ServerConfig.RedisHelper.SetIfNotExist(lockKey, "lock"))
+            {
+                try
+                {
+                    UpdateProductionProcessStep();
+                    UpdateProductionSpecification();
 
-            Insert();
-            Update();
+                    Insert();
+                    Update();
 
-            UpdateFlowCardProcessStep();
+                    UpdateFlowCardProcessStep();
+                }
+                catch (Exception e)
+                {
+                    Log.Error(e);
+                }
+                ServerConfig.RedisHelper.Remove(lockKey);
+
+            }
         }
 
         /// <summary>
