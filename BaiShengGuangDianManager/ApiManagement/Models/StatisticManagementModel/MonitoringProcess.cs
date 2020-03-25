@@ -2,6 +2,13 @@
 
 namespace ApiManagement.Models.StatisticManagementModel
 {
+
+    public class RedisMonitoringProcess
+    {
+        public DateTime Time { get; set; }
+        public int DeviceId { get; set; }
+        public int State { get; set; }
+    }
     public class MonitoringProcess : ICloneable
     {
         public DateTime Time { get; set; }

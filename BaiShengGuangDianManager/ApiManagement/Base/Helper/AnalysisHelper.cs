@@ -1,6 +1,10 @@
 ﻿using ApiManagement.Base.Control;
 using ApiManagement.Base.Server;
-using ApiManagement.Models;
+using ApiManagement.Models.DeviceManagementModel;
+using ApiManagement.Models.FlowCardManagementModel;
+using ApiManagement.Models.OtherModel;
+using ApiManagement.Models.RepairManagementModel;
+using ApiManagement.Models.StatisticManagementModel;
 using Microsoft.EntityFrameworkCore.Internal;
 using Microsoft.Extensions.Configuration;
 using ModelBase.Base.Logger;
@@ -11,11 +15,6 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
-using ApiManagement.Models.DeviceManagementModel;
-using ApiManagement.Models.FlowCardManagementModel;
-using ApiManagement.Models.OtherModel;
-using ApiManagement.Models.RepairManagementModel;
-using ApiManagement.Models.StatisticManagementModel;
 
 namespace ApiManagement.Base.Helper
 {
@@ -122,6 +121,7 @@ namespace ApiManagement.Base.Helper
             {
                 try
                 {
+                    ServerConfig.RedisHelper.SetExpireAt(ProcessLockKey, DateTime.Now.AddMinutes(5));
                     var startId = ServerConfig.RedisHelper.Get<int>(ProcessRedisKey);
                     var mData = ServerConfig.ApiDb.Query<MonitoringProcessLog>(
                         "SELECT * FROM `npc_monitoring_process_log` WHERE Id > @Id AND OpName = '加工' AND NOT ISNULL(EndTime) LIMIT @limit;", new
@@ -232,6 +232,7 @@ namespace ApiManagement.Base.Helper
             {
                 try
                 {
+                    ServerConfig.RedisHelper.SetExpireAt(lockKey, DateTime.Now.AddMinutes(5));
                     var startId = ServerConfig.RedisHelper.Get<int>(redisKey);
                     var mData = ServerConfig.ApiDb.Query<MonitoringProcessLogDetail>(
                         "SELECT * FROM `npc_monitoring_process_log` WHERE Id > @Id AND OpName = '加工' AND NOT ISNULL(EndTime) LIMIT @limit;", new
@@ -390,6 +391,7 @@ namespace ApiManagement.Base.Helper
             {
                 try
                 {
+                    ServerConfig.RedisHelper.SetExpireAt(lockKey, DateTime.Now.AddMinutes(5));
                     var startId = ServerConfig.RedisHelper.Get<int>(redisKey);
                     var mData = ServerConfig.DataStorageDb.Query<MonitoringData>(
                         "SELECT * FROM `npc_monitoring_data` WHERE Id > @Id AND UserSend = 0 ORDER BY Id LIMIT @limit;", new
@@ -430,11 +432,12 @@ namespace ApiManagement.Base.Helper
 
                             var allDeviceList = ServerConfig.ApiDb.Query<MonitoringProcess>(
                                  "SELECT b.*, c.DeviceCategoryId, a.`Code` FROM `device_library` a JOIN `npc_proxy_link` b ON a.Id = b.DeviceId JOIN `device_model` c ON a.DeviceModelId = c.Id WHERE a.MarkedDelete = 0;");
-
-                            var deviceList = allDeviceList.Where(x => mData.Any(y => y.DeviceId == x.DeviceId)).ToDictionary(x => x.DeviceId);
+                            
+                            var existDeviceId = mData.GroupBy(x => x.DeviceId).Select(y => y.Key);
+                            var deviceList = allDeviceList.Where(x => existDeviceId.Any(y => y == x.DeviceId)).ToDictionary(x => x.DeviceId);
                             if (ServerConfig.RedisHelper.Exists(deviceKey))
                             {
-                                var redisDeviceList = ServerConfig.RedisHelper.Get<IEnumerable<MonitoringProcess>>(deviceKey);
+                                var redisDeviceList = ServerConfig.RedisHelper.Get<IEnumerable<RedisMonitoringProcess>>(deviceKey);
                                 if (redisDeviceList != null)
                                 {
                                     foreach (var device in redisDeviceList)
@@ -442,6 +445,7 @@ namespace ApiManagement.Base.Helper
                                         if (deviceList.ContainsKey(device.DeviceId))
                                         {
                                             deviceList[device.DeviceId].State = device.State;
+                                            deviceList[device.DeviceId].Time = device.Time;
                                         }
                                     }
                                 }
@@ -754,7 +758,8 @@ namespace ApiManagement.Base.Helper
                             ServerConfig.RedisHelper.SetForever(deviceKey, deviceList.Values.Select(x => new
                             {
                                 x.DeviceId,
-                                x.State
+                                x.State,
+                                x.Time
                             }));
 
                             ServerConfig.ApiDb.Execute(
@@ -864,6 +869,7 @@ namespace ApiManagement.Base.Helper
             {
                 try
                 {
+                    ServerConfig.RedisHelper.SetExpireAt(AnalysisOtherLock, DateTime.Now.AddMinutes(5));
                     var startTime = ServerConfig.RedisHelper.Get<DateTime>(AnalysisOtherKey);
                     if (startTime == default(DateTime))
                     {
@@ -1414,6 +1420,7 @@ namespace ApiManagement.Base.Helper
             {
                 try
                 {
+                    ServerConfig.RedisHelper.SetExpireAt(FlowCardLockKey, DateTime.Now.AddMinutes(5));
                     var deviceList = new List<FlowCardReport>();
                     var dl = ServerConfig.RedisHelper.Get<IEnumerable<FlowCardReport>>(FlowCardDeviceKey);
                     var deviceListDb = ServerConfig.ApiDb.Query<FlowCardReport>(

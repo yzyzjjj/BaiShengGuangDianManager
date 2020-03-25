@@ -1,13 +1,13 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using ApiManagement.Base.Server;
+﻿using ApiManagement.Base.Server;
 using ApiManagement.Models.RepairManagementModel;
 using Microsoft.AspNetCore.Mvc;
 using ModelBase.Base.EnumConfig;
 using ModelBase.Base.Utils;
 using ModelBase.Models.Result;
 using ServiceStack;
+using System;
+using System.Collections.Generic;
+using System.Linq;
 
 namespace ApiManagement.Controllers.RepairManagementController
 {
@@ -20,31 +20,27 @@ namespace ApiManagement.Controllers.RepairManagementController
     {
         // GET: api/UsuallyFault
         [HttpGet]
-        public DataResult GetUsuallyFault()
+        public DataResult GetUsuallyFault([FromQuery]int qId, bool menu)
         {
             var result = new DataResult();
-            result.datas.AddRange(ServerConfig.ApiDb.Query<UsuallyFault>("SELECT * FROM `usually_fault` WHERE MarkedDelete = 0;"));
-            return result;
-        }
+            string sql;
+            if (menu)
+            {
+                sql =
+                    $"SELECT Id, UsuallyFaultDesc, SolvePlan FROM `usually_fault` WHERE MarkedDelete = 0{(qId == 0 ? "" : " AND Id = @qId")};";
+                result.datas.AddRange(ServerConfig.ApiDb.Query<dynamic>(sql, new { qId }));
+            }
+            else
+            {
+                sql = $"SELECT * FROM `usually_fault` WHERE MarkedDelete = 0{(qId == 0 ? "" : " AND Id = @qId")};";
+                result.datas.AddRange(ServerConfig.ApiDb.Query<UsuallyFault>(sql, new { qId }));
+            }
 
-        /// <summary>
-        /// 自增Id
-        /// </summary>
-        /// <param name="id">自增Id</param>
-        /// <returns></returns>
-        // GET: api/UsuallyFault/5
-        [HttpGet("{id}")]
-        public DataResult GetUsuallyFault([FromRoute] int id)
-        {
-            var result = new DataResult();
-            var data =
-                ServerConfig.ApiDb.Query<UsuallyFault>("SELECT * FROM `usually_fault` WHERE Id = @id AND MarkedDelete = 0;", new { id }).FirstOrDefault();
-            if (data == null)
+            if (qId != 0 && !result.datas.Any())
             {
                 result.errno = Error.UsuallyFaultNotExist;
                 return result;
             }
-            result.datas.Add(data);
             return result;
         }
 
@@ -80,7 +76,7 @@ namespace ApiManagement.Controllers.RepairManagementController
             usuallyFault.MarkedDateTime = DateTime.Now;
             ServerConfig.ApiDb.Execute(
                 "UPDATE usually_fault SET `MarkedDateTime` = @MarkedDateTime, `MarkedDelete` = @MarkedDelete, " +
-                "`ModifyId` = @ModifyId, `UsuallyFaultDesc` = @UsuallyFaultDesc, `SolverPlan` = @SolverPlan WHERE `Id` = @Id;", usuallyFault);
+                "`ModifyId` = @ModifyId, `UsuallyFaultDesc` = @UsuallyFaultDesc, `SolvePlan` = @SolvePlan WHERE `Id` = @Id;", usuallyFault);
 
             return Result.GenError<Result>(Error.Success);
         }
@@ -99,8 +95,8 @@ namespace ApiManagement.Controllers.RepairManagementController
             usuallyFault.CreateUserId = Request.GetIdentityInformation();
             usuallyFault.MarkedDateTime = DateTime.Now;
             ServerConfig.ApiDb.Execute(
-                "INSERT INTO usually_fault (`CreateUserId`, `MarkedDateTime`, `MarkedDelete`, `ModifyId`, `UsuallyFaultDesc`, `SolverPlan`) " +
-                "VALUES (@CreateUserId, @MarkedDateTime, @MarkedDelete, @ModifyId, @UsuallyFaultDesc, @SolverPlan);",
+                "INSERT INTO usually_fault (`CreateUserId`, `MarkedDateTime`, `MarkedDelete`, `ModifyId`, `UsuallyFaultDesc`, `SolvePlan`) " +
+                "VALUES (@CreateUserId, @MarkedDateTime, @MarkedDelete, @ModifyId, @UsuallyFaultDesc, @SolvePlan);",
                 usuallyFault);
 
             return Result.GenError<Result>(Error.Success);
@@ -126,8 +122,8 @@ namespace ApiManagement.Controllers.RepairManagementController
                 usuallyFault.MarkedDateTime = DateTime.Now;
             }
             ServerConfig.ApiDb.Execute(
-                "INSERT INTO usually_fault (`CreateUserId`, `MarkedDateTime`, `MarkedDelete`, `ModifyId`, `UsuallyFaultDesc`, `SolverPlan`) " +
-                "VALUES (@CreateUserId, @MarkedDateTime, @MarkedDelete, @ModifyId, @UsuallyFaultDesc, @SolverPlan);",
+                "INSERT INTO usually_fault (`CreateUserId`, `MarkedDateTime`, `MarkedDelete`, `ModifyId`, `UsuallyFaultDesc`, `SolvePlan`) " +
+                "VALUES (@CreateUserId, @MarkedDateTime, @MarkedDelete, @ModifyId, @UsuallyFaultDesc, @SolvePlan);",
                 usuallyFaults);
 
             return Result.GenError<Result>(Error.Success);

@@ -17,10 +17,17 @@ namespace ApiManagement.Controllers.DeviceManagementController
     {
         // GET: api/DeviceCategory
         [HttpGet]
-        public DataResult GetDeviceCategory()
+        public DataResult GetDeviceCategory([FromQuery] bool menu)
         {
             var result = new DataResult();
-            result.datas.AddRange(ServerConfig.ApiDb.Query<DeviceCategory>("SELECT * FROM `device_category` WHERE `MarkedDelete` = 0;"));
+            if (menu)
+            {
+                result.datas.AddRange(ServerConfig.ApiDb.Query<dynamic>("SELECT Id, CategoryName FROM `device_category` WHERE `MarkedDelete` = 0;"));
+            }
+            else
+            {
+                result.datas.AddRange(ServerConfig.ApiDb.Query<DeviceCategory>("SELECT * FROM `device_category` WHERE `MarkedDelete` = 0;"));
+            }
             return result;
         }
 

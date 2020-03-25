@@ -16,10 +16,17 @@ namespace ApiManagement.Controllers.DeviceManagementController
     {
         // GET: api/DeviceModels
         [HttpGet]
-        public DataResult GetDeviceModel()
+        public DataResult GetDeviceModel([FromQuery] bool menu)
         {
             var result = new DataResult();
+            if (menu)
+            {
+            result.datas.AddRange(ServerConfig.ApiDb.Query<dynamic>("SELECT a.Id, a.ModelName, b.CategoryName FROM `device_model` a JOIN `device_category` b ON a.DeviceCategoryId = b.Id WHERE a.MarkedDelete = 0 ORDER BY a.Id;;"));
+            }
+            else
+            {
             result.datas.AddRange(ServerConfig.ApiDb.Query<DeviceModelDetail>("SELECT a.*, b.CategoryName FROM `device_model` a JOIN `device_category` b ON a.DeviceCategoryId = b.Id WHERE a.MarkedDelete = 0 ORDER BY a.Id;;"));
+            }
             return result;
         }
 

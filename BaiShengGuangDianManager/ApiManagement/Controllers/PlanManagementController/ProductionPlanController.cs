@@ -1,13 +1,13 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using ApiManagement.Base.Server;
+﻿using ApiManagement.Base.Server;
 using ApiManagement.Models.PlanManagementModel;
 using Microsoft.AspNetCore.Mvc;
 using ModelBase.Base.EnumConfig;
 using ModelBase.Base.Utils;
 using ModelBase.Models.Result;
 using ServiceStack;
+using System;
+using System.Collections.Generic;
+using System.Linq;
 
 namespace ApiManagement.Controllers.PlanManagementController
 {
@@ -24,11 +24,11 @@ namespace ApiManagement.Controllers.PlanManagementController
         public DataResult GetProductionPlan([FromQuery]int qId, bool first, bool simple)
         {
             var sql =
-                   "SELECT a.*, IFNULL(b.PlannedConsumption, 0) PlannedConsumption, IFNULL(b.ActualConsumption, 0) ActualConsumption, " +
-                   "IFNULL(b.ExtraConsumption, 0) ExtraConsumption, IFNULL(b.PlannedCost, 0) PlannedCost, IFNULL(b.ActualCost, 0) ActualCost FROM `production_plan` a " +
-                   "LEFT JOIN ( SELECT PlanId, SUM( IF ( Extra = 0, PlannedConsumption, 0 ) ) PlannedConsumption, SUM( IF ( Extra = 0, ActualConsumption, 0 ) ) ActualConsumption, " +
-                   "SUM( IF ( Extra = 1, ActualConsumption, 0 ) ) ExtraConsumption, SUM(IF(Extra = 0, b.Price, 0)) PlannedCost, SUM(b.Price) ActualCost " +
-                   $"FROM `production_plan_bill` a JOIN `material_bill` b ON a.BillId = b.Id GROUP BY PlanId ) b ON a.Id = b.PlanId WHERE {(qId == 0 ? "" : "a.Id = @qId AND ")}a.`MarkedDelete` = 0;";
+                   "SELECT a.*, IFNULL(b.PlannedConsumption, 0) PlannedConsumption, IFNULL(b.ActualConsumption, 0) ActualConsumption, IFNULL(b.ExtraConsumption, 0) ExtraConsumption, " +
+                   "IFNULL(b.PlannedCost, 0) PlannedCost, IFNULL(b.ActualCost, 0) ActualCost FROM `production_plan` a LEFT JOIN ( SELECT PlanId, SUM(IF (Extra = 0,PlannedConsumption,0)) " +
+                   "PlannedConsumption, SUM(ActualConsumption) ActualConsumption, SUM(IF (Extra = 1, ActualConsumption,0)) ExtraConsumption, SUM(IF (Extra = 0,PlannedConsumption* b.Price,0)) " +
+                   "PlannedCost, SUM(ActualConsumption * b.Price) ActualCost FROM `production_plan_bill` a JOIN `material_bill` b ON a.BillId = b.Id GROUP BY PlanId ) b ON a.Id = b.PlanId " +
+                   $"WHERE {(qId == 0 ? "" : "a.Id = @qId AND ")}a.`MarkedDelete` = 0;";
             if (simple)
             {
                 sql = $"SELECT * FROM `production_plan` WHERE {(qId == 0 ? "" : "Id = @qId AND ")}`MarkedDelete` = 0;";
@@ -51,7 +51,7 @@ namespace ApiManagement.Controllers.PlanManagementController
                         "JOIN ( SELECT a.*, b.`Name`, b.CategoryId, b.Category FROM `material_supplier` a " +
                         "JOIN ( SELECT a.*, b.Category FROM `material_name` a " +
                         "JOIN `material_category` b ON a.CategoryId = b.Id ) b ON a.NameId = b.Id ) b ON a.SupplierId = b.Id ) b ON a.SpecificationId = b.Id JOIN `material_site` c ON a.SiteId = c.Id ) b ON a.BillId = b.Id " +
-                        "LEFT JOIN `material_management` c ON a.BillId = c.BillId WHERE a.PlanId = @planId AND a.`MarkedDelete` = 0 ORDER BY a.Id, a.Extra;";
+                        "LEFT JOIN `material_management` c ON a.BillId = c.BillId WHERE a.PlanId = @planId AND a.`MarkedDelete` = 0 ORDER BY a.Extra, a.Id;";
                     plan.FirstBill.AddRange(ServerConfig.ApiDb.Query<ProductionPlanBillStockDetail>(sql, new { planId = plan.Id }));
                 }
             }
@@ -90,83 +90,78 @@ namespace ApiManagement.Controllers.PlanManagementController
             }
             else
             {
-                productionPlan.Bill = productionPlan.Bill.Where(x => !x.Extra);
-                var pBill = productionPlan.Bill.GroupBy(x => x.BillId).Select(y => y.Key);
-                cnt = ServerConfig.ApiDb.Query<int>("SELECT COUNT(1) FROM `material_bill` WHERE Id IN @ids AND MarkedDelete = 0;",
+                var planBill = ServerConfig.ApiDb.Query<ProductionPlanBill>("SELECT * FROM `production_plan_bill` WHERE `PlanId` = @PlanId AND MarkedDelete = 0;", new
+                {
+                    PlanId = id
+                });
+
+                productionPlan.Bill =
+                    productionPlan.Bill.OrderByDescending(x => x.Id);
+                var plBill = new Dictionary<int, ProductionPlanBill>();
+                foreach (var bill in productionPlan.Bill)
+                {
+                    if (!plBill.ContainsKey(bill.BillId))
+                    {
+                        if (bill.Id == 0)
+                        {
+                            bill.CreateUserId = createUserId;
+                            bill.MarkedDateTime = markedDateTime;
+                            bill.PlanId = id;
+                        }
+                        if (planBill != null && planBill.Any())
+                        {
+                            bill.Extra = planBill.FirstOrDefault(x => x.BillId == bill.BillId)?.Extra ?? false;
+                        }
+                        plBill.Add(bill.BillId, bill);
+                    }
+                    else
+                    {
+                        plBill[bill.BillId].MarkedDateTime = markedDateTime;
+                        plBill[bill.BillId].PlannedConsumption += bill.PlannedConsumption;
+                    }
+                }
+
+                //productionPlan.Bill = productionPlan.Bill.Where(x => !x.Extra);
+                var pBill = plBill.Values.Where(z => z.BillId != 0).GroupBy(x => x.BillId).Select(y => y.Key);
+                cnt = ServerConfig.ApiDb.Query<int>("SELECT COUNT(1) FROM `material_bill` WHERE Id IN @ids;",
                     new { ids = pBill }).FirstOrDefault();
                 if (cnt != pBill.Count())
                 {
                     return Result.GenError<Result>(Error.MaterialBillNotExist);
                 }
 
-                var plBill = new List<ProductionPlanBill>();
-                foreach (var billId in pBill.Where(x => x != 0))
-                {
-                    var bill = productionPlan.Bill.First(x => x.BillId == billId);
-                    bill.PlannedConsumption = productionPlan.Bill.Where(x => x.BillId == billId).Sum(y => y.PlannedConsumption);
-                    bill.PlanId = id;
-                    bill.CreateUserId = createUserId;
-                    bill.MarkedDateTime = markedDateTime;
-                    plBill.Add(bill);
-                }
-                foreach (var billId in pBill.Where(x => x == 0))
-                {
-                    var bill = productionPlan.Bill.First(x => x.BillId == billId);
-                    bill.PlannedConsumption = productionPlan.Bill.Where(x => x.BillId == billId).Sum(y => y.PlannedConsumption);
-                    bill.PlanId = id;
-                    bill.CreateUserId = createUserId;
-                    bill.MarkedDateTime = markedDateTime;
-                    plBill.Add(bill);
-                }
-
-                productionPlan.Bill = plBill;
-                var planBill = ServerConfig.ApiDb.Query<ProductionPlanBill>("SELECT * FROM `production_plan_bill` WHERE `PlanId` = @PlanId AND Extra = 0 AND MarkedDelete = 0;", new
-                {
-                    PlanId = id
-                });
-
+                var updateBill = new List<ProductionPlanBill>();
                 #region 更新
-                var existBill = productionPlan.Bill.Where(x => planBill.Any(y => y.Id == x.Id));
-                foreach (var bill in existBill)
-                {
-                    bill.MarkedDateTime = markedDateTime;
-                }
-
-                ServerConfig.ApiDb.Execute(
-                    "UPDATE production_plan_bill SET `MarkedDateTime` = @MarkedDateTime, `BillId` = @BillId, `PlannedConsumption` = @PlannedConsumption WHERE `Id` = @Id;", existBill);
+                updateBill.AddRange(plBill.Values.Where(x => planBill.Any(y => y.Id == x.Id)));
                 #endregion
 
                 #region 删除
-                var deleteBill = planBill.Where(x => productionPlan.Bill.All(y => y.Id != x.Id));
-                if (deleteBill.Any())
+                var deleteBill = planBill.Where(x => plBill.Values.All(y => y.Id != x.Id));
+                if (deleteBill.Any(x => x.ActualConsumption > 0))
                 {
-                    ServerConfig.ApiDb.Execute(
-                        "UPDATE `production_plan_bill` SET `MarkedDateTime`= @MarkedDateTime, `MarkedDelete`= @MarkedDelete WHERE `Id` IN @ids;", new
-                        {
-                            MarkedDateTime = DateTime.Now,
-                            MarkedDelete = true,
-                            ids = deleteBill.Select(x => x.Id)
-                        });
+                    return Result.GenError<Result>(Error.ProductionPlanBillConsumed);
                 }
-
+                updateBill.AddRange(deleteBill.Select(x =>
+                {
+                    x.MarkedDelete = true;
+                    return x;
+                }));
                 #endregion
 
                 #region 添加
-                var addBill = productionPlan.Bill.Where(x => planBill.All(y => y.Id != x.Id));
+                var addBill = plBill.Values.Where(x => planBill.All(y => y.Id != x.Id));
+                #endregion
+
+                ServerConfig.ApiDb.Execute(
+                    "UPDATE production_plan_bill SET `MarkedDateTime` = @MarkedDateTime, `MarkedDelete`= @MarkedDelete, `BillId` = @BillId, `PlannedConsumption` = @PlannedConsumption, `Extra` = @Extra WHERE `Id` = @Id;", updateBill);
+
                 if (addBill.Any())
                 {
-                    foreach (var bill in addBill)
-                    {
-                        bill.CreateUserId = createUserId;
-                        bill.MarkedDateTime = markedDateTime;
-                        bill.PlanId = id;
-                    }
                     ServerConfig.ApiDb.Execute(
                         "INSERT INTO production_plan_bill (`CreateUserId`, `MarkedDateTime`, `PlanId`, `BillId`, `PlannedConsumption`) " +
                         "VALUES (@CreateUserId, @MarkedDateTime, @PlanId, @BillId, @PlannedConsumption);",
                         addBill);
                 }
-                #endregion
             }
 
             ServerConfig.ApiDb.Execute(
@@ -241,18 +236,18 @@ namespace ApiManagement.Controllers.PlanManagementController
         /// </summary>
         /// <param name="id"></param>
         /// <returns></returns>
-        [HttpDelete]
+        [HttpDelete("{id}")]
         public Result DeleteProductionPlan([FromRoute] int id)
         {
             var cnt =
-                ServerConfig.ApiDb.Query<int>("SELECT COUNT(1) FROM `production_plan` WHERE Id IN @id AND `MarkedDelete` = 0;", new { id }).FirstOrDefault();
+                ServerConfig.ApiDb.Query<int>("SELECT COUNT(1) FROM `production_plan` WHERE Id = @id AND `MarkedDelete` = 0;", new { id }).FirstOrDefault();
             if (cnt == 0)
             {
                 return Result.GenError<Result>(Error.ProductionPlanNotExist);
             }
 
             ServerConfig.ApiDb.Execute(
-                "UPDATE `production_plan` SET `MarkedDateTime`= @MarkedDateTime, `MarkedDelete`= @MarkedDelete WHERE `Id` IN @Id;", new
+                "UPDATE `production_plan` SET `MarkedDateTime`= @MarkedDateTime, `MarkedDelete`= @MarkedDelete WHERE `Id` = @Id;", new
                 {
                     MarkedDateTime = DateTime.Now,
                     MarkedDelete = true,

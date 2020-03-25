@@ -19,7 +19,8 @@ namespace ApiManagement.Models.DeviceManagementModel
         public int ApplicationId { get; set; }
         public int SiteId { get; set; }
         public int ScriptId { get; set; }
-        public string AdministratorUser { get; set; }
+        public string Administrator { get; set; }
+        public string AdministratorName { get; set; }
         public string Remark { get; set; }
 
     }

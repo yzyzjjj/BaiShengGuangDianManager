@@ -26,6 +26,7 @@ namespace ApiManagement.Base.Helper
         private static bool isUpdateFlowCardProcessStep;
         private static bool isUpdateFlowCardSpecification;
         private static bool isUpdateProductionProcessStep;
+        private static bool isUpdateProductionProcess;
         private static bool isUpdateProductionSpecification;
         private static Dictionary<string, string> _processStepName = new Dictionary<string, string>
         {
@@ -58,8 +59,10 @@ namespace ApiManagement.Base.Helper
             {
                 try
                 {
+                    ServerConfig.RedisHelper.SetExpireAt(lockKey, DateTime.Now.AddMinutes(5));
                     UpdateProductionProcessStep();
                     UpdateProductionSpecification();
+                    UpdateProductionProcess();
 
                     Insert();
                     Update();
@@ -664,6 +667,67 @@ namespace ApiManagement.Base.Helper
             }
 
             isUpdateProductionProcessStep = false;
+        }
+
+        /// <summary>
+        /// 更新计划号工艺
+        /// </summary>
+        private static void UpdateProductionProcess()
+        {
+            if (isUpdateProductionProcess)
+            {
+                return;
+            }
+
+            var key = "isUpdateProductionProcess";
+            if (!ServerConfig.RedisHelper.Exists(key))
+            {
+                ServerConfig.RedisHelper.SetForever(key, 0);
+            }
+            var isUpdateProductionProcessFlag = ServerConfig.RedisHelper.Get<int>(key) == 1;
+            if (isUpdateProductionProcessFlag)
+            {
+                var now = DateTime.Now;
+                isUpdateProductionProcess = true;
+                //计划号
+                var productionLibraries = ServerConfig.ApiDb.Query<ProductionLibrary>("SELECT a.Id, ProductionProcessName FROM `production_library` a LEFT JOIN `process_management` b ON a.Id = b.ProductModels WHERE a.MarkedDelete = 0 AND ISNULL(b.Id) AND ProductionProcessName != '';");
+                if (productionLibraries.Any())
+                {
+                    try
+                    {
+                        ServerConfig.ApiDb.Execute(
+                            "INSERT INTO process_management (`CreateUserId`, `MarkedDateTime`, `ProcessNumber`, `ProductModels`) " +
+                            "VALUES (@CreateUserId, @MarkedDateTime, @ProcessNumber, @ProductModels);",
+                            productionLibraries.Where(y => !y.ProductionProcessName.IsNullOrEmpty()).Select(x => new
+                            {
+                                CreateUserId = "admin",
+                                MarkedDateTime = now,
+                                ProcessNumber = x.ProductionProcessName + "粗抛",
+                                ProductModels = x.Id,
+                            }));
+                    }
+                    catch (Exception e)
+                    {
+                        Log.ErrorFormat("UpdateProductionProcess 更新计划号工艺失败,原因:{0},错误:{1}", e.Message, e.StackTrace);
+                    }
+                }
+                var modelIds = ServerConfig.ApiDb
+                    .Query<string>("SELECT GROUP_CONCAT(Id) FROM `device_model` WHERE MarkedDelete = 0")
+                    .FirstOrDefault();
+                var deviceIds = ServerConfig.ApiDb
+                    .Query<string>("SELECT GROUP_CONCAT(Id) FROM `device_library` WHERE MarkedDelete = 0")
+                    .FirstOrDefault();
+                ServerConfig.ApiDb.Execute(
+                    "UPDATE `process_management` SET DeviceModels = @modelIds, DeviceIds = @deviceIds WHERE CreateUserId = @CreateUserId AND ISNULL(DeviceIds)",
+                    new
+                    {
+                        modelIds,
+                        deviceIds,
+                        CreateUserId = "admin"
+                    });
+
+                isUpdateProductionProcess = false;
+            }
         }
 
         /// <summary>

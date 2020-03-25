@@ -1,5 +1,7 @@
 ﻿using ApiManagement.Base.Server;
-using ApiManagement.Models;
+using ApiManagement.Models.BaseModel;
+using ApiManagement.Models.DeviceSpotCheckModel;
+using ApiManagement.Models.OtherModel;
 using Microsoft.AspNetCore.Mvc;
 using ModelBase.Base.EnumConfig;
 using ModelBase.Base.Utils;
@@ -8,9 +10,6 @@ using ServiceStack;
 using System;
 using System.Collections.Generic;
 using System.Linq;
-using ApiManagement.Models.BaseModel;
-using ApiManagement.Models.DeviceSpotCheckModel;
-using ApiManagement.Models.OtherModel;
 
 namespace ApiManagement.Controllers.DeviceSpotCheckController
 {
@@ -216,12 +215,12 @@ namespace ApiManagement.Controllers.DeviceSpotCheckController
             var news = ServerConfig.ApiDb.Query<SpotCheckItem>($"SELECT * FROM `spot_check_item` WHERE {(data.Select(x => x.Id).Any() ? "Id NOT IN @ids AND " : "")}{(planIdList.Any() ? "PlanId IN @planIdList AND " : "")}MarkedDelete = 0;",
                 new { ids = data.Select(x => x.Id), planIdList });
 
+            var addList = new List<SpotCheckDevice>();
             foreach (var planId in planIdList)
             {
                 var deviceList = spotCheckDeviceBinds.Where(x => x.PlanId == planId);
                 if (deviceList.Any())
                 {
-                    var addList = new List<SpotCheckDevice>();
                     foreach (var device in deviceList)
                     {
                         foreach (var item in news)
@@ -248,10 +247,10 @@ namespace ApiManagement.Controllers.DeviceSpotCheckController
                             });
                         }
                     }
-                    ServerConfig.ApiDb.Execute("INSERT INTO spot_check_device (`CreateUserId`, `MarkedDateTime`, `DeviceId`, `ItemId`, `PlanId`, `SurveyorId`, `PlannedTime`) " +
-                                               "VALUES (@CreateUserId, @MarkedDateTime, @DeviceId, @ItemId, @PlanId, @SurveyorId, @PlannedTime);", addList);
                 }
             }
+            ServerConfig.ApiDb.Execute("INSERT INTO spot_check_device (`CreateUserId`, `MarkedDateTime`, `DeviceId`, `ItemId`, `PlanId`, `SurveyorId`, `PlannedTime`) " +
+                                       "VALUES (@CreateUserId, @MarkedDateTime, @DeviceId, @ItemId, @PlanId, @SurveyorId, @PlannedTime);", addList);
             #endregion
 
             return Result.GenError<Result>(Error.Success);

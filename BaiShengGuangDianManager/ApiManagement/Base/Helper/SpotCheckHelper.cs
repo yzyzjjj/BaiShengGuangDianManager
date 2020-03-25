@@ -1,13 +1,12 @@
 ﻿using ApiManagement.Base.Server;
-using ApiManagement.Models;
+using ApiManagement.Models.DeviceSpotCheckModel;
+using ApiManagement.Models.OtherModel;
 using Microsoft.Extensions.Configuration;
 using ModelBase.Base.Logger;
 using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading;
-using ApiManagement.Models.DeviceSpotCheckModel;
-using ApiManagement.Models.OtherModel;
 
 namespace ApiManagement.Base.Helper
 {
@@ -25,18 +24,11 @@ namespace ApiManagement.Base.Helper
 
         private static void CheckSpotCheckDevice(object state)
         {
-            //#if !DEBUG
-            //            if (ServerConfig.RedisHelper.Get<int>("Debug") != 0)
-            //            {
-            //                return;
-            //            }
-            //#endif
-            //Thread.Sleep(5000);
-            //ServerConfig.RedisHelper.Remove(CheckPlanLock);
             if (ServerConfig.RedisHelper.SetIfNotExist(CheckPlanLock, "lock"))
             {
                 try
                 {
+                    ServerConfig.RedisHelper.SetExpireAt(CheckPlanLock, DateTime.Now.AddMinutes(5));
                     var sql = "SELECT c.*, a.*, b.Plan FROM `spot_check_device` a " +
                               "JOIN `spot_check_plan` b ON a.PlanId = b.Id " +
                               "JOIN `spot_check_item` c ON a.ItemId = c.Id " +

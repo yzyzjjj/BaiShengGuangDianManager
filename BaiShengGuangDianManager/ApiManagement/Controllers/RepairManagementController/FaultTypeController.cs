@@ -1,13 +1,13 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using ApiManagement.Base.Server;
+﻿using ApiManagement.Base.Server;
 using ApiManagement.Models.RepairManagementModel;
 using Microsoft.AspNetCore.Mvc;
 using ModelBase.Base.EnumConfig;
 using ModelBase.Base.Utils;
 using ModelBase.Models.Result;
 using ServiceStack;
+using System;
+using System.Collections.Generic;
+using System.Linq;
 
 namespace ApiManagement.Controllers.RepairManagementController
 {
@@ -20,31 +20,27 @@ namespace ApiManagement.Controllers.RepairManagementController
     {
         // GET: api/FaultType
         [HttpGet]
-        public DataResult GetFaultType()
+        public DataResult GetFaultType([FromQuery]int qId, bool menu)
         {
             var result = new DataResult();
-            result.datas.AddRange(ServerConfig.ApiDb.Query<FaultType>("SELECT * FROM `fault_type` WHERE MarkedDelete = 0;"));
-            return result;
-        }
+            string sql;
+            if (menu)
+            {
+                sql =
+                    $"SELECT Id, FaultTypeName, FaultDescription FROM `fault_type` WHERE MarkedDelete = 0{(qId == 0 ? "" : " AND Id = @qId")};";
+                result.datas.AddRange(ServerConfig.ApiDb.Query<dynamic>(sql, new { qId }));
+            }
+            else
+            {
+                sql = $"SELECT * FROM `fault_type` WHERE MarkedDelete = 0{(qId == 0 ? "" : " AND Id = @qId")};";
+                result.datas.AddRange(ServerConfig.ApiDb.Query<FaultType>(sql, new { qId }));
+            }
 
-        /// <summary>
-        /// 自增Id
-        /// </summary>
-        /// <param name="id">自增Id</param>
-        /// <returns></returns>
-        // GET: api/FaultType/5
-        [HttpGet("{id}")]
-        public DataResult GetFaultType([FromRoute] int id)
-        {
-            var result = new DataResult();
-            var data =
-                ServerConfig.ApiDb.Query<FaultType>("SELECT * FROM `fault_type` WHERE Id = @id AND MarkedDelete = 0;", new { id }).FirstOrDefault();
-            if (data == null)
+            if (qId != 0 && !result.datas.Any())
             {
                 result.errno = Error.FaultTypeNotExist;
                 return result;
             }
-            result.datas.Add(data);
             return result;
         }
 

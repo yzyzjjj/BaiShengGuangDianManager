@@ -1,4 +1,5 @@
 ﻿using ApiManagement.Base.Helper;
+using ApiManagement.Models.ManufactureModel;
 using ApiManagement.Models.StatisticManagementModel;
 using Microsoft.Extensions.Configuration;
 using ModelBase.Base.Dapper;
@@ -27,6 +28,7 @@ namespace ApiManagement.Base.Server
             AnalysisHelper.Init(configuration);
             SpotCheckHelper.Init(configuration);
             _6sHelper.Init(configuration);
+            ManufactureHelper.Init(configuration);
 
             if (!RedisHelper.Exists(IsSetProcessDataKey))
             {
@@ -34,6 +36,15 @@ namespace ApiManagement.Base.Server
             }
 
             Log.InfoFormat("ServerConfig Done");
+            //var p1 = new ManufacturePlan
+            //{
+
+            //};
+            //var p2 = new ManufacturePlan
+            //{
+            //    State = ManufacturePlanState.Assigned
+            //};
+            //p1.HaveChange(p2, out var _);
         }
     }
 }

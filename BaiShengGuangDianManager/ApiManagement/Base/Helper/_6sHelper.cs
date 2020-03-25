@@ -30,6 +30,7 @@ namespace ApiManagement.Base.Helper
             {
                 try
                 {
+                    ServerConfig.RedisHelper.SetExpireAt(_6sLock, DateTime.Now.AddMinutes(5));
                     Init_6sItem();
                 }
                 catch (Exception e)
@@ -122,7 +123,7 @@ namespace ApiManagement.Base.Helper
                         _item.LastCreateTime = time;
                     }
                 }
-                
+
                 if (logs.Any())
                 {
                     ServerConfig.ApiDb.Execute(

@@ -77,7 +77,7 @@ namespace ApiManagement.Controllers.OtherController
                                         DeviceId = deviceId
                                     };
                                     ServerConfig.ApiDb.Execute(
-                                        "UPDATE npc_monitoring_process_log SET `FlowCardId` = @FlowCardId, `ProcessorId` = @ProcessorId WHERE `Id` > @Id1 AND `Id` <= @Id2 AND DeviceId = @DeviceId;",
+                                        "UPDATE npc_monitoring_process_log SET `FlowCardId` = @FlowCardId, `ProcessorId` = @ProcessorId WHERE `Id` > @Id1 AND `Id` <= @Id2 AND DeviceId = @DeviceId AND `FlowCardId` = 0;",
                                         param);
                                     deviceList.First(x => x.DeviceId == deviceId).Id =
                                         currentDeviceListDb.First(x => x.DeviceId == deviceId).Id;

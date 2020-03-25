@@ -2,7 +2,9 @@
 using System.Collections.Generic;
 using System.Linq;
 using ApiManagement.Models.BaseModel;
+using Newtonsoft.Json;
 using ServiceStack;
+using ServiceStack.DataAnnotations;
 
 namespace ApiManagement.Models.RepairManagementModel
 {
@@ -22,10 +24,18 @@ namespace ApiManagement.Models.RepairManagementModel
         public int FaultLogId { get; set; }
         public bool Cancel { get; set; }
         public bool IsAdd { get; set; }
+        public string Administrator { get; set; }
+        public string Maintainer { get; set; }
+        public DateTime EstimatedTime { get; set; }
+        public string Remark { get; set; }
+        public string Images { get; set; }
+        [Ignore]
+        public string[] ImageList => Images != null ? JsonConvert.DeserializeObject<string[]>(Images) : new string[0];
 
         public static IEnumerable<string> GetMembers(IEnumerable<string> except = null)
         {
-            var result = typeof(RepairRecord).GetProperties().Select(x => x.Name);
+            var result = typeof(RepairRecord).GetProperties().Where(x => (IgnoreAttribute)x.GetCustomAttributes(typeof(IgnoreAttribute), false).FirstOrDefault() == null).Select(y => y.Name);
+            //var result = typeof(RepairRecord).GetProperties().Select(x => x.Name);
             return except == null ? result : result.Where(x => !except.Contains(x));
         }
 
@@ -39,5 +49,8 @@ namespace ApiManagement.Models.RepairManagementModel
     {
         public string FaultTypeName { get; set; }
         public string SiteName { get; set; }
+        public string Name { get; set; }
+        public string Account { get; set; }
+        public string Phone { get; set; }
     }
 }

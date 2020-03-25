@@ -75,7 +75,8 @@ namespace ApiManagement.Controllers._6sController
                     }
 
                     ServerConfig.ApiDb.Execute(
-                        "UPDATE 6s_log SET `MarkedDelete` = @MarkedDelete, `Images` = @Images, `ImageCheck` = true WHERE `Id` = @Id AND `ImageCheck` = false;", update_6sLogs);
+                        "UPDATE 6s_log SET `MarkedDelete` = @MarkedDelete, `Images` = @Images, `ImageCheck` = true WHERE `Id` = @Id;", update_6sLogs);
+                        //"UPDATE 6s_log SET `MarkedDelete` = @MarkedDelete, `Images` = @Images, `ImageCheck` = true WHERE `Id` = @Id AND `ImageCheck` = false;", update_6sLogs);
                 }
                 else
                 {
