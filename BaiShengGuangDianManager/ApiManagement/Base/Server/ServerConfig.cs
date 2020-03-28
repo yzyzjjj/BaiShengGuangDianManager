@@ -10,6 +10,7 @@ namespace ApiManagement.Base.Server
 {
     public class ServerConfig
     {
+        public static DataBase WebDb;
         public static DataBase ApiDb;
         public static DataBase DataStorageDb;
         public static string GateUrl;
@@ -19,12 +20,14 @@ namespace ApiManagement.Base.Server
 
         public static void Init(IConfiguration configuration)
         {
+            WebDb = new DataBase(configuration.GetConnectionString("WebDb"));
             ApiDb = new DataBase(configuration.GetConnectionString("ApiDb"));
             DataStorageDb = new DataBase(configuration.GetConnectionString("DataStorageDb"));
             GateUrl = configuration.GetAppSettings<string>("GateUrl");
             GlobalConfig.LoadGlobalConfig();
             RedisHelper = new RedisCacheHelper(configuration);
             FlowCardHelper.Init(configuration);
+            AccountHelper.Init(configuration);
             AnalysisHelper.Init(configuration);
             SpotCheckHelper.Init(configuration);
             _6sHelper.Init(configuration);
