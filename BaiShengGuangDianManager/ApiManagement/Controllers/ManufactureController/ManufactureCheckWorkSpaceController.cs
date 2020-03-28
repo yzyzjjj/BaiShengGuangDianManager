@@ -284,13 +284,12 @@ namespace ApiManagement.Controllers.ManufactureController
                         foreach (var manufactureCheckItem in manufacturePlanCheckItems)
                         {
                             manufactureCheckItem.CreateUserId = createUserId;
-                            manufactureCheckItem.MarkedDateTime = markedDateTime;
                             manufactureCheckItem.PlanId = oldTask.PlanId;
                             manufactureCheckItem.ItemId = oldTask.Id;
                         }
                         ServerConfig.ApiDb.Execute(
-                            "INSERT INTO manufacture_plan_check_item (`CreateUserId`, `MarkedDateTime`, `PlanId`, `ItemId`, `Item`, `Method`) " +
-                            "VALUES (@CreateUserId, @MarkedDateTime, @PlanId, @ItemId, @Item, @Method);",
+                            "INSERT INTO manufacture_plan_check_item (`CreateUserId`, `PlanId`, `ItemId`, `Item`, `Method`) " +
+                            "VALUES (@CreateUserId, @PlanId, @ItemId, @Item, @Method);",
                             manufacturePlanCheckItems);
 
                         changes.Add(new ManufactureLog
@@ -306,7 +305,7 @@ namespace ApiManagement.Controllers.ManufactureController
                     }
                 }
 
-                ServerConfig.ApiDb.Execute("UPDATE manufacture_plan_task SET `MarkedDateTime` = @MarkedDateTime, `State` = @State, `IsCheckItem` = @IsCheckItem, `FirstStartTime` = @FirstStartTime, " +
+                ServerConfig.ApiDb.Execute("UPDATE manufacture_plan_task SET `State` = @State, `IsCheckItem` = @IsCheckItem, `FirstStartTime` = @FirstStartTime, " +
                                            "`ActualStartTime` = @ActualStartTime, `RedoCount` = @RedoCount WHERE `Id` = @Id;", task);
                 ManufactureLog.AddLog(changes);
                 return Result.GenError<DataResult>(Error.Success);
@@ -380,7 +379,7 @@ namespace ApiManagement.Controllers.ManufactureController
                     change.Type = ManufactureLogType.PauseTask;
                 }
 
-                ServerConfig.ApiDb.Execute("UPDATE manufacture_plan_task SET `MarkedDateTime` = @MarkedDateTime, `State` = @State, `PauseTime` = @PauseTime, " +
+                ServerConfig.ApiDb.Execute("UPDATE manufacture_plan_task SET `State` = @State, `PauseTime` = @PauseTime, " +
                                            "`ActualHour` = @ActualHour, `ActualMin` = @ActualMin WHERE `Id` = @Id;", task);
 
                 ManufactureLog.AddLog(new List<ManufactureLog> { change });
@@ -495,10 +494,10 @@ namespace ApiManagement.Controllers.ManufactureController
                         }
                     }
 
-                    ServerConfig.ApiDb.Execute("UPDATE manufacture_plan_task SET `MarkedDateTime` = @MarkedDateTime, `State` = @State WHERE `Id` = @Id;", preTask);
+                    ServerConfig.ApiDb.Execute("UPDATE manufacture_plan_task SET `State` = @State WHERE `Id` = @Id;", preTask);
                 }
 
-                ServerConfig.ApiDb.Execute("UPDATE manufacture_plan_task SET `MarkedDateTime` = @MarkedDateTime, `State` = @State, `ActualEndTime` = @ActualEndTime, `PauseTime` = @PauseTime, " +
+                ServerConfig.ApiDb.Execute("UPDATE manufacture_plan_task SET `State` = @State, `ActualEndTime` = @ActualEndTime, `PauseTime` = @PauseTime, " +
                                            "`ActualHour` = @ActualHour, `ActualMin` = @ActualMin, `CheckResult` = @CheckResult WHERE `Id` = @Id;", task);
 
                 ManufactureLog.AddLog(changes);
@@ -574,8 +573,8 @@ namespace ApiManagement.Controllers.ManufactureController
                 {
                     ServerConfig.ApiDb.Execute(
                         oldItem.Images == item.Images
-                            ? "UPDATE manufacture_plan_check_item SET `MarkedDateTime` = @MarkedDateTime, `Result` = @Result, `Desc` = @Desc WHERE `Id` = @Id;"
-                            : "UPDATE manufacture_plan_check_item SET `MarkedDateTime` = @MarkedDateTime, `Images` = @Images WHERE `Id` = @Id;",
+                            ? "UPDATE manufacture_plan_check_item SET `CheckTime` = @CheckTime, `Result` = @Result, `Desc` = @Desc WHERE `Id` = @Id;"
+                            : "UPDATE manufacture_plan_check_item SET `Images` = @Images WHERE `Id` = @Id;",
                         item);
                     ManufactureLog.AddLog(changes);
                 }
@@ -586,7 +585,7 @@ namespace ApiManagement.Controllers.ManufactureController
         }
 
         /// <summary>
-        /// 检验任务
+        /// 检验任务详情
         /// </summary>
         /// <param name="qId">检验任务Id</param>
         /// <returns></returns>

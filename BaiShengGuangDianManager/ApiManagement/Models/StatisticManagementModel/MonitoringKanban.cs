@@ -1,9 +1,9 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using ModelBase.Base.Utils;
+﻿using ModelBase.Base.Utils;
 using Newtonsoft.Json;
 using ServiceStack;
+using System;
+using System.Collections.Generic;
+using System.Linq;
 
 namespace ApiManagement.Models.StatisticManagementModel
 {
@@ -46,11 +46,10 @@ namespace ApiManagement.Models.StatisticManagementModel
         public int MaxUse { get; set; } = 0;
 
         /// <summary>
-        /// 已使用台数
+        /// 今日当前使用台数
         /// </summary>
         [JsonIgnore]
         private List<int> _useList;
-
         public List<int> UseList
         {
             get
@@ -58,11 +57,9 @@ namespace ApiManagement.Models.StatisticManagementModel
                 if (_useList == null)
                 {
                     _useList = !UseListStr.IsNullOrEmpty()
-                        ? JsonConvert.DeserializeObject<List<int>>(UseListStr)
-                        : new List<int>();
+                        ? JsonConvert.DeserializeObject<List<int>>(UseListStr) : new List<int>();
                 }
                 _useList = _useList.OrderBy(x => x).ToList();
-
                 return _useList;
             }
             set
@@ -74,6 +71,33 @@ namespace ApiManagement.Models.StatisticManagementModel
 
         [JsonIgnore]
         public string UseListStr { get; set; }
+
+        /// <summary>
+        /// 今日最大使用台数
+        /// </summary>
+        [JsonIgnore]
+        private List<int> _maxUseList;
+        public List<int> MaxUseList
+        {
+            get
+            {
+                if (_maxUseList == null)
+                {
+                    _maxUseList = !MaxUseListStr.IsNullOrEmpty()
+                        ? JsonConvert.DeserializeObject<List<int>>(MaxUseListStr) : new List<int>();
+                }
+                _maxUseList = _maxUseList.OrderBy(x => x).ToList();
+                return _maxUseList;
+            }
+            set
+            {
+                _maxUseList = value;
+                MaxUseListStr = _maxUseList.OrderBy(x => x).ToJson();
+            }
+        }
+
+        [JsonIgnore]
+        public string MaxUseListStr { get; set; }
 
         public List<string> UseCodeList { get; set; }
         /// <summary>
@@ -132,6 +156,7 @@ namespace ApiManagement.Models.StatisticManagementModel
             }
             UseList = monitoringKanban.UseList;
             UseCodeList = monitoringKanban.UseCodeList;
+            MaxUseList = monitoringKanban.MaxUseList;
             if (MinUse == 0)
             {
                 MinUse = MaxUse;

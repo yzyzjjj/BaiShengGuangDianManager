@@ -4,7 +4,9 @@ using ServiceStack.DataAnnotations;
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using ModelBase.Base.Utils;
 using Newtonsoft.Json;
+using DescriptionAttribute = System.ComponentModel.DescriptionAttribute;
 
 namespace ApiManagement.Models.RepairManagementModel
 {
@@ -16,13 +18,16 @@ namespace ApiManagement.Models.RepairManagementModel
         public string Proposer { get; set; }
         public string FaultDescription { get; set; }
         public int Priority { get; set; }
-        public int State { get; set; }
+        public RepairStateEnum State { get; set; }
+        [Ignore]
+        public string StateDesc => State.GetAttribute<DescriptionAttribute>()?.Description ?? "";
         public int FaultTypeId { get; set; }
         public bool Cancel { get; set; }
         private bool Cancel1 { get; set; }
         private bool Cancel2 { get; set; }
         public string Administrator { get; set; }
         public string Maintainer { get; set; }
+        public DateTime AssignTime { get; set; }
         public DateTime EstimatedTime { get; set; }
         public string Remark { get; set; }
         public string Images { get; set; }

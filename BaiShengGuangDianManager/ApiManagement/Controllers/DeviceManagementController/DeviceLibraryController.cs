@@ -978,7 +978,7 @@ namespace ApiManagement.Controllers.DeviceManagementController
         {
             var device =
                 ServerConfig.ApiDb.Query<DeviceLibraryDetail>("SELECT a.*, IFNULL(b.DeviceCategoryId, 0) DeviceCategoryId FROM `device_library` a JOIN `device_model` b ON a.DeviceModelId = b.Id " +
-                                                              "WHERE a.Id = @DeviceId AND a.`MarkedDelete` = 0 AND b.`MarkedDelete` = 0;", new { dataInfo.DeviceId }).FirstOrDefault();
+                                                              "WHERE a.Id = @DeviceId AND a.`MarkedDelete` = 0;", new { dataInfo.DeviceId }).FirstOrDefault();
             if (device == null)
             {
                 return Result.GenError<Result>(Error.DeviceNotExist);

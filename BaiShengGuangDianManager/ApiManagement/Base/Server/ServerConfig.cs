@@ -26,9 +26,8 @@ namespace ApiManagement.Base.Server
             RedisHelper = new RedisCacheHelper(configuration);
             FlowCardHelper.Init(configuration);
             AnalysisHelper.Init(configuration);
-            SpotCheckHelper.Init(configuration);
+            ServerTimerHelper.Init(configuration);
             _6sHelper.Init(configuration);
-            ManufactureHelper.Init(configuration);
 
             if (!RedisHelper.Exists(IsSetProcessDataKey))
             {
@@ -45,6 +44,9 @@ namespace ApiManagement.Base.Server
             //    State = ManufacturePlanState.Assigned
             //};
             //p1.HaveChange(p2, out var _);
+
+
+
         }
     }
 }

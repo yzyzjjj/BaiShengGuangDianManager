@@ -36,7 +36,7 @@ namespace ApiManagement.Models.ManufactureModel
         public string Images { get; set; } = "[]";
         public string[] ImageList => Images != null ? JsonConvert.DeserializeObject<string[]>(Images) : new string[0];
 
-        public bool HaveChange(ManufacturePlanCheckItem manufacturePlanCheckItem, out ManufactureLog change)
+        public bool HaveChange(ManufacturePlanCheckItem manufacturePlanCheckItem, out ManufactureLog change, IEnumerable<string> keys = null)
         {
             var changeFlag = false;
             change = new ManufactureLog
@@ -49,6 +49,10 @@ namespace ApiManagement.Models.ManufactureModel
             var tmp = new Dictionary<int, ManufactureLogItem>();
             foreach (var propInfo in typeof(ManufacturePlanCheckItem).GetProperties())
             {
+                if (keys != null && keys.All(x => x != propInfo.Name))
+                {
+                    continue;
+                }
                 var attr = (ManufactureDescription)propInfo.GetCustomAttributes(typeof(ManufactureDescription), false).FirstOrDefault();
                 if (attr == null)
                 {

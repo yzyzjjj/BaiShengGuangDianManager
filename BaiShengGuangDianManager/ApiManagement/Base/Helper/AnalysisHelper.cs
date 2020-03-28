@@ -40,14 +40,10 @@ namespace ApiManagement.Base.Helper
         public static readonly string FlowCardPre = "FlowCard";
         public static readonly string FlowCardDeviceKey = $"{FlowCardPre}:Device";
         private static readonly string FlowCardLockKey = $"{FlowCardPre}:Lock";
-        private static Timer _analysis;
-        private static Timer _analysisOther;
-        private static Timer _delete;
-        private static Timer _fault;
+        private static Timer _timer2S;
+        private static Timer _timer10S;
+        private static Timer _timer60S;
         private static Timer _script;
-        private static Timer _processLog;
-        private static Timer _processSum;
-        private static Timer _processTime;
         private static bool _isDelete;
         private static bool _isFault;
         private static bool _isScript;
@@ -59,7 +55,7 @@ namespace ApiManagement.Base.Helper
             try
             {
                 _script = new Timer(Script, null, 5000, Timeout.Infinite);
-#if DEBUG
+#if !DEBUG
                 Console.WriteLine("AnalysisHelper 调试模式已开启");
                 //_analysis = new Timer(Analysis, null, 10000, 2000);
                 //_processLog = new Timer(UpdateProcessLog, null, 5000, 1000 * 60);
@@ -88,26 +84,41 @@ namespace ApiManagement.Base.Helper
                 }
 
                 Console.WriteLine("发布模式已开启");
-                _analysis = new Timer(Analysis, null, 10000, 2000);
-                _analysisOther = new Timer(AnalysisOther, null, 12000, 2000);
-                _delete = new Timer(Delete, null, 10000, 1000);
-                _fault = new Timer(Fault, null, 10000, 1000 * 10);
-                _processLog = new Timer(UpdateProcessLog, null, 5000, 1000 * 60);
-                _processSum = new Timer(ProcessSum, null, 5000, 1000 * 10);
-                _processTime = new Timer(ProcessTime, null, 5000, 1000 * 10);
+                _timer2S = new Timer(DoSth_2s, null, 10000, 2000);
+                _timer10S = new Timer(DoSth_10s, null, 10000, 1000 * 10);
+                _timer60S = new Timer(DoSth_60, null, 5000, 1000 * 60);
 #endif
             }
             catch (Exception e)
             {
                 Log.Error(e);
-            }
+            }   
+        }
+
+        private static void DoSth_2s(object state)
+        {
+            Analysis();
+            AnalysisOther();
+            Delete();
+        }
+
+        private static void DoSth_10s(object state)
+        {
+            Fault();
+            ProcessSum();
+            ProcessTime();
+        }
+
+        private static void DoSth_60(object state)
+        {
+            UpdateProcessLog();
         }
 
         /// <summary>
         /// 加工统计  分析
         /// </summary>
         /// <param name="state"></param>
-        private static void ProcessSum(object state)
+        private static void ProcessSum()
         {
 
 #if !DEBUG
@@ -213,7 +224,7 @@ namespace ApiManagement.Base.Helper
         /// 加工次数  分析
         /// </summary>
         /// <param name="state"></param>
-        private static void ProcessTime(object state)
+        private static void ProcessTime()
         {
 
 #if !DEBUG
@@ -336,7 +347,7 @@ namespace ApiManagement.Base.Helper
 
         }
 
-        private static void Delete(object state)
+        private static void Delete()
         {
             try
             {
@@ -373,7 +384,7 @@ namespace ApiManagement.Base.Helper
         /// 
         /// </summary>
         /// <param name="state"></param>
-        private static void Analysis(object state)
+        private static void Analysis()
         {
 #if !DEBUG
             if (ServerConfig.RedisHelper.Get<int>("Debug") != 0)
@@ -432,7 +443,7 @@ namespace ApiManagement.Base.Helper
 
                             var allDeviceList = ServerConfig.ApiDb.Query<MonitoringProcess>(
                                  "SELECT b.*, c.DeviceCategoryId, a.`Code` FROM `device_library` a JOIN `npc_proxy_link` b ON a.Id = b.DeviceId JOIN `device_model` c ON a.DeviceModelId = c.Id WHERE a.MarkedDelete = 0;");
-                            
+
                             var existDeviceId = mData.GroupBy(x => x.DeviceId).Select(y => y.Key);
                             var deviceList = allDeviceList.Where(x => existDeviceId.Any(y => y == x.DeviceId)).ToDictionary(x => x.DeviceId);
                             if (ServerConfig.RedisHelper.Exists(deviceKey))
@@ -650,11 +661,13 @@ namespace ApiManagement.Base.Helper
                                                 if (v > 0 && !_monitoringKanban.UseList.Contains(data.DeviceId))
                                                 {
                                                     _monitoringKanban.UseList.Add(data.DeviceId);
+                                                    _monitoringKanban.MaxUseList.Add(data.DeviceId);
                                                 }
                                                 if (v == 0 && _monitoringKanban.UseList.Contains(data.DeviceId))
                                                 {
                                                     _monitoringKanban.UseList.Remove(data.DeviceId);
                                                 }
+
                                                 deviceList[data.DeviceId].State = v > 0 ? 1 : 0;
                                             }
 
@@ -663,7 +676,7 @@ namespace ApiManagement.Base.Helper
                                             if (analysisData.vals.Count >= actAddress)
                                             {
                                                 var totalProcessCount = analysisData.vals[actAddress];
-                                                if (deviceList[data.DeviceId].TotalProcessTime != 0)
+                                                if (deviceList[data.DeviceId].TotalProcessCount < totalProcessCount)
                                                 {
                                                     deviceList[data.DeviceId].ProcessCount =
                                                         deviceList[data.DeviceId].Time.InSameDay(data.SendTime)
@@ -680,7 +693,7 @@ namespace ApiManagement.Base.Helper
                                             if (analysisData.vals.Count >= actAddress)
                                             {
                                                 var totalProcessTime = analysisData.vals[actAddress];
-                                                if (deviceList[data.DeviceId].TotalProcessTime != 0)
+                                                if (deviceList[data.DeviceId].TotalProcessTime < totalProcessTime)
                                                 {
                                                     deviceList[data.DeviceId].ProcessTime =
                                                         deviceList[data.DeviceId].Time.InSameDay(data.SendTime)
@@ -697,7 +710,7 @@ namespace ApiManagement.Base.Helper
                                             if (analysisData.vals.Count >= actAddress)
                                             {
                                                 var totalRunTime = analysisData.vals[actAddress];
-                                                if (deviceList[data.DeviceId].TotalRunTime != 0)
+                                                if (deviceList[data.DeviceId].TotalRunTime < totalRunTime)
                                                 {
                                                     deviceList[data.DeviceId].RunTime =
                                                         deviceList[data.DeviceId].Time.InSameDay(data.SendTime)
@@ -768,38 +781,18 @@ namespace ApiManagement.Base.Helper
                                 deviceList.Values);
 
                             ServerConfig.ApiDb.Execute(
-                                "INSERT INTO npc_monitoring_kanban (`Date`, `AllDevice`, `NormalDevice`, `ProcessDevice`, `IdleDevice`, `FaultDevice`, `ConnectErrorDevice`, `MaxUse`, `UseListStr`, `MaxUseRate`, `MinUse`, `MinUseRate`, `MaxSimultaneousUseRate`, `MinSimultaneousUseRate`, `SingleProcessRateStr`, `AllProcessRate`, `RunTime`, `ProcessTime`, `IdleTime`) VALUES (@Date, @AllDevice, @NormalDevice, @ProcessDevice, @IdleDevice, @FaultDevice, @ConnectErrorDevice, @MaxUse, @UseListStr, @MaxUseRate, @MinUse, @MinUseRate, @MaxSimultaneousUseRate, @MinSimultaneousUseRate, @SingleProcessRateStr, @AllProcessRate, @RunTime, @ProcessTime, @IdleTime) " +
-                                "ON DUPLICATE KEY UPDATE `AllDevice` = @AllDevice, `NormalDevice` = @NormalDevice, `ProcessDevice` = @ProcessDevice, `IdleDevice` = @IdleDevice, `FaultDevice` = @FaultDevice, `ConnectErrorDevice` = @ConnectErrorDevice, `MaxUse` = @MaxUse, `UseListStr` = @UseListStr, `MaxUseRate` = @MaxUseRate, `MinUse` = @MinUse, `MinUseRate` = @MinUseRate, `MaxSimultaneousUseRate` = @MaxSimultaneousUseRate, `MinSimultaneousUseRate` = @MinSimultaneousUseRate, `SingleProcessRateStr` = @SingleProcessRateStr, `AllProcessRate` = @AllProcessRate, `RunTime` = @RunTime, `ProcessTime` = @ProcessTime, `IdleTime` = @IdleTime;"
+                                "INSERT INTO npc_monitoring_kanban (`Date`, `AllDevice`, `NormalDevice`, `ProcessDevice`, `IdleDevice`, `FaultDevice`, `ConnectErrorDevice`, `MaxUse`, `MaxUseListStr`, `UseListStr`, `MaxUseRate`, `MinUse`, `MinUseRate`, `MaxSimultaneousUseRate`, `MinSimultaneousUseRate`, `SingleProcessRateStr`, `AllProcessRate`, `RunTime`, `ProcessTime`, `IdleTime`) VALUES (@Date, @AllDevice, @NormalDevice, @ProcessDevice, @IdleDevice, @FaultDevice, @ConnectErrorDevice, @MaxUse, @UseListStr, @MaxUseRate, @MinUse, @MinUseRate, @MaxSimultaneousUseRate, @MinSimultaneousUseRate, @SingleProcessRateStr, @AllProcessRate, @RunTime, @ProcessTime, @IdleTime) " +
+                                "ON DUPLICATE KEY UPDATE `AllDevice` = @AllDevice, `NormalDevice` = @NormalDevice, `ProcessDevice` = @ProcessDevice, `IdleDevice` = @IdleDevice, `FaultDevice` = @FaultDevice, `ConnectErrorDevice` = @ConnectErrorDevice, `MaxUse` = @MaxUse, `MaxUseListStr` = @MaxUseListStr, `UseListStr` = @UseListStr, `MaxUseRate` = @MaxUseRate, `MinUse` = @MinUse, `MinUseRate` = @MinUseRate, `MaxSimultaneousUseRate` = @MaxSimultaneousUseRate, `MinSimultaneousUseRate` = @MinSimultaneousUseRate, `SingleProcessRateStr` = @SingleProcessRateStr, `AllProcessRate` = @AllProcessRate, `RunTime` = @RunTime, `ProcessTime` = @ProcessTime, `IdleTime` = @IdleTime;"
                                 , ServerConfig.MonitoringKanban);
 
-                            Task.Run(() =>
+                            try
                             {
-                                try
-                                {
-                                    ServerConfig.ApiDb.ExecuteTrans(
-                                        "INSERT INTO npc_monitoring_analysis (`SendTime`, `DeviceId`, `ScriptId`, `Ip`, `Port`, `Data`) VALUES (@SendTime, @DeviceId, @ScriptId, @Ip, @Port, @Data) " +
-                                            "ON DUPLICATE KEY UPDATE `SendTime` = @SendTime, `DeviceId` = @DeviceId, `ScriptId` = @ScriptId, `Ip` = @Ip, `Port` = @Port, `Data` = @Data;",
-                                        mData);
-                                }
-                                catch (Exception e)
-                                {
-                                    Log.Error(e);
-                                }
-                            });
-                            Task.Run(() =>
+                                InsertAnalysis(mData, monitoringProcesses);
+                            }
+                            catch (Exception e)
                             {
-                                try
-                                {
-                                    ServerConfig.ApiDb.ExecuteTrans(
-                                        "INSERT INTO npc_monitoring_process (`Time`, `DeviceId`, `ProcessCount`, `TotalProcessCount`, `ProcessTime`, `TotalProcessTime`, `RunTime`, `TotalRunTime`, `State`, `Rate`, `Use`, `Total`) VALUES (@Time, @DeviceId, @ProcessCount, @TotalProcessCount, @ProcessTime, @TotalProcessTime, @RunTime, @TotalRunTime, @State, @Rate, @Use, @Total) " +
-                                        "ON DUPLICATE KEY UPDATE `Time` = @Time, `DeviceId` = @DeviceId, `State` = @State, `ProcessCount` = @ProcessCount, `TotalProcessCount` = @TotalProcessCount, `ProcessTime` = @ProcessTime, `TotalProcessTime` = @TotalProcessTime, `RunTime` = @RunTime, `TotalRunTime` = @TotalRunTime, `Use` = @Use, `Total` = @Total, `Rate` = @Rate;",
-                                        monitoringProcesses);
-                                }
-                                catch (Exception e)
-                                {
-                                    Log.Error(e);
-                                }
-                            });
+                                Log.Error(e);
+                            }
 
                             ServerConfig.RedisHelper.SetForever(redisKey, endId);
                         }
@@ -813,13 +806,26 @@ namespace ApiManagement.Base.Helper
             }
         }
 
+        private static async void InsertAnalysis(IEnumerable<MonitoringData> mData, IEnumerable<MonitoringProcess> monitoringProcesses)
+        {
+            await ServerConfig.ApiDb.ExecuteAsync(
+                  "INSERT INTO npc_monitoring_analysis (`SendTime`, `DeviceId`, `ScriptId`, `Ip`, `Port`, `Data`) VALUES (@SendTime, @DeviceId, @ScriptId, @Ip, @Port, @Data) " +
+                  "ON DUPLICATE KEY UPDATE `SendTime` = @SendTime, `DeviceId` = @DeviceId, `ScriptId` = @ScriptId, `Ip` = @Ip, `Port` = @Port, `Data` = @Data;",
+                  mData);
+
+            await ServerConfig.ApiDb.ExecuteAsync(
+                "INSERT INTO npc_monitoring_process (`Time`, `DeviceId`, `ProcessCount`, `TotalProcessCount`, `ProcessTime`, `TotalProcessTime`, `RunTime`, `TotalRunTime`, `State`, `Rate`, `Use`, `Total`) VALUES (@Time, @DeviceId, @ProcessCount, @TotalProcessCount, @ProcessTime, @TotalProcessTime, @RunTime, @TotalRunTime, @State, @Rate, @Use, @Total) " +
+                "ON DUPLICATE KEY UPDATE `Time` = @Time, `DeviceId` = @DeviceId, `State` = @State, `ProcessCount` = @ProcessCount, `TotalProcessCount` = @TotalProcessCount, `ProcessTime` = @ProcessTime, `TotalProcessTime` = @TotalProcessTime, `RunTime` = @RunTime, `TotalRunTime` = @TotalRunTime, `Use` = @Use, `Total` = @Total, `Rate` = @Rate;",
+                monitoringProcesses);
+        }
+
         private static void Update(IEnumerable<MonitoringProcess> allDeviceList, DateTime time)
         {
             _monitoringKanban.Time = time;
             var validDevice = allDeviceList.Where(x => Math.Abs((x.Time - _monitoringKanban.Time).TotalSeconds) < 5);
             _monitoringKanban.NormalDevice = validDevice.Count();
             _monitoringKanban.ProcessDevice = validDevice.Count(x => x.State == 1);
-            _monitoringKanban.MaxUse = _monitoringKanban.UseList.Count;
+            _monitoringKanban.MaxUse = _monitoringKanban.MaxUseList.Count;
             _monitoringKanban.MinUse = _monitoringKanban.MaxUse;
             _monitoringKanban.MaxSimultaneousUseRate = _monitoringKanban.ProcessDevice;
             _monitoringKanban.MinSimultaneousUseRate = _monitoringKanban.MaxSimultaneousUseRate;
@@ -856,7 +862,7 @@ namespace ApiManagement.Base.Helper
         /// 
         /// </summary>
         /// <param name="state"></param>
-        private static void AnalysisOther(object state)
+        private static void AnalysisOther()
         {
 #if !DEBUG
             if (ServerConfig.RedisHelper.Get<int>("Debug") != 0)
@@ -1045,7 +1051,7 @@ namespace ApiManagement.Base.Helper
         /// 
         /// </summary>
         /// <param name="state"></param>
-        private static void Fault(object state)
+        private static void Fault()
         {
 #if !DEBUG
             if (ServerConfig.RedisHelper.Get<int>("Debug") != 0)
@@ -1309,7 +1315,7 @@ namespace ApiManagement.Base.Helper
         /// 
         /// </summary>
         /// <param name="state"></param>
-        private static void UpdateProcessLog(object state)
+        private static void UpdateProcessLog()
         {
 #if !DEBUG
             if (ServerConfig.RedisHelper.Get<int>("Debug") != 0)
