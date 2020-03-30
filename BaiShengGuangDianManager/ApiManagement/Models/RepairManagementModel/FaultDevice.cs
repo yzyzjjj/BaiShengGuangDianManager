@@ -33,6 +33,7 @@ namespace ApiManagement.Models.RepairManagementModel
         public string Images { get; set; }
         [Ignore]
         public string[] ImageList => Images != null ? JsonConvert.DeserializeObject<string[]>(Images) : new string[0];
+        public bool IsReport { get; set; }
 
 
         public static IEnumerable<string> GetMembers(IEnumerable<string> except = null)

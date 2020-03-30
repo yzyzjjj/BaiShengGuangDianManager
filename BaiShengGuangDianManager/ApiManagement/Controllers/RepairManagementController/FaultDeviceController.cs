@@ -264,12 +264,6 @@ namespace ApiManagement.Controllers.RepairManagementController
         [HttpPost("FaultDevices")]
         public Result PostFaultDevice([FromBody] List<FaultDevice> faultDevices)
         {
-            //var cnt =
-            //    ServerConfig.ApiDb.Query<int>("SELECT COUNT(1) FROM `fault_device_repair` WHERE DeviceCode IN @DeviceCode AND MarkedDelete = 0;", new { DeviceCode = faultDevices.Select(x => x.DeviceCode) }).FirstOrDefault();
-            //if (cnt > 0)
-            //{
-            //    return Result.GenError<Result>(Error.FaultDeviceIsExist);
-            //}
             IEnumerable<DeviceLibraryDetail> devices = null;
             if (faultDevices.Any(x => x.DeviceId == 0))
             {
@@ -288,23 +282,24 @@ namespace ApiManagement.Controllers.RepairManagementController
             }
 
             var createUserId = Request.GetIdentityInformation();
-            var time = DateTime.Now;
             foreach (var faultDevice in faultDevices)
             {
                 faultDevice.CreateUserId = createUserId;
-                faultDevice.MarkedDateTime = time;
+                faultDevice.IsReport = true;
 
                 faultDevice.Administrator = "";
                 faultDevice.Maintainer = "";
+                faultDevice.Images = faultDevice.Images.IsNullOrEmpty() ? "[]" : faultDevice.Images;
                 if (devices != null)
                 {
+                    faultDevice.DeviceCode = devices.FirstOrDefault(x => x.Id == faultDevice.DeviceId)?.Code ?? (faultDevice.DeviceCode ?? "");
                     faultDevice.Administrator = devices.FirstOrDefault(x => x.Id == faultDevice.DeviceId)?.Administrator ?? "";
                     faultDevice.Maintainer = devices.FirstOrDefault(x => x.Id == faultDevice.DeviceId)?.Administrator ?? "";
                 }
             }
             ServerConfig.ApiDb.Execute(
-                "INSERT INTO fault_device_repair (`CreateUserId`, `MarkedDateTime`, `DeviceId`, `DeviceCode`, `FaultTime`, `Proposer`, `FaultDescription`, `Priority`, `State`, `FaultTypeId`, `Administrator`, `Maintainer`, `IsReport`) " +
-                "VALUES (@CreateUserId, @MarkedDateTime, @DeviceId, @DeviceCode, @FaultTime, @Proposer, @FaultDescription, @Priority, @State, @FaultTypeId, @Administrator, @Maintainer, @IsReport);",
+                "INSERT INTO fault_device_repair (`CreateUserId`, `DeviceId`, `DeviceCode`, `FaultTime`, `Proposer`, `FaultDescription`, `Priority`, `FaultTypeId`, `Administrator`, `Maintainer`, `IsReport`, `Images`) " +
+                "VALUES (@CreateUserId, @DeviceId, @DeviceCode, @FaultTime, @Proposer, @FaultDescription, @Priority, @FaultTypeId, @Administrator, @Maintainer, @IsReport, @Images);",
                 faultDevices);
 
             return Result.GenError<Result>(Error.Success);

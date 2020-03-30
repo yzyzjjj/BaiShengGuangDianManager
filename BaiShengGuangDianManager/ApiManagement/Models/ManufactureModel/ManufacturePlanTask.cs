@@ -33,36 +33,36 @@ namespace ApiManagement.Models.ManufactureModel
         public string Check { get; set; }
         [Description("任务名")]
         public string Item { get; set; }
-        [Description("预计用时小时")]
+        [ManufactureDescription("预计用时小时", 1)]
         public int EstimatedHour { get; set; }
-        [Description("预计用时分")]
+        [ManufactureDescription("预计用时分", 2)]
         public int EstimatedMin { get; set; }
         public string EstimatedTime => DateTimeExtend.ToTimeStr((EstimatedHour * 60 + EstimatedMin) * 60);
-        [Description("绩效")]
+        [ManufactureDescription("绩效", 3)]
         public int Score { get; set; }
-        [Description("任务描述")]
+        [ManufactureDescription("任务描述", 4)]
         public string Desc { get; set; }
         [Description("任务关联")]
         public int Relation { get; set; }
         public int OldId { get; set; }
         public string Assignor { get; set; }
-        [ManufactureDescription("任务状态", 2)]
+        [ManufactureDescription("任务状态", 5)]
         public ManufacturePlanItemState State { get; set; } = ManufacturePlanItemState.Wait;
         public string StateDesc => State.GetAttribute<DescriptionAttribute>()?.Description ?? "";
         /// <summary>
         /// 是否已创建检验项
         /// </summary>
         public bool IsCheckItem { get; set; }
-        [ManufactureDescription("实际开始时间", 3)]
+        [ManufactureDescription("实际开始时间", 6)]
         public DateTime FirstStartTime { get; set; }
         public DateTime ActualStartTime { get; set; }
-        [ManufactureDescription("暂停时间", 4)]
+        [ManufactureDescription("暂停时间", 7)]
         public DateTime PauseTime { get; set; }
-        [ManufactureDescription("实际完成时间", 5)]
+        [ManufactureDescription("实际完成时间", 8)]
         public DateTime ActualEndTime { get; set; }
-        [ManufactureDescription("实际用时小时", 6)]
+        [ManufactureDescription("实际用时小时", 9)]
         public int ActualHour { get; set; }
-        [ManufactureDescription("实际用时分", 7)]
+        [ManufactureDescription("实际用时分", 10)]
         public int ActualMin { get; set; }
         public string ActualTime => State != ManufacturePlanItemState.Doing
             ? DateTimeExtend.ToTimeStr((ActualHour * 60 + ActualMin) * 60)
@@ -119,8 +119,13 @@ namespace ApiManagement.Models.ManufactureModel
 
                 var description = attr.Description;
                 var order = attr.Order;
-                var thisValue = thisProperties.First(x => x.Name == propInfo.Name).GetValue(this);
                 var value = properties.First(x => x.Name == propInfo.Name).GetValue(manufacturePlan);
+                if (value == null)
+                {
+                    continue;
+                }
+                var thisValue = thisProperties.First(x => x.Name == propInfo.Name).GetValue(this);
+
                 string oldValue, newValue;
                 if (propInfo.PropertyType == typeof(DateTime))
                 {

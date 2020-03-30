@@ -56,11 +56,14 @@ namespace ApiManagement.Controllers.OtherController
                             break;
                         }
 
-                        if (ServerConfig.RedisHelper.Exists(AnalysisHelper.FlowCardDeviceKey))
+                        var flowCardPre = "FlowCard";
+                        var flowCardDeviceKey = $"{flowCardPre}:Device";
+                        var flowCardLockKey = $"{flowCardPre}:Lock";
+                        if (ServerConfig.RedisHelper.Exists(flowCardDeviceKey))
                         {
                             var deviceId = ServerConfig.ApiDb.Query<int>("SELECT Id FROM `device_library` WHERE `Code` = @code;",
                                 new { code = jth }).FirstOrDefault();
-                            var deviceList = ServerConfig.RedisHelper.Get<IEnumerable<FlowCardReport>>(AnalysisHelper.FlowCardDeviceKey);
+                            var deviceList = ServerConfig.RedisHelper.Get<IEnumerable<FlowCardReport>>(flowCardDeviceKey);
                             if (deviceList.Any(x => x.DeviceId == deviceId))
                             {
                                 var currentDeviceListDb = ServerConfig.ApiDb.Query<FlowCardReport>(
@@ -82,7 +85,7 @@ namespace ApiManagement.Controllers.OtherController
                                     deviceList.First(x => x.DeviceId == deviceId).Id =
                                         currentDeviceListDb.First(x => x.DeviceId == deviceId).Id;
 
-                                    ServerConfig.RedisHelper.SetForever(AnalysisHelper.FlowCardDeviceKey, deviceList);
+                                    ServerConfig.RedisHelper.SetForever(flowCardDeviceKey, deviceList);
                                     Log.Debug($"UPDATE 流程卡:{lck}, 流程卡Id:{flowCardId}, 机台号:{jth}, 设备Id:{deviceId}, 工序:{gx}, 加工人:{jgr}, Id:{param.Id1} - {param.Id2}");
                                 }
                             }

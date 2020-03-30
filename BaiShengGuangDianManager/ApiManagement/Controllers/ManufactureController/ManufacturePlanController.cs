@@ -436,6 +436,7 @@ namespace ApiManagement.Controllers.ManufactureController
                     manufacturePlanItem.MarkedDateTime = markedDateTime;
                     manufacturePlanItem.OldId = manufacturePlanItem.Id;
                     manufacturePlanItem.Assignor = createUserId;
+                    manufacturePlanItem.Desc = manufacturePlanItem.Desc ?? "";
                     manufacturePlanItem.Order = i++;
                 }
                 ServerConfig.ApiDb.Execute(
@@ -502,7 +503,7 @@ namespace ApiManagement.Controllers.ManufactureController
                 {
                     return Result.GenError<DataResult>(Error.ManufactureTaskItemOrderDuplicate);
                 }
-                var oldToNew = new Dictionary<int,int>();
+                var oldToNew = new Dictionary<int, int>();
                 var i = 0;
                 foreach (var item in items)
                 {

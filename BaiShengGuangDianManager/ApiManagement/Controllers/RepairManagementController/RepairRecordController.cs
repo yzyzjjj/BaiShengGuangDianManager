@@ -95,24 +95,28 @@ namespace ApiManagement.Controllers.RepairManagementController
         /// <param name="startTime"></param>
         /// <param name="endTime"></param>
         /// <param name="state"></param>
+        /// <param name="account"></param>
         /// <param name="qId"></param>
         /// <returns></returns>
         // GET: api/RepairRecord
         [HttpGet("ReportLog")]
-        public DataResult GetReportLog([FromQuery]DateTime startTime, DateTime endTime, int state, int qId)
+        public DataResult GetReportLog([FromQuery]DateTime startTime, DateTime endTime, int state, string account, int qId)
         {
             var field = RepairRecord.GetField(new List<string> { "DeviceCode" }, "a.");
             var sql =
-                $"SELECT a.*, b.FaultTypeName, IFNULL(c.`Name`, '') `Name`, IFNULL(c.`Account`, '') `Account`, IFNULL(c.`Phone`, '') `Phone` FROM (SELECT {field}, IFNULL(b.`Code`, a.DeviceCode) DeviceCode FROM `fault_device_repair` a " +
-                $"LEFT JOIN `device_library` b ON a.DeviceId = b.Id) a JOIN `fault_type` b ON a.FaultTypeId = b.Id " +
-                $"LEFT JOIN (SELECT * FROM(SELECT * FROM maintainer ORDER BY MarkedDelete) a GROUP BY a.Account) c ON a.Maintainer = c.Account ";
+                $"SELECT a.*, b.FaultTypeName, b.FaultDescription Fault1, IFNULL(c.`Name`, '') `Name`, IFNULL(c.`Account`, '') `Account`, IFNULL(c.`Phone`, '') `Phone`, IFNULL(d.`FaultTypeName`, '') `FaultTypeName1`, IFNULL(d.`FaultDescription`, '') `Fault2` " +
+                $"FROM (SELECT {field}, IFNULL(b.`Code`, a.DeviceCode) DeviceCode FROM `fault_device_repair` a LEFT JOIN `device_library` b ON a.DeviceId = b.Id) a JOIN `fault_type` b ON a.FaultTypeId = b.Id " +
+                $"LEFT JOIN (SELECT * FROM (SELECT * FROM maintainer ORDER BY MarkedDelete) a GROUP BY a.Account) c ON a.Maintainer = c.Account " +
+                $"LEFT JOIN `fault_type` d ON a.FaultTypeId1 = d.Id ";
+
             sql += $"WHERE a.MarkedDelete = 0 " +
                    $"{((startTime == default(DateTime) || endTime == default(DateTime)) ? "" : " AND a.FaultTime >= @startTime AND a.FaultTime <= @endTime")}" +
                    $"{(state == -1 ? "" : " AND `State` = @state")}" +
+                   $"{(account.IsNullOrEmpty() ? "" : " AND `Proposer` = @account")}" +
                    $"{(qId == 0 ? "" : " AND a.Id = @qId")};";
 
             var result = new DataResult();
-            result.datas.AddRange(ServerConfig.ApiDb.Query<RepairRecordDetail>(sql, new { startTime, endTime, state, qId })
+            result.datas.AddRange(ServerConfig.ApiDb.Query<RepairRecordDetail>(sql, new { startTime, endTime, state, account, qId })
                 .OrderByDescending(x => x.FaultTime));
             if (qId != 0 && !result.datas.Any())
             {

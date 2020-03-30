@@ -108,6 +108,7 @@ namespace ApiManagement.Controllers.DeviceManagementController
                         x.ProcessTime,
                         x.LeftTime,
                         x.Administrator,
+                        x.SiteName,
                     }));
                 }
                 else

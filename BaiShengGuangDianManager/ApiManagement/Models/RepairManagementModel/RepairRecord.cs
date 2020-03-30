@@ -12,7 +12,6 @@ namespace ApiManagement.Models.RepairManagementModel
 {
     public class RepairRecord : FaultDevice
     {
-        public bool IsReport { get; set; }
         public string FaultSolver { get; set; }
         public DateTime SolveTime { get; set; }
         public string SolvePlan { get; set; }
@@ -36,9 +35,12 @@ namespace ApiManagement.Models.RepairManagementModel
     public class RepairRecordDetail : RepairRecord
     {
         public string FaultTypeName { get; set; }
+        public string Fault1 { get; set; }
         public string SiteName { get; set; }
         public string Name { get; set; }
         public string Account { get; set; }
         public string Phone { get; set; }
+        public string FaultTypeName1 { get; set; }
+        public string Fault2 { get; set; }
     }
 }

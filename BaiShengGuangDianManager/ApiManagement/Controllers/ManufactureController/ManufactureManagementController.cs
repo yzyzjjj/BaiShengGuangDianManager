@@ -146,18 +146,20 @@ namespace ApiManagement.Controllers.ManufactureController
         /// <returns></returns>
         // PUT: api/ManufacturePlan
         [HttpPut]
-        public DataResult PutManufacturePlanTask([FromBody] ManufacturePlanTask task)
+        public Result PutManufacturePlanTask([FromBody] ManufacturePlanTask task)
         {
             if (task.Id == 0)
             {
-                return Result.GenError<DataResult>(Error.ManufactureTaskNotExist);
+                return Result.GenError<Result>(Error.ManufactureTaskNotExist);
             }
+
             var oldTask =
-                ServerConfig.ApiDb.Query<ManufacturePlanTask>("SELECT * FROM `manufacture_plan_task` WHERE Id = @Id AND MarkedDelete = 0;",
+                ServerConfig.ApiDb.Query<ManufacturePlanTask>(
+                    "SELECT * FROM `manufacture_plan_task` WHERE Id = @Id AND MarkedDelete = 0;",
                     new { task.PlanId, task.Id }).FirstOrDefault();
             if (oldTask == null)
             {
-                return Result.GenError<DataResult>(Error.ManufactureTaskItemNotExist);
+                return Result.GenError<Result>(Error.ManufactureTaskItemNotExist);
             }
 
             var changes = new List<ManufactureLog>();
@@ -175,7 +177,6 @@ namespace ApiManagement.Controllers.ManufactureController
             task.PauseTime = oldTask.PauseTime;
             task.ActualStartTime = oldTask.ActualStartTime;
             task.ActualEndTime = oldTask.ActualEndTime;
-
             var createUserId = Request.GetIdentityInformation();
             var markedDateTime = DateTime.Now;
             var changeTask = false;
@@ -192,141 +193,149 @@ namespace ApiManagement.Controllers.ManufactureController
                 changes.Add(taskChange);
             }
 
-            if (changeTask)
+            if (oldTask.IsCheck)
             {
-                if (!oldTask.IsCheck)
+                ManufacturePlanTask preTask;
+                if (oldTask.CheckResult != ManufacturePlanCheckState.Redo &&
+                    task.CheckResult == ManufacturePlanCheckState.Redo)
                 {
-                    ServerConfig.ApiDb.Execute("UPDATE manufacture_plan_task SET `EstimatedHour` = @EstimatedHour, `EstimatedMin` = @EstimatedMin, `Score` = @Score, `Desc` = @Desc, `ActualHour` = @ActualHour, `ActualMin` = @ActualMin, `ActualScore` = @ActualScore WHERE `Id` = @Id;", task);
-                }
-                else
-                {
-                    ManufacturePlanTask preTask;
-                    if (oldTask.CheckResult != ManufacturePlanCheckState.Redo &&
-                        task.CheckResult == ManufacturePlanCheckState.Redo)
+                    var sql =
+                        "SELECT * FROM `manufacture_plan_task` WHERE PlanId = @PlanId AND `Order` = @Relation;";
+                    preTask = ServerConfig.ApiDb.Query<ManufacturePlanTask>(sql, new { oldTask.PlanId, oldTask.Relation })
+                        .FirstOrDefault();
+                    if (preTask != null)
                     {
-                        var sql =
-                            "SELECT * FROM `manufacture_plan_task` WHERE PlanId = @PlanId AND `Order` = @Relation;";
-                        preTask = ServerConfig.ApiDb.Query<ManufacturePlanTask>(sql, new { oldTask.PlanId, oldTask.Relation }).FirstOrDefault();
-                        if (preTask != null)
+                        if (preTask.State == ManufacturePlanItemState.Done)
                         {
-                            if (preTask.State == ManufacturePlanItemState.Done)
+                            var oldPreTask = (ManufacturePlanTask)preTask.Clone();
+                            preTask.State = preTask.IsCheck
+                                ? ManufacturePlanItemState.WaitCheck
+                                : ManufacturePlanItemState.WaitRedo;
+                            preTask.RedoCount++;
+                            preTask.IsRedo = true;
+                            keys = new List<string> { "State" };
+                            if (oldPreTask.HaveChange(preTask, out var change, keys))
                             {
-                                var oldPreTask = (ManufacturePlanTask)preTask.Clone();
-                                preTask.State = preTask.IsCheck ? ManufacturePlanItemState.WaitCheck : ManufacturePlanItemState.WaitRedo;
-                                preTask.RedoCount++;
-                                preTask.IsRedo = true;
-                                keys = new List<string> { "State" };
-                                if (oldPreTask.HaveChange(preTask, out var change, keys))
-                                {
-                                    change.Time = markedDateTime;
-                                    change.Account = createUserId;
-                                    change.PlanId = preTask.PlanId;
-                                    change.IsAssign = true;
-                                    change.TaskId = preTask.TaskId;
-                                    change.ItemId = preTask.Id;
-                                    changes.Add(change);
-                                }
-                                ServerConfig.ApiDb.Execute("UPDATE manufacture_plan_task SET `State` = @State, `RedoCount` = @RedoCount, `IsRedo` = @IsRedo WHERE `Id` = @Id;", preTask);
-                            }
-                            else
-                            {
-                                return Result.GenError<DataResult>(Error.ManufacturePlaneTaskNotDone);
-                            }
-                        }
-                    }
-
-                    if (oldTask.CheckResult == ManufacturePlanCheckState.Redo &&
-                        task.CheckResult != ManufacturePlanCheckState.Redo)
-                    {
-                        var sql =
-                            "SELECT * FROM `manufacture_plan_task` WHERE PlanId = @PlanId AND `Order` = @Relation;";
-                        preTask = ServerConfig.ApiDb.Query<ManufacturePlanTask>(sql, new { oldTask.PlanId, oldTask.Relation }).FirstOrDefault();
-                        if (preTask != null)
-                        {
-                            if (preTask.State == ManufacturePlanItemState.WaitRedo || preTask.State == ManufacturePlanItemState.WaitCheck)
-                            {
-                                var oldPreTask = (ManufacturePlanTask)preTask.Clone();
-                                preTask.State = ManufacturePlanItemState.Done;
-                                preTask.RedoCount--;
-                                preTask.IsRedo = preTask.RedoCount > 0;
-
-                                keys = new List<string> { "State" };
-                                if (oldPreTask.HaveChange(preTask, out var change, keys))
-                                {
-                                    change.Time = markedDateTime;
-                                    change.Account = createUserId;
-                                    change.PlanId = preTask.PlanId;
-                                    change.IsAssign = true;
-                                    change.TaskId = preTask.TaskId;
-                                    change.ItemId = preTask.Id;
-                                    changes.Add(change);
-                                }
-                                ServerConfig.ApiDb.Execute("UPDATE manufacture_plan_task SET `State` = @State, `RedoCount` = @RedoCount, `IsRedo` = @IsRedo WHERE `Id` = @Id;", preTask);
-                            }
-                            else
-                            {
-                                return Result.GenError<DataResult>(Error.ManufacturePlaneTaskNotWaitRedo);
-                            }
-                        }
-                    }
-
-                    var checkItemChange = new ManufactureLog
-                    {
-                        Time = markedDateTime,
-                        Account = createUserId,
-                        PlanId = task.PlanId,
-                        IsAssign = true,
-                        TaskId = task.TaskId,
-                        ItemId = task.Id,
-                        Type = ManufactureLogType.UpdateCheckItem
-                    };
-
-                    var data =
-                        ServerConfig.ApiDb.Query<ManufacturePlanCheckItem>(
-                            "SELECT * FROM `manufacture_plan_check_item` WHERE PlanId = @PlanId AND ItemId = @Id AND MarkedDelete = 0;",
-                            new { task.PlanId, task.Id });
-
-                    if (task.Items != null && task.Items.Any())
-                    {
-                        var update = false;
-                        foreach (var item in task.Items)
-                        {
-                            var d = data.FirstOrDefault(x => x.Id == item.Id);
-                            if (d == null)
-                            {
-                                continue;
-                            }
-
-                            item.Desc = item.Desc ?? d.Desc;
-                            item.Images = item.Images ?? d.Images;
-                            if (d.HaveChange(item, out var change))
-                            {
-                                update = true;
                                 change.Time = markedDateTime;
                                 change.Account = createUserId;
-                                change.PlanId = task.PlanId;
+                                change.PlanId = preTask.PlanId;
                                 change.IsAssign = true;
-                                change.TaskId = task.TaskId;
-                                change.ItemId = task.Id;
-                                change.Type = ManufactureLogType.UpdateCheckItem;
+                                change.TaskId = preTask.TaskId;
+                                change.ItemId = preTask.Id;
                                 changes.Add(change);
                             }
+
+                            ServerConfig.ApiDb.Execute(
+                                "UPDATE manufacture_plan_task SET `State` = @State, `RedoCount` = @RedoCount, `IsRedo` = @IsRedo WHERE `Id` = @Id;",
+                                preTask);
+                        }
+                        else
+                        {
+                            return Result.GenError<DataResult>(Error.ManufacturePlaneTaskNotDone);
+                        }
+                    }
+                }
+
+                if (oldTask.CheckResult == ManufacturePlanCheckState.Redo &&
+                    task.CheckResult != ManufacturePlanCheckState.Redo)
+                {
+                    var sql =
+                        "SELECT * FROM `manufacture_plan_task` WHERE PlanId = @PlanId AND `Order` = @Relation;";
+                    preTask = ServerConfig.ApiDb.Query<ManufacturePlanTask>(sql, new { oldTask.PlanId, oldTask.Relation })
+                        .FirstOrDefault();
+                    if (preTask != null)
+                    {
+                        if (preTask.State == ManufacturePlanItemState.WaitRedo ||
+                            preTask.State == ManufacturePlanItemState.WaitCheck)
+                        {
+                            var oldPreTask = (ManufacturePlanTask)preTask.Clone();
+                            preTask.State = ManufacturePlanItemState.Done;
+                            preTask.RedoCount--;
+                            preTask.IsRedo = preTask.RedoCount > 0;
+
+                            keys = new List<string> { "State" };
+                            if (oldPreTask.HaveChange(preTask, out var change, keys))
+                            {
+                                change.Time = markedDateTime;
+                                change.Account = createUserId;
+                                change.PlanId = preTask.PlanId;
+                                change.IsAssign = true;
+                                change.TaskId = preTask.TaskId;
+                                change.ItemId = preTask.Id;
+                                changes.Add(change);
+                            }
+
+                            ServerConfig.ApiDb.Execute(
+                                "UPDATE manufacture_plan_task SET `State` = @State, `RedoCount` = @RedoCount, `IsRedo` = @IsRedo WHERE `Id` = @Id;",
+                                preTask);
+                        }
+                        else
+                        {
+                            return Result.GenError<DataResult>(Error.ManufacturePlaneTaskNotWaitRedo);
+                        }
+                    }
+                }
+
+                var checkItemChange = new ManufactureLog
+                {
+                    Time = markedDateTime,
+                    Account = createUserId,
+                    PlanId = task.PlanId,
+                    IsAssign = true,
+                    TaskId = task.TaskId,
+                    ItemId = task.Id,
+                    Type = ManufactureLogType.UpdateCheckItem
+                };
+
+                var data =
+                    ServerConfig.ApiDb.Query<ManufacturePlanCheckItem>(
+                        "SELECT * FROM `manufacture_plan_check_item` WHERE PlanId = @PlanId AND ItemId = @Id AND MarkedDelete = 0;",
+                        new { task.PlanId, task.Id });
+
+                if (task.Items != null && task.Items.Any())
+                {
+                    var update = false;
+                    foreach (var item in task.Items)
+                    {
+                        var d = data.FirstOrDefault(x => x.Id == item.Id);
+                        if (d == null)
+                        {
+                            continue;
                         }
 
-                        if (update)
+                        item.Desc = item.Desc ?? d.Desc;
+                        item.Images = item.Images ?? d.Images;
+                        if (d.HaveChange(item, out var change))
                         {
-                            changes.Add(checkItemChange);
-                            ServerConfig.ApiDb.Execute(
-                                "UPDATE manufacture_plan_check_item SET `CheckTime` = @CheckTime, `Desc` = @Desc, `Result` = @Result, `Images` = @Images WHERE `Id` = @Id;",
-                                task.Items);
+                            update = true;
+                            change.Time = markedDateTime;
+                            change.Account = createUserId;
+                            change.PlanId = task.PlanId;
+                            change.IsAssign = true;
+                            change.TaskId = task.TaskId;
+                            change.ItemId = task.Id;
+                            change.Type = ManufactureLogType.UpdateCheckItem;
+                            changes.Add(change);
                         }
                     }
 
-                    ServerConfig.ApiDb.Execute("UPDATE manufacture_plan_task SET `EstimatedHour` = @EstimatedHour, `EstimatedMin` = @EstimatedMin, `Score` = @Score, `Desc` = @Desc, `ActualHour` = @ActualHour, `ActualMin` = @ActualMin, `ActualScore` = @ActualScore, `CheckResult` = @CheckResult, `Remark` = @Remark WHERE `Id` = @Id;", task);
+                    if (update)
+                    {
+                        changes.Add(checkItemChange);
+                        ServerConfig.ApiDb.Execute(
+                            "UPDATE manufacture_plan_check_item SET `CheckTime` = @CheckTime, `Desc` = @Desc, `Result` = @Result, `Images` = @Images WHERE `Id` = @Id;",
+                            task.Items);
+                    }
                 }
             }
+
+            if (changeTask)
+            {
+                ServerConfig.ApiDb.Execute("UPDATE manufacture_plan_task SET `EstimatedHour` = @EstimatedHour, `EstimatedMin` = @EstimatedMin, `Score` = @Score, `Desc` = @Desc, `ActualHour` = @ActualHour, `ActualMin` = @ActualMin, `ActualScore` = @ActualScore, `CheckResult` = @CheckResult WHERE `Id` = @Id;", task);
+            }
+
             ManufactureLog.AddLog(changes);
-            return Result.GenError<DataResult>(Error.Success);
+            return Result.GenError<Result>(Error.Success);
         }
 
         /// <summary>
@@ -459,7 +468,7 @@ namespace ApiManagement.Controllers.ManufactureController
 
             if (task.Item.IsNullOrEmpty())
             {
-                return Result.GenError<DataResult>(Error.ManufactureTaskItemNotEmpty);
+                return Result.GenError<Result>(Error.ManufactureTaskItemNotEmpty);
             }
             var changes = new List<ManufactureLog>();
             var createUserId = Request.GetIdentityInformation();
@@ -485,11 +494,11 @@ namespace ApiManagement.Controllers.ManufactureController
                 task.Order = 1;
                 if (task.Relation != 0)
                 {
-                    return Result.GenError<DataResult>(Error.ManufactureTaskItemRelationError);
+                    return Result.GenError<Result>(Error.ManufactureTaskItemRelationError);
                 }
                 if (task.IsCheck && task.Relation == 0)
                 {
-                    return Result.GenError<DataResult>(Error.ManufactureCheckItemNoRelation);
+                    return Result.GenError<Result>(Error.ManufactureCheckItemNoRelation);
                 }
                 ServerConfig.ApiDb.Execute(
                     "UPDATE manufacture_plan_task SET `TotalOrder` = `TotalOrder` + 1 WHERE `TotalOrder` > @totalOrder;",
@@ -519,12 +528,12 @@ namespace ApiManagement.Controllers.ManufactureController
             {
                 if (task.Relation != 0 && manufacturePlanTasks.All(x => x.Order != task.Relation))
                 {
-                    return Result.GenError<DataResult>(Error.ManufactureTaskItemRelationError);
+                    return Result.GenError<Result>(Error.ManufactureTaskItemRelationError);
                 }
 
                 if (task.IsCheck && task.Relation == 0)
                 {
-                    return Result.GenError<DataResult>(Error.ManufactureCheckItemNoRelation);
+                    return Result.GenError<Result>(Error.ManufactureCheckItemNoRelation);
                 }
 
                 var pre = manufacturePlanTasks.LastOrDefault(x => x.TotalOrder == totalOrder);
@@ -585,7 +594,7 @@ namespace ApiManagement.Controllers.ManufactureController
             }
 
             ManufactureLog.AddLog(changes);
-            return Result.GenError<DataResult>(Error.Success);
+            return Result.GenError<Result>(Error.Success);
         }
 
         // DELETE: api/ManufacturePlan
@@ -601,7 +610,7 @@ namespace ApiManagement.Controllers.ManufactureController
             var task = ServerConfig.ApiDb.Query<ManufacturePlanTask>(sql, new { tId }).FirstOrDefault();
             if (task == null)
             {
-                return Result.GenError<DataResult>(Error.ManufactureTaskItemNotExist);
+                return Result.GenError<Result>(Error.ManufactureTaskItemNotExist);
             }
             var plan =
                 ServerConfig.ApiDb.Query<ManufacturePlan>("SELECT * FROM `manufacture_plan` WHERE `Id` = @PlanId;",
@@ -612,7 +621,7 @@ namespace ApiManagement.Controllers.ManufactureController
             var cnt = ServerConfig.ApiDb.Query<int>(sql, new { task.PlanId, task.Order }).FirstOrDefault();
             if (cnt > 0)
             {
-                return Result.GenError<DataResult>(Error.ManufacturePlaneTaskDeleteHaveRelation);
+                return Result.GenError<Result>(Error.ManufacturePlaneTaskDeleteHaveRelation);
             }
 
             var manufacturePlanTasks =
@@ -665,8 +674,7 @@ namespace ApiManagement.Controllers.ManufactureController
             changes.Add(planChange);
 
             ServerConfig.ApiDb.Execute(
-                "UPDATE manufacture_plan_task SET `MarkedDelete` = @MarkedDelete, `Order` = @Order WHERE `Id` = @Id;",
-                new { manufacturePlanTasks });
+                "UPDATE manufacture_plan_task SET `MarkedDelete` = @MarkedDelete, `Order` = @Order WHERE `Id` = @Id;", manufacturePlanTasks);
 
             ServerConfig.ApiDb.Execute(
                 "UPDATE manufacture_plan_task SET `TotalOrder` = `TotalOrder` - 1 WHERE `TotalOrder` > @totalOrder;",
@@ -683,7 +691,7 @@ namespace ApiManagement.Controllers.ManufactureController
             });
 
             ManufactureLog.AddLog(changes);
-            return Result.GenError<DataResult>(Error.Success);
+            return Result.GenError<Result>(Error.Success);
         }
 
         /// <summary>
