@@ -41,8 +41,8 @@ namespace ApiManagement.Models.MaterialManagementModel
         public string Purpose { get; set; }
         public int PlanId { get; set; } = 0;
         public string Plan { get; set; } = "";
-        public int Number { get; set; }
-        public int OldNumber { get; set; }
+        public decimal Number { get; set; }
+        public decimal OldNumber { get; set; }
         public string RelatedPerson { get; set; }
         public string Manager { get; set; }
     }

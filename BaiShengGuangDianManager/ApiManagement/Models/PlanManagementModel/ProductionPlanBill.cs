@@ -10,8 +10,8 @@ namespace ApiManagement.Models.PlanManagementModel
     {
         public int PlanId { get; set; }
         public int BillId { get; set; }
-        public int PlannedConsumption { get; set; }
-        public int ActualConsumption { get; set; }
+        public decimal PlannedConsumption { get; set; }
+        public decimal ActualConsumption { get; set; }
         public bool Extra { get; set; }
     }
 
@@ -19,8 +19,8 @@ namespace ApiManagement.Models.PlanManagementModel
     {
         public int PlanId { get; set; }
         public int BillId { get; set; }
-        public int PlannedConsumption { get; set; }
-        public int ActualConsumption { get; set; }
+        public decimal PlannedConsumption { get; set; }
+        public decimal ActualConsumption { get; set; }
         public bool Extra { get; set; }
     }
 
@@ -28,9 +28,9 @@ namespace ApiManagement.Models.PlanManagementModel
     {
         public int PlanId { get; set; }
         public int BillId { get; set; }
-        public int PlannedConsumption { get; set; }
-        public int ActualConsumption { get; set; }
+        public decimal PlannedConsumption { get; set; }
+        public decimal ActualConsumption { get; set; }
         public bool Extra { get; set; }
-        public int Number { get; set; }
+        public decimal Number { get; set; }
     }
 }

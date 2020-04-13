@@ -51,11 +51,11 @@ namespace ApiManagement.Base.Server
             ServerConfig.RedisHelper.PublishToTable("", tableName);
         }
 
-        ///// <summary>
-        ///// 数据解析Id
-        ///// </summary>
-        //[DataMember]
-        //public static int AnalysisId;
-        
+        /// <summary>
+        /// 公司名
+        /// </summary>
+        [DataMember]
+        public static string CompanyName;
+
     }
 }

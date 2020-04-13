@@ -20,7 +20,7 @@ namespace ApiManagement.Base.Helper
         private static Timer _timer;
         private static int _id = 0;
         private static string _createUserId = "ErpSystem";
-        private static string _url = "";
+        private static string _url = ServerConfig.ErpUrl;
         private static bool isInsert;
         private static bool isUpdate;
         private static bool isUpdateFlowCardProcessStep;
@@ -38,9 +38,8 @@ namespace ApiManagement.Base.Helper
             {"精抛", "精抛"},
         };
 
-        public static void Init(IConfiguration configuration)
+        public static void Init()
         {
-            _url = configuration.GetAppSettings<string>("ErpUrl");
 #if DEBUG
             Console.WriteLine("FlowCardHelper 调试模式已开启");
 #else

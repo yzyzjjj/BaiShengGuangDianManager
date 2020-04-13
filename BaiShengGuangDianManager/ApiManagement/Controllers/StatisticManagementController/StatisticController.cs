@@ -2,6 +2,7 @@
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
+using ApiManagement.Base.Helper;
 using ApiManagement.Base.Server;
 using ApiManagement.Models.DeviceManagementModel;
 using ApiManagement.Models.FlowCardManagementModel;
@@ -34,7 +35,7 @@ namespace ApiManagement.Controllers.StatisticManagementController
             {
                 errno = 0,
                 errmsg = "成功",
-                data = ServerConfig.MonitoringKanban
+                data = AnalysisHelper.MonitoringKanBan
             };
         }
 

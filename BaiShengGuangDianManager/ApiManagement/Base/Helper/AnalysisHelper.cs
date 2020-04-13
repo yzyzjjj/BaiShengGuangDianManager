@@ -6,7 +6,6 @@ using ApiManagement.Models.OtherModel;
 using ApiManagement.Models.RepairManagementModel;
 using ApiManagement.Models.StatisticManagementModel;
 using Microsoft.EntityFrameworkCore.Internal;
-using Microsoft.Extensions.Configuration;
 using ModelBase.Base.Logger;
 using ModelBase.Base.Utils;
 using ServiceStack;
@@ -29,9 +28,11 @@ namespace ApiManagement.Base.Helper
         private static Timer _timer10S;
         private static Timer _timer60S;
         private static Timer _script;
-        private static int _dealLength = 500;
-        private static MonitoringKanban _monitoringKanban;
-        public static void Init(IConfiguration configuration)
+        private static int _dealLength = 1000;
+
+        public static MonitoringKanBan MonitoringKanBan;
+        private static MonitoringKanBan _monitoringKanBan;
+        public static void Init()
         {
             try
             {
@@ -49,29 +50,29 @@ namespace ApiManagement.Base.Helper
                 var analysisOtherPre = "AnalysisOther";
                 var analysisOtherLock = $"{analysisOtherPre}:Lock";
 
-                var AnalysisPre = "Analysis";
-                var AnalysisLockKey = $"{AnalysisPre}:Lock";
-                var AnalysisIdKey = $"{AnalysisPre}:Id";
+                var analysisPre = "Analysis";
+                var analysisLockKey = $"{analysisPre}:Lock";
+                var analysisIdKey = $"{analysisPre}:Id";
 
                 ServerConfig.RedisHelper.Remove(analysisOtherLock);
-                ServerConfig.MonitoringKanban = ServerConfig.ApiDb.Query<MonitoringKanban>("SELECT * FROM `npc_monitoring_kanban` ORDER BY `Date` DESC LIMIT 1;").FirstOrDefault();
-                var startId1 = ServerConfig.RedisHelper.Get<int>(AnalysisIdKey);
+                MonitoringKanBan = ServerConfig.ApiDb.Query<MonitoringKanBan>("SELECT * FROM `npc_monitoring_kanban` ORDER BY `Date` DESC LIMIT 1;").FirstOrDefault();
+                var startId1 = ServerConfig.RedisHelper.Get<int>(analysisIdKey);
                 Thread.Sleep(2000);
-                var startId2 = ServerConfig.RedisHelper.Get<int>(AnalysisIdKey);
+                var startId2 = ServerConfig.RedisHelper.Get<int>(analysisIdKey);
                 if (startId1 == 0 && startId2 == 0)
                 {
-                    var data = ServerConfig.DataStorageDb.Query<MonitoringData>("SELECT Id FROM `npc_monitoring_data` ORDER BY SendTime LIMIT 1;").FirstOrDefault();
-                    if (data != null)
+                    var id = ServerConfig.ApiDb.Query<int>("SELECT Id FROM `npc_monitoring_analysis` ORDER BY Id LIMIT 1;").FirstOrDefault();
+                    if (id != 0)
                     {
-                        ServerConfig.RedisHelper.SetForever(AnalysisIdKey, data.Id);
+                        ServerConfig.RedisHelper.SetForever(analysisIdKey, id);
                     }
                 }
                 if (startId1 == startId2)
                 {
-                    ServerConfig.RedisHelper.Remove(AnalysisLockKey);
+                    ServerConfig.RedisHelper.Remove(analysisLockKey);
                 }
 
-                Console.WriteLine("发布模式已开启");
+                Console.WriteLine("AnalysisHelper 发布模式已开启");
                 _timer2S = new Timer(DoSth_2s, null, 10000, 2000);
                 _timer10S = new Timer(DoSth_10s, null, 10000, 1000 * 10);
                 _timer60S = new Timer(DoSth_60s, null, 5000, 1000 * 60);
@@ -106,7 +107,6 @@ namespace ApiManagement.Base.Helper
         /// <summary>
         /// 加工统计  分析
         /// </summary>
-        /// <param name="state"></param>
         private static void ProcessSum()
         {
 
@@ -216,7 +216,6 @@ namespace ApiManagement.Base.Helper
         /// <summary>
         /// 加工次数  分析
         /// </summary>
-        /// <param name="state"></param>
         private static void ProcessTime()
         {
 
@@ -342,6 +341,7 @@ namespace ApiManagement.Base.Helper
 
         private static void Delete()
         {
+            return;
             var redisPre = "Time";
             var redisLock = $"{redisPre}:Lock";
             if (ServerConfig.RedisHelper.SetIfNotExist(redisLock, "lock"))
@@ -349,18 +349,18 @@ namespace ApiManagement.Base.Helper
                 try
                 {
                     ServerConfig.RedisHelper.SetExpireAt(redisLock, DateTime.Now.AddMinutes(5));
-                    ServerConfig.DataStorageDb.Execute(
-                    "DELETE FROM npc_monitoring_data WHERE SendTime < @SendTime LIMIT 1000;", new
+                    ServerConfig.ApiDb.Execute(
+                    "DELETE FROM npc_monitoring_analysis WHERE SendTime < @SendTime LIMIT 1000;", new
                     {
                         SendTime = DateTime.Today.AddDays(-3)
                     }, 60);
                     //ServerConfig.DataStorageDb.Execute(
-                    //    "DELETE FROM npc_monitoring_data WHERE SendTime < @SendTime LIMIT 1000;OPTIMIZE TABLE npc_monitoring_data;", new
+                    //    "DELETE FROM npc_monitoring_analysis WHERE SendTime < @SendTime LIMIT 1000;OPTIMIZE TABLE npc_monitoring_analysis;", new
                     //    {
                     //        SendTime = DateTime.Today.AddDays(-3)
                     //    }, 60);
                     //ServerConfig.DataStorageDb.Execute(
-                    //    "DELETE FROM npc_monitoring_analysis WHERE SendTime < @SendTime LIMIT 1000;OPTIMIZE TABLE npc_monitoring_data;", new
+                    //    "DELETE FROM npc_monitoring_analysis WHERE SendTime < @SendTime LIMIT 1000;OPTIMIZE TABLE npc_monitoring_analysis;", new
                     //    {
                     //        SendTime = DateTime.Today.AddMonths(-3)
                     //    }, 60);
@@ -377,7 +377,6 @@ namespace ApiManagement.Base.Helper
         /// <summary>
         /// 
         /// </summary>
-        /// <param name="state"></param>
         private static void Analysis()
         {
 #if !DEBUG
@@ -397,14 +396,15 @@ namespace ApiManagement.Base.Helper
                 {
                     ServerConfig.RedisHelper.SetExpireAt(redisLock, DateTime.Now.AddMinutes(5));
                     var startId = ServerConfig.RedisHelper.Get<int>(idKey);
-                    var mData = ServerConfig.DataStorageDb.Query<MonitoringData>(
-                        "SELECT * FROM `npc_monitoring_data` WHERE Id > @Id AND UserSend = 0 ORDER BY Id LIMIT @limit;", new
+                    var mData = ServerConfig.ApiDb.Query<MonitoringData>(
+                        "SELECT * FROM `npc_monitoring_analysis` WHERE Id > @Id AND UserSend = 0 ORDER BY Id LIMIT @limit;", new
                         {
                             Id = startId,
                             limit = _dealLength
                         });
                     if (mData.Any())
                     {
+                        mData = mData.OrderBy(x => x.SendTime);
                         var endId = mData.Last().Id;
                         if (endId > startId)
                         {
@@ -487,16 +487,15 @@ namespace ApiManagement.Base.Helper
                                             x.ScriptId == script && x.VariableNameId == variableNameId);
                                         var address =
                                             udd?.DictionaryId ?? usuallyDictionaries.First(x =>
-                                                    x.ScriptId == 0 && x.VariableNameId == variableNameId)
-                                                .DictionaryId;
+                                               x.ScriptId == 0 && x.VariableNameId == variableNameId).DictionaryId;
 
                                         uDies.Add(new Tuple<int, int>(script, variableNameId), address);
                                     }
                                 }
 
-                                if (ServerConfig.MonitoringKanban == null)
+                                if (MonitoringKanBan == null)
                                 {
-                                    ServerConfig.MonitoringKanban = new MonitoringKanban
+                                    MonitoringKanBan = new MonitoringKanBan
                                     {
                                         Time = mData.FirstOrDefault().SendTime.NoMillisecond(),
                                     };
@@ -504,33 +503,25 @@ namespace ApiManagement.Base.Helper
                                 var faultDeviceCount = ServerConfig.ApiDb.Query<int>(
                                     "SELECT COUNT(1) FROM (SELECT * FROM `fault_device_repair` WHERE DeviceId != 0 AND FaultTime >= @FaultTime1 AND FaultTime <= @FaultTime2 GROUP BY DeviceCode) a;", new
                                     {
-                                        FaultTime1 = ServerConfig.MonitoringKanban != null ? ServerConfig.MonitoringKanban.Time.DayBeginTime() : DateTime.Now.DayBeginTime(),
-                                        FaultTime2 = ServerConfig.MonitoringKanban != null ? ServerConfig.MonitoringKanban.Time.DayEndTime() : DateTime.Now.DayEndTime()
+                                        FaultTime1 = MonitoringKanBan?.Time.DayBeginTime() ?? DateTime.Now.DayBeginTime(),
+                                        FaultTime2 = MonitoringKanBan?.Time.DayEndTime() ?? DateTime.Now.DayEndTime()
 
                                     }).FirstOrDefault();
 
-                                _monitoringKanban = _monitoringKanban ?? new MonitoringKanban
+                                _monitoringKanBan = _monitoringKanBan ?? new MonitoringKanBan
                                 {
-                                    Time = ServerConfig.MonitoringKanban.Time.NoMillisecond(),
+                                    Time = MonitoringKanBan.Time.NoMillisecond(),
                                     FaultDevice = faultDeviceCount,
                                     AllDevice = allDeviceList.Count(),
                                 };
                                 if (usuallyDictionaries != null && usuallyDictionaries.Any())
                                 {
-                                    foreach (var data in mData.OrderBy(x => x.SendTime))
+                                    foreach (var data in mData)
                                     {
                                         var time = data.SendTime.NoMillisecond();
-                                        var infoMessagePacket = new DeviceInfoMessagePacket(data.ValNum, data.InNum, data.OutNum);
-                                        var analysisData = infoMessagePacket.Deserialize(data.Data);
+                                        var analysisData = data.AnalysisData;
                                         if (analysisData != null)
                                         {
-                                            data.AnalysisData = new DeviceData
-                                            {
-                                                vals = analysisData.vals,
-                                                ins = analysisData.ins,
-                                                outs = analysisData.outs
-                                            };
-
                                             var actAddress = uDies[new Tuple<int, int>(data.ScriptId, currentFlowCardDId)] - 1;
                                             var currentFlowCardId = 0;
                                             FlowCardProcessStepDetail flowCardProcessStepDetail = null;
@@ -651,14 +642,25 @@ namespace ApiManagement.Base.Helper
                                                             EndTime = time,
                                                         });
                                                 }
-                                                if (v > 0 && !_monitoringKanban.UseList.Contains(data.DeviceId))
+
+                                                if (v > 0)
                                                 {
-                                                    _monitoringKanban.UseList.Add(data.DeviceId);
-                                                    _monitoringKanban.MaxUseList.Add(data.DeviceId);
+                                                    if (!_monitoringKanBan.UseList.Contains(data.DeviceId))
+                                                    {
+                                                        _monitoringKanBan.UseList.Add(data.DeviceId);
+                                                    }
+                                                    if (!_monitoringKanBan.MaxUseList.Contains(data.DeviceId))
+                                                    {
+                                                        _monitoringKanBan.MaxUseList.Add(data.DeviceId);
+                                                    }
                                                 }
-                                                if (v == 0 && _monitoringKanban.UseList.Contains(data.DeviceId))
+
+                                                if (v == 0)
                                                 {
-                                                    _monitoringKanban.UseList.Remove(data.DeviceId);
+                                                    if (_monitoringKanBan.UseList.Contains(data.DeviceId))
+                                                    {
+                                                        _monitoringKanBan.UseList.Remove(data.DeviceId);
+                                                    }
                                                 }
 
                                                 deviceList[data.DeviceId].State = v > 0 ? 1 : 0;
@@ -728,21 +730,16 @@ namespace ApiManagement.Base.Helper
                                                 TotalProcessTime = deviceList[data.DeviceId].TotalProcessTime,
                                                 RunTime = deviceList[data.DeviceId].RunTime,
                                                 TotalRunTime = deviceList[data.DeviceId].TotalRunTime,
-                                                Use = deviceList.Values.Where(x => x.Time <= x.Time.AddSeconds(2) && x.Time >= x.Time.AddSeconds(-2)).Count(x => x.State == 1),
+                                                Use = deviceList.Values.Where(x => Math.Abs((x.Time - time).TotalMinutes) <= 3).Count(x => x.State == 1),
                                                 Total = allDeviceList.Count(),
                                                 Rate = (decimal)deviceList.Values.Count(x => x.State == 1) * 100 / allDeviceList.Count(),
                                             });
                                         }
-                                        else
-                                        {
-                                            data.AnalysisData = null;
-                                        }
-                                        data.Data = data.AnalysisData.ToJSON();
 
-                                        Update(allDeviceList, time);
-                                        if (!_monitoringKanban.Time.InSameDay(time))
+                                        //Update(allDeviceList, time);
+                                        if (!_monitoringKanBan.Time.InSameDay(time))
                                         {
-                                            _monitoringKanban = new MonitoringKanban
+                                            _monitoringKanBan = new MonitoringKanBan
                                             {
                                                 Time = time,
                                                 FaultDevice = faultDeviceCount,
@@ -751,12 +748,13 @@ namespace ApiManagement.Base.Helper
                                         }
                                         //else
                                         //{
-                                        //    _monitoringKanban.UseList = ServerConfig.MonitoringKanban.UseList;
+                                        //    _monitoringKanban.UseList = MonitoringKanBan.UseList;
                                         //    _monitoringKanban.SingleProcessRate =
-                                        //        ServerConfig.MonitoringKanban.SingleProcessRate;
+                                        //        MonitoringKanBan.SingleProcessRate;
                                         //}
                                     }
-                                    //Update(allDeviceList, time);
+
+                                    UpdateKanBan(allDeviceList, mData.Last().SendTime.NoMillisecond());
                                 }
                             }
                             #endregion
@@ -774,13 +772,16 @@ namespace ApiManagement.Base.Helper
                                 deviceList.Values);
 
                             ServerConfig.ApiDb.Execute(
-                                "INSERT INTO npc_monitoring_kanban (`Date`, `AllDevice`, `NormalDevice`, `ProcessDevice`, `IdleDevice`, `FaultDevice`, `ConnectErrorDevice`, `MaxUse`, `MaxUseListStr`, `UseListStr`, `MaxUseRate`, `MinUse`, `MinUseRate`, `MaxSimultaneousUseRate`, `MinSimultaneousUseRate`, `SingleProcessRateStr`, `AllProcessRate`, `RunTime`, `ProcessTime`, `IdleTime`) VALUES (@Date, @AllDevice, @NormalDevice, @ProcessDevice, @IdleDevice, @FaultDevice, @ConnectErrorDevice, @MaxUse, @UseListStr, @MaxUseRate, @MinUse, @MinUseRate, @MaxSimultaneousUseRate, @MinSimultaneousUseRate, @SingleProcessRateStr, @AllProcessRate, @RunTime, @ProcessTime, @IdleTime) " +
+                                "INSERT INTO npc_monitoring_kanban (`Date`, `AllDevice`, `NormalDevice`, `ProcessDevice`, `IdleDevice`, `FaultDevice`, `ConnectErrorDevice`, `MaxUse`, `UseListStr`, " +
+                                "`MaxUseListStr`, `MaxUseRate`, `MinUse`, `MinUseRate`, `MaxSimultaneousUseRate`, `MinSimultaneousUseRate`, `SingleProcessRateStr`, `AllProcessRate`, `RunTime`, " +
+                                "`ProcessTime`, `IdleTime`) VALUES (@Date, @AllDevice, @NormalDevice, @ProcessDevice, @IdleDevice, @FaultDevice, @ConnectErrorDevice, @MaxUse, @UseListStr, " +
+                                "@MaxUseListStr ,@MaxUseRate, @MinUse, @MinUseRate, @MaxSimultaneousUseRate, @MinSimultaneousUseRate, @SingleProcessRateStr, @AllProcessRate, @RunTime, @ProcessTime, @IdleTime) " +
                                 "ON DUPLICATE KEY UPDATE `AllDevice` = @AllDevice, `NormalDevice` = @NormalDevice, `ProcessDevice` = @ProcessDevice, `IdleDevice` = @IdleDevice, `FaultDevice` = @FaultDevice, `ConnectErrorDevice` = @ConnectErrorDevice, `MaxUse` = @MaxUse, `MaxUseListStr` = @MaxUseListStr, `UseListStr` = @UseListStr, `MaxUseRate` = @MaxUseRate, `MinUse` = @MinUse, `MinUseRate` = @MinUseRate, `MaxSimultaneousUseRate` = @MaxSimultaneousUseRate, `MinSimultaneousUseRate` = @MinSimultaneousUseRate, `SingleProcessRateStr` = @SingleProcessRateStr, `AllProcessRate` = @AllProcessRate, `RunTime` = @RunTime, `ProcessTime` = @ProcessTime, `IdleTime` = @IdleTime;"
-                                , ServerConfig.MonitoringKanban);
+                                , MonitoringKanBan);
 
                             try
                             {
-                                InsertAnalysis(mData, monitoringProcesses);
+                                InsertAnalysis(monitoringProcesses);
                             }
                             catch (Exception e)
                             {
@@ -799,36 +800,35 @@ namespace ApiManagement.Base.Helper
             }
         }
 
-        private static async void InsertAnalysis(IEnumerable<MonitoringData> mData, IEnumerable<MonitoringProcess> monitoringProcesses)
+        private static void InsertAnalysis(IEnumerable<MonitoringProcess> monitoringProcesses)
         {
-            await ServerConfig.ApiDb.ExecuteAsync(
-                  "INSERT INTO npc_monitoring_analysis (`SendTime`, `DeviceId`, `ScriptId`, `Ip`, `Port`, `Data`) VALUES (@SendTime, @DeviceId, @ScriptId, @Ip, @Port, @Data) " +
-                  "ON DUPLICATE KEY UPDATE `SendTime` = @SendTime, `DeviceId` = @DeviceId, `ScriptId` = @ScriptId, `Ip` = @Ip, `Port` = @Port, `Data` = @Data;",
-                  mData);
-
-            await ServerConfig.ApiDb.ExecuteAsync(
-                "INSERT INTO npc_monitoring_process (`Time`, `DeviceId`, `ProcessCount`, `TotalProcessCount`, `ProcessTime`, `TotalProcessTime`, `RunTime`, `TotalRunTime`, `State`, `Rate`, `Use`, `Total`) VALUES (@Time, @DeviceId, @ProcessCount, @TotalProcessCount, @ProcessTime, @TotalProcessTime, @RunTime, @TotalRunTime, @State, @Rate, @Use, @Total) " +
-                "ON DUPLICATE KEY UPDATE `Time` = @Time, `DeviceId` = @DeviceId, `State` = @State, `ProcessCount` = @ProcessCount, `TotalProcessCount` = @TotalProcessCount, `ProcessTime` = @ProcessTime, `TotalProcessTime` = @TotalProcessTime, `RunTime` = @RunTime, `TotalRunTime` = @TotalRunTime, `Use` = @Use, `Total` = @Total, `Rate` = @Rate;",
-                monitoringProcesses);
+            Task.Run(() =>
+            {
+                ServerConfig.ApiDb.ExecuteTrans(
+                   "INSERT INTO npc_monitoring_process (`Time`, `DeviceId`, `ProcessCount`, `TotalProcessCount`, `ProcessTime`, `TotalProcessTime`, `RunTime`, `TotalRunTime`, `State`, `Rate`, `Use`, `Total`) VALUES (@Time, @DeviceId, @ProcessCount, @TotalProcessCount, @ProcessTime, @TotalProcessTime, @RunTime, @TotalRunTime, @State, @Rate, @Use, @Total) " +
+                   "ON DUPLICATE KEY UPDATE `Time` = @Time, `DeviceId` = @DeviceId, `State` = @State, `ProcessCount` = @ProcessCount, `TotalProcessCount` = @TotalProcessCount, `ProcessTime` = @ProcessTime, `TotalProcessTime` = @TotalProcessTime, `RunTime` = @RunTime, `TotalRunTime` = @TotalRunTime, `Use` = @Use, `Total` = @Total, `Rate` = @Rate;",
+                   monitoringProcesses);
+            });
         }
 
-        private static void Update(IEnumerable<MonitoringProcess> allDeviceList, DateTime time)
+        private static void UpdateKanBan(IEnumerable<MonitoringProcess> allDeviceList, DateTime time)
         {
-            _monitoringKanban.Time = time;
-            var validDevice = allDeviceList.Where(x => Math.Abs((x.Time - _monitoringKanban.Time).TotalSeconds) < 5);
-            _monitoringKanban.NormalDevice = validDevice.Count();
-            _monitoringKanban.ProcessDevice = validDevice.Count(x => x.State == 1);
-            _monitoringKanban.MaxUse = _monitoringKanban.MaxUseList.Count;
-            _monitoringKanban.MinUse = _monitoringKanban.MaxUse;
-            _monitoringKanban.MaxSimultaneousUseRate = _monitoringKanban.ProcessDevice;
-            _monitoringKanban.MinSimultaneousUseRate = _monitoringKanban.MaxSimultaneousUseRate;
+            _monitoringKanBan.Time = time;
+            var validDevice = allDeviceList.Where(x => Math.Abs((x.Time - _monitoringKanBan.Time).TotalMinutes) <= 5);
+            _monitoringKanBan.NormalDevice = validDevice.Count();
+            _monitoringKanBan.ProcessDevice = validDevice.Count(x => x.State == 1);
+            _monitoringKanBan.MaxUseList = _monitoringKanBan.MaxUseList.Distinct().ToList();
+            _monitoringKanBan.MaxUse = _monitoringKanBan.MaxUseList.Count;
+            _monitoringKanBan.MinUse = _monitoringKanBan.MaxUse;
+            _monitoringKanBan.MaxSimultaneousUseRate = _monitoringKanBan.ProcessDevice;
+            _monitoringKanBan.MinSimultaneousUseRate = _monitoringKanBan.MaxSimultaneousUseRate;
             foreach (var device in allDeviceList)
             {
-                var rate = _monitoringKanban.SingleProcessRate.FirstOrDefault(x =>
+                var rate = _monitoringKanBan.SingleProcessRate.FirstOrDefault(x =>
                     x.Id == device.DeviceId);
                 if (rate == null)
                 {
-                    _monitoringKanban.SingleProcessRate.Add(new ProcessUseRate
+                    _monitoringKanBan.SingleProcessRate.Add(new ProcessUseRate
                     {
                         Id = device.DeviceId,
                         Code = device.Code,
@@ -841,20 +841,18 @@ namespace ApiManagement.Base.Helper
                 }
             }
 
-            var todayDevice = allDeviceList.Where(x => x.Time.InSameDay(_monitoringKanban.Time));
-            //_monitoringKanban.AllProcessRate = (todayDevice.Sum(x => x.ProcessTime) * 1m / (allDeviceList.Count() * 24 * 3600)).ToRound(4);
-            _monitoringKanban.AllProcessRate = todayDevice.Any() ? (todayDevice.Sum(x => x.ProcessTime) * 1m / (todayDevice.Count() * 24 * 3600)).ToRound(4) : 0;
-            _monitoringKanban.RunTime = todayDevice.Sum(x => x.RunTime);
-            _monitoringKanban.ProcessTime = todayDevice.Sum(x => x.ProcessTime);
+            var todayDevice = allDeviceList.Where(x => x.Time.InSameDay(_monitoringKanBan.Time));
+            _monitoringKanBan.RunTime = todayDevice.Sum(x => x.RunTime);
+            _monitoringKanBan.ProcessTime = todayDevice.Sum(x => x.ProcessTime);
+            _monitoringKanBan.AllProcessRate = todayDevice.Any() ? (_monitoringKanBan.ProcessTime * 1m / (todayDevice.Count() * 24 * 3600)).ToRound(4) : 0;
 
-            _monitoringKanban.UseCodeList = allDeviceList.OrderBy(x => x.DeviceId).Where(x => _monitoringKanban.UseList.Contains(x.DeviceId)).Select(x => x.Code).ToList();
-            ServerConfig.MonitoringKanban.Update(_monitoringKanban);
+            _monitoringKanBan.UseCodeList = allDeviceList.OrderBy(x => x.DeviceId).Where(x => _monitoringKanBan.UseList.Contains(x.DeviceId)).Select(x => x.Code).ToList();
+            MonitoringKanBan.Update(_monitoringKanBan);
         }
 
         /// <summary>
         /// 
         /// </summary>
-        /// <param name="state"></param>
         private static void AnalysisOther()
         {
 #if !DEBUG
@@ -863,8 +861,6 @@ namespace ApiManagement.Base.Helper
                 return;
             }
 #endif
-
-
             var redisPre = "AnalysisOther";
             var redisLock = $"{redisPre}:Lock";
             var timeKey = $"{redisPre}:Time";

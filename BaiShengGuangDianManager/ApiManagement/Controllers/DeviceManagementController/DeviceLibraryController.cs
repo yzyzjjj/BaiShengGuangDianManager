@@ -3,6 +3,7 @@ using ApiManagement.Base.Server;
 using ApiManagement.Models.DeviceManagementModel;
 using ApiManagement.Models.FlowCardManagementModel;
 using ApiManagement.Models.ProcessManagementModel;
+using ApiManagement.Models.RepairManagementModel;
 using ApiManagement.Models.StatisticManagementModel;
 using Microsoft.AspNetCore.Mvc;
 using ModelBase.Base.EnumConfig;
@@ -52,7 +53,8 @@ namespace ApiManagement.Controllers.DeviceManagementController
                     .ToDictionary(x => x.Id);
 
                 var faultDevices = ServerConfig.ApiDb.Query<dynamic>(
-                    "SELECT * FROM (SELECT a.* FROM `fault_device` a JOIN `device_library` b ON a.DeviceId = b.Id WHERE a.MarkedDelete = 0 ORDER BY a.DeviceId, a.State DESC ) a GROUP BY DeviceCode;");
+                    "SELECT * FROM (SELECT a.* FROM `fault_device_repair` a JOIN `device_library` b ON a.DeviceId = b.Id WHERE a.`State` != @state AND a.MarkedDelete = 0 ORDER BY a.DeviceId, a.State DESC ) a GROUP BY DeviceCode;",
+                    new { state = RepairStateEnum.Complete });
                 foreach (var faultDevice in faultDevices)
                 {
                     var device = deviceLibraryDetails.Values.FirstOrDefault(x => x.Id == faultDevice.DeviceId);
@@ -139,7 +141,8 @@ namespace ApiManagement.Controllers.DeviceManagementController
                 return result;
             }
 
-            var faultDevice = ServerConfig.ApiDb.Query<dynamic>("SELECT a.* FROM `fault_device` a JOIN `device_library` b ON a.DeviceId = b.Id WHERE a.MarkedDelete = 0 AND DeviceId = @DeviceId;", new { DeviceId = data.Id }).FirstOrDefault();
+            var faultDevice = ServerConfig.ApiDb.Query<dynamic>("SELECT a.* FROM `fault_device_repair` a JOIN `device_library` b ON a.DeviceId = b.Id WHERE a.`State` != @state AND a.MarkedDelete = 0 AND DeviceId = @DeviceId;",
+                new { DeviceId = data.Id, state = RepairStateEnum.Complete }).FirstOrDefault();
             if (faultDevice != null)
             {
                 data.RepairState = faultDevice.State;
@@ -198,8 +201,8 @@ namespace ApiManagement.Controllers.DeviceManagementController
                 result.errno = Error.DeviceNotExist;
                 return result;
             }
-
-            var faultDevice = ServerConfig.ApiDb.Query<dynamic>("SELECT a.* FROM `fault_device` a JOIN `device_library` b ON a.DeviceId = b.Id WHERE MarkedDelete = 0 AND DeviceId = @DeviceId;", new { DeviceId = data.Id }).FirstOrDefault();
+            var faultDevice = ServerConfig.ApiDb.Query<dynamic>("SELECT a.* FROM `fault_device_repair` a JOIN `device_library` b ON a.DeviceId = b.Id WHERE a.`State` != @state AND a.MarkedDelete = 0 AND DeviceId = @DeviceId;",
+                new { DeviceId = data.Id, state = RepairStateEnum.Complete }).FirstOrDefault();
             if (faultDevice != null)
             {
                 data.RepairState = faultDevice.State;
@@ -334,7 +337,7 @@ namespace ApiManagement.Controllers.DeviceManagementController
                         if (dataResult.messages.Any())
                         {
                             var data = dataResult.messages.First().Item2;
-                            var res = msg.Deserialize(data);
+                            var res = JsonConvert.DeserializeObject<DeviceData>(data);
                             if (res != null)
                             {
                                 foreach (var usuallyDictionaryType in usuallyDictionaryTypes)
@@ -349,7 +352,7 @@ namespace ApiManagement.Controllers.DeviceManagementController
                                         switch (usuallyDictionary.VariableTypeId)
                                         {
                                             case 1:
-                                                if (((List<int>)res.vals).Count >= usuallyDictionary.DictionaryId)
+                                                if (res.vals.Count >= usuallyDictionary.DictionaryId)
                                                 {
                                                     v = res.vals[dId].ToString();
                                                     if (usuallyDictionary.VariableNameId == 6)
@@ -374,13 +377,13 @@ namespace ApiManagement.Controllers.DeviceManagementController
                                                 }
                                                 break;
                                             case 2:
-                                                if (((List<int>)res.ins).Count >= usuallyDictionary.DictionaryId)
+                                                if (res.ins.Count >= usuallyDictionary.DictionaryId)
                                                 {
                                                     v = res.ins[dId].ToString();
                                                 }
                                                 break;
                                             case 3:
-                                                if (((List<int>)res.outs).Count >= usuallyDictionary.DictionaryId)
+                                                if (res.outs.Count >= usuallyDictionary.DictionaryId)
                                                 {
                                                     v = res.outs[dId].ToString();
                                                 }

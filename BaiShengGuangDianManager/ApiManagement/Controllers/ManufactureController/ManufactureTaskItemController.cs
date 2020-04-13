@@ -30,7 +30,7 @@ namespace ApiManagement.Controllers.ManufactureController
         {
             var result = new DataResult();
             var data = ServerConfig.ApiDb.Query<ManufactureTaskItemDetail>("SELECT a.*, b.GroupId, b.`Group`, b.Processor, c.Module FROM `manufacture_task_item` a " +
-                                                                           "JOIN ( SELECT a.*, b.ProcessorName Processor, c.`Group` FROM `manufacture_processor` a JOIN `processor` b ON a.ProcessorId = b.Id JOIN `manufacture_group` c ON a.GroupId = c.Id ) b ON a.Person = b.ProcessorId " +
+                                                                           "JOIN ( SELECT a.*, b.ProcessorName Processor, c.`Group` FROM `manufacture_processor` a JOIN `processor` b ON a.ProcessorId = b.Id JOIN `manufacture_group` c ON a.GroupId = c.Id ) b ON a.Person = b.Id " +
                                                                            "JOIN `manufacture_task_module` c ON " +
                                                                            "a.ModuleId = c.Id WHERE a.TaskId = @taskId AND a.`MarkedDelete` = 0 ORDER BY a.`Order`;", new { taskId });
             result.datas.AddRange(data);

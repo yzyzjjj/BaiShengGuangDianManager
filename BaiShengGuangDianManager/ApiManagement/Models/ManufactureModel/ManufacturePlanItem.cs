@@ -17,7 +17,7 @@ namespace ApiManagement.Models.ManufactureModel
         public string Plan { get; set; }
         [ManufactureDescription("任务顺序", 1)]
         public int Order { get; set; }
-        [ManufactureDescription("操作员", 2, "ProcessorName")]
+        [ManufactureDescription("操作员", 2, "Processor")]
         public int Person { get; set; }
         public string Processor { get; set; }
         public int GroupId { get; set; }
@@ -29,7 +29,7 @@ namespace ApiManagement.Models.ManufactureModel
         [ManufactureDescription("检验单", 4, "Check")]
         public int CheckId { get; set; }
         public string Check { get; set; }
-        [ManufactureDescription("任务名", 5, "Check")]
+        [ManufactureDescription("任务名", 5)]
         public string Item { get; set; }
         [ManufactureDescription("预计用时小时", 6)]
         public int EstimatedHour { get; set; }

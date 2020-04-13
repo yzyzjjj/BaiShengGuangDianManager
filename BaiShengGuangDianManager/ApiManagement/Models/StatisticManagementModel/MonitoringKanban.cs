@@ -7,7 +7,7 @@ using System.Linq;
 
 namespace ApiManagement.Models.StatisticManagementModel
 {
-    public class MonitoringKanban
+    public class MonitoringKanBan
     {
         //[JsonIgnore]
         //public bool Init = false;
@@ -143,7 +143,7 @@ namespace ApiManagement.Models.StatisticManagementModel
         /// </summary>
         public int IdleTime => RunTime - ProcessTime;
 
-        public void Update(MonitoringKanban monitoringKanban)
+        public void Update(MonitoringKanBan monitoringKanban)
         {
             Time = monitoringKanban.Time;
             AllDevice = monitoringKanban.AllDevice;

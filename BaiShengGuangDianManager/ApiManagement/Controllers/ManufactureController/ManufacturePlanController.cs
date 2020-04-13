@@ -208,7 +208,7 @@ namespace ApiManagement.Controllers.ManufactureController
                     var i = 0;
                     foreach (var item in items)
                     {
-                        oldToNew.Add(item.Order, i++);
+                        oldToNew.Add(item.Order, ++i);
                         item.Order = oldToNew[item.Order];
                         if (item.Relation != 0)
                         {
@@ -507,7 +507,7 @@ namespace ApiManagement.Controllers.ManufactureController
                 var i = 0;
                 foreach (var item in items)
                 {
-                    oldToNew.Add(item.Order, i++);
+                    oldToNew.Add(item.Order, ++i);
                     item.Order = oldToNew[item.Order];
                     if (item.Relation != 0)
                     {

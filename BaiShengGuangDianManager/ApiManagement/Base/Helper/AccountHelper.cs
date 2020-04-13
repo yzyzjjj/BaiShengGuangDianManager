@@ -16,18 +16,11 @@ namespace ApiManagement.Base.Helper
     public class AccountHelper
     {
         private static string _createUserId = "ErpSystem";
-        private static string _url = "";
-        private static Timer _checkTimer;
+        private static string _url = ServerConfig.ErpUrl;
 
         private static readonly string CheckAccountPre = "CheckAccount";
         private static readonly string CheckAccountLock = $"{CheckAccountPre}:Lock";
-        public static void Init(IConfiguration configuration)
-        {
-            _url = configuration.GetAppSettings<string>("ErpUrl");
-            _checkTimer = new Timer(CheckAccount, null, 5000, 1000 * 60);
-        }
-
-        private static void CheckAccount(object state)
+        public static void CheckAccount()
         {
             if (ServerConfig.RedisHelper.SetIfNotExist(CheckAccountLock, "lock"))
             {
@@ -54,9 +47,10 @@ namespace ApiManagement.Base.Helper
                             {
                                 var role = ServerConfig.WebDb.Query<int>("SELECT Id FROM `roles` WHERE New = 1;");
                                 ServerConfig.WebDb.Execute(
-                                    "INSERT INTO accounts (`Account`, `Name`, `Role`, `DeviceIds`, `IsDeleted`) VALUES (@Account, @Name, @Role, '', @IsDeleted);",
+                                    "INSERT INTO accounts (`Number`, `Account`, `Name`, `Role`, `DeviceIds`, `IsDeleted`) VALUES (@Number, @Account, @Name, @Role, '', @IsDeleted);",
                                     add.Select(x => new AccountInfo
                                     {
+                                        Number = x.f_ygbh,
                                         Account = x.f_username,
                                         Name = x.f_name,
                                         Role = role?.Join(",") ?? "",
@@ -65,14 +59,17 @@ namespace ApiManagement.Base.Helper
                             }
 
                             var update = res.Where(x => accounts.Any(y => y.Account == x.f_username) &&
-                                                        (!accounts.First(y => y.Account == x.f_username).IsDeleted && x.ifdelete || accounts.First(y => y.Account == x.f_username).Name != x.f_name));
+                                                        (!accounts.First(y => y.Account == x.f_username).IsDeleted && x.ifdelete || 
+                                                         accounts.First(y => y.Account == x.f_username).Name != x.f_name ||
+                                                         accounts.First(y => y.Account == x.f_username).Number != x.f_ygbh));
                             if (update.Any())
                             {
                                 ServerConfig.WebDb.Execute(
-                                    "UPDATE accounts SET `Name` = @Name, `IsDeleted` = @IsDeleted WHERE `Account` = @Account;",
+                                    "UPDATE accounts SET `Number` = @Number, `Name` = @Name, `IsDeleted` = @IsDeleted WHERE `Account` = @Account;",
                                     update.Select(x => new AccountInfo
                                     {
                                         Account = x.f_username,
+                                        Number = x.f_ygbh,
                                         Name = x.f_name,
                                         IsDeleted = x.ifdelete,
                                     }));
@@ -95,6 +92,7 @@ namespace ApiManagement.Base.Helper
             /// 账号Id
             /// </summary>
             public int Id { get; set; }
+            public string Number { get; set; }
             public string Account { get; set; }
             [JsonIgnore]
             public string Password { get; set; }
@@ -120,6 +118,7 @@ namespace ApiManagement.Base.Helper
             public string f_username;
             public string f_ifdelete;
             public bool ifdelete => f_ifdelete == "1";
+            public string f_ygbh;
         }
     }
 }

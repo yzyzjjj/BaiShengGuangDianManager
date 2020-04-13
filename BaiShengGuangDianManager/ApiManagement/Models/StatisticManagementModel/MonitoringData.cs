@@ -1,4 +1,5 @@
-﻿using System;
+﻿using Newtonsoft.Json;
+using System;
 
 namespace ApiManagement.Models.StatisticManagementModel
 {
@@ -17,6 +18,19 @@ namespace ApiManagement.Models.StatisticManagementModel
         public int ValNum { get; set; }
         public int InNum { get; set; }
         public int OutNum { get; set; }
-        public DeviceData AnalysisData { get; set; }
+        public DeviceData AnalysisData
+        {
+            get
+            {
+                try
+                {
+                    return JsonConvert.DeserializeObject<DeviceData>(Data);
+                }
+                catch (Exception)
+                {
+                    return null;
+                }
+            }
+        }
     }
 }

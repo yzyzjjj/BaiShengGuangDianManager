@@ -18,6 +18,7 @@ namespace ApiManagement.Models.RepairManagementModel
         public string Proposer { get; set; }
         public string FaultDescription { get; set; }
         public int Priority { get; set; }
+        public int Grade { get; set; }
         public RepairStateEnum State { get; set; }
         [Ignore]
         public string StateDesc => State.GetAttribute<DescriptionAttribute>()?.Description ?? "";

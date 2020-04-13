@@ -21,6 +21,7 @@ namespace ApiManagement.Models.DeviceManagementModel
         public int ScriptId { get; set; }
         public string Administrator { get; set; }
         public string AdministratorName { get; set; }
+        public string Phone { get; set; }
         public string Remark { get; set; }
 
     }
@@ -86,4 +87,5 @@ namespace ApiManagement.Models.DeviceManagementModel
         /// </summary>
         public string LeftTime { get; set; }
     }
+
 }

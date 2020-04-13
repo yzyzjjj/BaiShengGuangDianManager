@@ -27,6 +27,9 @@
     <Reference Include="ServiceStack.Text">
       <HintPath>..\packages\ServiceStack.Text.dll</HintPath>
     </Reference>
+    <Reference Include="topsdk-net-core">
+      <HintPath>..\packages\dingtalk-sdk-netCore\topsdk-net-core.dll</HintPath>
+    </Reference>
   </ItemGroup>
 
   <ItemGroup>

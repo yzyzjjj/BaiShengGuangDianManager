@@ -10,7 +10,7 @@ namespace ApiManagement.Models.MaterialManagementModel
         public string Code { get; set; }
         public string Unit { get; set; }
         public string Price { get; set; }
-        public int Stock { get; set; }
+        public decimal Stock { get; set; }
         public bool UpdateImage { get; set; }
         public string Images { get; set; }
         public string[] ImageList => Images != null ? JsonConvert.DeserializeObject<string[]>(Images) : new string[0];

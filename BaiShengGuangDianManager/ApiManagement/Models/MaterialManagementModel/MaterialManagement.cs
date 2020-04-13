@@ -9,7 +9,7 @@ namespace ApiManagement.Models.MaterialManagementModel
         public int BillId { get; set; }
         public DateTime InTime { get; set; }
         public DateTime OutTime { get; set; }
-        public int Number { get; set; }
+        public decimal Number { get; set; }
 
     }
     public class MaterialManagementDetail : MaterialManagement
