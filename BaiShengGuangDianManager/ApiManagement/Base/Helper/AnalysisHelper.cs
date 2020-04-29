@@ -28,7 +28,7 @@ namespace ApiManagement.Base.Helper
         private static Timer _timer10S;
         private static Timer _timer60S;
         private static Timer _script;
-        private static int _dealLength = 1000;
+        private static int _dealLength = 500;
 
         public static MonitoringKanBan MonitoringKanBan;
         private static MonitoringKanBan _monitoringKanBan;
@@ -342,36 +342,36 @@ namespace ApiManagement.Base.Helper
         private static void Delete()
         {
             return;
-            var redisPre = "Time";
-            var redisLock = $"{redisPre}:Lock";
-            if (ServerConfig.RedisHelper.SetIfNotExist(redisLock, "lock"))
-            {
-                try
-                {
-                    ServerConfig.RedisHelper.SetExpireAt(redisLock, DateTime.Now.AddMinutes(5));
-                    ServerConfig.ApiDb.Execute(
-                    "DELETE FROM npc_monitoring_analysis WHERE SendTime < @SendTime LIMIT 1000;", new
-                    {
-                        SendTime = DateTime.Today.AddDays(-3)
-                    }, 60);
-                    //ServerConfig.DataStorageDb.Execute(
-                    //    "DELETE FROM npc_monitoring_analysis WHERE SendTime < @SendTime LIMIT 1000;OPTIMIZE TABLE npc_monitoring_analysis;", new
-                    //    {
-                    //        SendTime = DateTime.Today.AddDays(-3)
-                    //    }, 60);
-                    //ServerConfig.DataStorageDb.Execute(
-                    //    "DELETE FROM npc_monitoring_analysis WHERE SendTime < @SendTime LIMIT 1000;OPTIMIZE TABLE npc_monitoring_analysis;", new
-                    //    {
-                    //        SendTime = DateTime.Today.AddMonths(-3)
-                    //    }, 60);
+            //var redisPre = "Time";
+            //var redisLock = $"{redisPre}:Lock";
+            //if (ServerConfig.RedisHelper.SetIfNotExist(redisLock, "lock"))
+            //{
+            //    try
+            //    {
+            //        ServerConfig.RedisHelper.SetExpireAt(redisLock, DateTime.Now.AddMinutes(5));
+            //        ServerConfig.ApiDb.Execute(
+            //        "DELETE FROM npc_monitoring_analysis WHERE SendTime < @SendTime LIMIT 1000;", new
+            //        {
+            //            SendTime = DateTime.Today.AddDays(-3)
+            //        }, 60);
+            //        //ServerConfig.DataStorageDb.Execute(
+            //        //    "DELETE FROM npc_monitoring_analysis WHERE SendTime < @SendTime LIMIT 1000;OPTIMIZE TABLE npc_monitoring_analysis;", new
+            //        //    {
+            //        //        SendTime = DateTime.Today.AddDays(-3)
+            //        //    }, 60);
+            //        //ServerConfig.DataStorageDb.Execute(
+            //        //    "DELETE FROM npc_monitoring_analysis WHERE SendTime < @SendTime LIMIT 1000;OPTIMIZE TABLE npc_monitoring_analysis;", new
+            //        //    {
+            //        //        SendTime = DateTime.Today.AddMonths(-3)
+            //        //    }, 60);
 
-                }
-                catch (Exception e)
-                {
-                    Log.Error(e);
-                }
-                ServerConfig.RedisHelper.Remove(redisLock);
-            }
+            //    }
+            //    catch (Exception e)
+            //    {
+            //        Log.Error(e);
+            //    }
+            //    ServerConfig.RedisHelper.Remove(redisLock);
+            //}
         }
 
         /// <summary>
@@ -417,8 +417,8 @@ namespace ApiManagement.Base.Helper
                             var processTimeDId = 64;
                             //当前加工流程卡号
                             var currentFlowCardDId = 6;
-                            //连续运行时间
-                            var runTimeDId = 2;
+                            //累积运行总时间
+                            var runTimeDId = 5;
                             var variableNameIdList = new List<int>
                             {
                                 stateDId,
@@ -1286,6 +1286,7 @@ namespace ApiManagement.Base.Helper
             var redisLock = $"{redisPre}:Lock";
             if (ServerConfig.RedisHelper.SetIfNotExist(redisLock, "lock"))
             {
+                ServerConfig.RedisHelper.SetExpireAt(redisLock, DateTime.Now.AddMinutes(5));
                 try
                 {
                     var all = ServerConfig.ApiDb.Query<UsuallyDictionary>("SELECT * FROM `usually_dictionary` WHERE MarkedDelete = 0;");

@@ -2,16 +2,10 @@
 
 namespace ApiManagement.Models.MaterialManagementModel
 {
-    public class MaterialLog
+    public class MaterialLog : MaterialBillDetail
     {
-        public int Id { get; set; }
         public DateTime Time { get; set; }
         public int BillId { get; set; }
-        public string Code { get; set; }
-        public int NameId { get; set; }
-        public string Name { get; set; }
-        public int SpecificationId { get; set; }
-        public string Specification { get; set; }
         /// <summary>
         /// 1 入库; 2 出库;3 冲正;
         /// </summary>

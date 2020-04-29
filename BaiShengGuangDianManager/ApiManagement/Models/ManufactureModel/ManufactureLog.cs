@@ -48,7 +48,7 @@ namespace ApiManagement.Models.ManufactureModel
                     {
                         _paramList = Param.IsNullOrEmpty() ? new List<ManufactureLogItem>() : JsonConvert.DeserializeObject<List<ManufactureLogItem>>(Param);
                     }
-                    catch (Exception e)
+                    catch (Exception)
                     {
                         _paramList = new List<ManufactureLogItem>();
                     }

@@ -94,10 +94,8 @@ namespace ApiManagement.Controllers.MaterialManagementController
                 return Result.GenError<Result>(Error.MaterialSiteIsExist);
             }
             materialSite.CreateUserId = Request.GetIdentityInformation();
-            materialSite.MarkedDateTime = DateTime.Now;
             ServerConfig.ApiDb.Execute(
-              "INSERT INTO material_site (`CreateUserId`, `MarkedDateTime`, `Site`, `Remark`) " +
-              "VALUES (@CreateUserId, @MarkedDateTime, @Site, @Remark);",
+              "INSERT INTO material_site (`CreateUserId`, `Site`, `Remark`) VALUES (@CreateUserId, @Site, @Remark);",
               materialSite);
 
             return Result.GenError<Result>(Error.Success);

@@ -9,5 +9,6 @@ namespace ApiManagement.Models.Notify
         public NotifyPlatformEnum Platform { get; set; }
         public string Webhook { get; set; }
         public string Secret { get; set; }
+        public string Url { get; set; }
     }
 }

@@ -94,10 +94,9 @@ namespace ApiManagement.Controllers.MaterialManagementController
                 return Result.GenError<Result>(Error.MaterialCategoryIsExist);
             }
             materialCategory.CreateUserId = Request.GetIdentityInformation();
-            materialCategory.MarkedDateTime = DateTime.Now;
             ServerConfig.ApiDb.Execute(
-              "INSERT INTO material_category (`CreateUserId`, `MarkedDateTime`, `Category`, `Remark`) " +
-              "VALUES (@CreateUserId, @MarkedDateTime, @Category, @Remark);",
+              "INSERT INTO material_category (`CreateUserId`, `Category`, `Remark`) " +
+              "VALUES (@CreateUserId, @Category, @Remark);",
               materialCategory);
 
             return Result.GenError<Result>(Error.Success);

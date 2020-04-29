@@ -27,7 +27,7 @@ namespace ApiManagement.Controllers.ManufactureController
         public DataResult GetManufacturePlanTaskState()
         {
             var result = new DataResult();
-            result.datas.AddRange(EnumHelper.EnumToList<ManufacturePlanItemState>().Select(x => new
+            result.datas.AddRange(EnumHelper.EnumToList<ManufacturePlanItemState>(true).Select(x => new
             {
                 Id = x.EnumValue,
                 State = x.Description,
@@ -54,16 +54,18 @@ namespace ApiManagement.Controllers.ManufactureController
         /// <summary>
         /// 获取任务管理列表
         /// </summary>
-        /// <param name="qId"></param>
-        /// <param name="sTime">开始</param>
-        /// <param name="eTime">结束</param>
+        /// <param name="spTime">计划</param>
+        /// <param name="epTime">计划结束</param>
+        /// <param name="sTime">实际开始</param>
+        /// <param name="eTime">实际结束</param>
         /// <param name="state">状态</param>
+        /// <param name="gId">分组id</param>
         /// <param name="pId">加工人id</param>
         /// <param name="planId">计划id</param>
         /// <returns></returns>
         // GET: api/ManufacturePlan?qId=0
         [HttpGet("Item")]
-        public DataResult GetManufacturePlanTask([FromQuery] DateTime sTime, DateTime eTime, int state, int pId, int planId)
+        public DataResult GetManufacturePlanTask([FromQuery] DateTime spTime, DateTime epTime, DateTime sTime, DateTime eTime, int planId, int gId, string pId = "0", string state = "-1")
         {
             if (planId != 0)
             {
@@ -83,12 +85,14 @@ namespace ApiManagement.Controllers.ManufactureController
                       "LEFT JOIN `manufacture_task_module` d ON a.ModuleId = d.Id " +
                       "LEFT JOIN `manufacture_check` e ON a.CheckId = e.Id " +
                       "WHERE a.MarkedDelete = 0 " +
-                      $"{((sTime == default(DateTime) || eTime == default(DateTime)) ? "" : " AND PlannedStartTime >= @sTime AND PlannedStartTime <= @eTime ")}" +
-                      $"{(state == 0 ? "" : " AND a.State = @state ")}" +
-                      $"{(pId == 0 ? "" : " AND Person = @pId ")}" +
                       $"{(planId == 0 ? "" : " AND a.PlanId = @planId ")}" +
+                      $"{((spTime == default(DateTime) || epTime == default(DateTime)) ? "" : " AND b.PlannedStartTime >= @sTime AND b.PlannedStartTime <= @eTime ")}" +
+                      $"{((sTime == default(DateTime) || eTime == default(DateTime)) ? "" : " AND FirstStartTime >= @sTime AND FirstStartTime <= @eTime ")}" +
+                      $"{(state.IsNullOrEmpty() || state == "-1" ? "" : " AND FIND_IN_SET(a.State, @state) ")}" +
+                      $"{(gId == 0 ? "" : " AND c.GroupId = @gId ")}" +
+                      $"{(pId.IsNullOrEmpty() || pId == "0" ? "" : " AND FIND_IN_SET(a.Person, @pId) ")}" +
                       $" ORDER BY a.`TotalOrder`;";
-            var data = ServerConfig.ApiDb.Query<ManufacturePlanTask>(sql, new { sTime, eTime, state, pId, planId });
+            var data = ServerConfig.ApiDb.Query<ManufacturePlanTask>(sql, new { spTime, epTime, sTime, eTime, planId, gId, pId, state });
             result.datas.AddRange(data);
             return result;
         }
@@ -602,7 +606,7 @@ namespace ApiManagement.Controllers.ManufactureController
         /// 任务删除
         /// </summary>
         /// <returns></returns>
-        [HttpDelete]
+        [HttpGet]
         public Result DeleteManufacturePlan([FromQuery] int tId)
         {
             var sql =

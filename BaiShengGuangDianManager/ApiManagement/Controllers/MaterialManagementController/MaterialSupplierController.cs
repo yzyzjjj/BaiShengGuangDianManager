@@ -117,15 +117,9 @@ namespace ApiManagement.Controllers.MaterialManagementController
             {
                 return Result.GenError<Result>(Error.MaterialSupplierIsExist);
             }
-
-            var markedDateTime = DateTime.Now;
-            foreach (var materialSupplier in materialSuppliers)
-            {
-                materialSupplier.MarkedDateTime = markedDateTime;
-            }
-
+            
             ServerConfig.ApiDb.Execute(
-                "UPDATE material_supplier SET `MarkedDateTime` = @MarkedDateTime, `NameId` = @NameId, `Supplier` = @Supplier, `Remark` = @Remark WHERE `Id` = @Id;", materialSuppliers);
+                "UPDATE material_supplier SET `NameId` = @NameId, `Supplier` = @Supplier, `Remark` = @Remark WHERE `Id` = @Id;", materialSuppliers);
 
             return Result.GenError<Result>(Error.Success);
         }
@@ -149,10 +143,9 @@ namespace ApiManagement.Controllers.MaterialManagementController
                 return Result.GenError<Result>(Error.MaterialSupplierIsExist);
             }
             materialSupplier.CreateUserId = Request.GetIdentityInformation();
-            materialSupplier.MarkedDateTime = DateTime.Now;
             ServerConfig.ApiDb.Execute(
-              "INSERT INTO material_supplier (`CreateUserId`, `MarkedDateTime`, `NameId`, `Supplier`, `Remark`) " +
-              "VALUES (@CreateUserId, @MarkedDateTime, @NameId, @Supplier, @Remark);",
+              "INSERT INTO material_supplier (`CreateUserId`, `NameId`, `Supplier`, `Remark`) " +
+              "VALUES (@CreateUserId, @NameId, @Supplier, @Remark);",
               materialSupplier);
 
             return Result.GenError<Result>(Error.Success);
@@ -175,9 +168,8 @@ namespace ApiManagement.Controllers.MaterialManagementController
             }
 
             ServerConfig.ApiDb.Execute(
-                "UPDATE `material_supplier` SET `MarkedDateTime`= @MarkedDateTime, `MarkedDelete`= @MarkedDelete WHERE `Id` IN @Id;", new
+                "UPDATE `material_supplier` SET `MarkedDelete`= @MarkedDelete WHERE `Id` IN @Id;", new
                 {
-                    MarkedDateTime = DateTime.Now,
                     MarkedDelete = true,
                     Id = ids
                 });

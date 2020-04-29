@@ -1,8 +1,4 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Threading.Tasks;
-using ApiManagement.Base.Helper;
+﻿using ApiManagement.Base.Helper;
 using ApiManagement.Base.Server;
 using ApiManagement.Models.DeviceManagementModel;
 using ApiManagement.Models.FlowCardManagementModel;
@@ -13,6 +9,10 @@ using ModelBase.Base.Utils;
 using ModelBase.Models.Result;
 using Newtonsoft.Json.Linq;
 using ServiceStack;
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Threading.Tasks;
 
 namespace ApiManagement.Controllers.StatisticManagementController
 {
@@ -65,6 +65,7 @@ namespace ApiManagement.Controllers.StatisticManagementController
             /// 故障统计 0 无数据对比 1 车间对比 2 机台号对比 2 机台号对比 3 日数据 4 周数据 5 月数据
             /// </summary>
             public int Compare;
+            public DeviceData DeviceData;
         }
         /// <summary>
         /// 趋势图   机台号对比
@@ -999,7 +1000,6 @@ namespace ApiManagement.Controllers.StatisticManagementController
             }
         }
 
-
         /// <summary>
         /// 故障统计
         /// </summary>
@@ -1547,6 +1547,93 @@ namespace ApiManagement.Controllers.StatisticManagementController
             catch (Exception e)
             {
                 return Result.GenError<DataResult>(Error.ParamError);
+            }
+        }
+
+        /// <summary>
+        /// 历史监控数据
+        /// </summary>
+        /// <returns></returns>
+        // POST: api/Statistic/Monitor
+        [HttpPost("Monitor")]
+        public object Monitor([FromBody] StatisticRequest requestBody)
+        {
+            if (requestBody.DeviceId.IsNullOrEmpty() || requestBody.DeviceData == null || (requestBody.DeviceData.vals.Count + requestBody.DeviceData.ins.Count + requestBody.DeviceData.outs.Count) <= 0)
+            {
+                return Result.GenError<Result>(Error.ParamError);
+            }
+
+            var device =
+                ServerConfig.ApiDb.Query<DeviceLibrary>("SELECT `Id`, ScriptId FROM `device_library` WHERE Id = @DeviceId AND `MarkedDelete` = 0;", new { requestBody.DeviceId }).FirstOrDefault();
+            if (device == null)
+            {
+                return Result.GenError<DataResult>(Error.DeviceNotExist);
+            }
+
+            var scriptVersion =
+                ServerConfig.ApiDb.Query<ScriptVersion>("SELECT * FROM `script_version` WHERE Id = @id AND `MarkedDelete` = 0;", new { id = device.ScriptId }).FirstOrDefault();
+            if (scriptVersion == null)
+            {
+                return Result.GenError<DataResult>(Error.ScriptVersionNotExist);
+            }
+
+            if (requestBody.DeviceData.vals.Any(x => scriptVersion.MaxValuePointerAddress < x || x <= 0))
+            {
+                return Result.GenError<DataResult>(Error.ValuePointerAddressOutLimit);
+            }
+
+            if (requestBody.DeviceData.ins.Any(x => scriptVersion.MaxInputPointerAddress < x || x <= 0))
+            {
+                return Result.GenError<DataResult>(Error.InputPointerAddressOutLimit);
+            }
+
+            if (requestBody.DeviceData.outs.Any(x => scriptVersion.MaxOutputPointerAddress < x || x <= 0))
+            {
+                return Result.GenError<DataResult>(Error.OutputPointerAddressOutLimit);
+            }
+
+            try
+            {
+                var data = new Dictionary<DateTime, DeviceData>();
+                var sql =
+                    "SELECT * FROM `npc_monitoring_analysis` WHERE DeviceId = @DeviceId AND SendTime >= @StartTime AND SendTime <= @EndTime AND UserSend = 0;";
+                var monitoringAnalysis = ServerConfig.ApiDb.Query<MonitoringAnalysis>(sql, new
+                {
+                    requestBody.DeviceId,
+                    requestBody.StartTime,
+                    requestBody.EndTime
+                }, 1200);
+                foreach (var d in monitoringAnalysis)
+                {
+                    var t = d.SendTime.NoMillisecond();
+                    if (!data.ContainsKey(t))
+                    {
+                        data.Add(t, new DeviceData());
+                    }
+
+                    foreach (var valData in requestBody.DeviceData.vals)
+                    {
+                        data[t].vals.Add(d.AnalysisData.vals[valData - 1]);
+                    }
+                    foreach (var inData in requestBody.DeviceData.ins)
+                    {
+                        data[t].ins.Add(d.AnalysisData.ins[inData - 1]);
+                    }
+                    foreach (var outData in requestBody.DeviceData.outs)
+                    {
+                        data[t].outs.Add(d.AnalysisData.outs[outData - 1]);
+                    }
+                }
+                return new
+                {
+                    errno = 0,
+                    errmsg = "成功",
+                    data
+                };
+            }
+            catch (Exception e)
+            {
+                return Result.GenError<Result>(Error.TimeOut);
             }
         }
 

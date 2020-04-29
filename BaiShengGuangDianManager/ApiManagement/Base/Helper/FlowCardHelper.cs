@@ -21,13 +21,13 @@ namespace ApiManagement.Base.Helper
         private static int _id = 0;
         private static string _createUserId = "ErpSystem";
         private static string _url = ServerConfig.ErpUrl;
-        private static bool isInsert;
-        private static bool isUpdate;
-        private static bool isUpdateFlowCardProcessStep;
-        private static bool isUpdateFlowCardSpecification;
-        private static bool isUpdateProductionProcessStep;
-        private static bool isUpdateProductionProcess;
-        private static bool isUpdateProductionSpecification;
+        private static bool _isInsert;
+        private static bool _isUpdate;
+        private static bool _isUpdateFlowCardProcessStep;
+        private static bool _isUpdateFlowCardSpecification;
+        private static bool _isUpdateProductionProcessStep;
+        private static bool _isUpdateProductionProcess;
+        private static bool _isUpdateProductionSpecification;
         private static Dictionary<string, string> _processStepName = new Dictionary<string, string>
         {
             {"线切割", "线切割"},
@@ -82,12 +82,12 @@ namespace ApiManagement.Base.Helper
         /// </summary>
         private static void Insert()
         {
-            if (isInsert)
+            if (_isInsert)
             {
                 return;
             }
 
-            isInsert = true;
+            _isInsert = true;
             var sId =
                 ServerConfig.ApiDb.Query<int>("SELECT `FId` FROM `flowcard_library` ORDER BY FId DESC LIMIT 1;").FirstOrDefault();
 
@@ -95,7 +95,7 @@ namespace ApiManagement.Base.Helper
             var queryId2 = sId;
             var r = InsertFlowCard(queryId2);
             _id = !r ? queryId1 : queryId2;
-            isInsert = false;
+            _isInsert = false;
         }
 
         /// <summary>
@@ -390,12 +390,12 @@ namespace ApiManagement.Base.Helper
         /// </summary>
         private static void Update()
         {
-            if (isUpdate)
+            if (_isUpdate)
             {
                 return;
             }
 
-            isUpdate = true;
+            _isUpdate = true;
             var sId =
                 ServerConfig.ApiDb.Query<int>("SELECT FId FROM `flowcard_library` WHERE FId != 0 AND DATE(CreateTime) = @Time ORDER BY CreateTime LIMIT 1;", new
                 {
@@ -406,7 +406,7 @@ namespace ApiManagement.Base.Helper
             {
                 UpdateFlowCard(sId - 1);
             }
-            isUpdate = false;
+            _isUpdate = false;
         }
 
         /// <summary>
@@ -516,12 +516,12 @@ namespace ApiManagement.Base.Helper
         /// </summary>
         private static void UpdateFlowCardProcessStep()
         {
-            if (isUpdateFlowCardProcessStep)
+            if (_isUpdateFlowCardProcessStep)
             {
                 return;
             }
 
-            isUpdateFlowCardProcessStep = true;
+            _isUpdateFlowCardProcessStep = true;
             try
             {
                 //计划号
@@ -572,7 +572,7 @@ namespace ApiManagement.Base.Helper
             {
                 Log.ErrorFormat("UpdateFlowCardProcessStep erp数据解析失败,原因:{0},错误:{1}", e.Message, e.StackTrace);
             }
-            isUpdateFlowCardProcessStep = false;
+            _isUpdateFlowCardProcessStep = false;
         }
 
         /// <summary>
@@ -580,12 +580,12 @@ namespace ApiManagement.Base.Helper
         /// </summary>
         private static void UpdateProductionProcessStep()
         {
-            if (isUpdateProductionProcessStep)
+            if (_isUpdateProductionProcessStep)
             {
                 return;
             }
 
-            isUpdateProductionProcessStep = true;
+            _isUpdateProductionProcessStep = true;
             //计划号
             var productionLibraries = ServerConfig.ApiDb.Query<ProductionLibrary>("SELECT a.Id, a.ProductionProcessName FROM `production_library` a LEFT JOIN production_process_step b ON a.Id = b.ProductionProcessId WHERE a.MarkedDelete = 0 AND ISNULL(b.Id) ORDER BY a.Id;").ToDictionary(x => x.ProductionProcessName);
             if (productionLibraries.Any())
@@ -665,7 +665,7 @@ namespace ApiManagement.Base.Helper
                 }
             }
 
-            isUpdateProductionProcessStep = false;
+            _isUpdateProductionProcessStep = false;
         }
 
         /// <summary>
@@ -673,7 +673,7 @@ namespace ApiManagement.Base.Helper
         /// </summary>
         private static void UpdateProductionProcess()
         {
-            if (isUpdateProductionProcess)
+            if (_isUpdateProductionProcess)
             {
                 return;
             }
@@ -687,7 +687,7 @@ namespace ApiManagement.Base.Helper
             if (isUpdateProductionProcessFlag)
             {
                 var now = DateTime.Now;
-                isUpdateProductionProcess = true;
+                _isUpdateProductionProcess = true;
                 //计划号
                 var productionLibraries = ServerConfig.ApiDb.Query<ProductionLibrary>("SELECT a.Id, ProductionProcessName FROM `production_library` a LEFT JOIN `process_management` b ON a.Id = b.ProductModels WHERE a.MarkedDelete = 0 AND ISNULL(b.Id) AND ProductionProcessName != '';");
                 if (productionLibraries.Any())
@@ -725,7 +725,7 @@ namespace ApiManagement.Base.Helper
                         CreateUserId = "admin"
                     });
 
-                isUpdateProductionProcess = false;
+                _isUpdateProductionProcess = false;
             }
         }
 
@@ -734,12 +734,12 @@ namespace ApiManagement.Base.Helper
         /// </summary>
         private static void UpdateProductionSpecification()
         {
-            if (isUpdateProductionSpecification)
+            if (_isUpdateProductionSpecification)
             {
                 return;
             }
 
-            isUpdateProductionSpecification = true;
+            _isUpdateProductionSpecification = true;
             //计划号
             var productionLibraries = ServerConfig.ApiDb.Query<ProductionLibrary>("SELECT a.Id, a.ProductionProcessName FROM `production_library` a LEFT JOIN production_specification b ON a.Id = b.ProductionProcessId WHERE a.MarkedDelete = 0 AND ISNULL(b.Id) ORDER BY a.Id;").ToDictionary(x => x.ProductionProcessName);
             if (productionLibraries.Any())
@@ -808,7 +808,7 @@ namespace ApiManagement.Base.Helper
                 }
             }
 
-            isUpdateProductionSpecification = false;
+            _isUpdateProductionSpecification = false;
         }
 
         /// <summary>

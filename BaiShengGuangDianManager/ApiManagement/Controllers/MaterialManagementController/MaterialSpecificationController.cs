@@ -178,17 +178,15 @@ namespace ApiManagement.Controllers.MaterialManagementController
             }
 
             var createUserId = Request.GetIdentityInformation();
-            var markedDateTime = DateTime.Now;
             foreach (var materialSpecification in materialSpecifications)
             {
                 materialSpecification.CreateUserId = createUserId;
-                materialSpecification.MarkedDateTime = markedDateTime;
                 materialSpecification.Specification = materialSpecification.Specification ?? "";
                 materialSpecification.Remark = materialSpecification.Remark ?? "";
             }
             ServerConfig.ApiDb.Execute(
-              "INSERT INTO material_specification (`CreateUserId`, `MarkedDateTime`, `SupplierId`, `Specification`, `Remark`) " +
-              "VALUES (@CreateUserId, @MarkedDateTime, @SupplierId, @Specification, @Remark);",
+              "INSERT INTO material_specification (`CreateUserId`, `SupplierId`, `Specification`, `Remark`) " +
+              "VALUES (@CreateUserId, @SupplierId, @Specification, @Remark);",
               materialSpecifications);
 
             return Result.GenError<DataResult>(Error.Success);

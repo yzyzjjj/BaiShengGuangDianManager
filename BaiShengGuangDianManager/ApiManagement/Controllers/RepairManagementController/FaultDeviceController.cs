@@ -281,7 +281,7 @@ namespace ApiManagement.Controllers.RepairManagementController
                 var faultType = faultTypes.First(x => x.Id == faultDevice.FaultTypeId).FaultTypeName ?? "";
                 faultDevice.FaultTypeName = faultType;
                 var content = NotifyFormat.Format(faultDevice, NotifyMsgEnum.FaultAssign);
-                NotifyHelper.Notify(content, NotifyTypeEnum.Repair, NotifyMsgTypeEnum.text, atMobiles);
+                NotifyHelper.Notify(content, NotifyMsgEnum.FaultAssign, NotifyTypeEnum.Repair, NotifyMsgTypeEnum.text, atMobiles);
             }
             return Result.GenError<Result>(Error.Success);
         }
@@ -374,7 +374,7 @@ namespace ApiManagement.Controllers.RepairManagementController
                 var faultType = faultTypes.First(x => x.Id == faultDevice.FaultTypeId).FaultTypeName ?? "";
                 faultDevice.FaultTypeName = faultType;
                 var content = NotifyFormat.Format(faultDevice, NotifyMsgEnum.FaultReport);
-                NotifyHelper.Notify(content, NotifyTypeEnum.Repair, NotifyMsgTypeEnum.text, atMobiles);
+                NotifyHelper.Notify(content, NotifyMsgEnum.FaultReport, NotifyTypeEnum.Repair, NotifyMsgTypeEnum.markdown, atMobiles);
             }
             return Result.GenError<Result>(Error.Success);
         }

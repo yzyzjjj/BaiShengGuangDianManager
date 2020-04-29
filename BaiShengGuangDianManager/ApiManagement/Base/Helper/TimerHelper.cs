@@ -109,8 +109,8 @@ namespace ApiManagement.Base.Helper
                 ServerConfig.RedisHelper.SetExpireAt(manufacturePlanLock, DateTime.Now.AddMinutes(5));
                 try
                 {
-                    var sql = "SELECT a.*, b.Sum FROM `manufacture_plan` a " +
-                              "JOIN (SELECT PlanId, SUM(1) Sum FROM `manufacture_plan_task` WHERE MarkedDelete = 0 AND State NOT IN @state GROUP BY PlanId) b ON a.Id = b.PlanId WHERE MarkedDelete = 0;";
+                    var sql = "SELECT a.*, IFNULL(b.Sum, 0) Sum FROM `manufacture_plan` a " +
+                              "LEFT JOIN (SELECT PlanId, SUM(1) Sum FROM `manufacture_plan_task` WHERE MarkedDelete = 0 AND State NOT IN @state GROUP BY PlanId) b ON a.Id = b.PlanId WHERE MarkedDelete = 0;";
                     var plans = ServerConfig.ApiDb.Query<ManufacturePlanCondition>(sql, new { state = new[] { ManufacturePlanItemState.Done, ManufacturePlanItemState.Stop } });
                     if (plans.Any())
                     {

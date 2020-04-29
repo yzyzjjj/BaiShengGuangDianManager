@@ -42,6 +42,10 @@ namespace ApiManagement.Controllers.MaterialManagementController
             }
             if (isPlan != 0)
             {
+                param.Add("a.PlanId != 0");
+            }
+            if (planId != 0)
+            {
                 param.Add("a.PlanId = @planId");
             }
             if (purposeId == 1)
@@ -69,12 +73,29 @@ namespace ApiManagement.Controllers.MaterialManagementController
                 param.Add("a.Purpose = @purpose");
             }
 
-            var sql = "SELECT a.*, b.Plan, c.`Code`, d.`Name`, e.Specification FROM `material_log` a " +
-                      "LEFT JOIN `production_plan` b ON a.PlanId = b.Id " +
-                      "LEFT JOIN `material_bill` c ON a.BillId = c.Id " +
-                      "LEFT JOIN `material_name` d ON a.NameId = d.Id " +
-                      "LEFT JOIN `material_specification` e ON a.SpecificationId = e.Id";
-            sql += !param.Any() ? ";" : " WHERE " + param.Join(" AND ") + ";";
+            //var sql = "SELECT a.*, b.Plan, c.`Code`, c.`Price`, d.`Name`, e.Specification FROM `material_log` a " +
+            //          "LEFT JOIN `production_plan` b ON a.PlanId = b.Id " +
+            //          "LEFT JOIN `material_bill` c ON a.BillId = c.Id " +
+            //          "LEFT JOIN `material_name` d ON a.NameId = d.Id " +
+            //          "LEFT JOIN `material_specification` e ON a.SpecificationId = e.Id";
+            var sql =
+                "SELECT a.*, b.* FROM `material_log` a " +
+                "JOIN (SELECT a.*, b.`Category` " +
+                "FROM (SELECT a.*, b.`Name`, b.CategoryId " +
+                "FROM (SELECT a.*, b.Supplier, b.NameId " +
+                "FROM (SELECT a.Id BillId, a.`Code`, a.`Price`, a.Unit, a.SpecificationId, b.Specification, b.SupplierId, c.Site " +
+                "FROM material_bill a " +
+                "JOIN material_specification b ON a.SpecificationId = b.Id " +
+                "JOIN material_site c ON a.SiteId = c.Id) a " +
+                "JOIN material_supplier b ON a.SupplierId = b.Id) a " +
+                "JOIN material_name b ON a.NameId = b.Id) a " +
+                "JOIN material_category b ON a.CategoryId = b.Id) b ON a.BillId = b.BillId";
+
+            if (param.Any())
+            {
+                sql += " WHERE " + param.Join(" AND ");
+            }
+
             result.datas.AddRange(ServerConfig.ApiDb.Query<MaterialLog>(sql, new
             {
                 startTime,

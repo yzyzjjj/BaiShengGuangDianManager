@@ -35,7 +35,7 @@ namespace ApiManagement.Models.ManufactureModel
         [ManufactureDescription("预计用时分", 5)]
         //[Description("预计用时分")]
         public int EstimatedMin { get; set; }
-        public string EstimatedTime => DateTimeExtend.ToTimeStr(EstimatedHour * 3600 + EstimatedMin * 60);
+        public string EstimatedTime => DateTimeExtend.ToTimeStr(EstimatedHour * 3600 + EstimatedMin * 60, 1);
         //public string EstimatedMinDescription = "预计用时分";
         [ManufactureDescription("任务配置", 6, "Task")]
         //[Description("任务配置")]

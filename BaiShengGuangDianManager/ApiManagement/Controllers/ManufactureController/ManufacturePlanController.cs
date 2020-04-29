@@ -437,7 +437,7 @@ namespace ApiManagement.Controllers.ManufactureController
                     manufacturePlanItem.OldId = manufacturePlanItem.Id;
                     manufacturePlanItem.Assignor = createUserId;
                     manufacturePlanItem.Desc = manufacturePlanItem.Desc ?? "";
-                    manufacturePlanItem.Order = i++;
+                    manufacturePlanItem.Order = ++i;
                 }
                 ServerConfig.ApiDb.Execute(
                     "INSERT INTO manufacture_plan_task (`CreateUserId`, `MarkedDateTime`, `PlanId`, `Order`, `Person`, `ModuleId`, `IsCheck`, `CheckId`, `Item`, `EstimatedHour`, `EstimatedMin`, `Score`, `Desc`, `Relation`, `OldId`, `Assignor`) " +

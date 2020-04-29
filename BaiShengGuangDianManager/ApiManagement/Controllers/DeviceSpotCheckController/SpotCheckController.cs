@@ -64,7 +64,7 @@ namespace ApiManagement.Controllers.DeviceSpotCheckController
                 result.datas.AddRange(r);
                 return result;
             }
-            catch (Exception e)
+            catch (Exception)
             {
                 return Result.GenError<DataResult>(Error.ParamError);
             }
@@ -171,7 +171,7 @@ namespace ApiManagement.Controllers.DeviceSpotCheckController
                 result.datas.AddRange(r);
                 return result;
             }
-            catch (Exception e)
+            catch (Exception)
             {
                 return Result.GenError<DataResult>(Error.ParamError);
             }

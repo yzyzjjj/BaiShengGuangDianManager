@@ -3,8 +3,11 @@ using ApiManagement.Models.Notify;
 using ModelBase.Base.Logger;
 using ModelBase.Base.Utils;
 using System;
+using System.ComponentModel;
 using System.Linq;
+#if !DEBUG
 using System.Net;
+#endif
 using System.Security.Cryptography;
 using System.Text;
 using System.Web;
@@ -24,7 +27,7 @@ namespace ApiManagement.Base.Helper
         /// <param name="notifyType"></param>
         /// <param name="atMobiles"></param>
         /// <param name="isAtAll"></param>
-        public static void Notify(string content, NotifyTypeEnum notifyType, NotifyMsgTypeEnum msgType, string[] atMobiles, bool isAtAll = false)
+        public static void Notify(string content, NotifyMsgEnum msgEnum, NotifyTypeEnum notifyType, NotifyMsgTypeEnum msgType, string[] atMobiles, bool isAtAll = false)
         {
 #if DEBUG
             notifyType = NotifyTypeEnum.Test;
@@ -55,9 +58,9 @@ namespace ApiManagement.Base.Helper
                 switch (group.Platform)
                 {
                     case NotifyPlatformEnum.DingDing:
-                        NotifyDingDing(group, content, msgType, atMobiles, isAtAll); break;
+                        NotifyDingDing(group, msgEnum, content, msgType, atMobiles, isAtAll); break;
                     case NotifyPlatformEnum.WeiXin:
-                        NotifyWeiXin(group, content, msgType, atMobiles, isAtAll); break;
+                        NotifyWeiXin(group, msgEnum, content, msgType, atMobiles, isAtAll); break;
                     default: break;
                 }
             }
@@ -66,7 +69,7 @@ namespace ApiManagement.Base.Helper
         /// <summary>
         /// 通知钉钉群
         /// </summary>
-        private static void NotifyDingDing(NotifyWebhook notifyWebhook, string content, NotifyMsgTypeEnum msgType, string[] atMobiles, bool isAtAll)
+        private static void NotifyDingDing(NotifyWebhook notifyWebhook, NotifyMsgEnum msgEnum, string content, NotifyMsgTypeEnum msgType, string[] atMobiles, bool isAtAll)
         {
             var timestamp = DateTime.Now.ToTimestamp();
             var secret = notifyWebhook.Secret;
@@ -75,13 +78,15 @@ namespace ApiManagement.Base.Helper
             var fullUrl = $"{webHookUrl}&timestamp={timestamp}&sign={sign}";
             //Log.Error($"钉钉消息推送URL;{ webHookUrl}&timestamp ={timestamp}&sign ={sign}");
             object sendData = null;
+            //msgType = NotifyMsgTypeEnum.markdown;
+            var title = msgEnum.GetAttribute<DescriptionAttribute>()?.Description ?? "";
             switch (msgType)
             {
                 case NotifyMsgTypeEnum.text:
                     sendData = new
                     {
                         msgtype = msgType.ToString(),
-                        text = new { content },
+                        text = new { content = $"[{title}]\n  {content}({notifyWebhook.Url})" },
                         at = new
                         {
                             atMobiles,
@@ -94,8 +99,8 @@ namespace ApiManagement.Base.Helper
                         msgtype = msgType.ToString(),
                         markdown = new
                         {
-                            title = "title",
-                            text = content
+                            title,
+                            text = $"#### **{title}** \n ##### {content} [查看]({notifyWebhook.Url})"
                         },
                         at = new
                         {
@@ -154,7 +159,7 @@ namespace ApiManagement.Base.Helper
         /// <summary>
         /// 通知企业微信群
         /// </summary>
-        private static void NotifyWeiXin(NotifyWebhook notifyWebhook, string content, NotifyMsgTypeEnum msgType, string[] atMobiles, bool isAtAll)
+        private static void NotifyWeiXin(NotifyWebhook notifyWebhook, NotifyMsgEnum msgEnum, string content, NotifyMsgTypeEnum msgType, string[] atMobiles, bool isAtAll)
         {
             var webHookUrl = notifyWebhook.Webhook;
             var fullUrl = $"{webHookUrl}";
@@ -166,6 +171,8 @@ namespace ApiManagement.Base.Helper
                 mobiles.Add("@all");
             }
 
+            //msgType = NotifyMsgTypeEnum.markdown;
+            var title = msgEnum.GetAttribute<DescriptionAttribute>()?.Description ?? "";
             switch (msgType)
             {
                 case NotifyMsgTypeEnum.text:
@@ -174,7 +181,7 @@ namespace ApiManagement.Base.Helper
                         msgtype = msgType.ToString(),
                         text = new
                         {
-                            content,
+                            content = $"[{title}]\n  {content}({notifyWebhook.Url})",
                             //mentioned_list = new[] { "wangqing", "@all" },
                             mentioned_mobile_list = mobiles
                         },
@@ -185,7 +192,9 @@ namespace ApiManagement.Base.Helper
                         msgtype = msgType.ToString(),
                         markdown = new
                         {
-                            content,
+                            content = $"#### <font color=\"warning\">{title}</font> \n ##### {content} [查看]({notifyWebhook.Url})",
+                            //mentioned_list = new[] { "wangqing", "@all" },
+                            mentioned_mobile_list = mobiles
                         },
                     }; break;
             }
@@ -215,6 +224,11 @@ namespace ApiManagement.Base.Helper
                     //Log.DebugFormat("企业微信消息推送成功:{0}", s);
                 }
             });
+        }
+
+        public static void NotifyLog()
+        {
+
         }
     }
 }

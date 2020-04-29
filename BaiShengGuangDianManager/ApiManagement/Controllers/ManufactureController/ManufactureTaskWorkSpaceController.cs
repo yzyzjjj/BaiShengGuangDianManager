@@ -132,7 +132,7 @@ namespace ApiManagement.Controllers.ManufactureController
 
             var sql = "SELECT a.Id, a.GroupId, IFNULL(a.ProcessorName, b.Person) Processor, IFNULL(b.Score, 0) Score " +
                       "FROM (SELECT a.*, b.ProcessorName FROM `manufacture_processor` a JOIN `processor` b ON a.ProcessorId = b.Id WHERE a.MarkedDelete = 0 AND a.GroupId = @gId) a " +
-                      "LEFT JOIN ( SELECT Person, SUM(ActualScore) Score FROM manufacture_plan_task WHERE MarkedDelete = 0 AND State = @state AND ActualEndTime >= @sTime AND ActualEndTime <= @eTime) b ON a.Id = b.Person ORDER BY b.Score DESC, b.Person;";
+                      "LEFT JOIN ( SELECT Person, SUM(ActualScore) Score FROM manufacture_plan_task WHERE MarkedDelete = 0 AND State = @state AND ActualEndTime >= @sTime AND ActualEndTime <= @eTime GROUP BY Person) b ON a.Id = b.Person ORDER BY b.Score DESC, b.Person;";
             var data = ServerConfig.ApiDb.Query<dynamic>(sql, new { state = ManufacturePlanItemState.Done, gId, sTime, eTime });
             result.datas.AddRange(data);
             return result;
@@ -245,7 +245,7 @@ namespace ApiManagement.Controllers.ManufactureController
                 task.State = ManufacturePlanItemState.Doing;
                 if (!task.IsRedo)
                 {
-                    task.FirstStartTime = now.NoSecond();
+                    task.FirstStartTime = now;
                 }
                 else
                 {
@@ -254,11 +254,11 @@ namespace ApiManagement.Controllers.ManufactureController
 
                 if (task.PauseTime != default(DateTime))
                 {
-                    task.PauseTime = now.NoSecond();
+                    task.PauseTime = now;
                 }
                 else
                 {
-                    task.ActualStartTime = now.NoSecond();
+                    task.ActualStartTime = now;
                 }
                 if (oldTask.HaveChange(task, out var change))
                 {
@@ -329,7 +329,7 @@ namespace ApiManagement.Controllers.ManufactureController
                 var now = DateTime.Now;
                 var oldTask = (ManufacturePlanTask)task.Clone();
                 task.State = ManufacturePlanItemState.Pause;
-                task.PauseTime = now.NoSecond();
+                task.PauseTime = now;
                 var totalSecond = (int)(task.PauseTime - task.ActualStartTime).TotalSeconds;
                 task.ActualHour += totalSecond / 3600;
                 task.ActualMin += (totalSecond - task.ActualHour * 3600) / 60;
@@ -405,7 +405,7 @@ namespace ApiManagement.Controllers.ManufactureController
                 var changes = new List<ManufactureLog>();
                 var oldTask = (ManufacturePlanTask)task.Clone();
                 task.State = ManufacturePlanItemState.Done;
-                task.ActualEndTime = now.NoSecond();
+                task.ActualEndTime = now;
                 if (task.PauseTime != default(DateTime))
                 {
                     var totalSecond = (int)(task.PauseTime - task.ActualStartTime).TotalSeconds;

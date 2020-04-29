@@ -50,6 +50,5 @@ namespace ApiManagement.Models.DeviceSpotCheckModel
     {
         public string Code { get; set; }
         public string Devices { get; set; }
-        public string SurveyorName { get; set; }
     }
 }

@@ -37,7 +37,7 @@ namespace ApiManagement.Models.ManufactureModel
         public int EstimatedHour { get; set; }
         [ManufactureDescription("预计用时分", 2)]
         public int EstimatedMin { get; set; }
-        public string EstimatedTime => DateTimeExtend.ToTimeStr((EstimatedHour * 60 + EstimatedMin) * 60);
+        public string EstimatedTime => DateTimeExtend.ToTimeStr((EstimatedHour * 60 + EstimatedMin) * 60, 1);
         [ManufactureDescription("绩效", 3)]
         public int Score { get; set; }
         [ManufactureDescription("任务描述", 4)]
@@ -65,10 +65,9 @@ namespace ApiManagement.Models.ManufactureModel
         [ManufactureDescription("实际用时分", 10)]
         public int ActualMin { get; set; }
         public string ActualTime => State != ManufacturePlanItemState.Doing
-            ? DateTimeExtend.ToTimeStr((ActualHour * 60 + ActualMin) * 60)
-            : PauseTime == default(DateTime)
-                ? DateTimeExtend.ToTimeStr((int)(DateTime.Now - ActualStartTime).TotalSeconds)
-                : DateTimeExtend.ToTimeStr((int)(DateTime.Now - PauseTime).TotalSeconds);
+            ? DateTimeExtend.ToTimeStr((ActualHour * 60 + ActualMin) * 60, 1): PauseTime == default(DateTime)
+                ? DateTimeExtend.ToTimeStr((int)(DateTime.Now - ActualStartTime).TotalMinutes + (ActualHour * 60 + ActualMin) * 60, 1)
+                : DateTimeExtend.ToTimeStr((int)(DateTime.Now - PauseTime).TotalMinutes + (ActualHour * 60 + ActualMin) * 60, 1);
 
         [ManufactureDescription("实际绩效", 7)]
         public int ActualScore { get; set; }

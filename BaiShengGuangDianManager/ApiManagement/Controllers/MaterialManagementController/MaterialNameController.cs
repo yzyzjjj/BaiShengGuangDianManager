@@ -113,15 +113,9 @@ namespace ApiManagement.Controllers.MaterialManagementController
             {
                 return Result.GenError<Result>(Error.MaterialNameIsExist);
             }
-
-            var markedDateTime = DateTime.Now;
-            foreach (var materialCategory in materialNames)
-            {
-                materialCategory.MarkedDateTime = markedDateTime;
-            }
-
+            
             ServerConfig.ApiDb.Execute(
-                "UPDATE material_name SET `MarkedDateTime` = @MarkedDateTime, `CategoryId` = @CategoryId, `Name` = @Name, `Remark` = @Remark WHERE `Id` = @Id;", materialNames);
+                "UPDATE material_name SET `CategoryId` = @CategoryId, `Name` = @Name, `Remark` = @Remark WHERE `Id` = @Id;", materialNames);
 
             return Result.GenError<Result>(Error.Success);
         }
@@ -145,10 +139,9 @@ namespace ApiManagement.Controllers.MaterialManagementController
                 return Result.GenError<Result>(Error.MaterialNameIsExist);
             }
             materialName.CreateUserId = Request.GetIdentityInformation();
-            materialName.MarkedDateTime = DateTime.Now;
             ServerConfig.ApiDb.Execute(
-              "INSERT INTO material_name (`CreateUserId`, `MarkedDateTime`, `CategoryId`, `Name`, `Remark`) " +
-              "VALUES (@CreateUserId, @MarkedDateTime, @CategoryId, @Name, @Remark);",
+              "INSERT INTO material_name (`CreateUserId`, `CategoryId`, `Name`, `Remark`) " +
+              "VALUES (@CreateUserId, @CategoryId, @Name, @Remark);",
               materialName);
 
             return Result.GenError<Result>(Error.Success);
@@ -171,9 +164,8 @@ namespace ApiManagement.Controllers.MaterialManagementController
             }
 
             ServerConfig.ApiDb.Execute(
-                "UPDATE `material_name` SET `MarkedDateTime`= @MarkedDateTime, `MarkedDelete`= @MarkedDelete WHERE `Id` IN @Id;", new
+                "UPDATE `material_name` SET `MarkedDelete`= @MarkedDelete WHERE `Id` IN @Id;", new
                 {
-                    MarkedDateTime = DateTime.Now,
                     MarkedDelete = true,
                     Id = ids
                 });

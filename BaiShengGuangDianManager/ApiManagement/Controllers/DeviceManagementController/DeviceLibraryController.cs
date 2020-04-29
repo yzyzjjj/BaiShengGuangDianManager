@@ -279,11 +279,11 @@ namespace ApiManagement.Controllers.DeviceManagementController
         }
 
         // GET: api/DeviceLibrary/State
-        [HttpGet("State/{id}")]
-        public DataResult GetDeviceLibraryState([FromRoute] int id)
+        [HttpGet("State")]
+        public DataResult GetDeviceLibraryState([FromQuery] int qId, bool all)
         {
             var device =
-                ServerConfig.ApiDb.Query<DeviceLibrary>("SELECT `Id`, ScriptId FROM `device_library` WHERE Id = @id AND `MarkedDelete` = 0;", new { id }).FirstOrDefault();
+                ServerConfig.ApiDb.Query<DeviceLibrary>("SELECT `Id`, ScriptId FROM `device_library` WHERE Id = @id AND `MarkedDelete` = 0;", new { id = qId }).FirstOrDefault();
             if (device == null)
             {
                 return Result.GenError<DataResult>(Error.DeviceNotExist);
@@ -312,16 +312,14 @@ namespace ApiManagement.Controllers.DeviceManagementController
             var result = new DataResult();
 
             var url = ServerConfig.GateUrl + UrlMappings.Urls["batchSendBackGate"];
-            var msg = new DeviceInfoMessagePacket(scriptVersion.MaxValuePointerAddress, scriptVersion.MaxInputPointerAddress,
-                scriptVersion.MaxOutputPointerAddress);
             //向GateProxyLink请求数据
             var resp = HttpServer.Post(url, new Dictionary<string, string>{
                 {"devicesList",(new List<DeviceInfo>
                     {
                         new DeviceInfo
                         {
-                             DeviceId = id,
-                            Instruction = msg.Serialize()
+                             DeviceId = qId,
+                            Instruction = scriptVersion.HeartPacket
                         }
                     }).ToJSON()
                 }
@@ -340,57 +338,64 @@ namespace ApiManagement.Controllers.DeviceManagementController
                             var res = JsonConvert.DeserializeObject<DeviceData>(data);
                             if (res != null)
                             {
-                                foreach (var usuallyDictionaryType in usuallyDictionaryTypes)
+                                if (!all)
                                 {
-                                    var usuallyDictionary =
-                                        usuallyDictionaries.FirstOrDefault(
-                                            x => x.VariableNameId == usuallyDictionaryType.Id);
-                                    if (usuallyDictionary != null)
+                                    foreach (var usuallyDictionaryType in usuallyDictionaryTypes)
                                     {
-                                        var v = string.Empty;
-                                        var dId = usuallyDictionary.DictionaryId - 1;
-                                        switch (usuallyDictionary.VariableTypeId)
+                                        var usuallyDictionary =
+                                            usuallyDictionaries.FirstOrDefault(
+                                                x => x.VariableNameId == usuallyDictionaryType.Id);
+                                        if (usuallyDictionary != null)
                                         {
-                                            case 1:
-                                                if (res.vals.Count >= usuallyDictionary.DictionaryId)
-                                                {
-                                                    v = res.vals[dId].ToString();
-                                                    if (usuallyDictionary.VariableNameId == 6)
+                                            var v = string.Empty;
+                                            var dId = usuallyDictionary.DictionaryId - 1;
+                                            switch (usuallyDictionary.VariableTypeId)
+                                            {
+                                                case 1:
+                                                    if (res.vals.Count >= usuallyDictionary.DictionaryId)
                                                     {
-                                                        var flowCard = ServerConfig.ApiDb.Query<dynamic>("SELECT FlowCardName, ProductionProcessId FROM `flowcard_library` WHERE Id = @id AND MarkedDelete = 0;",
-                                                            new { id = v }).FirstOrDefault();
-                                                        if (flowCard != null)
+                                                        v = res.vals[dId].ToString();
+                                                        if (usuallyDictionary.VariableNameId == 6)
                                                         {
-                                                            v = flowCard.FlowCardName;
-                                                            var processNumber = ServerConfig.ApiDb.Query<dynamic>(
-                                                                "SELECT Id, ProcessNumber FROM `process_management` WHERE FIND_IN_SET(@DeviceId, DeviceIds) AND FIND_IN_SET(@ProductModel, ProductModels) AND MarkedDelete = 0;", new
-                                                                {
-                                                                    DeviceId = id,
-                                                                    ProductModel = flowCard.ProductionProcessId
-                                                                }).FirstOrDefault();
-                                                            if (processNumber != null)
+                                                            var flowCard = ServerConfig.ApiDb.Query<dynamic>("SELECT FlowCardName, ProductionProcessId FROM `flowcard_library` WHERE Id = @id AND MarkedDelete = 0;",
+                                                                new { id = v }).FirstOrDefault();
+                                                            if (flowCard != null)
                                                             {
-                                                                result.datas.Add(new Tuple<int, string>(-1, processNumber.ProcessNumber));
+                                                                v = flowCard.FlowCardName;
+                                                                var processNumber = ServerConfig.ApiDb.Query<dynamic>(
+                                                                    "SELECT Id, ProcessNumber FROM `process_management` WHERE FIND_IN_SET(@DeviceId, DeviceIds) AND FIND_IN_SET(@ProductModel, ProductModels) AND MarkedDelete = 0;", new
+                                                                    {
+                                                                        DeviceId = qId,
+                                                                        ProductModel = flowCard.ProductionProcessId
+                                                                    }).FirstOrDefault();
+                                                                if (processNumber != null)
+                                                                {
+                                                                    result.datas.Add(new Tuple<int, string>(-1, processNumber.ProcessNumber));
+                                                                }
                                                             }
                                                         }
                                                     }
-                                                }
-                                                break;
-                                            case 2:
-                                                if (res.ins.Count >= usuallyDictionary.DictionaryId)
-                                                {
-                                                    v = res.ins[dId].ToString();
-                                                }
-                                                break;
-                                            case 3:
-                                                if (res.outs.Count >= usuallyDictionary.DictionaryId)
-                                                {
-                                                    v = res.outs[dId].ToString();
-                                                }
-                                                break;
+                                                    break;
+                                                case 2:
+                                                    if (res.ins.Count >= usuallyDictionary.DictionaryId)
+                                                    {
+                                                        v = res.ins[dId].ToString();
+                                                    }
+                                                    break;
+                                                case 3:
+                                                    if (res.outs.Count >= usuallyDictionary.DictionaryId)
+                                                    {
+                                                        v = res.outs[dId].ToString();
+                                                    }
+                                                    break;
+                                            }
+                                            result.datas.Add(new Tuple<int, string>(usuallyDictionaryType.Id, v));
                                         }
-                                        result.datas.Add(new Tuple<int, string>(usuallyDictionaryType.Id, v));
                                     }
+                                }
+                                else
+                                {
+                                    result.datas.Add(res);
                                 }
                             }
                         }
@@ -398,7 +403,7 @@ namespace ApiManagement.Controllers.DeviceManagementController
                 }
                 catch (Exception e)
                 {
-                    Log.Error($"{UrlMappings.Urls["sendBackGate"]} 返回：{resp},信息:{e.Message}");
+                    Log.Error($"{UrlMappings.Urls["batchSendBackGate"]} 返回：{resp},信息:{e.Message}");
                 }
             }
 
@@ -714,8 +719,9 @@ namespace ApiManagement.Controllers.DeviceManagementController
         public Result PostDeviceLibrarySetProcessStep([FromBody] ProcessInfo processInfo)
         {
             var device =
-                ServerConfig.ApiDb.Query<DeviceLibraryDetail>("SELECT a.*, IFNULL(b.DeviceCategoryId, 0) DeviceCategoryId FROM `device_library` a JOIN `device_model` b ON a.DeviceModelId = b.Id " +
-                                                              "WHERE a.Id = @DeviceId AND a.`MarkedDelete` = 0 AND b.`MarkedDelete` = 0;", new { processInfo.DeviceId }).FirstOrDefault();
+                ServerConfig.ApiDb.Query<DeviceLibraryDetail>("SELECT a.*, IFNULL(b.DeviceCategoryId, 0) DeviceCategoryId FROM `device_library` a " +
+                                                              "JOIN `device_model` b ON a.DeviceModelId = b.Id " +
+                                                              "WHERE a.Id = @DeviceId AND a.`MarkedDelete` = 0;", new { processInfo.DeviceId }).FirstOrDefault();
             if (device == null)
             {
                 return Result.GenError<Result>(Error.DeviceNotExist);
@@ -762,39 +768,6 @@ namespace ApiManagement.Controllers.DeviceManagementController
             }
 
 
-            var processDatas =
-                ServerConfig.ApiDb.Query<dynamic>("SELECT `ProcessOrder`, `PressurizeMinute`, `PressurizeSecond`, `ProcessMinute`, `ProcessSecond`, " +
-                                                  "`Pressure`, `Speed` FROM `process_data` WHERE ProcessManagementId = @ProcessId AND MarkedDelete = 0 ORDER BY ProcessOrder;", new
-                                                  {
-                                                      processInfo.ProcessId,
-                                                  });
-            if (!processDatas.Any())
-            {
-                return Result.GenError<Result>(Error.ProcessDataNotExist);
-            }
-
-            if (processInfo.ProcessDatas != null)
-            {
-                if (processInfo.ProcessDatas.Any())
-                {
-                    processDatas = processInfo.ProcessDatas;
-                }
-                else
-                {
-                    return Result.GenError<Result>(Error.ProcessDataNotExist);
-                }
-            }
-
-            var dictionaryIds =
-                ServerConfig.ApiDb.Query<UsuallyDictionaryDetail>("SELECT a.Id, VariableName, DictionaryId FROM `usually_dictionary_type` a JOIN `usually_dictionary` b " +
-                                                                  "ON a.Id = b.VariableNameId WHERE b.ScriptId = @ScriptId AND a.MarkedDelete = 0 ORDER BY a.Id;", new
-                                                                  {
-                                                                      device.ScriptId,
-                                                                  });
-            if (!dictionaryIds.Any())
-            {
-                return Result.GenError<Result>(Error.UsuallyDictionaryTypeNotExist);
-            }
             var messagePacket = new SetValMessagePacket();
             var key = new[]
             {
@@ -806,11 +779,46 @@ namespace ApiManagement.Controllers.DeviceManagementController
                 "下盘速度",
             };
 
+            //当前配方
+            //messagePacket.Vals.Add(98, flowCard.Id);
             var isSetProcessData = ServerConfig.RedisHelper.Get<int>(ServerConfig.IsSetProcessDataKey) == 1;
+            IEnumerable<dynamic> processDatas = null;
+            var dictionaryIds =
+                ServerConfig.ApiDb.Query<UsuallyDictionaryDetail>("SELECT a.Id, VariableName, DictionaryId FROM `usually_dictionary_type` a JOIN `usually_dictionary` b " +
+                                                                  "ON a.Id = b.VariableNameId WHERE b.ScriptId = @ScriptId AND a.MarkedDelete = 0 ORDER BY a.Id;", new
+                                                                  {
+                                                                      device.ScriptId,
+                                                                  });
+
+            if (!dictionaryIds.Any())
+            {
+                return Result.GenError<Result>(Error.UsuallyDictionaryTypeNotExist);
+            }
             if (isSetProcessData)
             {
-                //当前配方
-                messagePacket.Vals.Add(98, 0);
+                processDatas = ServerConfig.ApiDb.Query<dynamic>("SELECT `ProcessOrder`, `PressurizeMinute`, `PressurizeSecond`, `ProcessMinute`, `ProcessSecond`, " +
+                                                                 "`Pressure`, `Speed` FROM `process_data` WHERE ProcessManagementId = @ProcessId AND MarkedDelete = 0 ORDER BY ProcessOrder;", new
+                                                                 {
+                                                                     processInfo.ProcessId,
+                                                                 });
+                if (!processDatas.Any())
+                {
+                    return Result.GenError<Result>(Error.ProcessDataNotExist);
+                }
+
+                if (processInfo.ProcessDatas != null)
+                {
+                    if (processInfo.ProcessDatas.Any())
+                    {
+                        processDatas = processInfo.ProcessDatas;
+                    }
+                    else
+                    {
+                        return Result.GenError<Result>(Error.ProcessDataNotExist);
+                    }
+                }
+
+
                 var i = 1;
                 foreach (var processData in processDatas)
                 {
@@ -881,8 +889,8 @@ namespace ApiManagement.Controllers.DeviceManagementController
                         messagePacket.Vals.Add(dictionaryIds.First(x => x.VariableName == key[j] + i).DictionaryId - 1, 0);
                     }
                 }
-
             }
+
             if (dictionaryIds.Any(x => x.Id == 6))
             {
                 messagePacket.Vals.Add(dictionaryIds.First(x => x.Id == 6).DictionaryId - 1, processInfo.FlowCardId);
@@ -930,7 +938,7 @@ namespace ApiManagement.Controllers.DeviceManagementController
                     ProcessId = processInfo.ProcessId,
                     FlowCardId = processInfo.FlowCardId,
                     Result = fRes,
-                    ProcessData = processDatas.ToJSON()
+                    ProcessData = processDatas?.ToJSON() ?? "[]"
                 });
 
             if (fRes)

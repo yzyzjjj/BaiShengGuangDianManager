@@ -130,18 +130,21 @@ namespace ApiManagement.Controllers.ManufactureController
                 var i = 0;
                 foreach (var item in manufactureTaskItems)
                 {
-                    oldToNew.Add(item.Order, i++);
+                    oldToNew.Add(item.Order, ++i);
                     item.Order = oldToNew[item.Order];
                     if (item.Relation != 0)
                     {
                         item.Relation = oldToNew[item.Relation];
                     }
                 }
+
+                i = 0;
                 foreach (var manufactureTaskItem in manufactureTaskItems)
                 {
                     manufactureTaskItem.CreateUserId = createUserId;
                     manufactureTaskItem.MarkedDateTime = markedDateTime;
                     manufactureTaskItem.TaskId = manufactureTask.Id;
+                    manufactureTaskItem.Order = ++i;
                 }
                 ServerConfig.ApiDb.Execute(
                     "INSERT INTO manufacture_task_item (`CreateUserId`, `MarkedDateTime`, `TaskId`, `Order`, `Person`, `ModuleId`, `IsCheck`, `CheckId`, `Item`, `EstimatedHour`, `EstimatedMin`, `Score`, `Desc`, `Relation`) " +

@@ -17,7 +17,7 @@ namespace ApiManagement.Models.ManufactureModel
         public string Item { get; set; }
         public int EstimatedHour { get; set; }
         public int EstimatedMin { get; set; }
-        public string EstimatedTime => DateTimeExtend.ToTimeStr(EstimatedHour * 3600 + EstimatedMin * 60);
+        public string EstimatedTime => DateTimeExtend.ToTimeStr(EstimatedHour * 3600 + EstimatedMin * 60, 1);
         public int Score { get; set; }
         public string Desc { get; set; }
         public int Relation { get; set; }

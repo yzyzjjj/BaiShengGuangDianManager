@@ -1,7 +1,7 @@
-﻿using ApiManagement.Base.Server;
-using ApiManagement.Models.RepairManagementModel;
+﻿using ApiManagement.Models.RepairManagementModel;
 using ModelBase.Base.Utils;
 using System.Collections.Generic;
+using System.ComponentModel;
 
 namespace ApiManagement.Models.Notify
 {
@@ -45,8 +45,11 @@ namespace ApiManagement.Models.Notify
     public enum NotifyMsgEnum
     {
         Default,
+        [Description("普通消息")]
         Common,
+        [Description("故障上报")]
         FaultReport,
+        [Description("故障指派")]
         FaultAssign,
     }
 
@@ -54,10 +57,10 @@ namespace ApiManagement.Models.Notify
     {
         private static readonly Dictionary<NotifyMsgEnum, string> NotifyFormats = new Dictionary<NotifyMsgEnum, string>
         {
-            { NotifyMsgEnum.Default, $"[{GlobalConfig.CompanyName}]{{0}}"},
-            { NotifyMsgEnum.Common,$"[{GlobalConfig.CompanyName}]{{0}}"},
-            { NotifyMsgEnum.FaultReport, "[故障上报]故障设备：{0}，故障时间：{1}，报修人：{2}，故障类型：{3}"},
-            { NotifyMsgEnum.FaultAssign, "[故障指派]故障设备：{0}，故障时间：{1}，报修人：{2}，故障类型：{3}，优先级：{4}，故障等级：{5}"},
+            { NotifyMsgEnum.Default, "{0}"},
+            { NotifyMsgEnum.Common,"{0}"},
+            { NotifyMsgEnum.FaultReport, "故障设备：{0}，故障时间：{1}，报修人：{2}，故障类型：{3}"},
+            { NotifyMsgEnum.FaultAssign, "故障设备：{0}，故障时间：{1}，报修人：{2}，故障类型：{3}，优先级：{4}，故障等级：{5}"},
         };
 
         public static string Format(NotifyMsgEnum msgEnum)
