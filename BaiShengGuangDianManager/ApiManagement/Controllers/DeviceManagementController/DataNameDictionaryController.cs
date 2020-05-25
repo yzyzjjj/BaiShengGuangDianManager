@@ -1,14 +1,14 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using ApiManagement.Base.Control;
-using ApiManagement.Base.Server;
+﻿using ApiManagement.Base.Server;
 using ApiManagement.Models.DeviceManagementModel;
 using Microsoft.AspNetCore.Mvc;
 using ModelBase.Base.EnumConfig;
 using ModelBase.Base.Utils;
+using ModelBase.Models.Control;
 using ModelBase.Models.Result;
 using ServiceStack;
+using System;
+using System.Collections.Generic;
+using System.Linq;
 
 namespace ApiManagement.Controllers.DeviceManagementController
 {
@@ -24,7 +24,7 @@ namespace ApiManagement.Controllers.DeviceManagementController
         public DataResult GetDataNameDictionary()
         {
             var result = new DataResult();
-            result.datas.AddRange(ServerConfig.ApiDb.Query<DataNameDictionary>("SELECT * FROM `data_name_dictionary` WHERE `MarkedDelete` = 0;"));
+            result.datas.AddRange(ServerConfig.ApiDb.Query<DataNameDictionary>("SELECT * FROM `data_name_dictionary` WHERE `MarkedDelete` = 0 ORDER BY ScriptId, PointerAddress;"));
             return result;
         }
 
@@ -58,7 +58,7 @@ namespace ApiManagement.Controllers.DeviceManagementController
         public DataResult GetDataNameDictionaryByScriptId([FromRoute] int id)
         {
             var result = new DataResult();
-            result.datas.AddRange(ServerConfig.ApiDb.Query<DataNameDictionary>("SELECT * FROM `data_name_dictionary` WHERE ScriptId = @id AND `MarkedDelete` = 0;", new { id }));
+            result.datas.AddRange(ServerConfig.ApiDb.Query<DataNameDictionary>("SELECT * FROM `data_name_dictionary` WHERE ScriptId = @id AND `MarkedDelete` = 0 ORDER BY ScriptId, PointerAddress;", new { id }));
             return result;
         }
 
@@ -89,9 +89,6 @@ namespace ApiManagement.Controllers.DeviceManagementController
 
             return Result.GenError<Result>(Error.Success);
         }
-
-
-
 
 
         // POST: api/DataNameDictionary
@@ -304,9 +301,9 @@ namespace ApiManagement.Controllers.DeviceManagementController
         [HttpDelete("{id}")]
         public Result DeleteDataNameDictionary([FromRoute] int id)
         {
-            var cnt =
-                ServerConfig.ApiDb.Query<int>("SELECT COUNT(1) FROM `data_name_dictionary` WHERE Id = @id AND `MarkedDelete` = 0;", new { id }).FirstOrDefault();
-            if (cnt == 0)
+            var data =
+                ServerConfig.ApiDb.Query<DataNameDictionary>("SELECT * FROM `data_name_dictionary` WHERE Id = @id AND `MarkedDelete` = 0;", new { id }).FirstOrDefault();
+            if (data == null)
             {
                 return Result.GenError<Result>(Error.DataNameDictionaryNotExist);
             }
@@ -318,6 +315,7 @@ namespace ApiManagement.Controllers.DeviceManagementController
                     MarkedDelete = true,
                     Id = id
                 });
+            CheckScriptVersion(data.ScriptId);
             return Result.GenError<Result>(Error.Success);
         }
 

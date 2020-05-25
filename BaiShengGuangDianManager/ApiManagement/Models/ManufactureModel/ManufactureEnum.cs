@@ -43,7 +43,7 @@ namespace ApiManagement.Models.ManufactureModel
     public enum ManufacturePlanItemState
     {
         /// <summary>
-        /// 待下发
+        /// 等待中
         /// </summary>
         [Description("等待中")]
         Wait = 0,

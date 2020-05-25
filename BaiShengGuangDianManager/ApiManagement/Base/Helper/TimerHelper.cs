@@ -18,7 +18,12 @@ namespace ApiManagement.Base.Helper
         private static Timer _totalTimer;
         public static void Init()
         {
+
+#if DEBUG
+            Console.WriteLine("TimerHelper 调试模式已开启");
+#else
             _totalTimer = new Timer(DoSth, null, 5000, 1000 * 10 * 1);
+#endif
         }
 
         private static void DoSth(object state)

@@ -954,7 +954,8 @@ namespace ApiManagement.Controllers.StatisticManagementController
                     return Result.GenError<DataResult>(Error.DeviceNotExist);
                 }
 
-                var sql = "SELECT * FROM `npc_monitoring_process_day` WHERE Time = @Time AND DeviceId IN @DeviceId";
+                var sql = "SELECT DeviceId, SUM(ProcessCount) ProcessCount, SUM(ProcessTime) ProcessTime FROM `npc_monitoring_process_day` " +
+                          "WHERE Time >= @Time AND Time <= @Time AND DeviceId IN @DeviceId GROUP BY DeviceId";
                 var monitoringProcess = ServerConfig.ApiDb.Query<MonitoringProcess>(sql, new
                 {
                     Time = requestBody.StartTime,
@@ -974,6 +975,8 @@ namespace ApiManagement.Controllers.StatisticManagementController
                         "JOIN ( SELECT a.*, b.ProductionProcessName FROM `flowcard_library` a JOIN `production_library` b ON a.ProductionProcessId = b.Id WHERE b.Id = @ProductionId) d ON a.FlowCardId = d.Id " +
                         "WHERE a.DeviceId IN @DeviceId AND StartTime >= @StartTime1 AND StartTime <= @StartTime2 ORDER BY a.StartTime;";
                 }
+
+                var day = (requestBody.EndTime.DayEndTime() - requestBody.StartTime.DayBeginTime()).TotalDays + 1;
                 var data = ServerConfig.ApiDb.Query<MonitoringProcessLogDetail>(sql, new
                 {
                     DeviceId = deviceIds,
@@ -984,11 +987,42 @@ namespace ApiManagement.Controllers.StatisticManagementController
                 var result = new DataResult();
                 foreach (var device in deviceIds)
                 {
+                    var idleTime = default(DateTime);
+                    var logs = new List<object>();
+                    foreach (var d in data.Where(x => x.DeviceId.ToString() == device))
+                    {
+                        if (d.OpName == "加工")
+                        {
+                            if (idleTime == default(DateTime))
+                            {
+                                idleTime = d.StartTime;
+                            }
+                            else
+                            {
+                                logs.Add(new MonitoringProcessLogDetail
+                                {
+                                    DeviceId = d.DeviceId,
+                                    OpName = "闲置",
+                                    Code = d.Code,
+                                    StartTime = d.EndTime,
+                                    EndTime = idleTime,
+                                });
+                                idleTime = d.StartTime;
+                            }
+                        }
+                        logs.Add(d);
+                    }
+
                     result.datas.Add(new
                     {
                         DeviceId = device,
-                        ProcessCount = monitoringProcess.ContainsKey(device) ? monitoringProcess[device].ProcessCount : 0,
-                        ProcessLog = data.Where(x => x.DeviceId.ToString() == device)
+                        ProcessCount = monitoringProcess.ContainsKey(device)
+                            ? monitoringProcess[device].ProcessCount
+                            : 0,
+                        ProcessCountAvg = monitoringProcess.ContainsKey(device)
+                            ? monitoringProcess[device].ProcessCount / day
+                            : 0,
+                        ProcessLog = logs
                     });
                 }
 
@@ -1596,34 +1630,60 @@ namespace ApiManagement.Controllers.StatisticManagementController
             {
                 var data = new Dictionary<DateTime, DeviceData>();
                 var sql =
-                    "SELECT * FROM `npc_monitoring_analysis` WHERE DeviceId = @DeviceId AND SendTime >= @StartTime AND SendTime <= @EndTime AND UserSend = 0;";
-                var monitoringAnalysis = ServerConfig.ApiDb.Query<MonitoringAnalysis>(sql, new
+                    "SELECT * FROM `npc_monitoring_analysis` WHERE DeviceId = @DeviceId AND SendTime >= @StartTime AND SendTime < @EndTime AND UserSend = 0;";
+                var cha = 240;
+                var tStartTime = requestBody.StartTime;
+                var tEndTime = tStartTime.AddMinutes(cha);
+                var tasks = new List<Task<IEnumerable<MonitoringAnalysis>>>();
+                while (true)
                 {
-                    requestBody.DeviceId,
-                    requestBody.StartTime,
-                    requestBody.EndTime
-                }, 1200);
-                foreach (var d in monitoringAnalysis)
-                {
-                    var t = d.SendTime.NoMillisecond();
-                    if (!data.ContainsKey(t))
+                    if (tEndTime > requestBody.EndTime)
                     {
-                        data.Add(t, new DeviceData());
+                        tEndTime = requestBody.EndTime.AddSeconds(1);
                     }
 
-                    foreach (var valData in requestBody.DeviceData.vals)
+                    var task = ServerConfig.ApiDb.QueryAsync<MonitoringAnalysis>(sql, new
                     {
-                        data[t].vals.Add(d.AnalysisData.vals[valData - 1]);
+                        requestBody.DeviceId,
+                        startTime = tStartTime,
+                        endTime = tEndTime
+                    }, 60);
+                    tasks.Add(task);
+                    if (tEndTime == requestBody.EndTime.AddSeconds(1))
+                    {
+                        break;
                     }
-                    foreach (var inData in requestBody.DeviceData.ins)
+
+                    tStartTime = tEndTime;
+                    tEndTime = tStartTime.AddMinutes(cha);
+                }
+
+                //Task.WaitAll(tasks.ToArray());
+                foreach (var task in tasks)
+                {
+                    foreach (var d in task.Result)
                     {
-                        data[t].ins.Add(d.AnalysisData.ins[inData - 1]);
-                    }
-                    foreach (var outData in requestBody.DeviceData.outs)
-                    {
-                        data[t].outs.Add(d.AnalysisData.outs[outData - 1]);
+                        var t = d.SendTime.NoMillisecond();
+                        if (!data.ContainsKey(t))
+                        {
+                            data.Add(t, new DeviceData());
+                        }
+
+                        foreach (var inData in requestBody.DeviceData.vals)
+                        {
+                            data[t].vals.Add(d.AnalysisData.ins[inData - 1]);
+                        }
+                        foreach (var inData in requestBody.DeviceData.ins)
+                        {
+                            data[t].ins.Add(d.AnalysisData.ins[inData - 1]);
+                        }
+                        foreach (var outData in requestBody.DeviceData.outs)
+                        {
+                            data[t].outs.Add(d.AnalysisData.outs[outData - 1]);
+                        }
                     }
                 }
+                data = data.OrderBy(x => x.Key).ToDictionary(x => x.Key, x => x.Value);
                 return new
                 {
                     errno = 0,

@@ -10,6 +10,7 @@ namespace ApiManagement.Models.StatisticManagementModel
         public string ProcessData { get; set; }
         public DateTime StartTime { get; set; }
         public DateTime EndTime { get; set; }
+        public string ProductionProcessName { get; set; }
         public object Clone()
         {
             return MemberwiseClone();

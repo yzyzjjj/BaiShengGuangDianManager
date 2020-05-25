@@ -45,8 +45,10 @@ namespace ApiManagement.Models.ManufactureModel
         public bool HaveChange(ManufacturePlanItem manufacturePlanItem, out ManufactureLog change)
         {
             var changeFlag = false;
+            var now = DateTime.Now;
             change = new ManufactureLog
             {
+                Time = now,
                 Type = ManufactureLogType.TaskUpdate
             };
             var thisProperties = GetType().GetProperties();

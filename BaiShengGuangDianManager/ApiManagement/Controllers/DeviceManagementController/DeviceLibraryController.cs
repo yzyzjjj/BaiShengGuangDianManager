@@ -1,5 +1,4 @@
-﻿using ApiManagement.Base.Control;
-using ApiManagement.Base.Server;
+﻿using ApiManagement.Base.Server;
 using ApiManagement.Models.DeviceManagementModel;
 using ApiManagement.Models.FlowCardManagementModel;
 using ApiManagement.Models.ProcessManagementModel;
@@ -11,6 +10,7 @@ using ModelBase.Base.HttpServer;
 using ModelBase.Base.Logger;
 using ModelBase.Base.UrlMappings;
 using ModelBase.Base.Utils;
+using ModelBase.Models.Control;
 using ModelBase.Models.Device;
 using ModelBase.Models.Result;
 using Newtonsoft.Json;
@@ -746,9 +746,13 @@ namespace ApiManagement.Controllers.DeviceManagementController
                     if (dataResult.datas.Any())
                     {
                         var deviceInfo = dataResult.datas.First();
-                        if (deviceInfo.DeviceState != DeviceState.Waiting)
+                        //if (deviceInfo.DeviceState != DeviceState.Waiting)
+                        //{
+                        //    return Result.GenError<Result>(deviceInfo.DeviceState == DeviceState.Processing ? Error.ProcessingNotSet : Error.DeviceStateErrorNotSet);
+                        //}
+                        if (deviceInfo.DeviceState != DeviceState.Waiting && deviceInfo.DeviceState != DeviceState.Processing)
                         {
-                            return Result.GenError<Result>(deviceInfo.DeviceState == DeviceState.Processing ? Error.ProcessingNotSet : Error.DeviceStateErrorNotSet);
+                            return Result.GenError<Result>(Error.DeviceStateErrorNotSet);
                         }
                     }
                 }
@@ -891,9 +895,10 @@ namespace ApiManagement.Controllers.DeviceManagementController
                 }
             }
 
-            if (dictionaryIds.Any(x => x.Id == 6))
+            var dictionaryId = 113;
+            if (dictionaryIds.Any(x => x.Id == dictionaryId))
             {
-                messagePacket.Vals.Add(dictionaryIds.First(x => x.Id == 6).DictionaryId - 1, processInfo.FlowCardId);
+                messagePacket.Vals.Add(dictionaryIds.First(x => x.Id == dictionaryId).DictionaryId - 1, processInfo.FlowCardId);
             }
             var msg = messagePacket.Serialize();
             url = ServerConfig.GateUrl + UrlMappings.Urls["batchSendBackGate"];
@@ -1124,22 +1129,168 @@ namespace ApiManagement.Controllers.DeviceManagementController
 
             return Result.GenError<Result>(Error.Success);
         }
-
-        public class UpgradeInfo
-        {
-            //设备id
-            public int DeviceId;
-            //固件ID
-            public int FirmwareId;
-            //固件bin文件
-            public string FirmwareFile;
-        }
         // POST: api/DeviceLibrary/Upgrade
         [HttpPost("Upgrade")]
-        public Result Upgrade([FromBody] UpgradeInfo upgradeInfo)
+        public UpgradeResult Upgrade([FromBody] UpgradeInfos upgradeInfos)
         {
+            if (upgradeInfos == null || !upgradeInfos.Infos.Any())
+            {
+                return Result.GenError<UpgradeResult>(Error.ParamError);
+            }
 
-            return Result.GenError<Result>(Error.Success);
+            if (upgradeInfos.Infos.GroupBy(x => x.DeviceId).Any(y => y.Count() > 1))
+            {
+                return Result.GenError<UpgradeResult>(Error.UpgradeDeviceDuplicate);
+            }
+            var result = new UpgradeResult { Type = upgradeInfos.Type };
+            var groups = upgradeInfos.Infos.GroupBy(x => new { x.Type, x.FileUrl }).Select(y => y.Key);
+            foreach (var group in groups)
+            {
+                //脚本位置 0 本地  1 网络
+                IEnumerable<string> file = null;
+                switch (group.Type)
+                {
+                    case 0:
+                        file = FileHelper.LocalFileTo16String(@group.FileUrl);
+                        break;
+                    case 1:
+                        file = FileHelper.RemoteFileToBytes(@group.FileUrl);
+                        break;
+                }
+
+                if (file == null || !file.Any())
+                {
+                    result.datas.AddRange(upgradeInfos.Infos.Where(x => x.Type == @group.Type && x.FileUrl == @group.FileUrl).Select(y =>
+                    {
+                        y.ErrNo = Error.FileNotExist;
+                        return new DeviceErr(y.DeviceId, Error.FileNotExist);
+                    }));
+                    continue;
+                }
+
+                foreach (var info in upgradeInfos.Infos.Where(x => x.Type == @group.Type && x.FileUrl == @group.FileUrl))
+                {
+                    info.UpgradeFile = file.Join(",");
+                }
+            }
+
+            var leftInfos = upgradeInfos.Infos.Where(x => x.ErrNo == Error.Success);
+            if (!leftInfos.Any())
+            {
+                result.datas = result.datas.OrderBy(x => x.DeviceId).ToList();
+                return result;
+            }
+            try
+            {
+                var mapKey = UrlMappings.deviceListGate;
+                var url = ServerConfig.GateUrl + UrlMappings.Urls[mapKey];
+                //向GateProxyLink请求数据
+                var resp = HttpServer.Get(url, new Dictionary<string, string>{
+                    { "ids", leftInfos.Select(x=>x.DeviceId).Join(",")}
+                });
+                if (resp != "fail")
+                {
+                    try
+                    {
+                        var dataResult = JsonConvert.DeserializeObject<DeviceResult>(resp);
+                        if (dataResult.errno == Error.Success)
+                        {
+                            foreach (var info in leftInfos)
+                            {
+                                var device = dataResult.datas.FirstOrDefault(x => x.DeviceId == info.DeviceId);
+                                if (device != null)
+                                {
+                                    if (device.DeviceState != DeviceState.Waiting)
+                                    {
+                                        info.ErrNo = Error.UpgradeDeviceStateError;
+                                        result.datas.Add(new DeviceErr(info.DeviceId, Error.UpgradeDeviceStateError));
+                                    }
+                                }
+                                else
+                                {
+                                    info.ErrNo = Error.DeviceException;
+                                    result.datas.Add(new DeviceErr(info.DeviceId, Error.DeviceException));
+                                }
+                            }
+                        }
+                    }
+                    catch (Exception e)
+                    {
+                        Log.Error($"{UrlMappings.Urls[mapKey]} 返回：{resp},信息:{e.Message}");
+                    }
+                }
+                if (!leftInfos.Any())
+                {
+                    result.datas = result.datas.OrderBy(x => x.DeviceId).ToList();
+                    return result;
+                }
+                mapKey = UrlMappings.batchUpgradeGate;
+                url = ServerConfig.GateUrl + UrlMappings.Urls[mapKey];
+                //向GateProxyLink请求数据
+                resp = HttpServer.Post(url, new UpgradeInfos { Type = upgradeInfos.Type, Infos = leftInfos.ToList() }.ToJSON());
+                var fRes = resp != "fail";
+                if (fRes)
+                {
+                    result.datas.AddRange(JsonConvert.DeserializeObject<UpgradeResult>(resp).datas);
+                    result.datas = result.datas.OrderBy(x => x.DeviceId).ToList();
+                    if (result.datas.Any(x => x.errno == Error.Success))
+                    {
+                        var f = false;
+                        var sql = "";
+                        object data = null;
+                        //0  默认  1 升级流程脚本  2 升级固件  3 升级应用层
+                        switch (upgradeInfos.Type)
+                        {
+                            case 1:
+                                f = true;
+                                sql =
+                                    "UPDATE `device_library` SET `ScriptId` = @ScriptId WHERE `Id` = @Id;";
+                                data = result.datas.Where(x => x.errno == Error.Success).Select(
+                                    y => new
+                                    {
+                                        Id = y.DeviceId,
+                                        ScriptId = upgradeInfos.Infos.FirstOrDefault(x => x.DeviceId == y.DeviceId)?.FileId ?? 0
+                                    });
+                                break;
+                            case 2:
+                                f = true;
+                                sql =
+                                    "UPDATE `device_library` SET `FirmwareId` = @FirmwareId WHERE `Id` = @Id;";
+                                data = result.datas.Where(x => x.errno == Error.Success).Select(
+                                    y => new
+                                    {
+                                        Id = y.DeviceId,
+                                        FirmwareId = upgradeInfos.Infos.FirstOrDefault(x => x.DeviceId == y.DeviceId)?.FileId ?? 0
+                                    });
+                                break;
+                            case 3:
+                                f = true;
+                                sql =
+                                    "UPDATE `device_library` SET `HardwareId` = @HardwareId WHERE `Id` = @Id;";
+                                data = result.datas.Where(x => x.errno == Error.Success).Select(
+                                    y => new
+                                    {
+                                        Id = y.DeviceId,
+                                        HardwareId = upgradeInfos.Infos.FirstOrDefault(x => x.DeviceId == y.DeviceId)?.FileId ?? 0
+                                    });
+                                break;
+                            default: break;
+                        }
+                        if (f)
+                        {
+                            ServerConfig.ApiDb.Execute(sql, data);
+                            ServerConfig.RedisHelper.PublishToTable();
+                        }
+                    }
+                    return result;
+                }
+                return Result.GenError<UpgradeResult>(Error.GateExceptionHappen);
+            }
+            catch (Exception e)
+            {
+                Log.Error(e);
+                return Result.GenError<UpgradeResult>(Error.ExceptionHappen);
+            }
         }
 
         // POST: api/DeviceLibrary/ReStart

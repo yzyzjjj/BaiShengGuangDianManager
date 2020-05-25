@@ -53,6 +53,10 @@ namespace ApiManagement.Models.StatisticManagementModel
         /// 使用率%
         /// </summary>
         public decimal Rate { get; set; }
+        /// <summary>
+        /// 样本时间
+        /// </summary>
+        public DateTime SampleTime { get; set; }
 
         public object Clone()
         {

@@ -31,19 +31,19 @@ namespace ApiManagement.Controllers.ManufactureController
         /// </summary>
         /// <returns></returns>
         /// <param name="account">员工账号</param>
+        /// <param name="gId">分组id</param>
         // GET: api/ManufactureTaskWorkSpace
         [HttpGet]
-        public DataResult GetManufactureCurrentTask([FromQuery] string account)
+        public DataResult GetManufactureCurrentTask([FromQuery] string account, int gId)
         {
-            var processor =
+            var processors =
                 ServerConfig.ApiDb.Query<Processor>("SELECT a.Id, b.Account FROM `manufacture_processor` a JOIN `processor` b ON a.ProcessorId = b.Id " +
-                                                    "WHERE b.Account = @account AND a.`MarkedDelete` = 0;", new { account }).FirstOrDefault();
-            if (processor == null)
+                                                    $"WHERE b.Account = @account AND a.`MarkedDelete` = 0 {(gId == 0 ? "" : " AND GroupId = @gId")};", new { account, gId });
+            if (!processors.Any())
             {
                 return Result.GenError<DataResult>(Error.ManufactureProcessorNotExist);
             }
 
-            var pId = processor.Id;
             var result = new DataResult();
             var sql =
                 "SELECT a.*, IFNULL(b.Plan, '') Plan, IFNULL(c.ProcessorName, '') Processor, IFNULL(d.Module, '') Module, IFNULL(e.`Check`, '') `Check`, IFNULL(f.ProcessorName, a.Assignor) Assignor FROM manufacture_plan_task a " +
@@ -52,11 +52,11 @@ namespace ApiManagement.Controllers.ManufactureController
                 "LEFT JOIN `manufacture_task_module` d ON a.ModuleId = d.Id " +
                 "LEFT JOIN `manufacture_check` e ON a.CheckId = e.Id " +
                 "LEFT JOIN `processor` f ON a.Assignor = f.Account " +
-                "WHERE a.State IN @state AND a.Person = @pId AND a.MarkedDelete = 0 AND a.IsCheck = 0 ORDER BY a.`TotalOrder` LIMIT 2;";
+                "WHERE a.State IN @state AND a.Person IN @pId AND a.MarkedDelete = 0 AND a.IsCheck = 0 ORDER BY a.`TotalOrder` LIMIT 2;";
             var tasks = new List<ManufacturePlanTask>();
             foreach (var validState in ValidStates)
             {
-                tasks.AddRange(ServerConfig.ApiDb.Query<ManufacturePlanTask>(sql, new { state = validState.Value, pId }));
+                tasks.AddRange(ServerConfig.ApiDb.Query<ManufacturePlanTask>(sql, new { state = validState.Value, pId = processors.Select(x => x.Id) }));
                 if (tasks.Count >= 2)
                 {
                     break;
@@ -91,7 +91,7 @@ namespace ApiManagement.Controllers.ManufactureController
         /// <returns></returns>
         // GET: api/ManufactureTaskWorkSpace?qId=0
         [HttpGet("Score")]
-        public DataResult GetManufactureTaskWorkSpaceItem([FromQuery] int gId)
+        public object GetManufactureTaskWorkSpaceItem([FromQuery] int gId)
         {
             var result = new DataResult();
             var manufactureGroup =
@@ -134,34 +134,41 @@ namespace ApiManagement.Controllers.ManufactureController
                       "FROM (SELECT a.*, b.ProcessorName FROM `manufacture_processor` a JOIN `processor` b ON a.ProcessorId = b.Id WHERE a.MarkedDelete = 0 AND a.GroupId = @gId) a " +
                       "LEFT JOIN ( SELECT Person, SUM(ActualScore) Score FROM manufacture_plan_task WHERE MarkedDelete = 0 AND State = @state AND ActualEndTime >= @sTime AND ActualEndTime <= @eTime GROUP BY Person) b ON a.Id = b.Person ORDER BY b.Score DESC, b.Person;";
             var data = ServerConfig.ApiDb.Query<dynamic>(sql, new { state = ManufacturePlanItemState.Done, gId, sTime, eTime });
-            result.datas.AddRange(data);
-            return result;
+            return new
+            {
+                sTime,
+                eTime,
+                interval = manufactureGroup.Interval,
+                errno = Error.Success,
+                errmsg = "成功",
+                datas = data
+            };
         }
 
         /// <summary>
         /// 获取未完成任务
         /// </summary>
         /// <param name="account"></param>
+        /// <param name="gId">分组id</param>
         /// <param name="limit">记录条数</param>
         /// <returns></returns>
         // GET: api/ManufactureTaskWorkSpace?qId=0&item=false
         [HttpGet("UnfinishedTask")]
-        public DataResult GetManufactureUnfinishedTask([FromQuery] string account, int limit = 10)
+        public DataResult GetManufactureUnfinishedTask([FromQuery] string account, int gId, int limit = 10)
         {
-            var processor =
+            var processors =
                 ServerConfig.ApiDb.Query<Processor>("SELECT a.Id, b.Account FROM `manufacture_processor` a JOIN `processor` b ON a.ProcessorId = b.Id " +
-                                                    "WHERE b.Account = @account AND a.`MarkedDelete` = 0;", new { account }).FirstOrDefault();
-            if (processor == null)
+                                                    $"WHERE b.Account = @account AND a.`MarkedDelete` = 0 {(gId == 0 ? "" : " AND GroupId = @gId")};", new { account, gId });
+            if (!processors.Any())
             {
                 return Result.GenError<DataResult>(Error.ManufactureProcessorNotExist);
             }
 
-            var pId = processor.Id;
             var result = new DataResult();
             var sql =
                 "SELECT a.*, IFNULL(b.Plan, '') Plan FROM manufacture_plan_task a " +
-                "LEFT JOIN `manufacture_plan` b ON a.PlanId = b.Id WHERE a.State != @state AND a.Person = @pId AND a.MarkedDelete = 0 ORDER BY a.`TotalOrder` LIMIT @limit;";
-            result.datas.AddRange(ServerConfig.ApiDb.Query<ManufacturePlanTask>(sql, new { state = ManufacturePlanItemState.Done, pId, limit }));
+                "LEFT JOIN `manufacture_plan` b ON a.PlanId = b.Id WHERE a.State != @state AND a.Person IN @pId AND a.MarkedDelete = 0 AND IsCheck = 0 ORDER BY a.`TotalOrder` LIMIT @limit;";
+            result.datas.AddRange(ServerConfig.ApiDb.Query<ManufacturePlanTask>(sql, new { state = ManufacturePlanItemState.Done, pId = processors.Select(x => x.Id), limit }));
             return result;
         }
 
@@ -169,26 +176,26 @@ namespace ApiManagement.Controllers.ManufactureController
         /// 获取已完成任务
         /// </summary>
         /// <param name="account"></param>
+        /// <param name="gId">分组id</param>
         /// <param name="limit"></param>
         /// <returns></returns>
         // GET: api/ManufactureTaskWorkSpace?qId=0&item=false
         [HttpGet("FinishedTask")]
-        public DataResult GetManufactureFinishedTask([FromQuery]  string account, int limit = 10)
+        public DataResult GetManufactureFinishedTask([FromQuery] string account, int gId, int limit = 10)
         {
-            var processor =
+            var processors =
                 ServerConfig.ApiDb.Query<Processor>("SELECT a.Id, b.Account FROM `manufacture_processor` a JOIN `processor` b ON a.ProcessorId = b.Id " +
-                                                    "WHERE b.Account = @account AND a.`MarkedDelete` = 0;", new { account }).FirstOrDefault();
-            if (processor == null)
+                                                    $"WHERE b.Account = @account AND a.`MarkedDelete` = 0 {(gId == 0 ? "" : " AND GroupId = @gId")};", new { account, gId });
+            if (!processors.Any())
             {
                 return Result.GenError<DataResult>(Error.ManufactureProcessorNotExist);
             }
 
-            var pId = processor.Id;
             var result = new DataResult();
             var sql =
                 "SELECT a.*, IFNULL(b.Plan, '') Plan FROM manufacture_plan_task a " +
-                "LEFT JOIN `manufacture_plan` b ON a.PlanId = b.Id WHERE a.State = @state AND a.Person = @pId AND a.MarkedDelete = 0 ORDER BY a.`TotalOrder` DESC LIMIT @limit;";
-            result.datas.AddRange(ServerConfig.ApiDb.Query<ManufacturePlanTask>(sql, new { state = ManufacturePlanItemState.Done, pId, limit }));
+                "LEFT JOIN `manufacture_plan` b ON a.PlanId = b.Id WHERE a.State = @state AND a.Person IN @pId AND a.MarkedDelete = 0 ORDER BY a.`TotalOrder` DESC LIMIT @limit;";
+            result.datas.AddRange(ServerConfig.ApiDb.Query<ManufacturePlanTask>(sql, new { state = ManufacturePlanItemState.Done, pId = processors.Select(x => x.Id), limit }));
             return result;
         }
 
@@ -201,27 +208,27 @@ namespace ApiManagement.Controllers.ManufactureController
         /// <returns></returns>
         // POST: api/ManufactureTaskWorkSpace
         [HttpPost("Start")]
-        public Result StartManufactureTask([FromBody]ManufactureOpTask opTask)
+        public Result StartManufactureTask([FromBody] ManufactureOpTask opTask)
         {
             var tId = opTask.TaskId;
             var account = opTask.Account;
-            var processor =
+            var gId = opTask.GId;
+            var processors =
                 ServerConfig.ApiDb.Query<Processor>("SELECT a.Id, b.Account FROM `manufacture_processor` a JOIN `processor` b ON a.ProcessorId = b.Id " +
-                                                    "WHERE b.Account = @account AND a.`MarkedDelete` = 0;", new { account }).FirstOrDefault();
-            if (processor == null)
+                                                    $"WHERE b.Account = @account AND a.`MarkedDelete` = 0 {(gId == 0 ? "" : " AND GroupId = @gId")};", new { account, gId });
+            if (!processors.Any())
             {
                 return Result.GenError<DataResult>(Error.ManufactureProcessorNotExist);
             }
 
-            var pId = processor.Id;
             var sql =
                 "SELECT b.*, a.* FROM manufacture_plan_task a " +
                 "LEFT JOIN `manufacture_plan` b ON a.PlanId = b.Id " +
-                "WHERE a.State IN @state AND a.Person = @pId AND a.MarkedDelete = 0 AND a.IsCheck = 0 ORDER BY a.`TotalOrder` LIMIT 1;";
+                "WHERE a.State IN @state AND a.Person IN @pId AND a.MarkedDelete = 0 AND a.IsCheck = 0 ORDER BY a.`TotalOrder` LIMIT 1;";
             ManufacturePlanTask task = null;
             foreach (var validState in ValidStates)
             {
-                task = ServerConfig.ApiDb.Query<ManufacturePlanTask>(sql, new { state = validState.Value, pId })
+                task = ServerConfig.ApiDb.Query<ManufacturePlanTask>(sql, new { state = validState.Value, pId = processors.Select(x => x.Id) })
                    .FirstOrDefault();
                 if (task != null)
                 {
@@ -243,35 +250,30 @@ namespace ApiManagement.Controllers.ManufactureController
                 var now = DateTime.Now;
                 var oldTask = (ManufacturePlanTask)task.Clone();
                 task.State = ManufacturePlanItemState.Doing;
-                if (!task.IsRedo)
+
+                if (task.FirstStartTime == default(DateTime))
                 {
                     task.FirstStartTime = now;
                 }
-                else
+
+                if (task.IsRedo)
                 {
                     task.RedoCount++;
                 }
 
-                if (task.PauseTime != default(DateTime))
-                {
-                    task.PauseTime = now;
-                }
-                else
-                {
-                    task.ActualStartTime = now;
-                }
+                task.ActualStartTime = now;
                 if (oldTask.HaveChange(task, out var change))
                 {
                     change.Time = now;
-                    change.Account = processor.Account;
+                    change.Account = account;
                     change.PlanId = task.PlanId;
                     change.IsAssign = true;
                     change.TaskId = task.TaskId;
                     change.ItemId = task.Id;
                     change.Type = ManufactureLogType.StartTask;
                 }
-                ServerConfig.ApiDb.Execute("UPDATE manufacture_plan_task SET `MarkedDateTime` = @MarkedDateTime, `State` = @State, `FirstStartTime` = @FirstStartTime, " +
-                                           "`ActualStartTime` = @ActualStartTime, `RedoCount` = @RedoCount WHERE `Id` = @Id;", task);
+                ServerConfig.ApiDb.Execute("UPDATE manufacture_plan_task SET `State` = @State, `FirstStartTime` = @FirstStartTime, `ActualStartTime` = @ActualStartTime, " +
+                                           "`RedoCount` = @RedoCount WHERE `Id` = @Id;", task);
                 ManufactureLog.AddLog(new List<ManufactureLog> { change });
                 return Result.GenError<DataResult>(Error.Success);
             }
@@ -291,24 +293,23 @@ namespace ApiManagement.Controllers.ManufactureController
         {
             var tId = opTask.TaskId;
             var account = opTask.Account;
-            var processor =
+            var gId = opTask.GId;
+            var processors =
                 ServerConfig.ApiDb.Query<Processor>("SELECT a.Id, b.Account FROM `manufacture_processor` a JOIN `processor` b ON a.ProcessorId = b.Id " +
-                                                    "WHERE b.Account = @account AND a.`MarkedDelete` = 0;", new { account }).FirstOrDefault();
-            if (processor == null)
+                                                    $"WHERE b.Account = @account AND a.`MarkedDelete` = 0 {(gId == 0 ? "" : " AND GroupId = @gId")};", new { account, gId });
+            if (!processors.Any())
             {
                 return Result.GenError<DataResult>(Error.ManufactureProcessorNotExist);
             }
-
-            var pId = processor.Id;
             var sql =
                 "SELECT b.*, a.* FROM manufacture_plan_task a " +
                 "LEFT JOIN `manufacture_plan` b ON a.PlanId = b.Id " +
-                "WHERE a.State IN @state AND a.Person = @pId AND a.MarkedDelete = 0 AND a.IsCheck = 0 ORDER BY a.`TotalOrder` LIMIT 1;";
+                "WHERE a.State IN @state AND a.Person IN @pId AND a.MarkedDelete = 0 AND a.IsCheck = 0 ORDER BY a.`TotalOrder` LIMIT 1;";
             ManufacturePlanTask task = null;
             foreach (var validState in ValidStates)
             {
-                task = ServerConfig.ApiDb.Query<ManufacturePlanTask>(sql, new { state = validState.Value, pId })
-                   .FirstOrDefault();
+                task = ServerConfig.ApiDb.Query<ManufacturePlanTask>(sql, new { state = validState.Value, pId = processors.Select(x => x.Id) })
+                    .FirstOrDefault();
                 if (task != null)
                 {
                     break;
@@ -331,12 +332,13 @@ namespace ApiManagement.Controllers.ManufactureController
                 task.State = ManufacturePlanItemState.Pause;
                 task.PauseTime = now;
                 var totalSecond = (int)(task.PauseTime - task.ActualStartTime).TotalSeconds;
-                task.ActualHour += totalSecond / 3600;
-                task.ActualMin += (totalSecond - task.ActualHour * 3600) / 60;
+                var hour = totalSecond / 3600;
+                task.ActualHour += hour;
+                task.ActualMin += (totalSecond - hour * 3600) / 60;
                 if (oldTask.HaveChange(task, out var change))
                 {
                     change.Time = now;
-                    change.Account = processor.Account;
+                    change.Account = account;
                     change.PlanId = task.PlanId;
                     change.IsAssign = true;
                     change.TaskId = task.TaskId;
@@ -366,24 +368,24 @@ namespace ApiManagement.Controllers.ManufactureController
         {
             var tId = opTask.TaskId;
             var account = opTask.Account;
-            var processor =
+            var gId = opTask.GId;
+            var processors =
                 ServerConfig.ApiDb.Query<Processor>("SELECT a.Id, b.Account FROM `manufacture_processor` a JOIN `processor` b ON a.ProcessorId = b.Id " +
-                                                    "WHERE b.Account = @account AND a.`MarkedDelete` = 0;", new { account }).FirstOrDefault();
-            if (processor == null)
+                                                    $"WHERE b.Account = @account AND a.`MarkedDelete` = 0 {(gId == 0 ? "" : " AND GroupId = @gId")};", new { account, gId });
+            if (!processors.Any())
             {
                 return Result.GenError<DataResult>(Error.ManufactureProcessorNotExist);
             }
 
-            var pId = processor.Id;
             var sql =
                 "SELECT b.*, a.* FROM manufacture_plan_task a " +
                 "LEFT JOIN `manufacture_plan` b ON a.PlanId = b.Id " +
-                "WHERE a.State IN @state AND a.Person = @pId AND a.MarkedDelete = 0 AND a.IsCheck = 0 ORDER BY a.`TotalOrder` LIMIT 1;";
+                "WHERE a.State IN @state AND a.Person IN @pId AND a.MarkedDelete = 0 AND a.IsCheck = 0 ORDER BY a.`TotalOrder` LIMIT 1;";
             ManufacturePlanTask task = null;
             foreach (var validState in ValidStates)
             {
-                task = ServerConfig.ApiDb.Query<ManufacturePlanTask>(sql, new { state = validState.Value, pId })
-                   .FirstOrDefault();
+                task = ServerConfig.ApiDb.Query<ManufacturePlanTask>(sql, new { state = validState.Value, pId = processors.Select(x => x.Id) })
+                    .FirstOrDefault();
                 if (task != null)
                 {
                     break;
@@ -406,23 +408,30 @@ namespace ApiManagement.Controllers.ManufactureController
                 var oldTask = (ManufacturePlanTask)task.Clone();
                 task.State = ManufacturePlanItemState.Done;
                 task.ActualEndTime = now;
-                if (task.PauseTime != default(DateTime))
-                {
-                    var totalSecond = (int)(task.PauseTime - task.ActualStartTime).TotalSeconds;
-                    task.ActualHour += totalSecond / 3600;
-                    task.ActualMin += (totalSecond - task.ActualHour * 3600) / 60;
-                    task.PauseTime = default(DateTime);
-                }
-                else
-                {
-                    var totalSecond = (int)(task.ActualEndTime - task.ActualStartTime).TotalSeconds;
-                    task.ActualHour += totalSecond / 3600;
-                    task.ActualMin += (totalSecond - task.ActualHour * 3600) / 60;
-                }
+
+                var totalSecond = (int)(task.ActualEndTime - task.ActualStartTime).TotalSeconds;
+                var totalHour = totalSecond / 3600;
+                task.ActualHour += totalHour;
+                task.ActualMin += (totalSecond - totalHour * 3600) / 60;
+
+                //if (task.PauseTime != default(DateTime))
+                //{
+                //    var totalSecond = (int)(task.PauseTime - task.ActualStartTime).TotalSeconds;
+                //    var totalHour = totalSecond / 3600;
+                //    task.ActualHour += totalHour;
+                //    task.ActualMin += (totalSecond - totalHour * 3600) / 60;
+                //    task.PauseTime = default(DateTime);
+                //}
+                //else
+                //{
+                //    var totalSecond = (int)(task.ActualEndTime - task.ActualStartTime).TotalSeconds;
+                //    task.ActualHour += totalSecond / 3600;
+                //    task.ActualMin += (totalSecond - task.ActualHour * 3600) / 60;
+                //}
                 if (oldTask.HaveChange(task, out var change))
                 {
                     change.Time = now;
-                    change.Account = processor.Account;
+                    change.Account = account;
                     change.PlanId = task.PlanId;
                     change.IsAssign = true;
                     change.TaskId = task.TaskId;
@@ -432,27 +441,31 @@ namespace ApiManagement.Controllers.ManufactureController
                 }
                 var tasks = new List<ManufacturePlanTask> { task };
                 sql =
-                    "SELECT * FROM `manufacture_plan_task` WHERE PlanId = @PlanId AND Relation = @Order AND IsCheck = 1;";
-                var checkTask = ServerConfig.ApiDb.Query<ManufacturePlanTask>(sql, new { task.PlanId, task.Order }).FirstOrDefault();
-                if (checkTask != null)
+                    "SELECT * FROM `manufacture_plan_task` WHERE PlanId = @PlanId AND Relation = @Order AND IsCheck = 1 AND `State` = @state;";
+                var checkTasks = ServerConfig.ApiDb.Query<ManufacturePlanTask>(sql, new { task.PlanId, task.Order, state = ManufacturePlanItemState.Wait });
+
+                if (checkTasks != null && checkTasks.Any())
                 {
-                    var oldCheckTask = (ManufacturePlanTask)checkTask.Clone();
-                    checkTask.State = ManufacturePlanItemState.WaitCheck;
-                    if (oldCheckTask.HaveChange(checkTask, out var changeCheck))
+                    foreach (var checkTask in checkTasks)
                     {
-                        changeCheck.Time = now;
-                        changeCheck.Account = processor.Account;
-                        changeCheck.PlanId = checkTask.PlanId;
-                        changeCheck.IsAssign = true;
-                        changeCheck.TaskId = checkTask.TaskId;
-                        changeCheck.ItemId = checkTask.Id;
-                        changeCheck.Type = ManufactureLogType.TaskUpdate;
-                        changes.Add(changeCheck);
+                        var oldCheckTask = (ManufacturePlanTask)checkTask.Clone();
+                        checkTask.State = ManufacturePlanItemState.WaitCheck;
+                        if (oldCheckTask.HaveChange(checkTask, out var changeCheck))
+                        {
+                            changeCheck.Time = now;
+                            changeCheck.Account = account;
+                            changeCheck.PlanId = checkTask.PlanId;
+                            changeCheck.IsAssign = true;
+                            changeCheck.TaskId = checkTask.TaskId;
+                            changeCheck.ItemId = checkTask.Id;
+                            changeCheck.Type = ManufactureLogType.TaskUpdate;
+                            changes.Add(changeCheck);
+                        }
+                        tasks.Add(checkTask);
                     }
-                    tasks.Add(checkTask);
                 }
 
-                ServerConfig.ApiDb.Execute("UPDATE manufacture_plan_task SET `MarkedDateTime` = @MarkedDateTime, `State` = @State, `ActualEndTime` = @ActualEndTime, `PauseTime` = @PauseTime, " +
+                ServerConfig.ApiDb.Execute("UPDATE manufacture_plan_task SET `MarkedDateTime` = @MarkedDateTime, `State` = @State, `ActualEndTime` = @ActualEndTime, " +
                                            "`ActualHour` = @ActualHour, `ActualMin` = @ActualMin WHERE `Id` = @Id;", tasks);
 
                 ManufactureLog.AddLog(changes);

@@ -22,6 +22,7 @@ namespace ApiManagement.Models.DeviceManagementModel
         public int MaxOutputPointerAddress { get; set; }
         [JsonIgnore]
         public string HeartPacket { get; set; }
+        public string ScriptFile { get; set; }
     }
     public class ScriptVersionDetail : ScriptVersion
     {

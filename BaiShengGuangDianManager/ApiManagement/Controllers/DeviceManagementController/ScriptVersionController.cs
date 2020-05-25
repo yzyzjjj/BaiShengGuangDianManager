@@ -1,14 +1,14 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using ApiManagement.Base.Control;
-using ApiManagement.Base.Server;
+﻿using ApiManagement.Base.Server;
 using ApiManagement.Models.DeviceManagementModel;
 using Microsoft.AspNetCore.Mvc;
 using ModelBase.Base.EnumConfig;
 using ModelBase.Base.Utils;
+using ModelBase.Models.Control;
 using ModelBase.Models.Result;
 using ServiceStack;
+using System;
+using System.Collections.Generic;
+using System.Linq;
 
 namespace ApiManagement.Controllers.DeviceManagementController
 {
@@ -20,34 +20,60 @@ namespace ApiManagement.Controllers.DeviceManagementController
     public class ScriptVersionController : ControllerBase
     {
         // GET: api/ScriptVersion
-        [HttpGet]
-        public DataResult GetScriptVersion()
-        {
-            var result = new DataResult();
-            result.datas.AddRange(ServerConfig.ApiDb.Query<ScriptVersion>("SELECT * FROM `script_version` WHERE `MarkedDelete` = 0;"));
-            return result;
-        }
-
         /// <summary>
-        /// 自增Id
+        /// 
         /// </summary>
-        /// <param name="id">自增Id</param>
+        /// <param name="menu"></param>
+        /// <param name="deviceModelId">根据设备型号</param>
+        /// <param name="qId"></param>
         /// <returns></returns>
-        // GET: api/ScriptVersion/5
-        [HttpGet("{id}")]
-        public DataResult GetScriptVersion([FromRoute] int id)
+        [HttpGet]
+        public DataResult GetScriptVersion([FromQuery] bool menu, int deviceModelId, int qId)
         {
             var result = new DataResult();
-            var data =
-                ServerConfig.ApiDb.Query<ScriptVersion>("SELECT * FROM `script_version` WHERE Id = @id AND `MarkedDelete` = 0;", new { id }).FirstOrDefault();
-            if (data == null)
+            if (deviceModelId != 0)
+            {
+                result.datas.AddRange(ServerConfig.ApiDb.Query<ScriptVersion>("SELECT * FROM `script_version` WHERE FIND_IN_SET(@deviceModelId, DeviceModelId) AND `MarkedDelete` = 0;", new { deviceModelId }));
+                return result;
+            }
+
+            if (menu)
+            {
+                result.datas.AddRange(ServerConfig.ApiDb.Query<dynamic>($"SELECT Id, ScriptName FROM `script_version` WHERE {(qId == 0 ? "" : "Id = @qId AND ")} MarkedDelete = 0 ORDER BY Id;;"));
+            }
+            else
+            {
+                result.datas.AddRange(ServerConfig.ApiDb.Query<ScriptVersion>($"SELECT * FROM `script_version` WHERE {(qId == 0 ? "" : "Id = @qId AND ")} MarkedDelete = 0 ORDER BY Id;;"));
+            }
+
+            if (qId != 0 && !result.datas.Any())
             {
                 result.errno = Error.ScriptVersionNotExist;
                 return result;
             }
-            result.datas.Add(data);
             return result;
         }
+
+        ///// <summary>
+        ///// 自增Id
+        ///// </summary>
+        ///// <param name="id">自增Id</param>
+        ///// <returns></returns>
+        //// GET: api/ScriptVersion/5
+        //[HttpGet("{id}")]
+        //public DataResult GetScriptVersion([FromRoute] int id)
+        //{
+        //    var result = new DataResult();
+        //    var data =
+        //        ServerConfig.ApiDb.Query<ScriptVersion>("SELECT * FROM `script_version` WHERE Id = @id AND `MarkedDelete` = 0;", new { id }).FirstOrDefault();
+        //    if (data == null)
+        //    {
+        //        result.errno = Error.ScriptVersionNotExist;
+        //        return result;
+        //    }
+        //    result.datas.Add(data);
+        //    return result;
+        //}
 
         /// <summary>
         /// 根据设备型号
@@ -55,13 +81,13 @@ namespace ApiManagement.Controllers.DeviceManagementController
         /// <param name="deviceModelId">根据设备型号</param>
         /// <returns></returns>
         // GET: api/ScriptVersion/DeviceModel/5
-        [HttpGet("DeviceModel/{deviceModelId}")]
-        public DataResult GetScriptVersionByDeviceModel([FromRoute] int deviceModelId)
-        {
-            var result = new DataResult();
-            result.datas.AddRange(ServerConfig.ApiDb.Query<ScriptVersion>("SELECT * FROM `script_version` WHERE FIND_IN_SET(@deviceModelId, DeviceModelId) AND `MarkedDelete` = 0;", new { deviceModelId }));
-            return result;
-        }
+        //[HttpGet("DeviceModel/{deviceModelId}")]
+        //public DataResult GetScriptVersionByDeviceModel([FromRoute] int deviceModelId)
+        //{
+        //    var result = new DataResult();
+        //    result.datas.AddRange(ServerConfig.ApiDb.Query<ScriptVersion>("SELECT * FROM `script_version` WHERE FIND_IN_SET(@deviceModelId, DeviceModelId) AND `MarkedDelete` = 0;", new { deviceModelId }));
+        //    return result;
+        //}
 
         /// <summary>
         /// 自增Id
@@ -92,10 +118,10 @@ namespace ApiManagement.Controllers.DeviceManagementController
 
             scriptVersion.Id = id;
             scriptVersion.CreateUserId = Request.GetIdentityInformation();
-            scriptVersion.MarkedDateTime = DateTime.Now;
+            scriptVersion.ScriptFile = scriptVersion.ScriptFile ?? "";
             ServerConfig.ApiDb.Execute(
-                "UPDATE script_version SET `MarkedDateTime` = @MarkedDateTime, `MarkedDelete` = @MarkedDelete, `ModifyId` = @ModifyId, `DeviceModelId` = @DeviceModelId, `ScriptName` = @ScriptName, " +
-                "`ValueNumber` = @ValueNumber, `InputNumber` = @InputNumber, `OutputNumber` = @OutputNumber, `HeartPacket` = @HeartPacket WHERE `Id` = @Id;", scriptVersion);
+                "UPDATE script_version SET `MarkedDelete` = @MarkedDelete, `ModifyId` = @ModifyId, `DeviceModelId` = @DeviceModelId, `ScriptName` = @ScriptName, " +
+                "`ValueNumber` = @ValueNumber, `InputNumber` = @InputNumber, `OutputNumber` = @OutputNumber, `HeartPacket` = @HeartPacket, `ScriptFile` = @ScriptFile WHERE `Id` = @Id;", scriptVersion);
 
             ServerConfig.RedisHelper.PublishToTable();
             return Result.GenError<Result>(Error.Success);
@@ -115,15 +141,15 @@ namespace ApiManagement.Controllers.DeviceManagementController
             var createUserId = Request.GetIdentityInformation();
             var time = DateTime.Now;
             scriptVersion.CreateUserId = createUserId;
-            scriptVersion.MarkedDateTime = time;
             var valN = scriptVersion.ValueNumber == 0 ? 300 : scriptVersion.ValueNumber;
             var inN = scriptVersion.InputNumber == 0 ? 255 : scriptVersion.InputNumber;
             var outN = scriptVersion.OutputNumber == 0 ? 255 : scriptVersion.OutputNumber;
             var msg = new DeviceInfoMessagePacket(valN, inN, outN);
             scriptVersion.HeartPacket = msg.Serialize();
+            scriptVersion.ScriptFile = scriptVersion.ScriptFile ?? "";
             var index = ServerConfig.ApiDb.Query<int>(
-                 "INSERT INTO script_version (`CreateUserId`, `MarkedDateTime`, `MarkedDelete`, `ModifyId`, `DeviceModelId`, `ScriptName`, `ValueNumber`, `InputNumber`, `OutputNumber`, `HeartPacket`) " +
-                 "VALUES (@CreateUserId, @MarkedDateTime, @MarkedDelete, @ModifyId, @DeviceModelId, @ScriptName, @ValueNumber, @InputNumber, @OutputNumber, @HeartPacket);SELECT LAST_INSERT_ID();",
+                "INSERT INTO script_version (`CreateUserId`, `MarkedDelete`, `ModifyId`, `DeviceModelId`, `ScriptName`, `ValueNumber`, `InputNumber`, `OutputNumber`, `HeartPacket`, `ScriptFile`) " +
+                 "VALUES (@CreateUserId, @MarkedDelete, @ModifyId, @DeviceModelId, @ScriptName, @ValueNumber, @InputNumber, @OutputNumber, @HeartPacket, @ScriptFile);SELECT LAST_INSERT_ID();",
                  scriptVersion).FirstOrDefault();
 
             var usuallyDictionaries = ServerConfig.ApiDb.Query<UsuallyDictionary>("SELECT a.Id VariableNameId, IFNULL(b.DictionaryId, 0) DictionaryId, IFNULL(b.VariableTypeId, 0) VariableTypeId FROM `usually_dictionary_type` a LEFT JOIN (SELECT * FROM `usually_dictionary` WHERE ScriptId = 0) b ON a.Id = b.VariableNameId;");
@@ -132,12 +158,11 @@ namespace ApiManagement.Controllers.DeviceManagementController
             {
                 usuallyDictionary.ScriptId = index;
                 usuallyDictionary.CreateUserId = createUserId;
-                usuallyDictionary.MarkedDateTime = time;
             }
 
             ServerConfig.ApiDb.Execute(
-                "INSERT INTO usually_dictionary (`CreateUserId`, `MarkedDateTime`, `MarkedDelete`, `ModifyId`, `ScriptId`, `VariableNameId`, `DictionaryId`, `VariableTypeId`) " +
-                "VALUES (@CreateUserId, @MarkedDateTime, @MarkedDelete, @ModifyId, @ScriptId, @VariableNameId, @DictionaryId, @VariableTypeId);",
+                "INSERT INTO usually_dictionary (`CreateUserId`, `MarkedDelete`, `ModifyId`, `ScriptId`, `VariableNameId`, `DictionaryId`, `VariableTypeId`) " +
+                "VALUES (@CreateUserId, @MarkedDelete, @ModifyId, @ScriptId, @VariableNameId, @DictionaryId, @VariableTypeId);",
                 usuallyDictionaries);
 
             ServerConfig.RedisHelper.PublishToTable();
@@ -164,16 +189,16 @@ namespace ApiManagement.Controllers.DeviceManagementController
             foreach (var scriptVersion in scriptVersions)
             {
                 scriptVersion.CreateUserId = Request.GetIdentityInformation();
-                scriptVersion.MarkedDateTime = DateTime.Now;
                 var valN = scriptVersion.ValueNumber == 0 ? 300 : scriptVersion.ValueNumber;
                 var inN = scriptVersion.InputNumber == 0 ? 255 : scriptVersion.InputNumber;
                 var outN = scriptVersion.OutputNumber == 0 ? 255 : scriptVersion.OutputNumber;
                 var msg = new DeviceInfoMessagePacket(valN, inN, outN);
                 scriptVersion.HeartPacket = msg.Serialize();
+                scriptVersion.ScriptFile = scriptVersion.ScriptFile ?? "";
             }
             ServerConfig.ApiDb.Execute(
-                "INSERT INTO script_version (`CreateUserId`, `MarkedDateTime`, `MarkedDelete`, `ModifyId`, `DeviceModelId`, `ScriptName`, `ValueNumber`, `InputNumber`, `OutputNumber`, `HeartPacket`) " +
-                "VALUES (@CreateUserId, @MarkedDateTime, @MarkedDelete, @ModifyId, @DeviceModelId, @ScriptName, @ValueNumber, @InputNumber, @OutputNumber, @HeartPacket);",
+                "INSERT INTO script_version (`CreateUserId`, `MarkedDelete`, `ModifyId`, `DeviceModelId`, `ScriptName`, `ValueNumber`, `InputNumber`, `OutputNumber`, `HeartPacket`, `ScriptFile`) " +
+                "VALUES (@CreateUserId, @MarkedDelete, @ModifyId, @DeviceModelId, @ScriptName, @ValueNumber, @InputNumber, @OutputNumber, @HeartPacket, @ScriptFile);",
                 scriptVersions);
 
             ServerConfig.RedisHelper.PublishToTable();
@@ -197,16 +222,14 @@ namespace ApiManagement.Controllers.DeviceManagementController
             }
 
             ServerConfig.ApiDb.Execute(
-                "UPDATE `script_version` SET `MarkedDateTime`= @MarkedDateTime, `MarkedDelete`= @MarkedDelete WHERE `Id`= @Id;", new
+                "UPDATE `script_version` SET `MarkedDelete`= @MarkedDelete WHERE `Id`= @Id;", new
                 {
-                    MarkedDateTime = DateTime.Now,
                     MarkedDelete = true,
                     Id = id
                 });
             ServerConfig.ApiDb.Execute(
-                "UPDATE `usually_dictionary` SET `MarkedDateTime`= @MarkedDateTime, `MarkedDelete`= @MarkedDelete WHERE `ScriptId`= @Id;", new
+                "UPDATE `usually_dictionary` SET `MarkedDelete`= @MarkedDelete WHERE `ScriptId`= @Id;", new
                 {
-                    MarkedDateTime = DateTime.Now,
                     MarkedDelete = true,
                     Id = id
                 });

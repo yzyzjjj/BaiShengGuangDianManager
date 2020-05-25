@@ -65,9 +65,13 @@ namespace ApiManagement.Models.ManufactureModel
         [ManufactureDescription("实际用时分", 10)]
         public int ActualMin { get; set; }
         public string ActualTime => State != ManufacturePlanItemState.Doing
-            ? DateTimeExtend.ToTimeStr((ActualHour * 60 + ActualMin) * 60, 1): PauseTime == default(DateTime)
-                ? DateTimeExtend.ToTimeStr((int)(DateTime.Now - ActualStartTime).TotalMinutes + (ActualHour * 60 + ActualMin) * 60, 1)
-                : DateTimeExtend.ToTimeStr((int)(DateTime.Now - PauseTime).TotalMinutes + (ActualHour * 60 + ActualMin) * 60, 1);
+            ? DateTimeExtend.ToTimeStr((ActualHour * 60 + ActualMin) * 60, 1)
+            : DateTimeExtend.ToTimeStr(((int)(DateTime.Now - ActualStartTime).TotalMinutes + (ActualHour * 60 + ActualMin)) * 60, 1);
+        //public string ActualTime => State != ManufacturePlanItemState.Doing
+        //    ? DateTimeExtend.ToTimeStr((ActualHour * 60 + ActualMin) * 60, 1) 
+        //    : PauseTime == default(DateTime)
+        //        ? DateTimeExtend.ToTimeStr(((int)(DateTime.Now - ActualStartTime).TotalMinutes + (ActualHour * 60 + ActualMin)) * 60, 1)
+        //        : DateTimeExtend.ToTimeStr(((int)(DateTime.Now - PauseTime).TotalMinutes + (ActualHour * 60 + ActualMin)) * 60, 1);
 
         [ManufactureDescription("实际绩效", 7)]
         public int ActualScore { get; set; }
@@ -97,8 +101,10 @@ namespace ApiManagement.Models.ManufactureModel
         public bool HaveChange(ManufacturePlanTask manufacturePlan, out ManufactureLog change, IEnumerable<string> keys = null)
         {
             var changeFlag = false;
+            var now = DateTime.Now;
             change = new ManufactureLog
             {
+                Time = now,
                 Type = ManufactureLogType.TaskUpdate
             };
             var thisProperties = GetType().GetProperties();

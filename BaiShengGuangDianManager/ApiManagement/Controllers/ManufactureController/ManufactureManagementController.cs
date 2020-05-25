@@ -86,7 +86,7 @@ namespace ApiManagement.Controllers.ManufactureController
                       "LEFT JOIN `manufacture_check` e ON a.CheckId = e.Id " +
                       "WHERE a.MarkedDelete = 0 " +
                       $"{(planId == 0 ? "" : " AND a.PlanId = @planId ")}" +
-                      $"{((spTime == default(DateTime) || epTime == default(DateTime)) ? "" : " AND b.PlannedStartTime >= @sTime AND b.PlannedStartTime <= @eTime ")}" +
+                      $"{((spTime == default(DateTime) || epTime == default(DateTime)) ? "" : " AND b.PlannedStartTime >= @spTime AND b.PlannedStartTime <= @epTime ")}" +
                       $"{((sTime == default(DateTime) || eTime == default(DateTime)) ? "" : " AND FirstStartTime >= @sTime AND FirstStartTime <= @eTime ")}" +
                       $"{(state.IsNullOrEmpty() || state == "-1" ? "" : " AND FIND_IN_SET(a.State, @state) ")}" +
                       $"{(gId == 0 ? "" : " AND c.GroupId = @gId ")}" +
@@ -366,8 +366,8 @@ namespace ApiManagement.Controllers.ManufactureController
             {
                 return Result.GenError<DataResult>(Error.ManufactureTaskItemNotExist);
             }
-            var fromTask = tasks.First(x => x.TotalOrder == moveTask.FromOrder);
-            var toTask = tasks.First(x => x.TotalOrder == moveTask.ToOrder);
+            var fromTask = (ManufacturePlanTask)tasks.First(x => x.TotalOrder == moveTask.FromOrder).Clone();
+            var toTask = (ManufacturePlanTask)tasks.First(x => x.TotalOrder == moveTask.ToOrder).Clone();
 
             //无法上移非等待中/非待检验任务
             if ((fromTask.State != ManufacturePlanItemState.Wait && fromTask.State != ManufacturePlanItemState.WaitCheck && fromTask.State != ManufacturePlanItemState.WaitRedo))
@@ -392,23 +392,51 @@ namespace ApiManagement.Controllers.ManufactureController
 
             var changes = new List<ManufactureLog>();
             var newTasks = new Dictionary<int, ManufacturePlanTask>();
-            newTasks.AddRange(tasks.ToDictionary(x => x.Id));
+            newTasks.AddRange(tasks.Take(count - 1).OrderByDescending(x => x.TotalOrder).ToDictionary(x => x.Id));
+            var changeOrder = new List<Tuple<int, int>>();
+
             foreach (var task in newTasks.Values)
             {
                 if (task.PlanId == fromTask.PlanId)
                 {
+                    //if (task.Relation != 0)
+                    //{
+                    //    task.Relation++;
+                    //}
+                    changeOrder.Add(new Tuple<int, int>(task.Order, task.Order + 1));
                     task.Order++;
-                    if (task.Relation != 0)
-                    {
-                        task.Relation++;
-                    }
                 }
                 task.TotalOrder++;
             }
-
+            newTasks = newTasks.Values.OrderBy(x => x.TotalOrder).ToDictionary(x => x.Id);
+            newTasks.Add(fromTask.Id, fromTask);
             newTasks.Values.Last().TotalOrder = newTasks.Values.First().TotalOrder - 1;
-            newTasks.Values.Last().Order = newTasks.Values.First(x => x.PlanId == fromTask.PlanId).Order - 1;
+            var oldOrder = fromTask.Order;
+            if (fromTask.PlanId == toTask.PlanId)
+            {
+                newTasks.Values.Last().Order = toTask.Order;
+            }
 
+            if (newTasks.Values.Last().Order <= 0)
+            {
+                newTasks.Values.Last().Order = 1;
+            }
+            changeOrder.Add(new Tuple<int, int>(oldOrder, newTasks.Values.Last().Order));
+            if (changeOrder.Any())
+            {
+                var changeOrderTasks =
+                    ServerConfig.ApiDb.Query<ManufacturePlanTask>("SELECT * FROM `manufacture_plan_task` WHERE MarkedDelete = 0 AND `PlanId` = @PlanId AND `Relation` IN @Relation;", new
+                    {
+                        PlanId = fromTask.PlanId,
+                        Relation = changeOrder.Select(x => x.Item2)
+                    });
+                var chOrderTasks = new List<Tuple<int, int>>();
+                foreach (var chTuple in changeOrder)
+                {
+                    chOrderTasks.AddRange(changeOrderTasks.Where(x => x.Relation == chTuple.Item1).Select(y => new Tuple<int, int>(y.Id, chTuple.Item2)));
+                }
+                ServerConfig.ApiDb.Execute("UPDATE manufacture_plan_task SET `MarkedDateTime`= NOW(), `Relation` = @Item2 WHERE `Id` = @Item1;", chOrderTasks);
+            }
             var createUserId = Request.GetIdentityInformation();
             var markedDateTime = DateTime.Now;
             var planChange = new ManufactureLog
@@ -441,8 +469,9 @@ namespace ApiManagement.Controllers.ManufactureController
                     }
                 }
             }
+
             changes.Add(planChange);
-            ServerConfig.ApiDb.Execute("UPDATE manufacture_plan_task SET `TotalOrder` = @TotalOrder, `Order` = @Order, `Relation` = @Relation WHERE `Id` = @Id;", newTasks.Values);
+            ServerConfig.ApiDb.Execute("UPDATE manufacture_plan_task SET `MarkedDateTime`= NOW(), `TotalOrder` = @TotalOrder, `Order` = @Order, `Relation` = @Relation WHERE `Id` = @Id;", newTasks.Values);
             ManufactureLog.AddLog(changes);
             var result = new DataResult();
             result.datas.AddRange(newTasks.Values.Where(x => x.Id == fromTask.Id || x.Id == toTask.Id));
@@ -474,6 +503,10 @@ namespace ApiManagement.Controllers.ManufactureController
             {
                 return Result.GenError<Result>(Error.ManufactureTaskItemNotEmpty);
             }
+            //if (task.Order <= 0)
+            //{
+            //    return Result.GenError<Result>(Error.ManufactureTaskItemOrderError);
+            //}
             var changes = new List<ManufactureLog>();
             var createUserId = Request.GetIdentityInformation();
             var markedDateTime = DateTime.Now;
@@ -490,12 +523,13 @@ namespace ApiManagement.Controllers.ManufactureController
                 Type = ManufactureLogType.PlanUpdateItem,
                 ParsingWay = 1,
             };
-
+            var now = DateTime.Now;
             task.CreateUserId = createUserId;
             task.Desc = task.Desc ?? "";
             if (!manufacturePlanTasks.Any())
             {
                 task.Order = 1;
+                task.MarkedDateTime = now;
                 if (task.Relation != 0)
                 {
                     return Result.GenError<Result>(Error.ManufactureTaskItemRelationError);
@@ -505,11 +539,12 @@ namespace ApiManagement.Controllers.ManufactureController
                     return Result.GenError<Result>(Error.ManufactureCheckItemNoRelation);
                 }
                 ServerConfig.ApiDb.Execute(
-                    "UPDATE manufacture_plan_task SET `TotalOrder` = `TotalOrder` + 1 WHERE `TotalOrder` > @totalOrder;",
+                    "UPDATE manufacture_plan_task SET `MarkedDateTime`= NOW(), `TotalOrder` = `TotalOrder` + 1 WHERE `TotalOrder` > @totalOrder;",
                     new { totalOrder });
                 task.TotalOrder++;
-                task.Id = ServerConfig.ApiDb.Query<int>("INSERT INTO manufacture_plan_task(`CreateUserId`, `TotalOrder`, `PlanId`, `Order`, `Person`, `ModuleId`, `IsCheck`, `CheckId`, `Item`, `EstimatedHour`, `EstimatedMin`, `Score`, `Relation`) " +
-                                "VALUES (@CreateUserId, @MarkedDelete, @ModifyId, @TotalOrder, @PlanId, @Order, @Person, @ModuleId, @IsCheck, @CheckId, @Item, @EstimatedHour, @EstimatedMin, @Score, @Relation)" +
+                task.Id = ServerConfig.ApiDb.Query<int>(
+                    "INSERT INTO manufacture_plan_task(`CreateUserId`, `MarkedDateTime`, `TotalOrder`, `PlanId`, `Order`, `Person`, `ModuleId`, `IsCheck`, `CheckId`, `Item`, `EstimatedHour`, `EstimatedMin`, `Score`, `Relation`) " +
+                                              "VALUES (@CreateUserId, @MarkedDateTime, @TotalOrder, @PlanId, @Order, @Person, @ModuleId, @IsCheck, @CheckId, @Item, @EstimatedHour, @EstimatedMin, @Score, @Relation)" +
                                                         ";SELECT LAST_INSERT_ID();", task).FirstOrDefault();
 
                 planChange.ParamList.Add(new ManufactureLogItem
@@ -545,9 +580,14 @@ namespace ApiManagement.Controllers.ManufactureController
                 task.Order = insertIndex + 1;
                 foreach (var manufacturePlanTask in manufacturePlanTasks.Where(x => x.TotalOrder > totalOrder))
                 {
+                    manufacturePlanTask.MarkedDateTime = now;
                     var oldManufacturePlanTask = (ManufacturePlanTask)manufacturePlanTask.Clone();
                     manufacturePlanTask.Order++;
-                    manufacturePlanTask.Relation = manufacturePlanTask.Relation > insertIndex ? manufacturePlanTask.Relation++ : manufacturePlanTask.Relation;
+                    if (manufacturePlanTask.Relation > insertIndex)
+                    {
+                        manufacturePlanTask.Relation++;
+                    }
+
                     if (oldManufacturePlanTask.HaveChange(manufacturePlanTask, out var change))
                     {
                         change.Time = markedDateTime;
@@ -576,15 +616,21 @@ namespace ApiManagement.Controllers.ManufactureController
                 });
                 changes.Add(planChange);
                 ServerConfig.ApiDb.Execute(
-                    "UPDATE manufacture_plan_task SET `TotalOrder` = `TotalOrder` + 1 WHERE `TotalOrder` > @totalOrder AND MarkedDelete = 0;",
+                    "UPDATE manufacture_plan_task SET `MarkedDateTime`= NOW(), `TotalOrder` = `TotalOrder` + 1 WHERE `TotalOrder` > @totalOrder AND MarkedDelete = 0;",
                     new { totalOrder });
 
                 ServerConfig.ApiDb.Execute(
-                    "UPDATE manufacture_plan_task SET `Order` = @Order WHERE `Id` = @Id;", manufacturePlanTasks);
+                    "UPDATE manufacture_plan_task SET `MarkedDateTime`= NOW(), `Order` = @Order, `Relation` = @Relation WHERE `Id` = @Id;", manufacturePlanTasks);
 
+                var relationTask = manufacturePlanTasks.FirstOrDefault(x => x.Order == task.Relation);
+                if (relationTask != null && relationTask.State == ManufacturePlanItemState.Done && task.IsCheck)
+                {
+                    task.State = ManufacturePlanItemState.WaitCheck;
+                }
                 task.TotalOrder++;
-                task.Id = ServerConfig.ApiDb.Query<int>("INSERT INTO manufacture_plan_task(`CreateUserId`, `TotalOrder`, `PlanId`, `Order`, `Person`, `ModuleId`, `IsCheck`, `CheckId`, `Item`, `EstimatedHour`, `EstimatedMin`, `Score`, `Relation`) " +
-                                "VALUES (@CreateUserId, @TotalOrder, @PlanId, @Order, @Person, @ModuleId, @IsCheck, @CheckId, @Item, @EstimatedHour, @EstimatedMin, @Score, @Relation);SELECT LAST_INSERT_ID();", task).FirstOrDefault();
+                task.MarkedDateTime = markedDateTime;
+                task.Id = ServerConfig.ApiDb.Query<int>("INSERT INTO manufacture_plan_task (`CreateUserId`, `MarkedDateTime`, `TotalOrder`, `PlanId`, `Order`, `Person`, `ModuleId`, `IsCheck`, `CheckId`, `Item`, `EstimatedHour`, `EstimatedMin`, `Score`, `Relation`, `State`) " +
+                                "VALUES (@CreateUserId, @MarkedDateTime, @TotalOrder, @PlanId, @Order, @Person, @ModuleId, @IsCheck, @CheckId, @Item, @EstimatedHour, @EstimatedMin, @Score, @Relation, @State);SELECT LAST_INSERT_ID();", task).FirstOrDefault();
 
                 changes.Add(new ManufactureLog
                 {
@@ -621,7 +667,7 @@ namespace ApiManagement.Controllers.ManufactureController
                     new { task.PlanId }).FirstOrDefault();
 
             sql =
-                "SELECT COUNT(1) FROM `manufacture_plan_task` WHERE PlanId = @PlanId AND Relation = @Order";
+                "SELECT COUNT(1) FROM `manufacture_plan_task` WHERE PlanId = @PlanId AND Relation = @Order AND MarkedDelete = 0";
             var cnt = ServerConfig.ApiDb.Query<int>(sql, new { task.PlanId, task.Order }).FirstOrDefault();
             if (cnt > 0)
             {
@@ -647,13 +693,17 @@ namespace ApiManagement.Controllers.ManufactureController
                 ParsingWay = 1,
             };
             var pre = manufacturePlanTasks.LastOrDefault(x => x.TotalOrder < task.TotalOrder);
-            var insertIndex = pre?.Order - 1 ?? 0;
-            task.Order = insertIndex + 1;
+            var insertIndex = task?.Order ?? 0;
+            //task.Order = insertIndex + 1;
             foreach (var manufacturePlanTask in manufacturePlanTasks.Where(x => x.TotalOrder > task.TotalOrder))
             {
                 var oldManufacturePlanTask = (ManufacturePlanTask)manufacturePlanTask.Clone();
                 manufacturePlanTask.Order--;
-                manufacturePlanTask.Relation = manufacturePlanTask.Relation < insertIndex ? manufacturePlanTask.Relation-- : manufacturePlanTask.Relation;
+                if (manufacturePlanTask.Relation > task.Order)
+                {
+                    manufacturePlanTask.Relation--;
+                }
+
                 if (oldManufacturePlanTask.HaveChange(manufacturePlanTask, out var change))
                 {
                     planChange.ParamList.Add(new ManufactureLogItem
@@ -678,10 +728,10 @@ namespace ApiManagement.Controllers.ManufactureController
             changes.Add(planChange);
 
             ServerConfig.ApiDb.Execute(
-                "UPDATE manufacture_plan_task SET `MarkedDelete` = @MarkedDelete, `Order` = @Order WHERE `Id` = @Id;", manufacturePlanTasks);
+                "UPDATE manufacture_plan_task SET `MarkedDelete` = @MarkedDelete, `MarkedDateTime`= NOW(), `Order` = @Order, `Relation` = @Relation WHERE `Id` = @Id;", manufacturePlanTasks);
 
             ServerConfig.ApiDb.Execute(
-                "UPDATE manufacture_plan_task SET `TotalOrder` = `TotalOrder` - 1 WHERE `TotalOrder` > @totalOrder;",
+                "UPDATE manufacture_plan_task SET `MarkedDateTime`= NOW(), `TotalOrder` = `TotalOrder` - 1 WHERE `TotalOrder` > @totalOrder;",
                 new { task.TotalOrder });
             changes.Add(new ManufactureLog
             {
@@ -722,13 +772,13 @@ namespace ApiManagement.Controllers.ManufactureController
                 ServerConfig.ApiDb.Query<ManufacturePlan>("SELECT * FROM `manufacture_plan` WHERE `Id` = @PlanId;",
                     new { task.PlanId }).FirstOrDefault();
 
-            sql =
-                "SELECT COUNT(1) FROM `manufacture_plan_task` WHERE PlanId = @PlanId AND Relation = @Order";
-            var cnt = ServerConfig.ApiDb.Query<int>(sql, new { task.PlanId, task.Order }).FirstOrDefault();
-            if (cnt > 0)
-            {
-                return Result.GenError<Result>(Error.ManufacturePlaneTaskStopHaveRelation);
-            }
+            //sql =
+            //    "SELECT COUNT(1) FROM `manufacture_plan_task` WHERE PlanId = @PlanId AND Relation = @Order AND MarkedDelete = 0";
+            //var cnt = ServerConfig.ApiDb.Query<int>(sql, new { task.PlanId, task.Order }).FirstOrDefault();
+            //if (cnt > 0)
+            //{
+            //    return Result.GenError<Result>(Error.ManufacturePlaneTaskStopHaveRelation);
+            //}
 
             var changes = new List<ManufactureLog>();
             var createUserId = Request.GetIdentityInformation();
@@ -755,7 +805,7 @@ namespace ApiManagement.Controllers.ManufactureController
                 Type = ManufactureLogType.StopTask,
             };
             changes.Add(change);
-            ServerConfig.ApiDb.Execute("UPDATE manufacture_plan_task SET `State` = @State WHERE `Id` = @Id;", task);
+            ServerConfig.ApiDb.Execute("UPDATE manufacture_plan_task SET `MarkedDateTime`= NOW(), `State` = @State WHERE `Id` = @Id;", task);
 
             ManufactureLog.AddLog(changes);
             return Result.GenError<Result>(Error.Success);
@@ -785,13 +835,13 @@ namespace ApiManagement.Controllers.ManufactureController
                 ServerConfig.ApiDb.Query<ManufacturePlan>("SELECT * FROM `manufacture_plan` WHERE `Id` = @PlanId;",
                     new { task.PlanId }).FirstOrDefault();
 
-            sql =
-                "SELECT COUNT(1) FROM `manufacture_plan_task` WHERE PlanId = @PlanId AND Relation = @Order";
-            var cnt = ServerConfig.ApiDb.Query<int>(sql, new { task.PlanId, task.Order }).FirstOrDefault();
-            if (cnt > 0)
-            {
-                return Result.GenError<Result>(Error.ManufacturePlaneTaskStopHaveRelation);
-            }
+            //sql =
+            //    "SELECT COUNT(1) FROM `manufacture_plan_task` WHERE PlanId = @PlanId AND Relation = @Order AND MarkedDelete = 0";
+            //var cnt = ServerConfig.ApiDb.Query<int>(sql, new { task.PlanId, task.Order }).FirstOrDefault();
+            //if (cnt > 0)
+            //{
+            //    return Result.GenError<Result>(Error.ManufacturePlaneTaskStopHaveRelation);
+            //}
 
             var changes = new List<ManufactureLog>();
             var createUserId = Request.GetIdentityInformation();
@@ -808,7 +858,7 @@ namespace ApiManagement.Controllers.ManufactureController
                 Type = ManufactureLogType.StopTask,
             };
             changes.Add(change);
-            ServerConfig.ApiDb.Execute("UPDATE manufacture_plan_task SET `State` = @State WHERE `Id` = @Id;", task);
+            ServerConfig.ApiDb.Execute("UPDATE manufacture_plan_task SET `MarkedDateTime`= NOW(), `State` = @State WHERE `Id` = @Id;", task);
 
             ManufactureLog.AddLog(changes);
             return Result.GenError<Result>(Error.Success);

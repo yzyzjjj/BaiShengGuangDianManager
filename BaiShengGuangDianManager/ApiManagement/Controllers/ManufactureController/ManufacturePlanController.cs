@@ -503,6 +503,11 @@ namespace ApiManagement.Controllers.ManufactureController
                 {
                     return Result.GenError<DataResult>(Error.ManufactureTaskItemOrderDuplicate);
                 }
+
+                if (items.Any(x => x.IsCheck && x.Relation == 0))
+                {
+                    return Result.GenError<DataResult>(Error.ManufactureCheckItemNoRelation);
+                }
                 var oldToNew = new Dictionary<int, int>();
                 var i = 0;
                 foreach (var item in items)

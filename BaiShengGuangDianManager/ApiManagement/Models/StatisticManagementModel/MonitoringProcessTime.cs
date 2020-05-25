@@ -14,7 +14,7 @@ namespace ApiManagement.Models.StatisticManagementModel
         public int AvgTime => (MaxTime + MinTime) / 2;
         public DateTime StartTime { get; set; }
         public DateTime EndTime { get; set; }
-
+        public string ProductionProcessName { get; set; }
         public object Clone()
         {
             return MemberwiseClone();

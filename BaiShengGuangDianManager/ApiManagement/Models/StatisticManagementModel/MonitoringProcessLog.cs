@@ -11,6 +11,7 @@ namespace ApiManagement.Models.StatisticManagementModel
         public DateTime EndTime { get; set; }
 
         public int FlowCardId { get; set; }
+        public string FlowCard { get; set; }
         public int ProcessorId { get; set; }
         public string ProcessData { get; set; }
         public decimal RequirementMid { get; set; }

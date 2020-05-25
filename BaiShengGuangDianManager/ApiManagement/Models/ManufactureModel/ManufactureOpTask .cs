@@ -3,6 +3,7 @@
     public class ManufactureOpTask
     {
         public int TaskId { get; set; }
+        public int GId { get; set; }
         public string Account { get; set; }
     }
     public class ManufactureOpCheckTask : ManufactureOpTask

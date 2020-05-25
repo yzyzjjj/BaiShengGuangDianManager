@@ -109,328 +109,307 @@ namespace ApiManagement.Controllers.MaterialManagementController
 
             var result = new DataResult();
             var createUserId = Request.GetIdentityInformation();
-            //#region 新货品
-            //var materialBills = materialManagement.Bill;
-            //if (materialBills.Any(x => x.SiteId == 0 && x.Site.IsNullOrEmpty()) ||
-            //    materialBills.Any(x => x.SpecificationId == 0 && x.Specification.IsNullOrEmpty()) ||
-            //    materialBills.Any(x => x.SupplierId == 0 && x.Supplier.IsNullOrEmpty()) ||
-            //    materialBills.Any(x => x.NameId == 0 && x.Name.IsNullOrEmpty()) ||
-            //    materialBills.Any(x => x.CategoryId == 0 && x.Category.IsNullOrEmpty()))
-            //{
-            //    return Result.GenError<DataResult>(Error.ParamError);
-            //}
+            #region 新货品
+            var materialBills = materialManagement.Bill.Where(x => x.SiteId == 0 || x.SpecificationId == 0 || x.SupplierId == 0 || x.NameId == 0 || x.NameId == 0 || x.CategoryId == 0);
+            if (materialBills.Any())
+            {
 
-            //#region 规格 位置 存在
-            //var existBills = materialBills.Where(x => x.SpecificationId != 0 && x.SiteId != 0);
-            //if (existBills.Any())
-            //{
-            //    var specificationIds = existBills.GroupBy(x => x.SpecificationId).Select(y => y.Key);
-            //    var cnt =
-            //        ServerConfig.ApiDb.Query<int>("SELECT COUNT(1) FROM `material_specification` WHERE Id IN @Id AND `MarkedDelete` = 0;",
-            //            new { Id = specificationIds }).FirstOrDefault();
-            //    if (cnt != specificationIds.Count())
-            //    {
-            //        return Result.GenError<DataResult>(Error.MaterialSpecificationNotExist);
-            //    }
-            //    var siteIds = existBills.GroupBy(x => x.SiteId).Select(y => y.Key);
-            //    cnt =
-            //        ServerConfig.ApiDb.Query<int>("SELECT COUNT(1) FROM `material_site` WHERE Id IN @Id AND `MarkedDelete` = 0;",
-            //            new { Id = siteIds }).FirstOrDefault();
-            //    if (cnt != siteIds.Count())
-            //    {
-            //        return Result.GenError<DataResult>(Error.MaterialSiteNotExist);
-            //    }
+                var codes = materialBills.GroupBy(x => x.Code).Select(y => y.Key);
+                var sameCode = ServerConfig.ApiDb.Query<string>("SELECT Code FROM `material_bill` WHERE Code IN @Code AND MarkedDelete = 0;", new { Code = codes });
+                if (sameCode.Any())
+                {
+                    result.errno = Error.MaterialBillIsExist;
+                    result.datas.AddRange(sameCode);
+                    return result;
+                }
 
-            //    var sameSS = existBills.GroupBy(x => new { x.SpecificationId, x.SiteId, x.Price }).Where(y => y.Count() > 1).Select(z => z.Key);
-            //    if (sameSS.Any())
-            //    {
-            //        result.errno = Error.MaterialBillSpecificationPriceSiteDuplicate;
-            //        result.datas.AddRange(sameSS);
-            //        return result;
-            //    }
+                foreach (var bill in materialBills)
+                {
+                    bill.BillId = 0;
+                }
+                if (materialBills.Any(x => x.SiteId == 0 && x.Site.IsNullOrEmpty()) ||
+                    materialBills.Any(x => x.SpecificationId == 0 && x.Specification.IsNullOrEmpty()) ||
+                    materialBills.Any(x => x.SupplierId == 0 && x.Supplier.IsNullOrEmpty()) ||
+                    materialBills.Any(x => x.NameId == 0 && x.Name.IsNullOrEmpty()) ||
+                    materialBills.Any(x => x.CategoryId == 0 && x.Category.IsNullOrEmpty()))
+                {
+                    return Result.GenError<DataResult>(Error.ParamError);
+                }
 
-            //    var prices = existBills.GroupBy(x => x.Price).Select(y => y.Key);
-            //    var sameSSOld = ServerConfig.ApiDb.Query<dynamic>("SELECT SpecificationId, SiteId FROM `material_bill` " +
-            //                                                      "WHERE SpecificationId IN @SpecificationId AND SiteId IN @SiteId AND Price IN @Price AND MarkedDelete = 0;",
-            //        new { SpecificationId = specificationIds, SiteId = siteIds, Price = prices });
-            //    if (sameSSOld.Any())
-            //    {
-            //        result.errno = Error.MaterialBillSpecificationPriceSiteIsExist;
-            //        result.datas.AddRange(sameSSOld);
-            //        return result;
-            //    }
-            //}
-            //#endregion
+                #region 新位置
+                var notExistSite = materialBills.Where(x => x.SiteId == 0);
+                var newSite = notExistSite.GroupBy(x => x.Site).Select(y => y.Key);
+                if (newSite.Any())
+                {
+                    var sameStr =
+                        ServerConfig.ApiDb.Query<string>("SELECT Site FROM `material_site` WHERE Site IN @Site AND `MarkedDelete` = 0;", new { Site = newSite });
+                    if (sameStr.Any())
+                    {
+                        result.errno = Error.MaterialSiteIsExist;
+                        result.datas.AddRange(sameStr);
+                        return result;
+                    }
+                }
+                #endregion
 
-            //#region 新位置
-            //var notExistSite = materialBills.Where(x => x.SiteId == 0);
-            //var newSite = notExistSite.GroupBy(x => x.Site).Select(y => y.Key);
-            //if (newSite.Any())
-            //{
-            //    var sameStr =
-            //        ServerConfig.ApiDb.Query<string>("SELECT Site FROM `material_site` WHERE Site IN @Site AND `MarkedDelete` = 0;", new { Site = newSite });
-            //    if (sameStr.Any())
-            //    {
-            //        result.errno = Error.MaterialSiteIsExist;
-            //        result.datas.AddRange(sameStr);
-            //        return result;
-            //    }
-            //}
-            //#endregion
+                #region 新类别
+                var notExistCategory = materialBills.Where(x => x.CategoryId == 0);
+                var newCategory = notExistCategory.GroupBy(x => x.Category).Select(y => y.Key);
+                if (newCategory.Any())
+                {
+                    var sameStr =
+                        ServerConfig.ApiDb.Query<string>("SELECT Category FROM `material_category` WHERE Category IN @Category AND `MarkedDelete` = 0;", new { Category = newCategory });
+                    if (sameStr.Any())
+                    {
+                        result.errno = Error.MaterialCategoryIsExist;
+                        result.datas.AddRange(sameStr);
+                        return result;
+                    }
+                }
+                #endregion
 
-            //#region 新类别
-            //var notExistCategory = materialBills.Where(x => x.CategoryId == 0);
-            //var newCategory = notExistCategory.GroupBy(x => x.Category).Select(y => y.Key);
-            //if (newCategory.Any())
-            //{
-            //    var sameStr =
-            //        ServerConfig.ApiDb.Query<string>("SELECT Category FROM `material_category` WHERE Category IN @Category AND `MarkedDelete` = 0;", new { Category = newCategory });
-            //    if (sameStr.Any())
-            //    {
-            //        result.errno = Error.MaterialCategoryIsExist;
-            //        result.datas.AddRange(sameStr);
-            //        return result;
-            //    }
-            //}
-            //#endregion
+                #region 新名称
+                var notExistName = materialBills.Where(x => x.NameId == 0);
+                var categoryExist = notExistName.Where(x => x.CategoryId != 0);
+                if (categoryExist.Any())
+                {
+                    var sameStr =
+                        ServerConfig.ApiDb.Query<dynamic>("SELECT CategoryId, Name FROM `material_name` WHERE Name IN @Name AND CategoryId IN @CategoryId AND `MarkedDelete` = 0;",
+                            new { Name = categoryExist.Select(x => x.Name), CategoryId = categoryExist.Select(x => x.CategoryId) });
+                    if (sameStr.Any())
+                    {
+                        result.errno = Error.MaterialNameIsExist;
+                        result.datas.AddRange(sameStr);
+                        return result;
+                    }
+                }
+                var categoryNotExist = notExistName.Where(x => x.CategoryId == 0);
+                if (categoryNotExist.Any())
+                {
+                    var g = categoryNotExist.GroupBy(x => new { x.Category, x.Name });
+                    if (g.Any(y => y.Count() > 1))
+                    {
+                        result.errno = Error.MaterialNameDuplicate;
+                        result.datas.AddRange(g.Where(x => x.Count() > 1).Select(y => y.Key));
+                        return result;
+                    }
+                }
+                #endregion
 
-            //#region 新名称
-            //var notExistName = materialBills.Where(x => x.NameId == 0);
-            //var categoryExist = notExistName.Where(x => x.CategoryId != 0);
-            //if (categoryExist.Any())
-            //{
-            //    var sameStr =
-            //        ServerConfig.ApiDb.Query<dynamic>("SELECT CategoryId, Name FROM `material_name` WHERE Name IN @Name AND CategoryId IN @CategoryId AND `MarkedDelete` = 0;",
-            //            new { Name = categoryExist.Select(x => x.Name), CategoryId = categoryExist.Select(x => x.CategoryId) });
-            //    if (sameStr.Any())
-            //    {
-            //        result.errno = Error.MaterialNameIsExist;
-            //        result.datas.AddRange(sameStr);
-            //        return result;
-            //    }
-            //}
-            //var categoryNotExist = notExistName.Where(x => x.CategoryId == 0);
-            //if (categoryNotExist.Any())
-            //{
-            //    var g = categoryNotExist.GroupBy(x => new { x.Category, x.Name });
-            //    if (g.Any(y => y.Count() > 1))
-            //    {
-            //        result.errno = Error.MaterialNameDuplicate;
-            //        result.datas.AddRange(g.Where(x => x.Count() > 1).Select(y => y.Key));
-            //        return result;
-            //    }
-            //}
-            //#endregion
+                #region 新供应商
+                var notExistSupplier = materialBills.Where(x => x.SupplierId == 0);
+                var nameExist = notExistSupplier.Where(x => x.NameId != 0);
+                if (nameExist.Any())
+                {
+                    var sameStr =
+                        ServerConfig.ApiDb.Query<dynamic>("SELECT NameId, Supplier FROM `material_supplier` WHERE Supplier IN @Supplier AND NameId IN @NameId AND `MarkedDelete` = 0;",
+                            new { Supplier = nameExist.Select(x => x.Supplier), NameId = nameExist.Select(x => x.NameId) });
+                    if (sameStr.Any())
+                    {
+                        result.errno = Error.MaterialSupplierIsExist;
+                        result.datas.AddRange(sameStr);
+                        return result;
+                    }
+                }
+                var nameNotExist = notExistSupplier.Where(x => x.NameId == 0);
+                if (nameNotExist.Any())
+                {
+                    var g = nameNotExist.GroupBy(x => new { x.Name, x.Supplier });
+                    if (g.Any(y => y.Count() > 1))
+                    {
+                        result.errno = Error.MaterialSupplierDuplicate;
+                        result.datas.AddRange(g.Where(x => x.Count() > 1).Select(y => y.Key));
+                        return result;
+                    }
+                }
+                #endregion
 
-            //#region 新供应商
-            //var notExistSupplier = materialBills.Where(x => x.SupplierId == 0);
-            //var nameExist = notExistSupplier.Where(x => x.NameId != 0);
-            //if (nameExist.Any())
-            //{
-            //    var sameStr =
-            //        ServerConfig.ApiDb.Query<dynamic>("SELECT NameId, Supplier FROM `material_supplier` WHERE Supplier IN @Supplier AND NameId IN @NameId AND `MarkedDelete` = 0;",
-            //            new { Supplier = nameExist.Select(x => x.Supplier), NameId = nameExist.Select(x => x.NameId) });
-            //    if (sameStr.Any())
-            //    {
-            //        result.errno = Error.MaterialSupplierIsExist;
-            //        result.datas.AddRange(sameStr);
-            //        return result;
-            //    }
-            //}
-            //var nameNotExist = notExistSupplier.Where(x => x.NameId == 0);
-            //if (nameNotExist.Any())
-            //{
-            //    var g = nameNotExist.GroupBy(x => new { x.Name, x.Supplier });
-            //    if (g.Any(y => y.Count() > 1))
-            //    {
-            //        result.errno = Error.MaterialSupplierDuplicate;
-            //        result.datas.AddRange(g.Where(x => x.Count() > 1).Select(y => y.Key));
-            //        return result;
-            //    }
-            //}
-            //#endregion
+                #region 新规格
+                var notExistSpecification = materialBills.Where(x => x.SpecificationId == 0);
+                var supplierExist = notExistSpecification.Where(x => x.SupplierId != 0);
+                if (supplierExist.Any())
+                {
+                    var sameStr =
+                        ServerConfig.ApiDb.Query<dynamic>("SELECT SupplierId, Specification FROM `material_specification` WHERE Specification IN @Specification AND SupplierId IN @SupplierId AND `MarkedDelete` = 0;",
+                            new { Specification = supplierExist.Select(x => x.Specification), SupplierId = supplierExist.Select(x => x.SupplierId) });
+                    if (sameStr.Any())
+                    {
+                        result.errno = Error.MaterialSpecificationIsExist;
+                        result.datas.AddRange(sameStr);
+                        return result;
+                    }
+                }
+                var supplierNotExist = notExistSpecification.Where(x => x.SupplierId == 0);
+                if (supplierNotExist.Any())
+                {
+                    var g = supplierNotExist.GroupBy(x => new { x.Supplier, x.Specification });
+                    if (g.Any(y => y.Count() > 1))
+                    {
+                        result.errno = Error.MaterialSpecificationDuplicate;
+                        result.datas.AddRange(g.Where(x => x.Count() > 1).Select(y => y.Key));
+                        return result;
+                    }
+                }
+                #endregion
 
-            //#region 新规格
-            //var notExistSpecification = materialBills.Where(x => x.SpecificationId == 0);
-            //var supplierExist = notExistSpecification.Where(x => x.SupplierId != 0);
-            //if (supplierExist.Any())
-            //{
-            //    var sameStr =
-            //        ServerConfig.ApiDb.Query<dynamic>("SELECT SupplierId, Specification FROM `material_specification` WHERE Specification IN @Specification AND SupplierId IN @SupplierId AND `MarkedDelete` = 0;",
-            //            new { Specification = supplierExist.Select(x => x.Specification), SupplierId = supplierExist.Select(x => x.SupplierId) });
-            //    if (sameStr.Any())
-            //    {
-            //        result.errno = Error.MaterialSpecificationIsExist;
-            //        result.datas.AddRange(sameStr);
-            //        return result;
-            //    }
-            //}
-            //var supplierNotExist = notExistSpecification.Where(x => x.SupplierId == 0);
-            //if (supplierNotExist.Any())
-            //{
-            //    var g = supplierNotExist.GroupBy(x => new { x.Supplier, x.Specification });
-            //    if (g.Any(y => y.Count() > 1))
-            //    {
-            //        result.errno = Error.MaterialSpecificationDuplicate;
-            //        result.datas.AddRange(g.Where(x => x.Count() > 1).Select(y => y.Key));
-            //        return result;
-            //    }
-            //}
-            //#endregion
+                #region 新单价
+                if (materialBills.GroupBy(x => new { x.Category, x.Name, x.Supplier, x.Specification, x.Price, x.Site }).Any(y => y.Count() > 1))
+                {
+                    result.errno = Error.MaterialBillSpecificationPriceSiteDuplicate;
+                    return result;
+                }
 
-            //#region 新单价
-            //if (materialBills.GroupBy(x => new { x.Category, x.Name, x.Supplier, x.Specification, x.Price, x.Site }).Any(y => y.Count() > 1))
-            //{
-            //    result.errno = Error.MaterialBillSpecificationPriceSiteDuplicate;
-            //    return result;
-            //}
+                #endregion
 
-            //#endregion
+                if (newSite.Any())
+                {
+                    ServerConfig.ApiDb.Execute(
+                        "INSERT INTO material_site (`CreateUserId`, `Site`) VALUES (@CreateUserId, @Site);",
+                        newSite.Select(x => new
+                        {
+                            CreateUserId = createUserId,
+                            Site = x
+                        }));
+                    var siteIds =
+                        ServerConfig.ApiDb.Query<MaterialSite>("SELECT * FROM `material_site` WHERE Site IN @Site AND `MarkedDelete` = 0;", new { Site = newSite });
+                    foreach (var bill in materialBills)
+                    {
+                        var site = siteIds.FirstOrDefault(x => x.Site == bill.Site);
+                        if (site != null)
+                        {
+                            bill.SiteId = site.Id;
+                        }
+                    }
+                }
 
-            //if (newSite.Any())
-            //{
-            //    ServerConfig.ApiDb.Execute(
-            //        "INSERT INTO material_site (`CreateUserId`, `Site`) VALUES (@CreateUserId, @Site);",
-            //        newSite.Select(x => new
-            //        {
-            //            CreateUserId = createUserId,
-            //            Site = x
-            //        }));
-            //    var siteIds =
-            //        ServerConfig.ApiDb.Query<MaterialSite>("SELECT * FROM `material_site` WHERE Site IN @Site AND `MarkedDelete` = 0;", new { Site = newSite });
-            //    foreach (var bill in materialBills)
-            //    {
-            //        var site = siteIds.FirstOrDefault(x => x.Site == bill.Site);
-            //        if (site != null)
-            //        {
-            //            bill.SiteId = site.Id;
-            //        }
-            //    }
-            //}
+                if (newCategory.Any())
+                {
+                    ServerConfig.ApiDb.Execute(
+                        "INSERT INTO material_category (`CreateUserId`, `Category`) VALUES (@CreateUserId, @Category);",
+                        newCategory.Select(x => new
+                        {
+                            CreateUserId = createUserId,
+                            Category = x
+                        }));
+                    var categoryIds =
+                        ServerConfig.ApiDb.Query<MaterialCategory>("SELECT * FROM `material_category` WHERE Category IN @Category AND `MarkedDelete` = 0;", new { Category = newCategory });
+                    foreach (var bill in materialBills)
+                    {
+                        var category = categoryIds.FirstOrDefault(x => x.Category == bill.Category);
+                        if (category != null)
+                        {
+                            bill.CategoryId = category.Id;
+                        }
+                    }
+                }
 
-            //if (newCategory.Any())
-            //{
-            //    ServerConfig.ApiDb.Execute(
-            //        "INSERT INTO material_category (`CreateUserId`, `Category`) VALUES (@CreateUserId, @Category);",
-            //        newCategory.Select(x => new
-            //        {
-            //            CreateUserId = createUserId,
-            //            Category = x
-            //        }));
-            //    var categoryIds =
-            //        ServerConfig.ApiDb.Query<MaterialCategory>("SELECT * FROM `material_category` WHERE Category IN @Category AND `MarkedDelete` = 0;", new { Category = newCategory });
-            //    foreach (var bill in materialBills)
-            //    {
-            //        var category = categoryIds.FirstOrDefault(x => x.Category == bill.Category);
-            //        if (category != null)
-            //        {
-            //            bill.CategoryId = category.Id;
-            //        }
-            //    }
-            //}
+                if (notExistName.Any())
+                {
+                    var g = notExistName.GroupBy(x => new { x.CategoryId, x.Name });
+                    ServerConfig.ApiDb.Execute(
+                        "INSERT INTO material_name (`CreateUserId`, `CategoryId`, `Name`) " +
+                        "VALUES (@CreateUserId, @CategoryId, @Name);",
+                        g.Select(x => new
+                        {
+                            CreateUserId = createUserId,
+                            CategoryId = x.Key.CategoryId,
+                            Name = x.Key.Name,
+                        }));
 
-            //if (notExistName.Any())
-            //{
-            //    var g = notExistName.GroupBy(x => new { x.CategoryId, x.Name });
-            //    ServerConfig.ApiDb.Execute(
-            //        "INSERT INTO material_name (`CreateUserId`, `CategoryId`, `Name`) " +
-            //        "VALUES (@CreateUserId, @CategoryId, @Name);",
-            //        g.Select(x => new
-            //        {
-            //            CreateUserId = createUserId,
-            //            CategoryId = x.Key.CategoryId,
-            //            Name = x.Key.Name,
-            //        }));
+                    var nameIds =
+                        ServerConfig.ApiDb.Query<MaterialName>("SELECT * FROM `material_name` WHERE Name IN @Name AND CategoryId IN @CategoryId AND `MarkedDelete` = 0;",
+                            new { Name = g.Select(x => x.Key.Name), CategoryId = g.Select(x => x.Key.CategoryId) });
+                    foreach (var bill in materialBills)
+                    {
+                        var name = nameIds.FirstOrDefault(x => x.CategoryId == bill.CategoryId && x.Name == bill.Name);
+                        if (name != null)
+                        {
+                            bill.NameId = name.Id;
+                        }
+                    }
+                }
 
-            //    var nameIds =
-            //        ServerConfig.ApiDb.Query<MaterialName>("SELECT * FROM `material_name` WHERE Name IN @Name AND CategoryId IN @CategoryId AND `MarkedDelete` = 0;",
-            //            new { Name = g.Select(x => x.Key.Name), CategoryId = g.Select(x => x.Key.CategoryId) });
-            //    foreach (var bill in materialBills)
-            //    {
-            //        var name = nameIds.FirstOrDefault(x => x.CategoryId == bill.CategoryId && x.Name == bill.Name);
-            //        if (name != null)
-            //        {
-            //            bill.NameId = name.Id;
-            //        }
-            //    }
-            //}
+                if (notExistSupplier.Any())
+                {
+                    var g = notExistSupplier.GroupBy(x => new { x.NameId, x.Supplier });
+                    ServerConfig.ApiDb.Execute(
+                        "INSERT INTO material_supplier (`CreateUserId`, `NameId`, `Supplier`) " +
+                        "VALUES (@CreateUserId, @NameId, @Supplier);",
+                        g.Select(x => new
+                        {
+                            CreateUserId = createUserId,
+                            NameId = x.Key.NameId,
+                            Supplier = x.Key.Supplier,
+                        }));
 
-            //if (notExistSupplier.Any())
-            //{
-            //    var g = notExistSupplier.GroupBy(x => new { x.NameId, x.Supplier });
-            //    ServerConfig.ApiDb.Execute(
-            //        "INSERT INTO material_supplier (`CreateUserId`, `NameId`, `Supplier`) " +
-            //        "VALUES (@CreateUserId, @NameId, @Supplier);",
-            //        g.Select(x => new
-            //        {
-            //            CreateUserId = createUserId,
-            //            NameId = x.Key.NameId,
-            //            Name = x.Key.Supplier,
-            //        }));
+                    var supplierIds =
+                        ServerConfig.ApiDb.Query<MaterialSupplier>("SELECT * FROM `material_supplier` WHERE Supplier IN @Supplier AND NameId IN @NameId AND `MarkedDelete` = 0;",
+                            new { Supplier = g.Select(x => x.Key.Supplier), NameId = g.Select(x => x.Key.NameId) });
+                    foreach (var bill in materialBills)
+                    {
+                        var supplier = supplierIds.FirstOrDefault(x => x.NameId == bill.NameId && x.Supplier == bill.Supplier);
+                        if (supplier != null)
+                        {
+                            bill.SupplierId = supplier.Id;
+                        }
+                    }
+                }
 
-            //    var supplierIds =
-            //        ServerConfig.ApiDb.Query<MaterialSupplier>("SELECT * FROM `material_supplier` WHERE Supplier IN @Supplier AND NameId IN @NameId AND `MarkedDelete` = 0;",
-            //            new { Supplier = g.Select(x => x.Key.Supplier), NameId = g.Select(x => x.Key.NameId) });
-            //    foreach (var bill in materialBills)
-            //    {
-            //        var supplier = supplierIds.FirstOrDefault(x => x.NameId == bill.NameId && x.Supplier == bill.Supplier);
-            //        if (supplier != null)
-            //        {
-            //            bill.SupplierId = supplier.Id;
-            //        }
-            //    }
-            //}
+                if (notExistSpecification.Any())
+                {
+                    var g = notExistSpecification.GroupBy(x => new { x.SupplierId, x.Specification });
+                    ServerConfig.ApiDb.Execute(
+                        "INSERT INTO material_specification (`CreateUserId`, `SupplierId`, `Specification`) " +
+                        "VALUES (@CreateUserId, @SupplierId, @Specification);",
+                        g.Select(x => new
+                        {
+                            CreateUserId = createUserId,
+                            SupplierId = x.Key.SupplierId,
+                            Specification = x.Key.Specification,
+                        }));
 
-            //if (notExistSpecification.Any())
-            //{
-            //    var g = notExistSpecification.GroupBy(x => new { x.SupplierId, x.Specification });
-            //    ServerConfig.ApiDb.Execute(
-            //        "INSERT INTO material_specification (`CreateUserId`, `SupplierId`, `Specification`) " +
-            //        "VALUES (@CreateUserId, @SupplierId, @Specification);",
-            //        g.Select(x => new
-            //        {
-            //            CreateUserId = createUserId,
-            //            SupplierId = x.Key.SupplierId,
-            //            Specification = x.Key.Specification,
-            //        }));
+                    var specificationIds =
+                        ServerConfig.ApiDb.Query<MaterialSpecification>("SELECT * FROM `material_specification` WHERE Specification IN @Specification AND SupplierId IN @SupplierId AND `MarkedDelete` = 0;",
+                            new { Specification = g.Select(x => x.Key.Specification), SupplierId = g.Select(x => x.Key.SupplierId) });
+                    foreach (var bill in materialBills)
+                    {
+                        var specification = specificationIds.FirstOrDefault(x => x.SupplierId == bill.SupplierId && x.Specification == bill.Specification);
+                        if (specification != null)
+                        {
+                            bill.SpecificationId = specification.Id;
+                        }
+                    }
+                }
 
-            //    var specificationIds =
-            //        ServerConfig.ApiDb.Query<MaterialSpecification>("SELECT * FROM `material_specification` WHERE Specification IN @Specification AND SupplierId IN @SupplierId AND `MarkedDelete` = 0;",
-            //            new { Specification = g.Select(x => x.Key.Specification), SupplierId = g.Select(x => x.Key.SupplierId) });
-            //    foreach (var bill in materialBills)
-            //    {
-            //        var specification = specificationIds.FirstOrDefault(x => x.SupplierId == bill.SupplierId && x.Specification == bill.Specification);
-            //        if (specification != null)
-            //        {
-            //            bill.SpecificationId = specification.Id;
-            //        }
-            //    }
-            //}
+                materialBills = materialManagement.Bill.Where(x => x.BillId == 0);
+                foreach (var materialBill in materialBills)
+                {
+                    materialBill.CreateUserId = createUserId;
+                    materialBill.Remark = materialBill.Remark ?? "";
+                    materialBill.Images = materialBill.Images ?? "[]";
+                }
+                ServerConfig.ApiDb.Execute(
+                    "INSERT INTO material_bill (`CreateUserId`, `SpecificationId`, `SiteId`, `Code`, `Unit`, `Price`, `Stock`, `Images`, `Remark`) " +
+                    "VALUES (@CreateUserId, @SpecificationId, @SiteId, @Code, @Unit, @Price, @Stock, @Images, @Remark);",
+                    materialBills);
+            }
 
-            //foreach (var materialBill in materialBills)
-            //{
-            //    materialBill.CreateUserId = createUserId;
-            //    materialBill.Remark = materialBill.Remark ?? "";
-            //    materialBill.Images = materialBill.Images ?? "[]";
-            //}
-            //ServerConfig.ApiDb.Execute(
-            //    "INSERT INTO material_bill (`CreateUserId`, `SpecificationId`, `SiteId`, `Code`, `Unit`, `Price`, `Stock`, `Images`, `Remark`) " +
-            //    "VALUES (@CreateUserId, @SpecificationId, @SiteId, @Code, @Unit, @Price, @Stock, @Images, @Remark);",
-            //    materialBills);
-
-            //var materialBillIds =
-            //    ServerConfig.ApiDb.Query<MaterialBill>("SELECT * FROM `material_bill` WHERE Code IN @Code AND `MarkedDelete` = 0;",
-            //        new { Code = materialBills.Select(x => x.Code) });
-            //foreach (var bill in materialBills)
-            //{
-            //    var materialBill = materialBillIds.FirstOrDefault(x => x.Code == bill.Code);
-            //    if (materialBill != null)
-            //    {
-            //        bill.BillId = materialBill.Id;
-            //    }
-            //}
-
-            //#endregion
+            var billId_0 = materialManagement.Bill.Where(x => x.BillId == 0);
+            if (billId_0.Any())
+            {
+                var materialBillIds =
+                    ServerConfig.ApiDb.Query<MaterialBill>("SELECT * FROM `material_bill` WHERE Code IN @Code AND `MarkedDelete` = 0;",
+                        new { Code = billId_0.Select(x => x.Code) });
+                foreach (var bill in billId_0)
+                {
+                    var materialBill = materialBillIds.FirstOrDefault(x => x.Code == bill.Code);
+                    if (materialBill != null)
+                    {
+                        bill.BillId = materialBill.Id;
+                    }
+                }
+            }
+            #endregion
 
             var mBill = materialManagement.Bill.GroupBy(x => x.BillId).Select(x => x.Key);
             var allBill = ServerConfig.ApiDb.Query<ProductionPlanBillStockDetail>("SELECT a.*, IFNULL(b.Number, 0) Number FROM `material_bill` a LEFT JOIN `material_management` b ON a.Id = b.BillId WHERE a.Id IN @ids AND a.MarkedDelete = 0;", new { ids = mBill });
