@@ -113,7 +113,7 @@ namespace ApiManagement.Controllers.MaterialManagementController
             var materialBills = materialManagement.Bill.Where(x => x.SiteId == 0 || x.SpecificationId == 0 || x.SupplierId == 0 || x.NameId == 0 || x.NameId == 0 || x.CategoryId == 0);
             if (materialBills.Any())
             {
-                var eCodes = materialBills.GroupBy(x => x.Code).Where(y => y.GroupBy(z => new {z.SpecificationId, z.SiteId, z.Price}).Count() > 1).Select(c => c.Key);
+                var eCodes = materialBills.GroupBy(x => x.Code).Where(y => y.GroupBy(z => new { z.SpecificationId, z.SiteId, z.Price }).Count() > 1).Select(c => c.Key);
                 if (eCodes.Any())
                 {
                     result.errno = Error.MaterialBillIsExist;
@@ -388,7 +388,11 @@ namespace ApiManagement.Controllers.MaterialManagementController
                     }
                 }
 
-                materialBills = materialManagement.Bill.Where(x => x.BillId == 0);
+            }
+
+            materialBills = materialManagement.Bill.Where(x => x.BillId == 0);
+            if (materialBills.Any())
+            {
                 foreach (var materialBill in materialBills)
                 {
                     materialBill.CreateUserId = createUserId;
@@ -506,13 +510,14 @@ namespace ApiManagement.Controllers.MaterialManagementController
 
             #region 添加
             var addBill = materialManagement.Bill.Where(x => existBill.All(y => y.BillId != x.BillId));
-            ServerConfig.ApiDb.Execute("INSERT INTO material_management (`BillId`, `InTime`, `Number`) VALUES (@BillId, @InTime, @Number);", addBill.Select(
-                x =>
+            ServerConfig.ApiDb.Execute("INSERT INTO material_management (`BillId`, `InTime`, `Number`) VALUES (@BillId, @InTime, @Number);", addBill.GroupBy(y => y.BillId).Select(
+                x => new
                 {
-                    x.CreateUserId = createUserId;
-                    x.InTime = markedDateTime;
-                    return x;
+                    BillId = x.Key,
+                    InTime = markedDateTime,
+                    Number = addBill.Where(z => z.BillId == x.Key).Sum(a => a.Number)
                 }));
+
             #endregion
             logs.AddRange(materialManagement.Bill.Where(y => y.PlanId == 0).Select(x => new MaterialLog
             {
@@ -529,12 +534,11 @@ namespace ApiManagement.Controllers.MaterialManagementController
             if (logs.Any())
             {
                 var sql =
-                    "SELECT b.`Name`, b.NameId, a.SpecificationId, b.Specification, a.Id FROM `material_bill` a " +
-                    "JOIN ( SELECT a.*, b.CategoryId, b.Category, b.NameId, b.`Name`, b.Supplier FROM `material_specification` a " +
-                    "JOIN ( SELECT a.*, b.`Name`, b.CategoryId, b.Category FROM `material_supplier` a " +
-                    "JOIN ( SELECT a.*, b.Category FROM `material_name` a JOIN `material_category` b " +
-                    "ON a.CategoryId = b.Id ) b ON a.NameId = b.Id ) b ON a.SupplierId = b.Id ) b ON a.SpecificationId = b.Id WHERE a.Id IN @Id;";
-
+                  "SELECT b.`Name`, b.NameId, a.SpecificationId, b.Specification, a.Id FROM `material_bill` a " +
+                  "JOIN ( SELECT a.*, b.CategoryId, b.Category, b.NameId, b.`Name`, b.Supplier FROM `material_specification` a " +
+                  "JOIN ( SELECT a.*, b.`Name`, b.CategoryId, b.Category FROM `material_supplier` a " +
+                  "JOIN ( SELECT a.*, b.Category FROM `material_name` a JOIN `material_category` b " +
+                  "ON a.CategoryId = b.Id ) b ON a.NameId = b.Id ) b ON a.SupplierId = b.Id ) b ON a.SpecificationId = b.Id WHERE a.Id IN @Id;";
                 var data = ServerConfig.ApiDb.Query<MaterialManagementDetail>(sql, new { Id = logs.Select(x => x.BillId) });
                 MaterialHelper.InsertLog(logs.Select(x =>
                 {
