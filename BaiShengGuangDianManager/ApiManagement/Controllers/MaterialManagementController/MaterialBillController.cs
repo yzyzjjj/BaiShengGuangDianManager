@@ -240,6 +240,13 @@ namespace ApiManagement.Controllers.MaterialManagementController
             }
 
             var result = new DataResult();
+            var eCodes = materialBills.GroupBy(x => x.Code).Where(y => y.GroupBy(z => new { z.SpecificationId, z.SiteId, z.Price }).Count() > 1).Select(c => c.Key);
+            if (eCodes.Any())
+            {
+                result.errno = Error.MaterialBillIsExist;
+                result.datas.AddRange(eCodes);
+                return result;
+            }
             var codes = materialBills.GroupBy(x => x.Code).Select(y => y.Key);
             var sameCode = materialBills.GroupBy(x => x.Code).Where(y => y.Count() > 1).Select(z => z.Key);
             if (sameCode.Any())
