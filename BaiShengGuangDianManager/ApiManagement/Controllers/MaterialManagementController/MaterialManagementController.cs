@@ -510,13 +510,14 @@ namespace ApiManagement.Controllers.MaterialManagementController
 
             #region 添加
             var addBill = materialManagement.Bill.Where(x => existBill.All(y => y.BillId != x.BillId));
-            ServerConfig.ApiDb.Execute("INSERT INTO material_management (`BillId`, `InTime`, `Number`) VALUES (@BillId, @InTime, @Number);", addBill.Select(
-                x =>
+            ServerConfig.ApiDb.Execute("INSERT INTO material_management (`BillId`, `InTime`, `Number`) VALUES (@BillId, @InTime, @Number);", addBill.GroupBy(y => y.BillId).Select(
+                x => new
                 {
-                    x.CreateUserId = createUserId;
-                    x.InTime = markedDateTime;
-                    return x;
+                    BillId = x.Key,
+                    InTime = markedDateTime,
+                    Number = addBill.Where(z => z.BillId == x.Key).Sum(a => a.Number)
                 }));
+
             #endregion
             logs.AddRange(materialManagement.Bill.Where(y => y.PlanId == 0).Select(x => new MaterialLog
             {
@@ -533,12 +534,11 @@ namespace ApiManagement.Controllers.MaterialManagementController
             if (logs.Any())
             {
                 var sql =
-                    "SELECT b.`Name`, b.NameId, a.SpecificationId, b.Specification, a.Id FROM `material_bill` a " +
-                    "JOIN ( SELECT a.*, b.CategoryId, b.Category, b.NameId, b.`Name`, b.Supplier FROM `material_specification` a " +
-                    "JOIN ( SELECT a.*, b.`Name`, b.CategoryId, b.Category FROM `material_supplier` a " +
-                    "JOIN ( SELECT a.*, b.Category FROM `material_name` a JOIN `material_category` b " +
-                    "ON a.CategoryId = b.Id ) b ON a.NameId = b.Id ) b ON a.SupplierId = b.Id ) b ON a.SpecificationId = b.Id WHERE a.Id IN @Id;";
-
+                  "SELECT b.`Name`, b.NameId, a.SpecificationId, b.Specification, a.Id FROM `material_bill` a " +
+                  "JOIN ( SELECT a.*, b.CategoryId, b.Category, b.NameId, b.`Name`, b.Supplier FROM `material_specification` a " +
+                  "JOIN ( SELECT a.*, b.`Name`, b.CategoryId, b.Category FROM `material_supplier` a " +
+                  "JOIN ( SELECT a.*, b.Category FROM `material_name` a JOIN `material_category` b " +
+                  "ON a.CategoryId = b.Id ) b ON a.NameId = b.Id ) b ON a.SupplierId = b.Id ) b ON a.SpecificationId = b.Id WHERE a.Id IN @Id;";
                 var data = ServerConfig.ApiDb.Query<MaterialManagementDetail>(sql, new { Id = logs.Select(x => x.BillId) });
                 MaterialHelper.InsertLog(logs.Select(x =>
                 {
