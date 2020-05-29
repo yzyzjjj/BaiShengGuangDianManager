@@ -1,5 +1,4 @@
-﻿using System;
-using ApiManagement.Models.BaseModel;
+﻿using ApiManagement.Models.BaseModel;
 using ModelBase.Base.EnumConfig;
 using Newtonsoft.Json;
 
@@ -58,6 +57,8 @@ namespace ApiManagement.Models.DeviceManagementModel
                     {
                         case DeviceState.Waiting: return "待加工";
                         case DeviceState.Processing: return "加工中";
+                        case DeviceState.UpgradeScript: return "流程升级中";
+                        case DeviceState.UpgradeFirmware: return "固件升级中";
                     }
                 }
                 else
@@ -68,6 +69,11 @@ namespace ApiManagement.Models.DeviceManagementModel
                         case 1: return "已确认";
                         case 2: return "维修中";
                     }
+                }
+
+                if (State == SocketState.Connected && DeviceState == DeviceState.UnInit)
+                {
+                    return "数据待解析中";
                 }
                 return State == SocketState.Connected ? "数据异常" : "连接异常";
             }

@@ -29,12 +29,13 @@ namespace ApiManagement.Controllers.DeviceManagementController
     {
         // GET: api/DeviceLibrary
         [HttpGet]
-        public DataResult GetDeviceLibrary([FromQuery] bool hard, bool work)
+        public DataResult GetDeviceLibrary([FromQuery] bool hard, bool work, string ids)
         {
+            var idList = !ids.IsNullOrEmpty() ? ids.Split(",").Select(int.Parse) : new int[0];
             if (!hard)
             {
                 var result = new DataResult();
-                result.datas.AddRange(ServerConfig.ApiDb.Query<DeviceLibrary>("SELECT * FROM `device_library` WHERE MarkedDelete = 0;"));
+                result.datas.AddRange(ServerConfig.ApiDb.Query<DeviceLibrary>($"SELECT * FROM `device_library` WHERE MarkedDelete = 0{(idList.Any() ? " AND Id IN @idList" : "")};", new { idList }));
                 return result;
             }
             else
@@ -49,12 +50,12 @@ namespace ApiManagement.Controllers.DeviceManagementController
                         "JOIN site f ON a.SiteId = f.Id " +
                         "JOIN script_version g ON a.ScriptId = g.Id " +
                         "LEFT JOIN (SELECT * FROM(SELECT * FROM maintainer ORDER BY MarkedDelete)a GROUP BY a.Account) h ON a.Administrator = h.Account " +
-                        "WHERE a.`MarkedDelete` = 0 ORDER BY a.Id;")
+                        $"WHERE a.`MarkedDelete` = 0{(idList.Any() ? " AND a.Id IN @idList" : "")} ORDER BY a.Id;", new { idList })
                     .ToDictionary(x => x.Id);
 
                 var faultDevices = ServerConfig.ApiDb.Query<dynamic>(
-                    "SELECT * FROM (SELECT a.* FROM `fault_device_repair` a JOIN `device_library` b ON a.DeviceId = b.Id WHERE a.`State` != @state AND a.MarkedDelete = 0 ORDER BY a.DeviceId, a.State DESC ) a GROUP BY DeviceCode;",
-                    new { state = RepairStateEnum.Complete });
+                    $"SELECT * FROM (SELECT a.* FROM `fault_device_repair` a JOIN `device_library` b ON a.DeviceId = b.Id WHERE a.`State` != @state AND a.MarkedDelete = 0{(idList.Any() ? " AND a.Id IN @idList" : "")} ORDER BY a.DeviceId, a.State DESC ) a GROUP BY DeviceCode;",
+                    new { state = RepairStateEnum.Complete, idList });
                 foreach (var faultDevice in faultDevices)
                 {
                     var device = deviceLibraryDetails.Values.FirstOrDefault(x => x.Id == faultDevice.DeviceId);
@@ -66,7 +67,11 @@ namespace ApiManagement.Controllers.DeviceManagementController
 
                 var url = ServerConfig.GateUrl + UrlMappings.Urls["deviceListGate"];
                 //向GateProxyLink请求数据
-                var resp = HttpServer.Get(url);
+                var resp = !idList.Any() ? HttpServer.Get(url) :
+                    HttpServer.Get(url, new Dictionary<string, string>
+                    {
+                        {"ids", idList.Join()}
+                    });
                 if (resp != "fail")
                 {
                     try

@@ -37,11 +37,34 @@ namespace ApiManagement.Models.ManufactureModel
     }
 
     /// <summary>
-    /// 任务状态
-    /// 0 等待中 1 进行中 2 已暂停 3 已完成 4 停止中 5 待返工 6 返工中 7 待检验 8 检验中
+    /// 生产计划状态
+    /// 0 待下发 1 已下发 2 进行中  3 已完成
     /// </summary>
     public enum ManufacturePlanItemState
     {
+        /// <summary>
+        /// 待下发
+        /// </summary>
+        [Description("待下发")]
+        WaitAssign = -1,
+        /// <summary>
+        /// 
+        /// </summary>
+        [Description("已下发")]
+        Default = 0,
+    }
+
+    /// <summary>
+    /// 任务状态
+    /// 0 等待中 1 进行中 2 已暂停 3 已完成 4 停止中 5 待返工 6 返工中 7 待检验 8 检验中
+    /// </summary>
+    public enum ManufacturePlanTaskState
+    {
+        /// <summary>
+        /// 待下发
+        /// </summary>
+        [Description("待下发")]
+        WaitAssign = -1,
         /// <summary>
         /// 等待中
         /// </summary>

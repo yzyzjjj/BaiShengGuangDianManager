@@ -42,6 +42,8 @@ namespace ApiManagement.Models.ManufactureModel
         public string Desc { get; set; }
         [ManufactureDescription("任务关联", 10)]
         public int Relation { get; set; }
+        public ManufacturePlanItemState State { get; set; } = ManufacturePlanItemState.WaitAssign;
+        public string StateDesc => State.GetAttribute<DescriptionAttribute>()?.Description ?? "";
         public bool HaveChange(ManufacturePlanItem manufacturePlanItem, out ManufactureLog change)
         {
             var changeFlag = false;

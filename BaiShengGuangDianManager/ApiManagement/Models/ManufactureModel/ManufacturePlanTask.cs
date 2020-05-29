@@ -17,9 +17,9 @@ namespace ApiManagement.Models.ManufactureModel
         public int PlanId { get; set; }
         public string Plan { get; set; }
         public int TaskId { get; set; }
-        [ManufactureDescription("任务顺序", 1)]
+        [ManufactureDescription("任务顺序", 0)]
         public int Order { get; set; }
-        [Description("操作员")]
+        [ManufactureDescription("操作员", 2, "Processor")]
         public int Person { get; set; }
         public string Processor { get; set; }
         public int GroupId { get; set; }
@@ -47,7 +47,7 @@ namespace ApiManagement.Models.ManufactureModel
         public int OldId { get; set; }
         public string Assignor { get; set; }
         [ManufactureDescription("任务状态", 5)]
-        public ManufacturePlanItemState State { get; set; } = ManufacturePlanItemState.Wait;
+        public ManufacturePlanTaskState State { get; set; } = ManufacturePlanTaskState.WaitAssign;
         public string StateDesc => State.GetAttribute<DescriptionAttribute>()?.Description ?? "";
         /// <summary>
         /// 是否已创建检验项
@@ -64,7 +64,7 @@ namespace ApiManagement.Models.ManufactureModel
         public int ActualHour { get; set; }
         [ManufactureDescription("实际用时分", 10)]
         public int ActualMin { get; set; }
-        public string ActualTime => State != ManufacturePlanItemState.Doing
+        public string ActualTime => State != ManufacturePlanTaskState.Doing
             ? DateTimeExtend.ToTimeStr((ActualHour * 60 + ActualMin) * 60, 1)
             : DateTimeExtend.ToTimeStr(((int)(DateTime.Now - ActualStartTime).TotalMinutes + (ActualHour * 60 + ActualMin)) * 60, 1);
         //public string ActualTime => State != ManufacturePlanItemState.Doing

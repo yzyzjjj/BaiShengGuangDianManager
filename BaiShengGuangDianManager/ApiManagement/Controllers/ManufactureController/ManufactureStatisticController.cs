@@ -58,7 +58,7 @@ namespace ApiManagement.Controllers.ManufactureController
                       "FROM `manufacture_processor` a JOIN `processor` b ON a.ProcessorId = b.Id WHERE a.MarkedDelete = 0) a " +
                       "LEFT JOIN (SELECT Person, SUM(ActualScore) Score FROM manufacture_plan_task WHERE MarkedDelete = 0 AND State = @state AND ActualEndTime >= @sTime AND ActualEndTime <= @eTime GROUP BY Person) b ON a.Id = b.Person GROUP BY a.ProcessorId ORDER BY b.Score DESC, a.Id;";
             }
-            var data = ServerConfig.ApiDb.Query<dynamic>(sql, new { state = ManufacturePlanItemState.Done, gId, sTime, eTime });
+            var data = ServerConfig.ApiDb.Query<dynamic>(sql, new { state = ManufacturePlanTaskState.Done, gId, sTime, eTime });
             result.datas.AddRange(data);
             return result;
         }
@@ -109,7 +109,7 @@ namespace ApiManagement.Controllers.ManufactureController
                     $"JOIN (SELECT a.* FROM `manufacture_plan_task` a JOIN `manufacture_processor` b ON a.Person = b.Id WHERE b.GroupId = @gId) b ON a.Id = b.PlanId " +
                     $"WHERE a.`Id` IN @planId AND b.State = @state AND b.FirstStartTime >= @sTime AND b.FirstStartTime <= @eTime AND a.MarkedDelete = 0 AND b.MarkedDelete = 0 GROUP BY a.Id ORDER BY a.Id;";
             }
-            result.datas.AddRange(ServerConfig.ApiDb.Query<dynamic>(sql, new { gId, planId = planIdList, state = ManufacturePlanItemState.Done, sTime, eTime}));
+            result.datas.AddRange(ServerConfig.ApiDb.Query<dynamic>(sql, new { gId, planId = planIdList, state = ManufacturePlanTaskState.Done, sTime, eTime}));
             return result;
         }
 
@@ -159,7 +159,7 @@ namespace ApiManagement.Controllers.ManufactureController
                     $"JOIN (SELECT a.* FROM `manufacture_plan_task` a JOIN `manufacture_processor` b ON a.Person = b.Id WHERE b.GroupId = @gId) b ON a.Id = b.PlanId " +
                     $"WHERE a.`Id` IN @planId AND b.State = @state AND b.FirstStartTime >= @sTime AND b.FirstStartTime <= @eTime AND a.MarkedDelete = 0 AND b.MarkedDelete = 0 GROUP BY b.Item ORDER BY a.Id;";
             }
-            result.datas.AddRange(ServerConfig.ApiDb.Query<dynamic>(sql, new { planId = planIdList, state = ManufacturePlanItemState.Done, sTime, eTime, gId }));
+            result.datas.AddRange(ServerConfig.ApiDb.Query<dynamic>(sql, new { planId = planIdList, state = ManufacturePlanTaskState.Done, sTime, eTime, gId }));
             return result;
         }
 
@@ -200,7 +200,7 @@ namespace ApiManagement.Controllers.ManufactureController
                    $"JOIN `manufacture_plan` b ON  a.PlanId = b.Id " +
                    $"WHERE a.State = @state AND a.Person IN @pId AND a.ActualEndTime >= @sTime AND a.ActualEndTime <= @eTime AND a.MarkedDelete = 0 AND b.MarkedDelete = 0 ORDER BY a.ActualEndTime;";
 
-            result.datas.AddRange(ServerConfig.ApiDb.Query<dynamic>(sql, new { state = ManufacturePlanItemState.Done, pId = processors.Select(x => x.Id), sTime, eTime }));
+            result.datas.AddRange(ServerConfig.ApiDb.Query<dynamic>(sql, new { state = ManufacturePlanTaskState.Done, pId = processors.Select(x => x.Id), sTime, eTime }));
             return result;
         }
     }

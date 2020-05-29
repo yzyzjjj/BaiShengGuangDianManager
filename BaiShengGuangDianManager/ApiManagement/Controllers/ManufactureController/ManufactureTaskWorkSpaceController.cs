@@ -19,12 +19,12 @@ namespace ApiManagement.Controllers.ManufactureController
     [ApiController]
     public class ManufactureTaskWorkSpaceController : ControllerBase
     {
-        private static readonly Dictionary<int, List<ManufacturePlanItemState>> ValidStates = new Dictionary<int, List<ManufacturePlanItemState>>
+        private static readonly Dictionary<int, List<ManufacturePlanTaskState>> ValidStates = new Dictionary<int, List<ManufacturePlanTaskState>>
         {
-            {1, new List<ManufacturePlanItemState>{ManufacturePlanItemState.Pause}} ,
-            {2, new List<ManufacturePlanItemState>{ManufacturePlanItemState.Doing}} ,
-            {3, new List<ManufacturePlanItemState>{ManufacturePlanItemState.Redo}} ,
-            {4, new List<ManufacturePlanItemState>{ManufacturePlanItemState.WaitRedo, ManufacturePlanItemState.Wait}},
+            {1, new List<ManufacturePlanTaskState>{ManufacturePlanTaskState.Pause}} ,
+            {2, new List<ManufacturePlanTaskState>{ManufacturePlanTaskState.Doing}} ,
+            {3, new List<ManufacturePlanTaskState>{ManufacturePlanTaskState.Redo}} ,
+            {4, new List<ManufacturePlanTaskState>{ManufacturePlanTaskState.WaitRedo, ManufacturePlanTaskState.Wait}},
         };
         /// <summary>
         /// 获取当前任务
@@ -133,7 +133,7 @@ namespace ApiManagement.Controllers.ManufactureController
             var sql = "SELECT a.Id, a.GroupId, IFNULL(a.ProcessorName, b.Person) Processor, IFNULL(b.Score, 0) Score " +
                       "FROM (SELECT a.*, b.ProcessorName FROM `manufacture_processor` a JOIN `processor` b ON a.ProcessorId = b.Id WHERE a.MarkedDelete = 0 AND a.GroupId = @gId) a " +
                       "LEFT JOIN ( SELECT Person, SUM(ActualScore) Score FROM manufacture_plan_task WHERE MarkedDelete = 0 AND State = @state AND ActualEndTime >= @sTime AND ActualEndTime <= @eTime GROUP BY Person) b ON a.Id = b.Person ORDER BY b.Score DESC, b.Person;";
-            var data = ServerConfig.ApiDb.Query<dynamic>(sql, new { state = ManufacturePlanItemState.Done, gId, sTime, eTime });
+            var data = ServerConfig.ApiDb.Query<dynamic>(sql, new { state = ManufacturePlanTaskState.Done, gId, sTime, eTime });
             return new
             {
                 sTime,
@@ -168,7 +168,7 @@ namespace ApiManagement.Controllers.ManufactureController
             var sql =
                 "SELECT a.*, IFNULL(b.Plan, '') Plan FROM manufacture_plan_task a " +
                 "LEFT JOIN `manufacture_plan` b ON a.PlanId = b.Id WHERE a.State != @state AND a.Person IN @pId AND a.MarkedDelete = 0 AND IsCheck = 0 ORDER BY a.`TotalOrder` LIMIT @limit;";
-            result.datas.AddRange(ServerConfig.ApiDb.Query<ManufacturePlanTask>(sql, new { state = ManufacturePlanItemState.Done, pId = processors.Select(x => x.Id), limit }));
+            result.datas.AddRange(ServerConfig.ApiDb.Query<ManufacturePlanTask>(sql, new { state = ManufacturePlanTaskState.Done, pId = processors.Select(x => x.Id), limit }));
             return result;
         }
 
@@ -195,7 +195,7 @@ namespace ApiManagement.Controllers.ManufactureController
             var sql =
                 "SELECT a.*, IFNULL(b.Plan, '') Plan FROM manufacture_plan_task a " +
                 "LEFT JOIN `manufacture_plan` b ON a.PlanId = b.Id WHERE a.State = @state AND a.Person IN @pId AND a.MarkedDelete = 0 ORDER BY a.`TotalOrder` DESC LIMIT @limit;";
-            result.datas.AddRange(ServerConfig.ApiDb.Query<ManufacturePlanTask>(sql, new { state = ManufacturePlanItemState.Done, pId = processors.Select(x => x.Id), limit }));
+            result.datas.AddRange(ServerConfig.ApiDb.Query<ManufacturePlanTask>(sql, new { state = ManufacturePlanTaskState.Done, pId = processors.Select(x => x.Id), limit }));
             return result;
         }
 
@@ -242,14 +242,14 @@ namespace ApiManagement.Controllers.ManufactureController
                 {
                     return Result.GenError<DataResult>(Error.ManufactureTaskStateError);
                 }
-                if (task.State != ManufacturePlanItemState.Wait && task.State != ManufacturePlanItemState.WaitRedo && task.State != ManufacturePlanItemState.Pause)
+                if (task.State != ManufacturePlanTaskState.Wait && task.State != ManufacturePlanTaskState.WaitRedo && task.State != ManufacturePlanTaskState.Pause)
                 {
                     return Result.GenError<DataResult>(Error.ManufactureTaskStateError);
                 }
 
                 var now = DateTime.Now;
                 var oldTask = (ManufacturePlanTask)task.Clone();
-                task.State = ManufacturePlanItemState.Doing;
+                task.State = ManufacturePlanTaskState.Doing;
 
                 if (task.FirstStartTime == default(DateTime))
                 {
@@ -322,14 +322,14 @@ namespace ApiManagement.Controllers.ManufactureController
                 {
                     return Result.GenError<DataResult>(Error.ManufactureTaskStateError);
                 }
-                if (task.State != ManufacturePlanItemState.Doing)
+                if (task.State != ManufacturePlanTaskState.Doing)
                 {
                     return Result.GenError<DataResult>(Error.ManufactureTaskStateError);
                 }
 
                 var now = DateTime.Now;
                 var oldTask = (ManufacturePlanTask)task.Clone();
-                task.State = ManufacturePlanItemState.Pause;
+                task.State = ManufacturePlanTaskState.Pause;
                 task.PauseTime = now;
                 var totalSecond = (int)(task.PauseTime - task.ActualStartTime).TotalSeconds;
                 var hour = totalSecond / 3600;
@@ -398,7 +398,7 @@ namespace ApiManagement.Controllers.ManufactureController
                 {
                     return Result.GenError<DataResult>(Error.ManufactureTaskStateError);
                 }
-                if (task.State != ManufacturePlanItemState.Doing)
+                if (task.State != ManufacturePlanTaskState.Doing)
                 {
                     return Result.GenError<DataResult>(Error.ManufactureTaskStateError);
                 }
@@ -406,7 +406,7 @@ namespace ApiManagement.Controllers.ManufactureController
                 var now = DateTime.Now;
                 var changes = new List<ManufactureLog>();
                 var oldTask = (ManufacturePlanTask)task.Clone();
-                task.State = ManufacturePlanItemState.Done;
+                task.State = ManufacturePlanTaskState.Done;
                 task.ActualEndTime = now;
 
                 var totalSecond = (int)(task.ActualEndTime - task.ActualStartTime).TotalSeconds;
@@ -442,14 +442,14 @@ namespace ApiManagement.Controllers.ManufactureController
                 var tasks = new List<ManufacturePlanTask> { task };
                 sql =
                     "SELECT * FROM `manufacture_plan_task` WHERE PlanId = @PlanId AND Relation = @Order AND IsCheck = 1 AND `State` = @state;";
-                var checkTasks = ServerConfig.ApiDb.Query<ManufacturePlanTask>(sql, new { task.PlanId, task.Order, state = ManufacturePlanItemState.Wait });
+                var checkTasks = ServerConfig.ApiDb.Query<ManufacturePlanTask>(sql, new { task.PlanId, task.Order, state = ManufacturePlanTaskState.Wait });
 
                 if (checkTasks != null && checkTasks.Any())
                 {
                     foreach (var checkTask in checkTasks)
                     {
                         var oldCheckTask = (ManufacturePlanTask)checkTask.Clone();
-                        checkTask.State = ManufacturePlanItemState.WaitCheck;
+                        checkTask.State = ManufacturePlanTaskState.WaitCheck;
                         if (oldCheckTask.HaveChange(checkTask, out var changeCheck))
                         {
                             changeCheck.Time = now;

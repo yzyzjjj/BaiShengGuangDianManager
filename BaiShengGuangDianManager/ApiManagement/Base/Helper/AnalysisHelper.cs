@@ -36,7 +36,7 @@ namespace ApiManagement.Base.Helper
         {
             try
             {
-                _script = new Timer(Script, null, 5000, Timeout.Infinite);
+                Script();
 #if DEBUG
                 Console.WriteLine("AnalysisHelper 调试模式已开启");
                 //AnalysisOther();
@@ -434,7 +434,6 @@ namespace ApiManagement.Base.Helper
                 return;
             }
 #endif
-
             var redisPre = "Analysis";
             var redisLock = $"{redisPre}:Lock";
             var idKey = $"{redisPre}:Id";
@@ -570,12 +569,9 @@ namespace ApiManagement.Base.Helper
                                         var time = data.SendTime.NoMillisecond();
                                         if (!deviceList[data.DeviceId].Time.InSameDay(time))
                                         {
-                                            Log.Info($"{data.DeviceId}: {deviceList[data.DeviceId].Time}: {time}");
-                                            Log.Info($"{deviceList[data.DeviceId].ProcessCount} {deviceList[data.DeviceId].ProcessCount} {deviceList[data.DeviceId].ProcessCount}");
                                             deviceList[data.DeviceId].ProcessCount = 0;
                                             deviceList[data.DeviceId].ProcessTime = 0;
                                             deviceList[data.DeviceId].RunTime = 0;
-                                            Log.Info($"{deviceList[data.DeviceId].ProcessCount} {deviceList[data.DeviceId].ProcessCount} {deviceList[data.DeviceId].ProcessCount}");
                                         }
                                         var analysisData = data.AnalysisData;
                                         if (analysisData != null)
@@ -778,9 +774,10 @@ namespace ApiManagement.Base.Helper
                                                 TotalProcessTime = deviceList[data.DeviceId].TotalProcessTime,
                                                 RunTime = deviceList[data.DeviceId].RunTime,
                                                 TotalRunTime = deviceList[data.DeviceId].TotalRunTime,
-                                                Use = deviceList.Values.Where(x => Math.Abs((x.Time - time).TotalMinutes) <= 3).Count(x => x.State == 1),
+                                                Use = allDeviceList.Count(x => Math.Abs((x.Time - time).TotalMinutes) <= 3 && x.State == 1),
                                                 Total = allDeviceList.Count(),
                                             };
+
                                             monitoringProcess.Rate = (decimal)monitoringProcess.Use * 100 / monitoringProcess.Total;
                                             monitoringProcesses.Add(monitoringProcess);
                                         }
@@ -1394,7 +1391,7 @@ namespace ApiManagement.Base.Helper
             }
         }
 
-        private static void Script(object state)
+        private static void Script()
         {
             var redisPre = "Script";
             var redisLock = $"{redisPre}:Lock";

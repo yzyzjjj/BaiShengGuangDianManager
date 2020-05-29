@@ -27,7 +27,7 @@ namespace ApiManagement.Controllers.ManufactureController
         public DataResult GetManufacturePlanTaskState()
         {
             var result = new DataResult();
-            result.datas.AddRange(EnumHelper.EnumToList<ManufacturePlanItemState>(true).Select(x => new
+            result.datas.AddRange(EnumHelper.EnumToList<ManufacturePlanTaskState>(true).Select(x => new
             {
                 Id = x.EnumValue,
                 State = x.Description,
@@ -108,15 +108,14 @@ namespace ApiManagement.Controllers.ManufactureController
         {
             var result = new DataResult();
             var sql =
-                "SELECT a.*, IFNULL(b.Plan, '') Plan, IFNULL(c.ProcessorName, '') Processor, IFNULL(d.Module, '') Module, IFNULL(e.`Check`, '') `Check`, IFNULL(f.ProcessorName, a.Assignor) Assignor FROM manufacture_plan_task a " +
+                "SELECT a.*, IFNULL(b.Plan, '') Plan, c.`GroupId`, IFNULL(c.`Group`, '') `Group`, IFNULL(c.ProcessorName, '') Processor, IFNULL(d.Module, '') Module, IFNULL(e.`Check`, '') `Check`, IFNULL(f.ProcessorName, a.Assignor) Assignor FROM manufacture_plan_task a " +
                 "LEFT JOIN `manufacture_plan` b ON a.PlanId = b.Id " +
-                "LEFT JOIN (SELECT a.*, b.ProcessorName FROM `manufacture_processor` a JOIN `processor` b ON a.ProcessorId = b.Id WHERE a.MarkedDelete = 0) c ON a.Person = c.Id " +
+                "LEFT JOIN (SELECT a.*, b.ProcessorName, c.`Group` FROM `manufacture_processor` a JOIN `processor` b ON a.ProcessorId = b.Id JOIN `manufacture_group` c ON a.GroupId = c.Id WHERE a.MarkedDelete = 0) c ON a.Person = c.Id " +
                 "LEFT JOIN `manufacture_task_module` d ON a.ModuleId = d.Id " +
                 "LEFT JOIN `manufacture_check` e ON a.CheckId = e.Id " +
                 "LEFT JOIN `processor` f ON a.Assignor = f.Account " +
                 "WHERE a.Id = @tId AND a.MarkedDelete = 0 ORDER BY a.`TotalOrder` LIMIT 2;";
             var task = ServerConfig.ApiDb.Query<ManufacturePlanTask>(sql, new { tId }).FirstOrDefault();
-
 
             if (task == null)
             {
@@ -159,7 +158,8 @@ namespace ApiManagement.Controllers.ManufactureController
 
             var oldTask =
                 ServerConfig.ApiDb.Query<ManufacturePlanTask>(
-                    "SELECT * FROM `manufacture_plan_task` WHERE Id = @Id AND MarkedDelete = 0;",
+                    "SELECT a.*, IFNULL(b.ProcessorName, '') Processor FROM `manufacture_plan_task` a " +
+                    "LEFT JOIN (SELECT a.*, b.ProcessorName FROM `manufacture_processor` a JOIN `processor` b ON a.ProcessorId = b.Id WHERE a.MarkedDelete = 0) b ON a.Person = b.Id WHERE a.Id = @Id AND a.MarkedDelete = 0;;",
                     new { task.PlanId, task.Id }).FirstOrDefault();
             if (oldTask == null)
             {
@@ -172,7 +172,7 @@ namespace ApiManagement.Controllers.ManufactureController
             task.TaskId = oldTask.TaskId;
             task.Order = oldTask.Order;
             task.OldId = oldTask.OldId;
-            task.Person = oldTask.Person;
+            task.Person = task.Person == 0 ? oldTask.Person : task.Person;
             task.ModuleId = oldTask.ModuleId;
             task.IsCheck = oldTask.IsCheck;
             task.CheckId = oldTask.CheckId;
@@ -184,7 +184,7 @@ namespace ApiManagement.Controllers.ManufactureController
             var createUserId = Request.GetIdentityInformation();
             var markedDateTime = DateTime.Now;
             var changeTask = false;
-            var keys = new List<string> { "EstimatedHour", "EstimatedMin", "Score", "Desc", "ActualHour", "ActualMin", "ActualScore", "CheckResult" };
+            var keys = new List<string> { "Person", "EstimatedHour", "EstimatedMin", "Score", "Desc", "ActualHour", "ActualMin", "ActualScore", "CheckResult" };
             if (oldTask.HaveChange(task, out var taskChange, keys))
             {
                 changeTask = true;
@@ -209,12 +209,12 @@ namespace ApiManagement.Controllers.ManufactureController
                         .FirstOrDefault();
                     if (preTask != null)
                     {
-                        if (preTask.State == ManufacturePlanItemState.Done)
+                        if (preTask.State == ManufacturePlanTaskState.Done)
                         {
                             var oldPreTask = (ManufacturePlanTask)preTask.Clone();
                             preTask.State = preTask.IsCheck
-                                ? ManufacturePlanItemState.WaitCheck
-                                : ManufacturePlanItemState.WaitRedo;
+                                ? ManufacturePlanTaskState.WaitCheck
+                                : ManufacturePlanTaskState.WaitRedo;
                             preTask.RedoCount++;
                             preTask.IsRedo = true;
                             keys = new List<string> { "State" };
@@ -249,11 +249,11 @@ namespace ApiManagement.Controllers.ManufactureController
                         .FirstOrDefault();
                     if (preTask != null)
                     {
-                        if (preTask.State == ManufacturePlanItemState.WaitRedo ||
-                            preTask.State == ManufacturePlanItemState.WaitCheck)
+                        if (preTask.State == ManufacturePlanTaskState.WaitRedo ||
+                            preTask.State == ManufacturePlanTaskState.WaitCheck)
                         {
                             var oldPreTask = (ManufacturePlanTask)preTask.Clone();
-                            preTask.State = ManufacturePlanItemState.Done;
+                            preTask.State = ManufacturePlanTaskState.Done;
                             preTask.RedoCount--;
                             preTask.IsRedo = preTask.RedoCount > 0;
 
@@ -335,7 +335,7 @@ namespace ApiManagement.Controllers.ManufactureController
 
             if (changeTask)
             {
-                ServerConfig.ApiDb.Execute("UPDATE manufacture_plan_task SET `EstimatedHour` = @EstimatedHour, `EstimatedMin` = @EstimatedMin, `Score` = @Score, `Desc` = @Desc, `ActualHour` = @ActualHour, `ActualMin` = @ActualMin, `ActualScore` = @ActualScore, `CheckResult` = @CheckResult WHERE `Id` = @Id;", task);
+                ServerConfig.ApiDb.Execute("UPDATE manufacture_plan_task SET `Person` = @Person, `EstimatedHour` = @EstimatedHour, `EstimatedMin` = @EstimatedMin, `Score` = @Score, `Desc` = @Desc, `ActualHour` = @ActualHour, `ActualMin` = @ActualMin, `ActualScore` = @ActualScore, `CheckResult` = @CheckResult WHERE `Id` = @Id;", task);
             }
 
             ManufactureLog.AddLog(changes);
@@ -370,13 +370,13 @@ namespace ApiManagement.Controllers.ManufactureController
             var toTask = (ManufacturePlanTask)tasks.First(x => x.TotalOrder == moveTask.ToOrder).Clone();
 
             //无法上移非等待中/非待检验任务
-            if ((fromTask.State != ManufacturePlanItemState.Wait && fromTask.State != ManufacturePlanItemState.WaitCheck && fromTask.State != ManufacturePlanItemState.WaitRedo))
+            if ((fromTask.State != ManufacturePlanTaskState.Wait && fromTask.State != ManufacturePlanTaskState.WaitCheck && fromTask.State != ManufacturePlanTaskState.WaitRedo))
             {
                 return Result.GenError<DataResult>(Error.ManufacturePlaneTaskNotWait);
             }
 
             var count = tasks.Count();
-            var state = fromTask.IsCheck ? ManufacturePlanItemState.Checking : ManufacturePlanItemState.Doing;
+            var state = fromTask.IsCheck ? ManufacturePlanTaskState.Checking : ManufacturePlanTaskState.Doing;
             var res = fromTask.IsCheck ? Error.ManufacturePlaneTaskCheckAfterChecking : Error.ManufacturePlaneTaskAfterDoing;
             //不能上移到该操作工的进行中/检验中任务之前
             if (tasks.Take(count - 1).Any(x => x.Person == fromTask.Person && x.State == state))
@@ -623,9 +623,9 @@ namespace ApiManagement.Controllers.ManufactureController
                     "UPDATE manufacture_plan_task SET `MarkedDateTime`= NOW(), `Order` = @Order, `Relation` = @Relation WHERE `Id` = @Id;", manufacturePlanTasks);
 
                 var relationTask = manufacturePlanTasks.FirstOrDefault(x => x.Order == task.Relation);
-                if (relationTask != null && relationTask.State == ManufacturePlanItemState.Done && task.IsCheck)
+                if (relationTask != null && relationTask.State == ManufacturePlanTaskState.Done && task.IsCheck)
                 {
-                    task.State = ManufacturePlanItemState.WaitCheck;
+                    task.State = ManufacturePlanTaskState.WaitCheck;
                 }
                 task.TotalOrder++;
                 task.MarkedDateTime = markedDateTime;
@@ -764,7 +764,7 @@ namespace ApiManagement.Controllers.ManufactureController
             {
                 return Result.GenError<Result>(Error.ManufactureTaskItemNotExist);
             }
-            if (task.State != ManufacturePlanItemState.Stop)
+            if (task.State != ManufacturePlanTaskState.Stop)
             {
                 return Result.GenError<Result>(Error.ManufactureTaskStateError);
             }
@@ -783,15 +783,15 @@ namespace ApiManagement.Controllers.ManufactureController
             var changes = new List<ManufactureLog>();
             var createUserId = Request.GetIdentityInformation();
             var markedDateTime = DateTime.Now;
-            task.State = ManufacturePlanItemState.Wait;
+            task.State = ManufacturePlanTaskState.Wait;
             if (task.IsCheck)
             {
                 sql =
                     "SELECT * FROM manufacture_plan_task WHERE PlanId = @PlanId AND `Order` = @Relation";
                 var preTask = ServerConfig.ApiDb.Query<ManufacturePlanTask>(sql, new { task.PlanId, task.Relation }).FirstOrDefault();
-                if (preTask != null && preTask.State == ManufacturePlanItemState.Done)
+                if (preTask != null && preTask.State == ManufacturePlanTaskState.Done)
                 {
-                    task.State = ManufacturePlanItemState.WaitCheck;
+                    task.State = ManufacturePlanTaskState.WaitCheck;
                 }
             }
             var change = new ManufactureLog
@@ -827,7 +827,7 @@ namespace ApiManagement.Controllers.ManufactureController
             {
                 return Result.GenError<Result>(Error.ManufactureTaskItemNotExist);
             }
-            if (task.State == ManufacturePlanItemState.Stop)
+            if (task.State == ManufacturePlanTaskState.Stop)
             {
                 return Result.GenError<Result>(Error.ManufactureTaskStateError);
             }
@@ -846,7 +846,7 @@ namespace ApiManagement.Controllers.ManufactureController
             var changes = new List<ManufactureLog>();
             var createUserId = Request.GetIdentityInformation();
             var markedDateTime = DateTime.Now;
-            task.State = ManufacturePlanItemState.Stop;
+            task.State = ManufacturePlanTaskState.Stop;
             var change = new ManufactureLog
             {
                 Time = markedDateTime,
