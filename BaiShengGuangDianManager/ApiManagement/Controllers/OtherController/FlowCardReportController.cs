@@ -15,12 +15,24 @@ namespace ApiManagement.Controllers.OtherController
     public class FlowCardReportController : ControllerBase
     {
         // GET: api/FlowCardReport
+        /// <summary>
+        /// 
+        /// </summary>
+        /// <param name="lck">流程卡</param>
+        /// <param name="jth">机台号</param>
+        /// <param name="gx">工序</param>
+        /// <param name="jgqty">加工数</param>
+        /// <param name="qty">合格数</param>
+        /// <param name="lpqty">裂片数</param>
+        /// <param name="back"></param>
+        /// <param name="jgr"></param>
+        /// <returns></returns>
         [HttpGet]
-        public Result GetFlowCardReport([FromQuery] string lck, int jth, int gx, bool back = true, string jgr = "")
+        public Result GetFlowCardReport([FromQuery] string lck, int jth, int gx, int jgqty, int qty, int lpqty, bool back = true, string jgr = "")
         {
             //研磨1 粗抛 2  精抛 3
-            Console.WriteLine($"流程卡:{lck}, 机台号:{jth}, 工序:{gx}, 加工人:{jgr}, {back}");
-            Log.Debug($"流程卡:{lck}, 机台号:{jth}, 工序:{gx}, 加工人:{jgr}, {back}");
+            Console.WriteLine($"流程卡:{lck}, 机台号:{jth}, 工序:{gx}, 加工数:{jgqty}, 合格数:{qty}, 裂片数:{lpqty}, 加工人:{jgr}, {back}");
+            Log.Debug($"流程卡:{lck}, 机台号:{jth}, 工序:{gx}, 加工数:{jgqty}, 合格数:{qty}, 裂片数:{lpqty}, 加工人:{jgr}, {back}");
             ServerConfig.ApiDb.Execute(
                 "INSERT INTO flowcard_report (`Time`, `FlowCard`, `Code`, `Step`, `Back`) VALUES (@Time, @FlowCard, @Code, @Step, @Back);",
                 new
@@ -55,6 +67,16 @@ namespace ApiManagement.Controllers.OtherController
                 switch (gx)
                 {
                     case 1:
+                        ServerConfig.ApiDb.Execute(
+                            "UPDATE `flowcard_library` SET `MarkedDateTime` = NOW(), `YanMoFaChu` = @YanMoFaChu, `YanMoHeGe` = @YanMoHeGe, `YanMoLiePian` = @YanMoLiePian, `YanMoDeviceId` = @YanMoDeviceId WHERE `Id` = @Id;",
+                            new
+                            {
+                                YanMoFaChu = jgqty,
+                                YanMoHeGe = qty,
+                                YanMoLiePian = lpqty,
+                                YanMoDeviceId = deviceId,
+                                Id = flowCardId
+                            });
                         break;
 
                     case 2:
@@ -108,11 +130,31 @@ namespace ApiManagement.Controllers.OtherController
                             }
                         }
                         //AnalysisHelper.FlowCardReport(true);
+
+                        ServerConfig.ApiDb.Execute(
+                            "UPDATE `flowcard_library` SET `MarkedDateTime` = NOW(), `CuPaoFaChu` = @CuPaoFaChu, `CuPaoHeGe` = @CuPaoHeGe, `CuPaoLiePian` = @CuPaoLiePian, `CuPaoDeviceId` = @CuPaoDeviceId WHERE `Id` = @Id;",
+                            new
+                            {
+                                CuPaoFaChu = jgqty,
+                                CuPaoHeGe = qty,
+                                CuPaoLiePian = lpqty,
+                                CuPaoDeviceId = deviceId,
+                                Id = flowCardId
+                            });
                         break;
                     case 3:
+                        ServerConfig.ApiDb.Execute(
+                            "UPDATE `flowcard_library` SET `MarkedDateTime` = NOW(), `JingPaoFaChu` = @JingPaoFaChu, `JingPaoHeGe` = @JingPaoHeGe, `JingPaoLiePian` = @JingPaoLiePian, `JingPaoDeviceId` = @JingPaoDeviceId WHERE `Id` = @Id;",
+                            new
+                            {
+                                JingPaoFaChu = jgqty,
+                                JingPaoHeGe = qty,
+                                JingPaoLiePian = lpqty,
+                                JingPaoDeviceId = deviceId,
+                                Id = flowCardId
+                            });
                         break;
                 }
-
 
             }
 
