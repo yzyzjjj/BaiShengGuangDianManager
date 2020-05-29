@@ -113,6 +113,13 @@ namespace ApiManagement.Controllers.MaterialManagementController
             var materialBills = materialManagement.Bill.Where(x => x.SiteId == 0 || x.SpecificationId == 0 || x.SupplierId == 0 || x.NameId == 0 || x.NameId == 0 || x.CategoryId == 0);
             if (materialBills.Any())
             {
+                var eCodes = materialBills.GroupBy(x => x.Code).Where(y => y.GroupBy(z => new {z.SpecificationId, z.SiteId, z.Price}).Count() > 1).Select(c => c.Key);
+                if (eCodes.Any())
+                {
+                    result.errno = Error.MaterialBillIsExist;
+                    result.datas.AddRange(eCodes);
+                    return result;
+                }
 
                 var codes = materialBills.GroupBy(x => x.Code).Select(y => y.Key);
                 var sameCode = ServerConfig.ApiDb.Query<string>("SELECT Code FROM `material_bill` WHERE Code IN @Code AND MarkedDelete = 0;", new { Code = codes });
