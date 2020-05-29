@@ -183,17 +183,17 @@ namespace ApiManagement.Controllers.MaterialManagementController
                         return result;
                     }
                 }
-                var categoryNotExist = notExistName.Where(x => x.CategoryId == 0);
-                if (categoryNotExist.Any())
-                {
-                    var g = categoryNotExist.GroupBy(x => new { x.Category, x.Name });
-                    if (g.Any(y => y.Count() > 1))
-                    {
-                        result.errno = Error.MaterialNameDuplicate;
-                        result.datas.AddRange(g.Where(x => x.Count() > 1).Select(y => y.Key));
-                        return result;
-                    }
-                }
+                //var categoryNotExist = notExistName.Where(x => x.CategoryId == 0);
+                //if (categoryNotExist.Any())
+                //{
+                //    var g = categoryNotExist.GroupBy(x => new { x.Category, x.Name });
+                //    if (g.Any(y => y.Count() > 1))
+                //    {
+                //        result.errno = Error.MaterialNameDuplicate;
+                //        result.datas.AddRange(g.Where(x => x.Count() > 1).Select(y => y.Key));
+                //        return result;
+                //    }
+                //}
                 #endregion
 
                 #region 新供应商
@@ -211,17 +211,17 @@ namespace ApiManagement.Controllers.MaterialManagementController
                         return result;
                     }
                 }
-                var nameNotExist = notExistSupplier.Where(x => x.NameId == 0);
-                if (nameNotExist.Any())
-                {
-                    var g = nameNotExist.GroupBy(x => new { x.Name, x.Supplier });
-                    if (g.Any(y => y.Count() > 1))
-                    {
-                        result.errno = Error.MaterialSupplierDuplicate;
-                        result.datas.AddRange(g.Where(x => x.Count() > 1).Select(y => y.Key));
-                        return result;
-                    }
-                }
+                //var nameNotExist = notExistSupplier.Where(x => x.NameId == 0);
+                //if (nameNotExist.Any())
+                //{
+                //    var g = nameNotExist.GroupBy(x => new { x.Name, x.Supplier });
+                //    if (g.Any(y => y.Count() > 1))
+                //    {
+                //        result.errno = Error.MaterialSupplierDuplicate;
+                //        result.datas.AddRange(g.Where(x => x.Count() > 1).Select(y => y.Key));
+                //        return result;
+                //    }
+                //}
                 #endregion
 
                 #region 新规格
@@ -239,17 +239,17 @@ namespace ApiManagement.Controllers.MaterialManagementController
                         return result;
                     }
                 }
-                var supplierNotExist = notExistSpecification.Where(x => x.SupplierId == 0);
-                if (supplierNotExist.Any())
-                {
-                    var g = supplierNotExist.GroupBy(x => new { x.Supplier, x.Specification });
-                    if (g.Any(y => y.Count() > 1))
-                    {
-                        result.errno = Error.MaterialSpecificationDuplicate;
-                        result.datas.AddRange(g.Where(x => x.Count() > 1).Select(y => y.Key));
-                        return result;
-                    }
-                }
+                //var supplierNotExist = notExistSpecification.Where(x => x.SupplierId == 0);
+                //if (supplierNotExist.Any())
+                //{
+                //    var g = supplierNotExist.GroupBy(x => new { x.Supplier, x.Specification });
+                //    if (g.Any(y => y.Count() > 1))
+                //    {
+                //        result.errno = Error.MaterialSpecificationDuplicate;
+                //        result.datas.AddRange(g.Where(x => x.Count() > 1).Select(y => y.Key));
+                //        return result;
+                //    }
+                //}
                 #endregion
 
                 #region 新单价
