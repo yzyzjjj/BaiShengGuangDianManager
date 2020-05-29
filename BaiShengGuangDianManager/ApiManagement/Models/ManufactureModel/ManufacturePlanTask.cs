@@ -17,9 +17,9 @@ namespace ApiManagement.Models.ManufactureModel
         public int PlanId { get; set; }
         public string Plan { get; set; }
         public int TaskId { get; set; }
-        [ManufactureDescription("任务顺序", 0)]
+        //[ManufactureDescription("任务顺序", 0)]
         public int Order { get; set; }
-        [ManufactureDescription("操作员", 2, "Processor")]
+        [ManufactureDescription("操作员", 0, "Processor")]
         public int Person { get; set; }
         public string Processor { get; set; }
         public int GroupId { get; set; }

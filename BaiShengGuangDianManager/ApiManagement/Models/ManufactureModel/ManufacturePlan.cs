@@ -111,9 +111,9 @@ namespace ApiManagement.Models.ManufactureModel
             return changeFlag;
         }
     }
-    public class ManufacturePlanItems : ManufacturePlan
+    public class ManufacturePlanTasks : ManufacturePlan
     {
-        public IEnumerable<ManufacturePlanItem> Items { get; set; }
+        public IEnumerable<ManufacturePlanTask> Items { get; set; }
     }
     public class ManufacturePlanCondition : ManufacturePlan
     {

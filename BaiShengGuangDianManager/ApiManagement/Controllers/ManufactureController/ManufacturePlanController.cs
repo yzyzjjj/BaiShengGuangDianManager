@@ -122,42 +122,42 @@ namespace ApiManagement.Controllers.ManufactureController
                   "WHERE a.PlanId = @qId AND a.MarkedDelete = 0 ORDER BY a.`Order`;";
             var data = ServerConfig.ApiDb.Query<ManufacturePlanTask>(sql, new { qId });
             var waitAssign = data.Where(x => x.State == ManufacturePlanTaskState.WaitAssign);
-            var oldOrders = new Dictionary<int, int>();
-            foreach (var d in waitAssign)
-            {
-                var newOrder = order++;
-                if (d.Order != newOrder)
-                {
-                    oldOrders.Add(d.Order, newOrder);
-                    d.Order = newOrder;
-                }
-            }
+            //var oldOrders = new Dictionary<int, int>();
+            //foreach (var d in waitAssign)
+            //{
+            //    var newOrder = order++;
+            //    if (d.Order != newOrder)
+            //    {
+            //        oldOrders.Add(d.Order, newOrder);
+            //        d.Order = newOrder;
+            //    }
+            //}
 
-            var doneIds = new List<int>();
-            foreach (var d in oldOrders)
-            {
-                var first = data.FirstOrDefault(x => x.Order == d.Key);
-                if (first != null)
-                {
-                    var waitDo = waitAssign.Where(x => !doneIds.Contains(x.Id) && x.Relation == d.Key);
-                    doneIds.AddRange(waitDo.Select(y => y.Id));
-                    if (first.State == ManufacturePlanTaskState.WaitAssign)
-                    {
-                        foreach (var wd in waitDo)
-                        {
-                            wd.Relation = d.Value;
-                        }
-                    }
-                    else
-                    {
-                        var assign = manufacturePlanItems.FirstOrDefault(x => x.OldId == first.Id);
-                        foreach (var wd in waitDo)
-                        {
-                            wd.Relation = assign.Order;
-                        }
-                    }
-                }
-            }
+            //var doneIds = new List<int>();
+            //foreach (var d in oldOrders)
+            //{
+            //    var first = data.FirstOrDefault(x => x.Order == d.Key);
+            //    if (first != null)
+            //    {
+            //        var waitDo = waitAssign.Where(x => !doneIds.Contains(x.Id) && x.Relation == d.Key);
+            //        doneIds.AddRange(waitDo.Select(y => y.Id));
+            //        if (first.State == ManufacturePlanTaskState.WaitAssign)
+            //        {
+            //            foreach (var wd in waitDo)
+            //            {
+            //                wd.Relation = d.Value;
+            //            }
+            //        }
+            //        else
+            //        {
+            //            var assign = manufacturePlanItems.FirstOrDefault(x => x.OldId == first.Id);
+            //            foreach (var wd in waitDo)
+            //            {
+            //                wd.Relation = assign.Order;
+            //            }
+            //        }
+            //    }
+            //}
 
             result.datas.AddRange(waitAssign);
             return result;
@@ -170,7 +170,7 @@ namespace ApiManagement.Controllers.ManufactureController
         /// <returns></returns>
         // PUT: api/ManufacturePlan
         [HttpPut]
-        public DataResult PutManufacturePlan([FromBody] IEnumerable<ManufacturePlanItems> manufacturePlans)
+        public DataResult PutManufacturePlan([FromBody] IEnumerable<ManufacturePlanTasks> manufacturePlans)
         {
             if (manufacturePlans == null || manufacturePlans.Any(x => x.Id == 0))
             {
@@ -258,22 +258,31 @@ namespace ApiManagement.Controllers.ManufactureController
                 var data =
                     ServerConfig.ApiDb.Query<ManufacturePlanItem>(sql, new { manufacturePlan.Id });
                 var changeItem = false;
-                var items = manufacturePlan.Items ?? new List<ManufacturePlanItem>();
+                var items = manufacturePlan.Items ?? new List<ManufacturePlanTask>();
                 var result = new DataResult();
                 if (items != null && items.Any())
                 {
-                    items = manufacturePlan.Items.OrderBy(x => x.Order);
-                    var oldToNew = new Dictionary<int, int>();
-                    var i = 0;
-                    foreach (var item in items)
+                    //已下发的和额外添加的
+                    var haveManufacturePlanItems = ServerConfig.ApiDb.Query<ManufacturePlanTask>("SELECT * FROM `manufacture_plan_task` WHERE PlanId = @PlanId AND MarkedDelete = 0 ORDER BY `Order`;",
+                        new { PlanId = manufacturePlan.Id });
+
+                    var order = haveManufacturePlanItems.Any() ? haveManufacturePlanItems.Max(x => x.Order) : 1;
+                    foreach (var item in manufacturePlan.Items)
                     {
-                        oldToNew.Add(item.Order, ++i);
-                        item.Order = oldToNew[item.Order];
-                        if (item.Relation != 0)
-                        {
-                            item.Relation = oldToNew[item.Relation];
-                        }
+                        item.Order = ++order;
                     }
+                    items = manufacturePlan.Items;
+                    //var oldToNew = new Dictionary<int, int>();
+                    //var i = 0;
+                    //foreach (var item in items)
+                    //{
+                    //    oldToNew.Add(item.Order, ++i);
+                    //    item.Order = oldToNew[item.Order];
+                    //    if (item.Relation != 0)
+                    //    {
+                    //        item.Relation = oldToNew[item.Relation];
+                    //    }
+                    //}
                     if (items.Any(x => x.Item.IsNullOrEmpty()))
                     {
                         return Result.GenError<DataResult>(Error.ManufactureTaskItemNotEmpty);
@@ -448,7 +457,7 @@ namespace ApiManagement.Controllers.ManufactureController
         /// </summary>
         /// <param name="assignPlan"></param>
         /// <returns></returns>
-        //POST: api/ManufacturePlan
+        //POST: api/ManufacturePlan/Assign
         [HttpPost("Assign")]
         public Result AssignManufacturePlan([FromBody] ManufacturePlanAssign assignPlan)
         {
@@ -653,7 +662,7 @@ namespace ApiManagement.Controllers.ManufactureController
         /// </summary>
         // POST: api/ManufacturePlan
         [HttpPost]
-        public DataResult PostManufacturePlan([FromBody] ManufacturePlanItems manufacturePlan)
+        public DataResult PostManufacturePlan([FromBody] ManufacturePlanTasks manufacturePlan)
         {
             if (manufacturePlan.Plan.IsNullOrEmpty())
             {
