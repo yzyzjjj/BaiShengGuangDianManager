@@ -113,7 +113,7 @@ namespace ApiManagement.Controllers.MaterialManagementController
             var materialBills = materialManagement.Bill.Where(x => x.SiteId == 0 || x.SpecificationId == 0 || x.SupplierId == 0 || x.NameId == 0 || x.NameId == 0 || x.CategoryId == 0);
             if (materialBills.Any())
             {
-                var eCodes = materialBills.GroupBy(x => x.Code).Where(y => y.GroupBy(z => new {z.SpecificationId, z.SiteId, z.Price}).Count() > 1).Select(c => c.Key);
+                var eCodes = materialBills.GroupBy(x => x.Code).Where(y => y.GroupBy(z => new { z.SpecificationId, z.SiteId, z.Price }).Count() > 1).Select(c => c.Key);
                 if (eCodes.Any())
                 {
                     result.errno = Error.MaterialBillIsExist;
@@ -388,7 +388,11 @@ namespace ApiManagement.Controllers.MaterialManagementController
                     }
                 }
 
-                materialBills = materialManagement.Bill.Where(x => x.BillId == 0);
+            }
+
+            materialBills = materialManagement.Bill.Where(x => x.BillId == 0);
+            if (materialBills.Any())
+            {
                 foreach (var materialBill in materialBills)
                 {
                     materialBill.CreateUserId = createUserId;
