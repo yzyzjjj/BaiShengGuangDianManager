@@ -3,6 +3,7 @@ using ApiManagement.Models.OtherModel;
 using Microsoft.AspNetCore.Mvc;
 using ModelBase.Base.EnumConfig;
 using ModelBase.Base.Logger;
+using ModelBase.Base.Utils;
 using ModelBase.Models.Result;
 using System;
 using System.Collections.Generic;
@@ -30,14 +31,15 @@ namespace ApiManagement.Controllers.OtherController
         [HttpGet]
         public Result GetFlowCardReport([FromQuery] string lck, int jth, int gx, int jgqty, int qty, int lpqty, bool back = true, string jgr = "")
         {
+            var time = DateTime.Now;
             //研磨1 粗抛 2  精抛 3
-            Console.WriteLine($"流程卡:{lck}, 机台号:{jth}, 工序:{gx}, 加工数:{jgqty}, 合格数:{qty}, 裂片数:{lpqty}, 加工人:{jgr}, {back}");
-            Log.Debug($"流程卡:{lck}, 机台号:{jth}, 工序:{gx}, 加工数:{jgqty}, 合格数:{qty}, 裂片数:{lpqty}, 加工人:{jgr}, {back}");
+            Console.WriteLine($"时间:{time.ToStr()}, 流程卡:{lck}, 机台号:{jth}, 工序:{gx}, 加工数:{jgqty}, 合格数:{qty}, 裂片数:{lpqty}, 加工人:{jgr}, {back}");
+            Log.Debug($"时间:{time.ToStr()}, 流程卡:{lck}, 机台号:{jth}, 工序:{gx}, 加工数:{jgqty}, 合格数:{qty}, 裂片数:{lpqty}, 加工人:{jgr}, {back}");
             ServerConfig.ApiDb.Execute(
                 "INSERT INTO flowcard_report (`Time`, `FlowCard`, `Code`, `Step`, `Back`) VALUES (@Time, @FlowCard, @Code, @Step, @Back);",
                 new
                 {
-                    Time = DateTime.Now,
+                    Time = time,
                     FlowCard = lck,
                     Code = jth,
                     Step = gx,
@@ -64,19 +66,23 @@ namespace ApiManagement.Controllers.OtherController
             var deviceList = ServerConfig.RedisHelper.Get<IEnumerable<FlowCardReport>>(flowCardDeviceKey);
             if (flowCardId != 0 && deviceList.Any(x => x.DeviceId == deviceId))
             {
+                var flowCardInfo = new
+                {
+                    MarkedDateTime = time,
+                    FaChu = jgqty,
+                    HeGe = qty,
+                    LiePian = lpqty,
+                    DeviceId = deviceId,
+                    Time = time,
+                    Id = flowCardId
+                };
                 switch (gx)
                 {
                     case 1:
                         ServerConfig.ApiDb.Execute(
-                            "UPDATE `flowcard_library` SET `MarkedDateTime` = NOW(), `YanMoFaChu` = @YanMoFaChu, `YanMoHeGe` = @YanMoHeGe, `YanMoLiePian` = @YanMoLiePian, `YanMoDeviceId` = @YanMoDeviceId WHERE `Id` = @Id;",
-                            new
-                            {
-                                YanMoFaChu = jgqty,
-                                YanMoHeGe = qty,
-                                YanMoLiePian = lpqty,
-                                YanMoDeviceId = deviceId,
-                                Id = flowCardId
-                            });
+                            "UPDATE `flowcard_library` SET `MarkedDateTime` = @MarkedDateTime, `YanMoFaChu` = @FaChu, `YanMoHeGe` = @HeGe, `YanMoLiePian` = @LiePian" +
+                            ", `YanMoDeviceId` = @DeviceId, `YanMoDeviceId` = @Time WHERE `Id` = @Id;",
+                            flowCardInfo);
                         break;
 
                     case 2:
@@ -132,27 +138,15 @@ namespace ApiManagement.Controllers.OtherController
                         //AnalysisHelper.FlowCardReport(true);
 
                         ServerConfig.ApiDb.Execute(
-                            "UPDATE `flowcard_library` SET `MarkedDateTime` = NOW(), `CuPaoFaChu` = @CuPaoFaChu, `CuPaoHeGe` = @CuPaoHeGe, `CuPaoLiePian` = @CuPaoLiePian, `CuPaoDeviceId` = @CuPaoDeviceId WHERE `Id` = @Id;",
-                            new
-                            {
-                                CuPaoFaChu = jgqty,
-                                CuPaoHeGe = qty,
-                                CuPaoLiePian = lpqty,
-                                CuPaoDeviceId = deviceId,
-                                Id = flowCardId
-                            });
+                            "UPDATE `flowcard_library` SET `MarkedDateTime` = @MarkedDateTime, `CuPaoFaChu` = @FaChu, `CuPaoHeGe` = @HeGe, `CuPaoLiePian` = @LiePian" +
+                            ", `CuPaoDeviceId` = @DeviceId, `CuPaoTime` = @Time WHERE `Id` = @Id;",
+                            flowCardInfo);
                         break;
                     case 3:
                         ServerConfig.ApiDb.Execute(
-                            "UPDATE `flowcard_library` SET `MarkedDateTime` = NOW(), `JingPaoFaChu` = @JingPaoFaChu, `JingPaoHeGe` = @JingPaoHeGe, `JingPaoLiePian` = @JingPaoLiePian, `JingPaoDeviceId` = @JingPaoDeviceId WHERE `Id` = @Id;",
-                            new
-                            {
-                                JingPaoFaChu = jgqty,
-                                JingPaoHeGe = qty,
-                                JingPaoLiePian = lpqty,
-                                JingPaoDeviceId = deviceId,
-                                Id = flowCardId
-                            });
+                            "UPDATE `flowcard_library` SET `MarkedDateTime` = @MarkedDateTime, `JingPaoFaChu` = @FaChu, `JingPaoHeGe` = @HeGe, `JingPaoLiePian` = @LiePian" +
+                            ", `JingPaoDeviceId` = @DeviceId, `JingPaoTime` = @Time WHERE `Id` = @Id;",
+                            flowCardInfo);
                         break;
                 }
 

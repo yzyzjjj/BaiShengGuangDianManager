@@ -94,7 +94,7 @@ namespace ApiManagement.Controllers.ManufactureController
             var result = new DataResult();
             string sql;
             //已下发任务和额外添加任务
-            IEnumerable<ManufacturePlanTask> manufacturePlanItems = null;
+            IEnumerable<ManufacturePlanItem> manufacturePlanItems = null;
             if (plan.State != ManufacturePlanState.Wait)
             {
                 sql = $"SELECT a.*, IFNULL(b.Plan, '') Plan, c.GroupId, IFNULL(c.`Group`, '') `Group`, IFNULL(c.Processor, '') Processor, IFNULL(d.Module, '') Module, IFNULL(e.`Check`, '') `Check` " +
@@ -104,9 +104,9 @@ namespace ApiManagement.Controllers.ManufactureController
                       "LEFT JOIN `manufacture_task_module` d ON a.ModuleId = d.Id " +
                       "LEFT JOIN `manufacture_check` e ON a.CheckId = e.Id " +
                       "WHERE a.PlanId = @qId AND a.MarkedDelete = 0 ORDER BY a.`Order`;";
-                manufacturePlanItems = ServerConfig.ApiDb.Query<ManufacturePlanTask>(sql, new { qId });
+                manufacturePlanItems = ServerConfig.ApiDb.Query<ManufacturePlanItem>(sql, new { qId });
             }
-            var order = 1;
+            var order = 0;
             if (manufacturePlanItems != null)
             {
                 order = manufacturePlanItems.Max(x => x.Order);
@@ -120,18 +120,18 @@ namespace ApiManagement.Controllers.ManufactureController
                   "LEFT JOIN `manufacture_task_module` d ON a.ModuleId = d.Id " +
                   "LEFT JOIN `manufacture_check` e ON a.CheckId = e.Id " +
                   "WHERE a.PlanId = @qId AND a.MarkedDelete = 0 ORDER BY a.`Order`;";
-            var data = ServerConfig.ApiDb.Query<ManufacturePlanTask>(sql, new { qId });
-            var waitAssign = data.Where(x => x.State == ManufacturePlanTaskState.WaitAssign);
-            //var oldOrders = new Dictionary<int, int>();
-            //foreach (var d in waitAssign)
-            //{
-            //    var newOrder = order++;
-            //    if (d.Order != newOrder)
-            //    {
-            //        oldOrders.Add(d.Order, newOrder);
-            //        d.Order = newOrder;
-            //    }
-            //}
+            var data = ServerConfig.ApiDb.Query<ManufacturePlanItem>(sql, new { qId });
+            var waitAssign = data.Where(x => x.State == ManufacturePlanItemState.WaitAssign);
+            var oldOrders = new Dictionary<int, int>();
+            foreach (var d in waitAssign)
+            {
+                var newOrder = ++order;
+                if (d.Order != newOrder)
+                {
+                    oldOrders.Add(d.Order, newOrder);
+                    d.Order = newOrder;
+                }
+            }
 
             //var doneIds = new List<int>();
             //foreach (var d in oldOrders)
@@ -201,7 +201,6 @@ namespace ApiManagement.Controllers.ManufactureController
                 }
                 var changeItems = new List<ManufactureLog>();
                 var changePlan = false;
-                int cnt;
                 if (manufacturePlan.Plan != null)
                 {
                     if (manufacturePlan.Plan == string.Empty)
@@ -211,7 +210,7 @@ namespace ApiManagement.Controllers.ManufactureController
 
                     if (manufacturePlan.Plan != manufacturePlanOld.Plan)
                     {
-                        cnt = ServerConfig.ApiDb.Query<int>("SELECT COUNT(1) FROM `manufacture_plan` WHERE `Plan` = @Plan AND MarkedDelete = 0;",
+                        var cnt = ServerConfig.ApiDb.Query<int>("SELECT COUNT(1) FROM `manufacture_plan` WHERE `Plan` = @Plan AND MarkedDelete = 0;",
                             new { manufacturePlan.Plan }).FirstOrDefault();
                         if (cnt > 0)
                         {
@@ -249,29 +248,48 @@ namespace ApiManagement.Controllers.ManufactureController
                     changes.Add(planChange);
                 }
 
-                var sql = $"SELECT a.*, IFNULL(b.Plan, '') Plan, IFNULL(c.ProcessorName, '') Processor, IFNULL(d.Module, '') Module, IFNULL(e.`Check`, '') `Check` FROM `manufacture_plan_item` a " +
-                          "LEFT JOIN `manufacture_plan` b ON a.PlanId = b.Id " +
-                          "LEFT JOIN (SELECT a.*, b.ProcessorName FROM `manufacture_processor` a JOIN `processor` b ON a.ProcessorId = b.Id WHERE a.MarkedDelete = 0) c ON a.Person = c.Id " +
-                          "LEFT JOIN `manufacture_task_module` d ON a.ModuleId = d.Id " +
-                          "LEFT JOIN `manufacture_check` e ON a.CheckId = e.Id " +
-                          "WHERE a.PlanId = @Id AND a.MarkedDelete = 0 ORDER BY a.`Order`;";
-                var data =
-                    ServerConfig.ApiDb.Query<ManufacturePlanItem>(sql, new { manufacturePlan.Id });
                 var changeItem = false;
-                var items = manufacturePlan.Items ?? new List<ManufacturePlanTask>();
+                var items = new List<ManufacturePlanTask>();
+                var add = false;
+                foreach (var item in manufacturePlan.Items)
+                {
+                    if (item.State == ManufacturePlanTaskState.WaitAssign)
+                    {
+                        add = true;
+                    }
+                    if (add)
+                    {
+                        items.Add(item);
+                    }
+                }
                 var result = new DataResult();
                 if (items != null && items.Any())
                 {
+                    if (items.Any(x => x.State != ManufacturePlanTaskState.WaitAssign))
+                    {
+                        return Result.GenError<DataResult>(Error.ManufacturePlaneTaskAfterAssign);
+                    }
+
+                    var sql = $"SELECT a.*, IFNULL(b.Plan, '') Plan, IFNULL(c.ProcessorName, '') Processor, IFNULL(d.Module, '') Module, IFNULL(e.`Check`, '') `Check` FROM `manufacture_plan_item` a " +
+                              "LEFT JOIN `manufacture_plan` b ON a.PlanId = b.Id " +
+                              "LEFT JOIN (SELECT a.*, b.ProcessorName FROM `manufacture_processor` a JOIN `processor` b ON a.ProcessorId = b.Id WHERE a.MarkedDelete = 0) c ON a.Person = c.Id " +
+                              "LEFT JOIN `manufacture_task_module` d ON a.ModuleId = d.Id " +
+                              "LEFT JOIN `manufacture_check` e ON a.CheckId = e.Id " +
+                              "WHERE a.PlanId = @Id AND a.`State` = @state AND a.MarkedDelete = 0 ORDER BY a.`Order`;";
+                    var waitAssign =
+                        ServerConfig.ApiDb.Query<ManufacturePlanTask>(sql, new { manufacturePlan.Id, state = ManufacturePlanItemState.WaitAssign });
+
                     //已下发的和额外添加的
                     var haveManufacturePlanItems = ServerConfig.ApiDb.Query<ManufacturePlanTask>("SELECT * FROM `manufacture_plan_task` WHERE PlanId = @PlanId AND MarkedDelete = 0 ORDER BY `Order`;",
                         new { PlanId = manufacturePlan.Id });
 
-                    var order = haveManufacturePlanItems.Any() ? haveManufacturePlanItems.Max(x => x.Order) : 1;
-                    foreach (var item in manufacturePlan.Items)
+                    var max = haveManufacturePlanItems.Any() ? haveManufacturePlanItems.Max(x => x.Order) : 0;
+                    var order = max;
+                    foreach (var item in items)
                     {
                         item.Order = ++order;
                     }
-                    items = manufacturePlan.Items;
+
                     //var oldToNew = new Dictionary<int, int>();
                     //var i = 0;
                     //foreach (var item in items)
@@ -297,7 +315,7 @@ namespace ApiManagement.Controllers.ManufactureController
                     foreach (var item in items)
                     {
                         item.PlanId = manufacturePlan.Id;
-                        if (error != 2 && item.Order <= item.Relation || (item.Relation != 0 && items.All(x => x.Order != item.Relation)))
+                        if (error != 2 && item.Order <= item.Relation || (item.Relation != 0 && (items.All(x => x.Order != item.Relation) && item.Relation > max)))
                         {
                             error = 1;
                             result.datas.Add(item.Item);
@@ -312,7 +330,7 @@ namespace ApiManagement.Controllers.ManufactureController
                             continue;
                         }
 
-                        var d = data.FirstOrDefault(x => x.Id == item.Id);
+                        var d = waitAssign.FirstOrDefault(x => x.Id == item.Id);
                         if (d != null)
                         {
                             item.Item = item.Item ?? d.Item;
@@ -345,108 +363,107 @@ namespace ApiManagement.Controllers.ManufactureController
                         result.errno = error == 1 ? Error.ManufactureTaskItemRelationError : Error.ManufactureCheckItemNoRelation;
                         return result;
                     }
-                }
-                if (changePlan)
-                {
-                    ServerConfig.ApiDb.Execute(
-                        "UPDATE manufacture_plan SET `MarkedDateTime` = @MarkedDateTime, `Plan` = @Plan, `PlannedStartTime` = @PlannedStartTime, `PlannedEndTime` = @PlannedEndTime, `EstimatedHour` = @EstimatedHour, `EstimatedMin` = @EstimatedMin, `TaskId` = @TaskId WHERE `Id` = @Id;", manufacturePlan);
-
-                }
-
-                var itemChange = new ManufactureLog
-                {
-                    Time = markedDateTime,
-                    Account = createUserId,
-                    PlanId = manufacturePlan.Id,
-                    TaskId = manufacturePlan.TaskId,
-                    Type = ManufactureLogType.PlanUpdateItem,
-                    ParsingWay = 1,
-                };
-                #region 更新
-                var updateItems = items.Where(x => x.Id != 0 && data.Any(y => y.Id == x.Id));
-                if (updateItems.Any() && changeItem)
-                {
-                    ServerConfig.ApiDb.Execute("UPDATE manufacture_plan_item SET `MarkedDateTime` = @MarkedDateTime, `Order` = @Order, `Person` = @Person, `ModuleId` = @ModuleId, `IsCheck` = @IsCheck, " +
-                                               "`CheckId` = @CheckId, `Item` = @Item, `EstimatedHour` = @EstimatedHour, `EstimatedMin` = @EstimatedMin, `Score` = @Score, `Desc` = @Desc, `Relation` = @Relation WHERE `Id` = @Id;", updateItems);
-                }
-                #endregion
-
-                #region 删除
-                var delItems = data.Where(x => items.All(y => y.Id != x.Id));
-                if (delItems.Any())
-                {
-                    foreach (var delItem in delItems.OrderBy(x => x.Order))
+                    if (changePlan)
                     {
-                        delItem.MarkedDateTime = markedDateTime;
-                        delItem.MarkedDelete = true;
-                        itemChange.ParamList.Add(new ManufactureLogItem
-                        {
-                            Type = ManufactureLogType.DeletePlanTaskFormat,
-                            Field = delItem.Order.ToString()
-                        });
+                        ServerConfig.ApiDb.Execute(
+                            "UPDATE manufacture_plan SET `MarkedDateTime` = @MarkedDateTime, `Plan` = @Plan, `PlannedStartTime` = @PlannedStartTime, `PlannedEndTime` = @PlannedEndTime, `EstimatedHour` = @EstimatedHour, `EstimatedMin` = @EstimatedMin, `TaskId` = @TaskId WHERE `Id` = @Id;", manufacturePlan);
+
                     }
 
-                    changes.AddRange(delItems.Select(x => new ManufactureLog
+                    var itemChange = new ManufactureLog
                     {
                         Time = markedDateTime,
                         Account = createUserId,
                         PlanId = manufacturePlan.Id,
                         TaskId = manufacturePlan.TaskId,
-                        ItemId = x.Id,
-                        Type = ManufactureLogType.TaskDelete
-                    }));
-                    ServerConfig.ApiDb.Execute("UPDATE `manufacture_plan_item` SET `MarkedDateTime`= @MarkedDateTime, `MarkedDelete`= @MarkedDelete WHERE `Id` = @Id;", delItems);
-                }
-
-                #endregion
-                if (updateItems.Any() && changeItem)
-                {
-                    itemChange.ParamList.AddRange(changeItems.Select(x => new ManufactureLogItem
+                        Type = ManufactureLogType.PlanUpdateItem,
+                        ParsingWay = 1,
+                    };
+                    #region 更新
+                    var updateItems = items.Where(x => x.Id != 0 && waitAssign.Any(y => y.Id == x.Id));
+                    if (updateItems.Any() && changeItem)
                     {
-                        Type = ManufactureLogType.UpdatePlanTaskFormat,
-                        Field = x.Order.ToString(),
-                        Items = x.ParamList.Select(y =>
+                        ServerConfig.ApiDb.Execute("UPDATE manufacture_plan_item SET `MarkedDateTime` = @MarkedDateTime, `Order` = @Order, `Person` = @Person, `ModuleId` = @ModuleId, `IsCheck` = @IsCheck, " +
+                                                   "`CheckId` = @CheckId, `Item` = @Item, `EstimatedHour` = @EstimatedHour, `EstimatedMin` = @EstimatedMin, `Score` = @Score, `Desc` = @Desc, `Relation` = @Relation WHERE `Id` = @Id;", updateItems);
+                    }
+                    #endregion
+
+                    #region 删除
+                    var delItems = waitAssign.Where(x => items.All(y => y.Id != x.Id));
+                    if (delItems.Any())
+                    {
+                        foreach (var delItem in delItems.OrderBy(x => x.Order))
                         {
-                            y.Type = ManufactureLogType.UpdatePlanTaskItemFormat;
-                            return y;
-                        })
-                    }));
-                }
-                #region 添加
-                var addItems = items.Where(x => x.Id == 0);
-                if (addItems.Any())
-                {
-                    ServerConfig.ApiDb.Execute(
-                        "INSERT INTO manufacture_plan_item (`CreateUserId`, `MarkedDateTime`, `PlanId`, `Order`, `Person`, `ModuleId`, `IsCheck`, `CheckId`, `Item`, `EstimatedHour`, `EstimatedMin`, `Score`, `Desc`, `Relation`) " +
-                        "VALUES (@CreateUserId, @MarkedDateTime, @PlanId, @Order, @Person, @ModuleId, @IsCheck, @CheckId, @Item, @EstimatedHour, @EstimatedMin, @Score, @Desc, @Relation);",
-                        addItems);
-                    var ids = updateItems.Select(x => x.Id);
-                    var newData =
-                        ServerConfig.ApiDb.Query<ManufacturePlanItem>($"SELECT Id, `Order` FROM `manufacture_plan_item` WHERE PlanId = @Id{(ids.Any() ? " AND Id NOT IN @Ids" : "")} AND MarkedDelete = 0;",
-                            new { manufacturePlan.Id, Ids = ids });
+                            delItem.MarkedDateTime = markedDateTime;
+                            delItem.MarkedDelete = true;
+                            itemChange.ParamList.Add(new ManufactureLogItem
+                            {
+                                Type = ManufactureLogType.DeletePlanTaskFormat,
+                                Field = delItem.Order.ToString()
+                            });
+                        }
 
-                    itemChange.ParamList.AddRange(newData.Select(x => new ManufactureLogItem
-                    {
-                        Type = ManufactureLogType.AddPlanTaskFormat,
-                        Field = x.Order.ToString()
-                    }));
-                    changes.AddRange(newData.Select(x => new ManufactureLog
-                    {
-                        Time = markedDateTime,
-                        Account = createUserId,
-                        PlanId = manufacturePlan.Id,
-                        TaskId = manufacturePlan.TaskId,
-                        ItemId = x.Id,
-                        Type = ManufactureLogType.TaskCreate
-                    }));
+                        changes.AddRange(delItems.Select(x => new ManufactureLog
+                        {
+                            Time = markedDateTime,
+                            Account = createUserId,
+                            PlanId = manufacturePlan.Id,
+                            TaskId = manufacturePlan.TaskId,
+                            ItemId = x.Id,
+                            Type = ManufactureLogType.TaskDelete
+                        }));
+                        ServerConfig.ApiDb.Execute("UPDATE `manufacture_plan_item` SET `MarkedDateTime`= @MarkedDateTime, `MarkedDelete`= @MarkedDelete WHERE `Id` = @Id;", delItems);
+                    }
 
+                    #endregion
+                    if (updateItems.Any() && changeItem)
+                    {
+                        itemChange.ParamList.AddRange(changeItems.Select(x => new ManufactureLogItem
+                        {
+                            Type = ManufactureLogType.UpdatePlanTaskFormat,
+                            Field = x.Order.ToString(),
+                            Items = x.ParamList.Select(y =>
+                            {
+                                y.Type = ManufactureLogType.UpdatePlanTaskItemFormat;
+                                return y;
+                            })
+                        }));
+                    }
+                    #region 添加
+                    var addItems = items.Where(x => x.Id == 0);
+                    if (addItems.Any())
+                    {
+                        ServerConfig.ApiDb.Execute(
+                            "INSERT INTO manufacture_plan_item (`CreateUserId`, `MarkedDateTime`, `PlanId`, `Order`, `Person`, `ModuleId`, `IsCheck`, `CheckId`, `Item`, `EstimatedHour`, `EstimatedMin`, `Score`, `Desc`, `Relation`) " +
+                            "VALUES (@CreateUserId, @MarkedDateTime, @PlanId, @Order, @Person, @ModuleId, @IsCheck, @CheckId, @Item, @EstimatedHour, @EstimatedMin, @Score, @Desc, @Relation);",
+                            addItems);
+                        var ids = updateItems.Select(x => x.Id);
+                        var newData =
+                            ServerConfig.ApiDb.Query<ManufacturePlanItem>($"SELECT Id, `Order` FROM `manufacture_plan_item` WHERE PlanId = @Id{(ids.Any() ? " AND Id NOT IN @Ids" : "")} AND MarkedDelete = 0;",
+                                new { manufacturePlan.Id, Ids = ids });
+
+                        itemChange.ParamList.AddRange(newData.Select(x => new ManufactureLogItem
+                        {
+                            Type = ManufactureLogType.AddPlanTaskFormat,
+                            Field = x.Order.ToString()
+                        }));
+                        changes.AddRange(newData.Select(x => new ManufactureLog
+                        {
+                            Time = markedDateTime,
+                            Account = createUserId,
+                            PlanId = manufacturePlan.Id,
+                            TaskId = manufacturePlan.TaskId,
+                            ItemId = x.Id,
+                            Type = ManufactureLogType.TaskCreate
+                        }));
+                    }
+                    #endregion
+                    if (itemChange.ParamList.Any())
+                    {
+                        changes.Add(itemChange);
+                    }
+                    changes.AddRange(changeItems);
                 }
-                #endregion
-                if (itemChange.ParamList.Any())
-                {
-                    changes.Add(itemChange);
-                }
-                changes.AddRange(changeItems);
             }
             ManufactureLog.AddLog(changes);
             return Result.GenError<DataResult>(Error.Success);
