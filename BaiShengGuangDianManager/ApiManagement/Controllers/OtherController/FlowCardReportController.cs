@@ -81,7 +81,7 @@ namespace ApiManagement.Controllers.OtherController
                     case 1:
                         ServerConfig.ApiDb.Execute(
                             "UPDATE `flowcard_library` SET `MarkedDateTime` = @MarkedDateTime, `YanMoFaChu` = @FaChu, `YanMoHeGe` = @HeGe, `YanMoLiePian` = @LiePian" +
-                            ", `YanMoDeviceId` = @DeviceId, `YanMoDeviceId` = @Time WHERE `Id` = @Id;",
+                            ", `YanMoDeviceId` = @DeviceId, `YanMoTime` = @Time WHERE `Id` = @Id;",
                             flowCardInfo);
                         break;
 
