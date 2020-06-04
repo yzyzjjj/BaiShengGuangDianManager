@@ -1559,7 +1559,7 @@ namespace ApiManagement.Base.Helper
                     var deviceList = new List<FlowCardReport>();
                     var dl = ServerConfig.RedisHelper.Get<IEnumerable<FlowCardReport>>(deviceKey);
                     var deviceListDb = ServerConfig.ApiDb.Query<FlowCardReport>(
-                        "SELECT MAX(id) Id, DeviceId FROM `npc_monitoring_process_log` WHERE OpName = '加工' AND NOT ISNULL(EndTime) GROUP BY DeviceId;");
+                        "SELECT IFNULL(b.Id, 0) Id, IFNULL(b.DeviceId, a.Id) DeviceId FROM `device_library` a LEFT JOIN (SELECT MAX(id) Id, DeviceId FROM `npc_monitoring_process_log` WHERE OpName = '加工' AND NOT ISNULL(EndTime) GROUP BY DeviceId) b ON a.Id = b.DeviceId");
                     if (dl != null)
                     {
                         deviceList.AddRange(dl);
