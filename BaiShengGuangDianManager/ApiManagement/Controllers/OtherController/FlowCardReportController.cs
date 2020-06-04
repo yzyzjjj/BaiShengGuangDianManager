@@ -60,11 +60,12 @@ namespace ApiManagement.Controllers.OtherController
             var deviceId = ServerConfig.ApiDb.Query<int>("SELECT Id FROM `device_library` WHERE `Code` = @code;",
                 new { code = jth }).FirstOrDefault();
 
-            var flowCardPre = "FlowCard";
+
+            var flowCardPre = "FlowCardReport";
             var flowCardDeviceKey = $"{flowCardPre}:Device";
             var flowCardLockKey = $"{flowCardPre}:Lock";
             var deviceList = ServerConfig.RedisHelper.Get<IEnumerable<FlowCardReport>>(flowCardDeviceKey);
-            if (flowCardId != 0 && deviceList.Any(x => x.DeviceId == deviceId))
+            if (deviceList != null && (flowCardId != 0 && deviceList.Any(x => x.DeviceId == deviceId)))
             {
                 var flowCardInfo = new
                 {
