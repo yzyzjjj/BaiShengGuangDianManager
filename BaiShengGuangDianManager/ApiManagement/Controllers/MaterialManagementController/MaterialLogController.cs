@@ -1,7 +1,6 @@
 ﻿using ApiManagement.Base.Server;
 using ApiManagement.Models.MaterialManagementModel;
 using Microsoft.AspNetCore.Mvc;
-using ModelBase.Models.Result;
 using ServiceStack;
 using System;
 using System.Collections.Generic;
@@ -32,9 +31,9 @@ namespace ApiManagement.Controllers.MaterialManagementController
         /// <param name="purpose">来源/用途</param>
         /// <returns></returns>
         [HttpGet]
-        public DataResult GetMaterialLog([FromQuery] DateTime startTime, DateTime endTime, int isPlan, int planId, int billId, int qId, int type, int purposeId, string purpose = "")
+        public MaterialDataResult GetMaterialLog([FromQuery] DateTime startTime, DateTime endTime, int isPlan, int planId, int billId, int qId, int type, int purposeId, string purpose = "")
         {
-            var result = new DataResult();
+            var result = new MaterialDataResult();
             var param = new List<string>();
             if (startTime != default(DateTime) && endTime != default(DateTime))
             {
@@ -95,8 +94,7 @@ namespace ApiManagement.Controllers.MaterialManagementController
             {
                 sql += " WHERE " + param.Join(" AND ");
             }
-
-            result.datas.AddRange(ServerConfig.ApiDb.Query<MaterialLog>(sql, new
+            var data = ServerConfig.ApiDb.Query<MaterialLog>(sql, new
             {
                 startTime,
                 endTime,
@@ -105,7 +103,10 @@ namespace ApiManagement.Controllers.MaterialManagementController
                 qId,
                 type,
                 purpose
-            }).OrderByDescending(x => x.Id));
+            }).OrderByDescending(x => x.Id);
+            result.Count = data.Sum(x => x.Number);
+            result.Sum = data.Sum(x => x.Number * x.Price);
+            result.datas.AddRange(data);
             return result;
         }
     }
