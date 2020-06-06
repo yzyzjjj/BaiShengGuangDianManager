@@ -23,9 +23,9 @@ namespace ApiManagement.Controllers.MaterialManagementController
     {
         // GET: api/MaterialManagement?categoryId=0&nameId=0&supplierId=0&specificationId=0&qId=0&siteId
         [HttpGet]
-        public DataResult GetMaterialManagement([FromQuery] int categoryId, int nameId, int supplierId, int specificationId, int qId, int siteId)
+        public MaterialDataResult GetMaterialManagement([FromQuery] int categoryId, int nameId, int supplierId, int specificationId, int qId, int siteId)
         {
-            var result = new DataResult();
+            var result = new MaterialDataResult();
             string sql;
             if (categoryId != 0 && nameId == 0 && supplierId == 0 && specificationId == 0 && qId == 0)
             {
@@ -86,8 +86,11 @@ namespace ApiManagement.Controllers.MaterialManagementController
             var data = ServerConfig.ApiDb.Query<MaterialManagementDetail>(sql, new { categoryId, nameId, supplierId, specificationId, qId, siteId });
             if (qId != 0 && !data.Any())
             {
-                return Result.GenError<DataResult>(Error.MaterialBillNotExist);
+                return Result.GenError<MaterialDataResult>(Error.MaterialBillNotExist);
             }
+
+            result.Count = data.Sum(x => x.Number);
+            result.Sum = data.Sum(x => x.Number * x.Price);
             result.datas.AddRange(data);
             return result;
         }
