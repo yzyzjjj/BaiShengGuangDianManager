@@ -122,18 +122,18 @@ namespace ApiManagement.Base.Helper
             var redisLock = $"{redisPre}:Lock";
             var idKey = $"{redisPre}:Id";
             var deviceKey = $"{redisPre}:Device";
-            if (ServerConfig.RedisHelper.SetIfNotExist(redisLock, "lock"))
+            if (ServerConfig.RedisHelper.SetIfNotExist(redisLock, DateTime.Now.ToStr()))
             {
                 try
                 {
-                    ServerConfig.RedisHelper.SetExpireAt(redisLock, DateTime.Now.AddMinutes(5));
+                    ServerConfig.RedisHelper.SetExpireAt(redisLock, DateTime.Now.AddHours(1));
                     var startId = ServerConfig.RedisHelper.Get<int>(idKey);
                     var mData = ServerConfig.ApiDb.Query<MonitoringProcessLogDetail>(
                         "SELECT a.*, b.ProductionProcessName FROM `npc_monitoring_process_log` a JOIN (SELECT a.*, b.ProductionProcessName FROM `flowcard_library` a JOIN `production_library` b ON a.ProductionProcessId = b.Id) b ON a.FlowCardId = b.Id WHERE a.Id > @Id AND OpName = '加工' AND NOT ISNULL(EndTime) LIMIT @limit;", new
                         {
                             Id = startId,
                             limit = _dealLength
-                        });
+                        }, 1200);
                     if (mData.Any())
                     {
                         var endId = mData.Last().Id;
@@ -256,18 +256,18 @@ namespace ApiManagement.Base.Helper
             var idKey = $"{redisPre}:Id";
             var deviceKey = $"{redisPre}:Device";
             var offset = 60;
-            if (ServerConfig.RedisHelper.SetIfNotExist(lockKey, "lock"))
+            if (ServerConfig.RedisHelper.SetIfNotExist(lockKey, DateTime.Now.ToStr()))
             {
                 try
                 {
-                    ServerConfig.RedisHelper.SetExpireAt(lockKey, DateTime.Now.AddMinutes(5));
+                    ServerConfig.RedisHelper.SetExpireAt(lockKey, DateTime.Now.AddHours(1));
                     var startId = ServerConfig.RedisHelper.Get<int>(idKey);
                     var mData = ServerConfig.ApiDb.Query<MonitoringProcessLogDetail>(
                         "SELECT a.*, b.ProductionProcessName FROM `npc_monitoring_process_log` a JOIN (SELECT a.*, b.ProductionProcessName FROM `flowcard_library` a JOIN `production_library` b ON a.ProductionProcessId = b.Id) b ON a.FlowCardId = b.Id WHERE a.Id > @Id AND OpName = '加工' AND NOT ISNULL(EndTime) LIMIT @limit;", new
                         {
                             Id = startId,
                             limit = _dealLength
-                        });
+                        }, 1200);
                     if (mData.Any())
                     {
                         var endId = mData.Last().Id;
@@ -393,7 +393,7 @@ namespace ApiManagement.Base.Helper
             return;
             //var redisPre = "Time";
             //var redisLock = $"{redisPre}:Lock";
-            //if (ServerConfig.RedisHelper.SetIfNotExist(redisLock, "lock"))
+            //if (ServerConfig.RedisHelper.SetIfNotExist(redisLock, DateTime.Now.ToStr()))
             //{
             //    try
             //    {
@@ -438,7 +438,7 @@ namespace ApiManagement.Base.Helper
             var redisLock = $"{redisPre}:Lock";
             var idKey = $"{redisPre}:Id";
             var deviceKey = $"{redisPre}:Device";
-            if (ServerConfig.RedisHelper.SetIfNotExist(redisLock, "lock"))
+            if (ServerConfig.RedisHelper.SetIfNotExist(redisLock, DateTime.Now.ToStr()))
             {
                 try
                 {
@@ -910,7 +910,7 @@ namespace ApiManagement.Base.Helper
             var redisPre = "AnalysisOther";
             var redisLock = $"{redisPre}:Lock";
             var timeKey = $"{redisPre}:Time";
-            if (ServerConfig.RedisHelper.SetIfNotExist(redisLock, "lock"))
+            if (ServerConfig.RedisHelper.SetIfNotExist(redisLock, DateTime.Now.ToStr()))
             {
                 try
                 {
@@ -1166,7 +1166,7 @@ namespace ApiManagement.Base.Helper
 
             var redisPre = "Fault";
             var redisLock = $"{redisPre}:Lock";
-            if (ServerConfig.RedisHelper.SetIfNotExist(redisLock, "lock"))
+            if (ServerConfig.RedisHelper.SetIfNotExist(redisLock, DateTime.Now.ToStr()))
             {
                 try
                 {
@@ -1395,7 +1395,7 @@ namespace ApiManagement.Base.Helper
         {
             var redisPre = "Script";
             var redisLock = $"{redisPre}:Lock";
-            if (ServerConfig.RedisHelper.SetIfNotExist(redisLock, "lock"))
+            if (ServerConfig.RedisHelper.SetIfNotExist(redisLock, DateTime.Now.ToStr()))
             {
                 ServerConfig.RedisHelper.SetExpireAt(redisLock, DateTime.Now.AddMinutes(5));
                 try
@@ -1447,14 +1447,13 @@ namespace ApiManagement.Base.Helper
                 return;
             }
 #endif
-
             var redisPre = "UpdateProcessLog";
             var redisLock = $"{redisPre}:Lock";
-            if (ServerConfig.RedisHelper.SetIfNotExist(redisLock, "lock"))
+            if (ServerConfig.RedisHelper.SetIfNotExist(redisLock, DateTime.Now.ToStr()))
             {
                 try
                 {
-                    ServerConfig.RedisHelper.SetExpireAt(redisLock, DateTime.Now.AddMinutes(5));
+                    ServerConfig.RedisHelper.SetExpireAt(redisLock, DateTime.Now.AddHours(1));
                     //设备状态
                     var stateDId = 1;
                     var all = ServerConfig.ApiDb.Query<dynamic>("SELECT a.Id, a.DeviceId, a.StartTime, ScriptId FROM (SELECT a.Id, DeviceId, StartTime, ScriptId FROM `npc_monitoring_process_log` a JOIN `device_library` b ON a.DeviceId = b.Id WHERE ISNULL(EndTime) GROUP BY DeviceId ) a JOIN ( SELECT MAX(Id) Id, DeviceId FROM `npc_monitoring_process_log` GROUP BY DeviceId ) b ON a.DeviceId = b.DeviceId WHERE a.Id != b.Id;");
@@ -1497,18 +1496,41 @@ namespace ApiManagement.Base.Helper
                             }).FirstOrDefault();
                             if (nextStartTime != default(DateTime))
                             {
-                                var d = ServerConfig.ApiDb.Query<MonitoringAnalysis>(
-                                    "SELECT * FROM `npc_monitoring_analysis` WHERE DeviceId = @DeviceId AND SendTime BETWEEN @SendTime1 AND @SendTime2 AND UserSend = 0;",
-                                    new
-                                    {
-                                        DeviceId = a.DeviceId,
-                                        SendTime1 = a.StartTime,
-                                        SendTime2 = nextStartTime,
-                                    }, 120).OrderBy(x => x.SendTime);
-                                if (d.Any())
+                                var r = new List<MonitoringAnalysis>();
+                                DateTime sendTime1 = a.StartTime;
+                                var deal = false;
+                                while (true)
                                 {
+                                    var sendTime2 = sendTime1.AddMinutes(30);
+                                    if (sendTime2 >= nextStartTime)
+                                    {
+                                        sendTime2 = nextStartTime;
+                                        deal = true;
+                                    }
+                                    if (sendTime1 < sendTime2)
+                                    {
+                                        r.AddRange(ServerConfig.ApiDb.Query<MonitoringAnalysis>(
+                                            "SELECT * FROM `npc_monitoring_analysis` WHERE DeviceId = @DeviceId AND SendTime BETWEEN @SendTime1 AND @SendTime2 AND UserSend = 0;",
+                                                new
+                                                {
+                                                    DeviceId = a.DeviceId,
+                                                    SendTime1 = sendTime1,
+                                                    SendTime2 = sendTime2,
+                                                }, 120).OrderBy(x => x.SendTime));
+                                    }
+
+                                    if (deal)
+                                    {
+                                        break;
+                                    }
+
+                                    sendTime1 = sendTime2;
+                                }
+                                if (r.Any())
+                                {
+                                    r = r.OrderBy(x => x.SendTime).ToList();
                                     var actAddress = uDies[new Tuple<int, int>(a.ScriptId, stateDId)] - 1;
-                                    var analysis = d.FirstOrDefault(x => x.AnalysisData.vals.Count > actAddress && x.AnalysisData.vals[actAddress] == 0);
+                                    var analysis = r.FirstOrDefault(x => x.AnalysisData.vals.Count > actAddress && x.AnalysisData.vals[actAddress] == 0);
                                     if (analysis != null)
                                     {
                                         ServerConfig.ApiDb.Execute(
@@ -1548,7 +1570,7 @@ namespace ApiManagement.Base.Helper
             var redisLock = $"{redisPre}:Lock";
             var deviceKey = $"{redisPre}:Device";
             var change = false;
-            if (ServerConfig.RedisHelper.SetIfNotExist(redisLock, "lock"))
+            if (ServerConfig.RedisHelper.SetIfNotExist(redisLock, DateTime.Now.ToStr()))
             {
                 try
                 {

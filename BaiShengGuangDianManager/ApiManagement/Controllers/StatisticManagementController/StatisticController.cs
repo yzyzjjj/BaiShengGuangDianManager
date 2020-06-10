@@ -1035,6 +1035,105 @@ namespace ApiManagement.Controllers.StatisticManagementController
         }
 
         /// <summary>
+        /// 生产数据
+        /// </summary>
+        /// <returns></returns>
+        // POST: api/Statistic/ProductionData
+        [HttpPost("ProductionData")]
+        public DataResult ProductionData([FromBody] StatisticRequest requestBody)
+        {
+            var result = new DataResult();
+            try
+            {
+                if (!requestBody.DeviceId.IsNullOrEmpty())
+                {
+                    return Result.GenError<DataResult>(Error.ParamError);
+                }
+
+                var device =
+                        ServerConfig.ApiDb
+                            .Query<DeviceLibraryDetail>(
+                                "SELECT a.Id, b.CategoryName FROM `device_library` a " +
+                                "JOIN (SELECT a.Id, b.CategoryName FROM `device_model` a JOIN `device_category` b ON a.DeviceCategoryId = b.Id) b ON a.DeviceModelId = b.Id " +
+                                "WHERE a.Id = @DeviceId AND `MarkedDelete` = 0;",
+                                new { id = requestBody.DeviceId }).FirstOrDefault();
+                if (device == null)
+                {
+                    return Result.GenError<DataResult>(Error.DeviceNotExist);
+                }
+
+                var paramDic = new Dictionary<string, string[]>
+                {
+                    {"粗抛机", new []{ "CuPaoTime", "CuPaoFaChu", "CuPaoHeGe", "CuPaoLiePian", "CuPaoDeviceId"}},
+                    {"精抛机", new []{ "JingPaoTime", "JingPaoFaChu", "JingPaoHeGe", "JingPaoLiePian", "JingPaoLiePian"}},
+                    {"研磨机", new []{ "YanMoTime", "YanMoFaChu", "YanMoHeGe", "YanMoLiePian", "YanMoDeviceId"}},
+                };
+
+                if (!paramDic.Any(x => device.CategoryName.Contains(x.Key)))
+                {
+                    return Result.GenError<DataResult>(Error.DeviceNotExist);
+                }
+
+                var startTime = requestBody.StartTime.Date;
+                var endTime = requestBody.EndTime.Date;
+                var totalDays = (endTime - startTime).TotalDays;
+                var data = new Dictionary<DateTime, MonitoringProductionData>();
+                for (var i = 0; i < totalDays; i++)
+                {
+                    data.Add(startTime.AddDays(i), new MonitoringProductionData());
+                }
+
+                var sql =
+                     "SELECT DATE({0}) Time, SUM({1}) FaChu, SUM({2}) HeGe, SUM({3}) LiePian, IF(SUM({1}) = 0, 0, round(SUM({2})/SUM({1}), 2)) Rate " +
+                     "FROM `flowcard_library` WHERE {4} = @DeviceId AND {0} >= @startTime AND {0} <= @endTime GROUP BY DATE({0}) ORDER BY DATE({0})";
+
+                var monitoringProductionData = ServerConfig.ApiDb.Query<MonitoringProductionData>(sql, new
+                {
+                    requestBody.DeviceId,
+                    startTime,
+                    endTime
+                }, 60);
+                if (monitoringProductionData.Any())
+                {
+                    foreach (var mpData in monitoringProductionData)
+                    {
+                        if (data.ContainsKey(mpData.Time))
+                        {
+                            data[mpData.Time] = mpData;
+                        }
+                    }
+                }
+                sql =
+                  "SELECT * FROM `npc_monitoring_process_day` WHERE DeviceId = @DeviceId AND Time >= @startTime AND Time <= @endTime;";
+
+                var monitoringProcesses = ServerConfig.ApiDb.Query<MonitoringProcess>(sql, new
+                {
+                    requestBody.DeviceId,
+                    startTime,
+                    endTime
+                }, 60);
+
+                if (monitoringProcesses.Any())
+                {
+                    foreach (var monitoringProcess in monitoringProcesses)
+                    {
+                        if (data.ContainsKey(monitoringProcess.Time))
+                        {
+                            data[monitoringProcess.Time].ProcessTime = monitoringProcess.ProcessTime;
+                        }
+                    }
+                }
+
+                result.datas.AddRange(data.Values.OrderBy(x => x.Time));
+                return result;
+            }
+            catch (Exception e)
+            {
+                return Result.GenError<DataResult>(Error.ParamError);
+            }
+        }
+
+        /// <summary>
         /// 故障统计
         /// </summary>
         /// <returns></returns>
