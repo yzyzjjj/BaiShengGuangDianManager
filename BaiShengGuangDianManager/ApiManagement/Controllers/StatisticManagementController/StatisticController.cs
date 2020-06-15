@@ -1045,7 +1045,7 @@ namespace ApiManagement.Controllers.StatisticManagementController
             var result = new DataResult();
             try
             {
-                if (!requestBody.DeviceId.IsNullOrEmpty())
+                if (requestBody.DeviceId.IsNullOrEmpty())
                 {
                     return Result.GenError<DataResult>(Error.ParamError);
                 }
@@ -1056,7 +1056,7 @@ namespace ApiManagement.Controllers.StatisticManagementController
                                 "SELECT a.Id, b.CategoryName FROM `device_library` a " +
                                 "JOIN (SELECT a.Id, b.CategoryName FROM `device_model` a JOIN `device_category` b ON a.DeviceCategoryId = b.Id) b ON a.DeviceModelId = b.Id " +
                                 "WHERE a.Id = @DeviceId AND `MarkedDelete` = 0;",
-                                new { id = requestBody.DeviceId }).FirstOrDefault();
+                                new { requestBody.DeviceId }).FirstOrDefault();
                 if (device == null)
                 {
                     return Result.GenError<DataResult>(Error.DeviceNotExist);
@@ -1074,20 +1074,21 @@ namespace ApiManagement.Controllers.StatisticManagementController
                     return Result.GenError<DataResult>(Error.DeviceNotExist);
                 }
 
-                var startTime = requestBody.StartTime.Date;
-                var endTime = requestBody.EndTime.Date;
+                var startTime = requestBody.StartTime;
+                var endTime = requestBody.EndTime;
                 var totalDays = (endTime - startTime).TotalDays;
                 var data = new Dictionary<DateTime, MonitoringProductionData>();
                 for (var i = 0; i < totalDays; i++)
                 {
-                    data.Add(startTime.AddDays(i), new MonitoringProductionData());
+                    var t = startTime.AddDays(i);
+                    data.Add(t, new MonitoringProductionData{Time = t});
                 }
 
+                var category = paramDic.FirstOrDefault(x => device.CategoryName.Contains(x.Key)).Value;
                 var sql =
                      "SELECT DATE({0}) Time, SUM({1}) FaChu, SUM({2}) HeGe, SUM({3}) LiePian, IF(SUM({1}) = 0, 0, round(SUM({2})/SUM({1}), 2)) Rate " +
                      "FROM `flowcard_library` WHERE {4} = @DeviceId AND {0} >= @startTime AND {0} <= @endTime GROUP BY DATE({0}) ORDER BY DATE({0})";
-
-                var monitoringProductionData = ServerConfig.ApiDb.Query<MonitoringProductionData>(sql, new
+                var monitoringProductionData = ServerConfig.ApiDb.Query<MonitoringProductionData>(string.Format(sql, category[0], category[1], category[2], category[3], category[4]), new
                 {
                     requestBody.DeviceId,
                     startTime,
