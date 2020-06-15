@@ -83,7 +83,7 @@ namespace ApiManagement.Controllers.MaterialManagementController
                     $"JOIN `material_site` d ON a.SiteId = d.Id WHERE {(qId == 0 ? "" : "a.Id = @qId AND ")}a.`MarkedDelete` = 0{(siteId == 0 ? "" : " AND a.SiteId = @siteId")};";
             }
 
-            var data = ServerConfig.ApiDb.Query<MaterialManagementDetail>(sql, new { categoryId, nameId, supplierId, specificationId, qId, siteId });
+            var data = ServerConfig.ApiDb.Query<MaterialManagementDetail>(sql, new { categoryId, nameId, supplierId, specificationId, qId, siteId }).OrderBy(x => x.Id);
             if (qId != 0 && !data.Any())
             {
                 return Result.GenError<MaterialDataResult>(Error.MaterialBillNotExist);
