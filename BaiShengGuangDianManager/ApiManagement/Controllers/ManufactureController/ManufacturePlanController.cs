@@ -184,10 +184,10 @@ namespace ApiManagement.Controllers.ManufactureController
                 return Result.GenError<DataResult>(Error.ManufacturePlanNotExist);
             }
 
-            if (manufacturePlanOlds.Any(x => x.State != ManufacturePlanState.Wait))
-            {
-                return Result.GenError<DataResult>(Error.ManufacturePlaneChangeState);
-            }
+            //if (manufacturePlanOlds.Any(x => x.State != ManufacturePlanState.Wait))
+            //{
+            //    return Result.GenError<DataResult>(Error.ManufacturePlaneChangeState);
+            //}
 
             var changes = new List<ManufactureLog>();
             var createUserId = Request.GetIdentityInformation();
@@ -283,7 +283,7 @@ namespace ApiManagement.Controllers.ManufactureController
                     var haveManufacturePlanItems = ServerConfig.ApiDb.Query<ManufacturePlanTask>("SELECT * FROM `manufacture_plan_task` WHERE PlanId = @PlanId AND MarkedDelete = 0 ORDER BY `Order`;",
                         new { PlanId = manufacturePlan.Id });
 
-                    var max = haveManufacturePlanItems.Any() ? haveManufacturePlanItems.Max(x => x.Order) : 0;
+                    var max = haveManufacturePlanItems.Count();
                     var order = max;
                     foreach (var item in items)
                     {
@@ -503,17 +503,21 @@ namespace ApiManagement.Controllers.ManufactureController
                 var changes = new List<ManufactureLog>();
                 var createUserId = Request.GetIdentityInformation();
                 var markedDateTime = DateTime.Now;
-                plan.State = ManufacturePlanState.Assigned;
-                plan.AssignedTime = markedDateTime;
-                changes.Add(new ManufactureLog
+                var assigned = plan.State == ManufacturePlanState.Assigned;
+                if (!assigned)
                 {
-                    Time = markedDateTime,
-                    Account = createUserId,
-                    PlanId = plan.Id,
-                    IsAssign = plan.State > ManufacturePlanState.Wait,
-                    TaskId = plan.TaskId,
-                    Type = ManufactureLogType.PlanAssigned
-                });
+                    plan.State = ManufacturePlanState.Assigned;
+                    plan.AssignedTime = markedDateTime;
+                    changes.Add(new ManufactureLog
+                    {
+                        Time = markedDateTime,
+                        Account = createUserId,
+                        PlanId = plan.Id,
+                        IsAssign = plan.State > ManufacturePlanState.Wait,
+                        TaskId = plan.TaskId,
+                        Type = ManufactureLogType.PlanAssigned
+                    });
+                }
 
                 ServerConfig.ApiDb.Execute(
                     "UPDATE manufacture_plan SET `State` = @State, `AssignedTime` = @AssignedTime WHERE `Id` = @Id;", plan);
@@ -573,45 +577,54 @@ namespace ApiManagement.Controllers.ManufactureController
                 {
                     return Result.GenError<DataResult>(Error.ManufacturePlaneAssignState);
                 }
+
+                //已下发的和额外添加的
+                var haveManufacturePlanItems = ServerConfig.ApiDb.Query<ManufacturePlanTask>("SELECT * FROM `manufacture_plan_task` WHERE PlanId = @PlanId AND MarkedDelete = 0 ORDER BY `Order`;",
+                    new { assignPlan.PlanId });
+
                 var notAssignManufacturePlanItems = manufacturePlanItems.Where(x => x.State == ManufacturePlanTaskState.WaitAssign && !taskIds.Contains(x.Id));
                 var relationIds = assignManufacturePlanItems.Where(x => x.Relation != 0).Select(y => y.Relation);
-                if (relationIds.Any())
+                //if (relationIds.Any())
+                //{
+                if (relationIds.Any(x => x > haveManufacturePlanItems.Count()) && relationIds.Any(x => assignManufacturePlanItems.All(y => y.Order != x)))
                 {
-                    //关联任务
-                    var relationManufacturePlanItems = manufacturePlanItems.Where(x => relationIds.Contains(x.Id));
-                    //未下发的关联任务
-                    var taskRelations = relationManufacturePlanItems.Where(x => x.State == ManufacturePlanTaskState.WaitAssign);
-                    if (taskRelations.Any() && taskRelations.All(x => !taskIds.Contains(x.Id)))
-                    {
-                        return Result.GenError<DataResult>(Error.ManufactureTaskItemAssignAfterRelation);
-                    }
+                    return Result.GenError<DataResult>(Error.ManufactureTaskItemAssignAfterRelation);
                 }
+                ////关联任务
+                //var relationManufacturePlanItems = manufacturePlanItems.Where(x => relationIds.Contains(x.Id));
+                ////未下发的关联任务
+                //var taskRelations = relationManufacturePlanItems.Where(x => x.State == ManufacturePlanTaskState.WaitAssign);
+                //if (taskRelations.Any() && taskRelations.All(x => !taskIds.Contains(x.Id)))
+                //{
+                //    return Result.GenError<DataResult>(Error.ManufactureTaskItemAssignAfterRelation);
+                //}
+                //}
 
                 var changes = new List<ManufactureLog>();
                 var createUserId = Request.GetIdentityInformation();
                 var markedDateTime = DateTime.Now;
-                plan.State = ManufacturePlanState.Assigned;
-                plan.AssignedTime = markedDateTime;
-                changes.Add(new ManufactureLog
+                var assigned = plan.State == ManufacturePlanState.Assigned;
+                if (!assigned)
                 {
-                    Time = markedDateTime,
-                    Account = createUserId,
-                    PlanId = plan.Id,
-                    IsAssign = plan.State > ManufacturePlanState.Wait,
-                    TaskId = plan.TaskId,
-                    Type = ManufactureLogType.PlanAssigned
-                });
+                    plan.State = ManufacturePlanState.Assigned;
+                    plan.AssignedTime = markedDateTime;
+                    changes.Add(new ManufactureLog
+                    {
+                        Time = markedDateTime,
+                        Account = createUserId,
+                        PlanId = plan.Id,
+                        IsAssign = true,
+                        TaskId = plan.TaskId,
+                        Type = ManufactureLogType.PlanAssigned
+                    });
+                }
 
                 ServerConfig.ApiDb.Execute(
                     "UPDATE manufacture_plan SET `State` = @State, `AssignedTime` = @AssignedTime WHERE `Id` = @Id;", plan);
 
-                if (assignManufacturePlanItems != null && assignManufacturePlanItems.Any())
+                if (assignManufacturePlanItems.Any())
                 {
-                    //已下发的和额外添加的
-                    var haveManufacturePlanItems = ServerConfig.ApiDb.Query<ManufacturePlanTask>("SELECT * FROM `manufacture_plan_task` WHERE PlanId = @PlanId AND MarkedDelete = 0 ORDER BY `Order`;",
-                        new { assignPlan.PlanId });
-
-                    var order = haveManufacturePlanItems.Any() ? haveManufacturePlanItems.Max(x => x.Order) : 1;
+                    var order = haveManufacturePlanItems.Count();
                     foreach (var assignManufacturePlanItem in assignManufacturePlanItems)
                     {
                         assignManufacturePlanItem.CreateUserId = createUserId;
@@ -619,7 +632,8 @@ namespace ApiManagement.Controllers.ManufactureController
                         assignManufacturePlanItem.OldId = assignManufacturePlanItem.Id;
                         assignManufacturePlanItem.Assignor = createUserId;
                         assignManufacturePlanItem.Desc = assignManufacturePlanItem.Desc ?? "";
-                        assignManufacturePlanItem.Order = order++;
+                        assignManufacturePlanItem.Order = ++order;
+                        assignManufacturePlanItem.State = ManufacturePlanTaskState.Wait;
                     }
                     foreach (var notAssignManufacturePlanItem in notAssignManufacturePlanItems)
                     {
@@ -627,7 +641,7 @@ namespace ApiManagement.Controllers.ManufactureController
                         notAssignManufacturePlanItem.MarkedDateTime = markedDateTime;
                         notAssignManufacturePlanItem.Assignor = createUserId;
                         notAssignManufacturePlanItem.Desc = notAssignManufacturePlanItem.Desc ?? "";
-                        notAssignManufacturePlanItem.Order = order++;
+                        notAssignManufacturePlanItem.Order = ++order;
                     }
                     assignManufacturePlanItems = assignManufacturePlanItems.OrderBy(x => x.Order);
                     ServerConfig.ApiDb.Execute(
@@ -636,7 +650,7 @@ namespace ApiManagement.Controllers.ManufactureController
                         assignManufacturePlanItems);
 
                     ServerConfig.ApiDb.Execute(
-                        "UPDATE manufacture_plan_item SET `MarkedDateTime` = @MarkedDateTime, `Order` = @Order WHERE `Id` = @Id;",
+                        "UPDATE manufacture_plan_item SET `MarkedDateTime` = @MarkedDateTime, `Order` = @Order, `State` = @State WHERE `Id` = @Id;",
                         manufacturePlanItems);
 
                     ServerConfig.ApiDb.Execute(
@@ -657,19 +671,7 @@ namespace ApiManagement.Controllers.ManufactureController
                     }));
                 }
                 ManufactureLog.AddLog(changes);
-
-
-
-
-
-
-
             }
-
-
-
-
-
 
             return Result.GenError<DataResult>(Error.Success);
         }

@@ -641,6 +641,12 @@ namespace ApiManagement.Controllers.ManufactureController
                     ItemId = task.Id,
                     Type = ManufactureLogType.TaskCreate
                 });
+
+                ServerConfig.ApiDb.Execute("UPDATE manufacture_plan_item SET `Order` = `Order` + 1 WHERE `PlanId` = @Id AND MarkedDelete = 0 AND `State` = @State;", new
+                {
+                    plan.Id,
+                    State = ManufacturePlanItemState.WaitAssign
+                });
             }
 
             ManufactureLog.AddLog(changes);
@@ -743,6 +749,17 @@ namespace ApiManagement.Controllers.ManufactureController
                 ItemId = task.Id,
                 Type = ManufactureLogType.TaskDelete
             });
+
+            if (plan != null)
+            {
+                ServerConfig.ApiDb.Execute(
+                    "UPDATE manufacture_plan_item SET `Order` = `Order` - 1 WHERE `PlanId` = @Id AND MarkedDelete = 0 AND `State` = @State;",
+                    new
+                    {
+                        plan.Id,
+                        State = ManufacturePlanItemState.WaitAssign
+                    });
+            }
 
             ManufactureLog.AddLog(changes);
             return Result.GenError<Result>(Error.Success);
