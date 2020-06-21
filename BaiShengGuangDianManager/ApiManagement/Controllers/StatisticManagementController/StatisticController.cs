@@ -1,5 +1,4 @@
-﻿using ApiManagement.Base.Helper;
-using ApiManagement.Base.Server;
+﻿using ApiManagement.Base.Server;
 using ApiManagement.Models.DeviceManagementModel;
 using ApiManagement.Models.FlowCardManagementModel;
 using ApiManagement.Models.StatisticManagementModel;
@@ -23,22 +22,6 @@ namespace ApiManagement.Controllers.StatisticManagementController
     [ApiController]
     public class StatisticController : ControllerBase
     {
-        /// <summary>
-        /// 看板数据
-        /// </summary>
-        /// <returns></returns>
-        // POST: api/Statistic/Kanban
-        [HttpGet("Kanban")]
-        public object Kanban()
-        {
-            return new
-            {
-                errno = 0,
-                errmsg = "成功",
-                data = AnalysisHelper.MonitoringKanBan
-            };
-        }
-
         public class StatisticRequest
         {
             //流程卡趋势图
@@ -1081,7 +1064,7 @@ namespace ApiManagement.Controllers.StatisticManagementController
                 for (var i = 0; i < totalDays; i++)
                 {
                     var t = startTime.AddDays(i);
-                    data.Add(t, new MonitoringProductionData{Time = t});
+                    data.Add(t, new MonitoringProductionData { Time = t });
                 }
 
                 var category = paramDic.FirstOrDefault(x => device.CategoryName.Contains(x.Key)).Value;

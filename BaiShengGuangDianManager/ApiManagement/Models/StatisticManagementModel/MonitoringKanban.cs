@@ -1,4 +1,5 @@
-﻿using ModelBase.Base.Utils;
+﻿using ApiManagement.Models.BaseModel;
+using ModelBase.Base.Utils;
 using Newtonsoft.Json;
 using ServiceStack;
 using System;
@@ -16,6 +17,10 @@ namespace ApiManagement.Models.StatisticManagementModel
         //[JsonIgnore]
         public DateTime Date => Time.Date;
         public DateTime Time { get; set; }
+        /// <summary>
+        /// 看板id
+        /// </summary>
+        public int Type { get; set; } = 0;
         /// <summary>
         /// 总设备数量
         /// </summary>
@@ -185,10 +190,44 @@ namespace ApiManagement.Models.StatisticManagementModel
         }
     }
 
+    public class MonitoringKanBanDevice : MonitoringKanBan
+    {
+        public MonitoringKanBanDevice()
+        {
+            AllDevice = 1;
+        }
+        public int DeviceId { get; set; }
+    }
     public class ProcessUseRate
     {
         public int Id { get; set; }
         public string Code { get; set; }
         public decimal Rate { get; set; }
+    }
+    public class MonitoringKanBanSet : CommonBase
+    {
+        public string Name { get; set; }
+        public bool IsShow { get; set; }
+        public string DeviceIds { get; set; }
+        public List<int> DeviceIdList
+        {
+            get
+            {
+                try
+                {
+                    if (!DeviceIds.IsNullOrEmpty())
+                    {
+                        return DeviceIds.Split(",").Select(int.Parse).ToList();
+                    }
+                }
+                catch (Exception)
+                {
+                    // ignored
+                }
+
+                return new List<int>();
+            }
+        }
+        public int Order { get; set; }
     }
 }
