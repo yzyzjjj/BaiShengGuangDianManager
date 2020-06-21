@@ -526,6 +526,7 @@ namespace ApiManagement.Controllers.ManufactureController
             var now = DateTime.Now;
             task.CreateUserId = createUserId;
             task.Desc = task.Desc ?? "";
+            task.State = ManufacturePlanTaskState.Wait;
             if (!manufacturePlanTasks.Any())
             {
                 task.Order = 1;

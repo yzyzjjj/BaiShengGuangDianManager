@@ -105,7 +105,7 @@ namespace ApiManagement.Controllers.DeviceManagementController
             return Result.GenError<Result>(Error.Success);
         }
 
-        public class AddDataNameDictionariey
+        public class AddDataNameDictionaries
         {
             //0 输入  1  json  2 excel  3 sql
             public int Type;
@@ -119,9 +119,9 @@ namespace ApiManagement.Controllers.DeviceManagementController
             public string ScriptName;
             public List<DataNameDictionary> DataNameDictionaries;
         }
-        // POST: api/DataNameDictionary/DataNameDictionarys
-        [HttpPost("DataNameDictionarys")]
-        public Result PostDataNameDictionary([FromBody] AddDataNameDictionariey data)
+        // POST: api/DataNameDictionary/DataNameDictionaries
+        [HttpPost("DataNameDictionaries")]
+        public Result PostDataNameDictionary([FromBody] AddDataNameDictionaries data)
         {
             var cnt =
                 ServerConfig.ApiDb.Query<int>("SELECT COUNT(1) FROM `device_model` WHERE Id = @id AND `MarkedDelete` = 0;", new { id = data.DeviceModelId }).FirstOrDefault();

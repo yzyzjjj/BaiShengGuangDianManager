@@ -117,14 +117,64 @@ namespace ApiManagement.Controllers.DeviceManagementController
             }
 
             scriptVersion.Id = id;
-            scriptVersion.CreateUserId = Request.GetIdentityInformation();
             scriptVersion.ScriptFile = scriptVersion.ScriptFile ?? "";
             ServerConfig.ApiDb.Execute(
-                "UPDATE script_version SET `MarkedDelete` = @MarkedDelete, `ModifyId` = @ModifyId, `DeviceModelId` = @DeviceModelId, `ScriptName` = @ScriptName, " +
-                "`ValueNumber` = @ValueNumber, `InputNumber` = @InputNumber, `OutputNumber` = @OutputNumber, `HeartPacket` = @HeartPacket, `ScriptFile` = @ScriptFile WHERE `Id` = @Id;", scriptVersion);
+                "UPDATE script_version SET `DeviceModelId` = @DeviceModelId, `ScriptName` = @ScriptName, `ScriptFile` = @ScriptFile WHERE `Id` = @Id;", scriptVersion);
 
+            CheckScriptVersion(id);
             ServerConfig.RedisHelper.PublishToTable();
             return Result.GenError<Result>(Error.Success);
+        }
+
+        private void CheckScriptVersion(int scriptId)
+        {
+            var scriptVersion =
+                ServerConfig.ApiDb.Query<ScriptVersion>("SELECT * FROM `script_version` WHERE Id = @id AND `MarkedDelete` = 0;", new { id = scriptId }).FirstOrDefault();
+            if (scriptVersion == null)
+            {
+                return;
+            }
+            var dataNameDictionaries =
+                ServerConfig.ApiDb.Query<DataNameDictionary>("SELECT * FROM `data_name_dictionary` WHERE ScriptId = @ScriptId AND `MarkedDelete` = 0;", new { ScriptId = scriptId });
+            if (!dataNameDictionaries.Any())
+            {
+                return;
+            }
+
+            var group = dataNameDictionaries.GroupBy(x => x.VariableTypeId).ToDictionary(x => x.Key, x => x.Count());
+            var valueNumber = group.ContainsKey(1) ? group[1] : 0;
+            var inputNumber = group.ContainsKey(2) ? group[2] : 0;
+            var outputNumber = group.ContainsKey(3) ? group[3] : 0;
+            scriptVersion.ValueNumber = scriptVersion.ValueNumber < valueNumber ? valueNumber : scriptVersion.ValueNumber;
+            scriptVersion.InputNumber = scriptVersion.InputNumber < inputNumber ? inputNumber : scriptVersion.InputNumber;
+            scriptVersion.OutputNumber = scriptVersion.OutputNumber < outputNumber ? outputNumber : scriptVersion.OutputNumber;
+
+            var groupPA = dataNameDictionaries.GroupBy(x => x.VariableTypeId).ToDictionary(x => x.Key, x => x.Max(y => y.PointerAddress));
+            var maxValuePointerAddress = groupPA.ContainsKey(1) ? groupPA[1] : 0;
+            var maxInputPointerAddress = groupPA.ContainsKey(2) ? groupPA[2] : 0;
+            var maxOutputPointerAddress = groupPA.ContainsKey(3) ? groupPA[3] : 0;
+            scriptVersion.MaxValuePointerAddress = maxValuePointerAddress;
+            scriptVersion.MaxInputPointerAddress = maxInputPointerAddress;
+            scriptVersion.MaxOutputPointerAddress = maxOutputPointerAddress;
+
+            var valN = maxValuePointerAddress < 300 ? 300 : maxValuePointerAddress;
+            var inN = maxInputPointerAddress < 255 ? 255 : maxInputPointerAddress;
+            var outN = maxOutputPointerAddress < 255 ? 255 : maxOutputPointerAddress;
+            var msg = new DeviceInfoMessagePacket(valN, inN, outN);
+            var heartPacket = msg.Serialize();
+            var oldHeartPacket = scriptVersion.HeartPacket;
+            var notify = heartPacket != scriptVersion.HeartPacket;
+            scriptVersion.HeartPacket = heartPacket;
+
+            scriptVersion.CreateUserId = Request.GetIdentityInformation();
+            scriptVersion.MarkedDateTime = DateTime.Now;
+            ServerConfig.ApiDb.Execute(
+                "UPDATE script_version SET `ValueNumber` = @ValueNumber, `InputNumber` = @InputNumber, `OutputNumber` = @OutputNumber, `MaxValuePointerAddress` = @MaxValuePointerAddress, " +
+                "`MaxInputPointerAddress` = @MaxInputPointerAddress, `MaxOutputPointerAddress` = @MaxOutputPointerAddress, `HeartPacket` = @HeartPacket WHERE `Id` = @Id;", scriptVersion);
+
+            ServerConfig.ApiDb.Execute(
+                "UPDATE npc_proxy_link SET `Instruction` = @HeartPacket WHERE `Instruction` = @oldHeartPacket;", new { oldHeartPacket, scriptVersion.HeartPacket });
+            ServerConfig.RedisHelper.PublishToTable();
         }
 
         // POST: api/ScriptVersion
