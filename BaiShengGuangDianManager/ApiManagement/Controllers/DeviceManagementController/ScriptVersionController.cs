@@ -121,7 +121,7 @@ namespace ApiManagement.Controllers.DeviceManagementController
             ServerConfig.ApiDb.Execute(
                 "UPDATE script_version SET `DeviceModelId` = @DeviceModelId, `ScriptName` = @ScriptName, `ScriptFile` = @ScriptFile WHERE `Id` = @Id;", scriptVersion);
 
-            CheckScriptVersion(id);
+            //CheckScriptVersion(id);
             ServerConfig.RedisHelper.PublishToTable();
             return Result.GenError<Result>(Error.Success);
         }

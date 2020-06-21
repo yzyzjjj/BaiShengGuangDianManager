@@ -59,6 +59,7 @@ namespace ApiManagement.Models.DeviceManagementModel
                         case DeviceState.Processing: return "加工中";
                         case DeviceState.UpgradeScript: return "流程升级中";
                         case DeviceState.UpgradeFirmware: return "固件升级中";
+                        case DeviceState.Restart: return "设备重启中";
                     }
                 }
                 else
