@@ -1744,7 +1744,7 @@ namespace ApiManagement.Controllers.StatisticManagementController
                 var data = new Dictionary<DateTime, DeviceTrueData>();
                 sql =
                    "SELECT * FROM `npc_monitoring_analysis` WHERE DeviceId = @DeviceId AND SendTime >= @StartTime AND SendTime < @EndTime AND UserSend = 0;";
-                var cha = requestBody.DataType;
+                var cha = 240;
                 var tStartTime = requestBody.StartTime;
                 var tEndTime = tStartTime.AddMinutes(cha);
                 var tasks = new List<Task<IEnumerable<MonitoringAnalysis>>>();
