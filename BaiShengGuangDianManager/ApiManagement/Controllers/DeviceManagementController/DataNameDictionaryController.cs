@@ -62,7 +62,6 @@ namespace ApiManagement.Controllers.DeviceManagementController
             return result;
         }
 
-
         /// <summary>
         /// 自增Id
         /// </summary>
@@ -90,6 +89,25 @@ namespace ApiManagement.Controllers.DeviceManagementController
             return Result.GenError<Result>(Error.Success);
         }
 
+        /// <summary>
+        /// 自增Id
+        /// </summary>
+        /// <param name="dataNameDictionaries"></param>
+        /// <returns></returns>
+        // PUT: api/DataNameDictionary/Id/5
+        [HttpPut]
+        public Result PutDataNameDictionaries([FromBody] IEnumerable<DataNameDictionary> dataNameDictionaries)
+        {
+            var time = DateTime.Now;
+            foreach (var dataNameDictionary in dataNameDictionaries)
+            {
+                dataNameDictionary.MarkedDateTime = time;
+            }
+            ServerConfig.ApiDb.Execute(
+                "UPDATE data_name_dictionary SET `MarkedDateTime` = @MarkedDateTime, `Precision` = @Precision WHERE `Id` = @Id;", dataNameDictionaries);
+
+            return Result.GenError<Result>(Error.Success);
+        }
 
         // POST: api/DataNameDictionary
         [HttpPost]
@@ -98,8 +116,8 @@ namespace ApiManagement.Controllers.DeviceManagementController
             dataNameDictionary.CreateUserId = Request.GetIdentityInformation();
             dataNameDictionary.MarkedDateTime = DateTime.Now;
             ServerConfig.ApiDb.Execute(
-                "INSERT INTO data_name_dictionary (`CreateUserId`, `MarkedDateTime`, `MarkedDelete`, `ModifyId`, `ScriptId`, `VariableTypeId`, `PointerAddress`, `VariableName`, `Remark`) " +
-                "VALUES (@CreateUserId, @MarkedDateTime, @MarkedDelete, @ModifyId, @ScriptId, @VariableTypeId, @PointerAddress, @VariableName, @Remark);",
+                "INSERT INTO data_name_dictionary (`CreateUserId`, `MarkedDateTime`, `ScriptId`, `VariableTypeId`, `PointerAddress`, `VariableName`, `Remark`) " +
+                "VALUES (@CreateUserId, @MarkedDateTime, @ScriptId, @VariableTypeId, @PointerAddress, @VariableName, @Remark);",
                 dataNameDictionary);
             CheckScriptVersion(dataNameDictionary.ScriptId);
             return Result.GenError<Result>(Error.Success);
@@ -172,8 +190,8 @@ namespace ApiManagement.Controllers.DeviceManagementController
                             ScriptName = data.ScriptName
                         };
                         index = ServerConfig.ApiDb.Query<int>(
-                          "INSERT INTO script_version (`CreateUserId`, `MarkedDateTime`, `MarkedDelete`, `ModifyId`, `DeviceModelId`, `ScriptName`, `ValueNumber`, `InputNumber`, `OutputNumber`, `HeartPacket`) " +
-                          "VALUES (@CreateUserId, @MarkedDateTime, @MarkedDelete, @ModifyId, @DeviceModelId, @ScriptName, @ValueNumber, @InputNumber, @OutputNumber, @HeartPacket);SELECT LAST_INSERT_ID();",
+                          "INSERT INTO script_version (`CreateUserId`, `MarkedDateTime`, `DeviceModelId`, `ScriptName`, `ValueNumber`, `InputNumber`, `OutputNumber`, `HeartPacket`) " +
+                          "VALUES (@CreateUserId, @MarkedDateTime, @DeviceModelId, @ScriptName, @ValueNumber, @InputNumber, @OutputNumber, @HeartPacket);SELECT LAST_INSERT_ID();",
                           scriptVersion).FirstOrDefault();
                     }
                     else
@@ -232,8 +250,8 @@ namespace ApiManagement.Controllers.DeviceManagementController
             }
 
             ServerConfig.ApiDb.Execute(
-                "INSERT INTO data_name_dictionary (`CreateUserId`, `MarkedDateTime`, `MarkedDelete`, `ModifyId`, `ScriptId`, `VariableTypeId`, `PointerAddress`, `VariableName`, `Remark`) " +
-                "VALUES (@CreateUserId, @MarkedDateTime, @MarkedDelete, @ModifyId, @ScriptId, @VariableTypeId, @PointerAddress, @VariableName, @Remark);",
+                "INSERT INTO data_name_dictionary (`CreateUserId`, `MarkedDateTime`, `ScriptId`, `VariableTypeId`, `PointerAddress`, `VariableName`, `Remark`, `Precision`) " +
+                "VALUES (@CreateUserId, @MarkedDateTime, @ScriptId, @VariableTypeId, @PointerAddress, @VariableName, @Remark, @Precision);",
                 dataNameDictionaries);
 
             CheckScriptVersion(data.ScriptId);

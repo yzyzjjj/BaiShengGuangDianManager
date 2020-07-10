@@ -18,4 +18,9 @@ namespace ApiManagement.Models.DeviceManagementModel
         public string TypeName { get; set; }
 
     }
+    public class UsuallyDictionaryPrecision : UsuallyDictionary
+    {
+        public int Precision { get; set; }
+
+    }
 }

@@ -4,12 +4,14 @@ using ApiManagement.Models.FlowCardManagementModel;
 using ApiManagement.Models.StatisticManagementModel;
 using Microsoft.AspNetCore.Mvc;
 using ModelBase.Base.EnumConfig;
+using ModelBase.Base.Logger;
 using ModelBase.Base.Utils;
 using ModelBase.Models.Result;
 using Newtonsoft.Json.Linq;
 using ServiceStack;
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Linq;
 using System.Threading.Tasks;
 
@@ -1675,6 +1677,8 @@ namespace ApiManagement.Controllers.StatisticManagementController
         [HttpPost("Monitor")]
         public object Monitor([FromBody] StatisticRequest requestBody)
         {
+            var sw = new Stopwatch();
+            sw.Start();
             if (requestBody.DeviceId.IsNullOrEmpty() || requestBody.DeviceData == null || (requestBody.DeviceData.vals.Count + requestBody.DeviceData.ins.Count + requestBody.DeviceData.outs.Count) <= 0)
             {
                 return Result.GenError<Result>(Error.ParamError);
@@ -1708,13 +1712,39 @@ namespace ApiManagement.Controllers.StatisticManagementController
             {
                 return Result.GenError<DataResult>(Error.OutputPointerAddressOutLimit);
             }
-
             try
             {
-                var data = new Dictionary<DateTime, DeviceData>();
-                var sql =
-                    "SELECT * FROM `npc_monitoring_analysis` WHERE DeviceId = @DeviceId AND SendTime >= @StartTime AND SendTime < @EndTime AND UserSend = 0;";
-                var cha = 240;
+                var sql = "SELECT * FROM `data_name_dictionary` WHERE ScriptId = @ScriptId";
+                var p = new List<string>();
+                if (requestBody.DeviceData.vals.Any())
+                {
+                    p.Add("(VariableTypeId = 1 AND PointerAddress IN @PointerAddress1)");
+                }
+                if (requestBody.DeviceData.ins.Any())
+                {
+                    p.Add("(VariableTypeId = 2 AND PointerAddress IN @PointerAddress2)");
+                }
+                if (requestBody.DeviceData.outs.Any())
+                {
+                    p.Add("(VariableTypeId = 3 AND PointerAddress IN @PointerAddress3)");
+                }
+                if (p.Any())
+                {
+                    sql += " AND (" + p.Join(" OR ") + ")";
+                }
+
+                var dataDic = ServerConfig.ApiDb.Query<DataNameDictionary>(sql, new
+                {
+                    ScriptId = device.ScriptId,
+                    PointerAddress1 = requestBody.DeviceData.vals,
+                    PointerAddress2 = requestBody.DeviceData.ins,
+                    PointerAddress3 = requestBody.DeviceData.outs,
+                });
+
+                var data = new Dictionary<DateTime, DeviceTrueData>();
+                sql =
+                   "SELECT * FROM `npc_monitoring_analysis` WHERE DeviceId = @DeviceId AND SendTime >= @StartTime AND SendTime < @EndTime AND UserSend = 0;";
+                var cha = requestBody.DataType;
                 var tStartTime = requestBody.StartTime;
                 var tEndTime = tStartTime.AddMinutes(cha);
                 var tasks = new List<Task<IEnumerable<MonitoringAnalysis>>>();
@@ -1749,24 +1779,33 @@ namespace ApiManagement.Controllers.StatisticManagementController
                         var t = d.SendTime.NoMillisecond();
                         if (!data.ContainsKey(t))
                         {
-                            data.Add(t, new DeviceData());
+                            data.Add(t, new DeviceTrueData());
                         }
 
-                        foreach (var inData in requestBody.DeviceData.vals)
+                        foreach (var pointerAddress in requestBody.DeviceData.vals)
                         {
-                            data[t].vals.Add(d.AnalysisData.ins[inData - 1]);
+                            var usuallyDictionary = dataDic.FirstOrDefault(x => x.VariableTypeId == 1 && x.PointerAddress == pointerAddress);
+                            var chu = Math.Pow(10, usuallyDictionary?.Precision ?? 0);
+                            data[t].vals.Add((decimal)(d.AnalysisData.vals[pointerAddress - 1] / chu));
                         }
-                        foreach (var inData in requestBody.DeviceData.ins)
+                        foreach (var pointerAddress in requestBody.DeviceData.ins)
                         {
-                            data[t].ins.Add(d.AnalysisData.ins[inData - 1]);
+                            var usuallyDictionary = dataDic.FirstOrDefault(x => x.VariableTypeId == 2 && x.PointerAddress == pointerAddress);
+                            var chu = Math.Pow(10, usuallyDictionary?.Precision ?? 0);
+                            data[t].ins.Add((decimal)(d.AnalysisData.ins[pointerAddress - 1] / chu));
                         }
-                        foreach (var outData in requestBody.DeviceData.outs)
+                        foreach (var pointerAddress in requestBody.DeviceData.outs)
                         {
-                            data[t].outs.Add(d.AnalysisData.outs[outData - 1]);
+                            var usuallyDictionary = dataDic.FirstOrDefault(x => x.VariableTypeId == 3 && x.PointerAddress == pointerAddress);
+                            var chu = Math.Pow(10, usuallyDictionary?.Precision ?? 0);
+                            data[t].outs.Add((decimal)(d.AnalysisData.outs[pointerAddress - 1] / chu));
                         }
                     }
                 }
                 data = data.OrderBy(x => x.Key).ToDictionary(x => x.Key, x => x.Value);
+                sw.Stop();
+                Log.Debug($"Monitor: {cha}  {sw.ElapsedMilliseconds}");
+                Console.WriteLine($"Monitor: {cha}  {sw.ElapsedMilliseconds}");
                 return new
                 {
                     errno = 0,

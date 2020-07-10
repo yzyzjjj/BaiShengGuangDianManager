@@ -302,7 +302,7 @@ namespace ApiManagement.Controllers.DeviceManagementController
             }
 
             var usuallyDictionaries =
-                ServerConfig.ApiDb.Query<UsuallyDictionary>("SELECT * FROM `usually_dictionary` WHERE ScriptId = @ScriptId AND MarkedDelete = 0;", new { device.ScriptId });
+                ServerConfig.ApiDb.Query<UsuallyDictionaryPrecision>("SELECT a.*, b.`Precision` FROM `usually_dictionary` a JOIN `data_name_dictionary` b ON a.DictionaryId = b.PointerAddress WHERE a.ScriptId = @ScriptId AND a.MarkedDelete = 0;", new { device.ScriptId });
             if (!usuallyDictionaries.Any())
             {
                 return Result.GenError<DataResult>(Error.UsuallyDictionaryNotExist);
@@ -352,14 +352,14 @@ namespace ApiManagement.Controllers.DeviceManagementController
                                                 x => x.VariableNameId == usuallyDictionaryType.Id);
                                         if (usuallyDictionary != null)
                                         {
-                                            var v = string.Empty;
+                                            var v = 0;
                                             var dId = usuallyDictionary.DictionaryId - 1;
                                             switch (usuallyDictionary.VariableTypeId)
                                             {
                                                 case 1:
                                                     if (res.vals.Count >= usuallyDictionary.DictionaryId)
                                                     {
-                                                        v = res.vals[dId].ToString();
+                                                        v = res.vals[dId];
                                                         if (usuallyDictionary.VariableNameId == 6)
                                                         {
                                                             var flowCard = ServerConfig.ApiDb.Query<dynamic>("SELECT FlowCardName, ProductionProcessId FROM `flowcard_library` WHERE Id = @id AND MarkedDelete = 0;",
@@ -384,17 +384,18 @@ namespace ApiManagement.Controllers.DeviceManagementController
                                                 case 2:
                                                     if (res.ins.Count >= usuallyDictionary.DictionaryId)
                                                     {
-                                                        v = res.ins[dId].ToString();
+                                                        v = res.ins[dId];
                                                     }
                                                     break;
                                                 case 3:
                                                     if (res.outs.Count >= usuallyDictionary.DictionaryId)
                                                     {
-                                                        v = res.outs[dId].ToString();
+                                                        v = res.outs[dId];
                                                     }
                                                     break;
                                             }
-                                            result.datas.Add(new Tuple<int, string>(usuallyDictionaryType.Id, v));
+                                            var chu = Math.Pow(10, usuallyDictionary.Precision);
+                                            result.datas.Add(new Tuple<int, string>(usuallyDictionaryType.Id, (v / chu).ToRound(usuallyDictionary.Precision).ToString()));
                                         }
                                     }
                                 }

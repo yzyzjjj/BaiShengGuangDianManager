@@ -32,7 +32,6 @@ namespace ApiManagement.Models.Notify
     /// </summary>
     public enum NotifyMsgTypeEnum
     {
-        Default,
         text,
         link,
         markdown,

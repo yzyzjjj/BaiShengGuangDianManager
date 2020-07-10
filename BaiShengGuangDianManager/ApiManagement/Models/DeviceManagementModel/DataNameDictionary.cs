@@ -10,6 +10,7 @@ namespace ApiManagement.Models.DeviceManagementModel
         public int PointerAddress { get; set; }
         public string VariableName { get; set; }
         public string Remark { get; set; } = "";
+        public int Precision { get; set; }
 
     }
 }

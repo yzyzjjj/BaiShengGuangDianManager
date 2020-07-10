@@ -117,9 +117,11 @@ namespace ApiManagement.Controllers.DeviceManagementController
             }
 
             scriptVersion.Id = id;
+            var time = DateTime.Now;
             scriptVersion.ScriptFile = scriptVersion.ScriptFile ?? "";
+            scriptVersion.MarkedDateTime = time;
             ServerConfig.ApiDb.Execute(
-                "UPDATE script_version SET `DeviceModelId` = @DeviceModelId, `ScriptName` = @ScriptName, `ScriptFile` = @ScriptFile WHERE `Id` = @Id;", scriptVersion);
+                "UPDATE script_version SET `MarkedDateTime` = @MarkedDateTime, `DeviceModelId` = @DeviceModelId, `ScriptName` = @ScriptName, `ScriptFile` = @ScriptFile WHERE `Id` = @Id;", scriptVersion);
 
             //CheckScriptVersion(id);
             ServerConfig.RedisHelper.PublishToTable();
@@ -198,8 +200,8 @@ namespace ApiManagement.Controllers.DeviceManagementController
             scriptVersion.HeartPacket = msg.Serialize();
             scriptVersion.ScriptFile = scriptVersion.ScriptFile ?? "";
             var index = ServerConfig.ApiDb.Query<int>(
-                "INSERT INTO script_version (`CreateUserId`, `MarkedDelete`, `ModifyId`, `DeviceModelId`, `ScriptName`, `ValueNumber`, `InputNumber`, `OutputNumber`, `HeartPacket`, `ScriptFile`) " +
-                 "VALUES (@CreateUserId, @MarkedDelete, @ModifyId, @DeviceModelId, @ScriptName, @ValueNumber, @InputNumber, @OutputNumber, @HeartPacket, @ScriptFile);SELECT LAST_INSERT_ID();",
+                "INSERT INTO script_version (`CreateUserId`, `DeviceModelId`, `ScriptName`, `ValueNumber`, `InputNumber`, `OutputNumber`, `HeartPacket`, `ScriptFile`) " +
+                 "VALUES (@CreateUserId, @DeviceModelId, @ScriptName, @ValueNumber, @InputNumber, @OutputNumber, @HeartPacket, @ScriptFile);SELECT LAST_INSERT_ID();",
                  scriptVersion).FirstOrDefault();
 
             var usuallyDictionaries = ServerConfig.ApiDb.Query<UsuallyDictionary>("SELECT a.Id VariableNameId, IFNULL(b.DictionaryId, 0) DictionaryId, IFNULL(b.VariableTypeId, 0) VariableTypeId FROM `usually_dictionary_type` a LEFT JOIN (SELECT * FROM `usually_dictionary` WHERE ScriptId = 0) b ON a.Id = b.VariableNameId;");
@@ -211,8 +213,8 @@ namespace ApiManagement.Controllers.DeviceManagementController
             }
 
             ServerConfig.ApiDb.Execute(
-                "INSERT INTO usually_dictionary (`CreateUserId`, `MarkedDelete`, `ModifyId`, `ScriptId`, `VariableNameId`, `DictionaryId`, `VariableTypeId`) " +
-                "VALUES (@CreateUserId, @MarkedDelete, @ModifyId, @ScriptId, @VariableNameId, @DictionaryId, @VariableTypeId);",
+                "INSERT INTO usually_dictionary (`CreateUserId`, `ScriptId`, `VariableNameId`, `DictionaryId`, `VariableTypeId`) " +
+                "VALUES (@CreateUserId, @ScriptId, @VariableNameId, @DictionaryId, @VariableTypeId);",
                 usuallyDictionaries);
 
             ServerConfig.RedisHelper.PublishToTable();
@@ -235,7 +237,6 @@ namespace ApiManagement.Controllers.DeviceManagementController
                 }
             }
 
-
             foreach (var scriptVersion in scriptVersions)
             {
                 scriptVersion.CreateUserId = Request.GetIdentityInformation();
@@ -247,8 +248,8 @@ namespace ApiManagement.Controllers.DeviceManagementController
                 scriptVersion.ScriptFile = scriptVersion.ScriptFile ?? "";
             }
             ServerConfig.ApiDb.Execute(
-                "INSERT INTO script_version (`CreateUserId`, `MarkedDelete`, `ModifyId`, `DeviceModelId`, `ScriptName`, `ValueNumber`, `InputNumber`, `OutputNumber`, `HeartPacket`, `ScriptFile`) " +
-                "VALUES (@CreateUserId, @MarkedDelete, @ModifyId, @DeviceModelId, @ScriptName, @ValueNumber, @InputNumber, @OutputNumber, @HeartPacket, @ScriptFile);",
+                "INSERT INTO script_version (`CreateUserId`, `DeviceModelId`, `ScriptName`, `ValueNumber`, `InputNumber`, `OutputNumber`, `HeartPacket`, `ScriptFile`) " +
+                "VALUES (@CreateUserId, @DeviceModelId, @ScriptName, @ValueNumber, @InputNumber, @OutputNumber, @HeartPacket, @ScriptFile);",
                 scriptVersions);
 
             ServerConfig.RedisHelper.PublishToTable();

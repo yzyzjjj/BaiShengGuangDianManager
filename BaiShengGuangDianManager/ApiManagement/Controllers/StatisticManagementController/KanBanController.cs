@@ -30,7 +30,7 @@ namespace ApiManagement.Controllers.StatisticManagementController
             if (type == -1)
             {
                 var ids = new List<MonitoringKanBanSet>();
-                ids.AddRange(ServerConfig.ApiDb.Query<MonitoringKanBanSet>("SELECT * FROM `npc_monitoring_kanban_set` WHERE `MarkedDelete` = 0;"));
+                ids.AddRange(ServerConfig.ApiDb.Query<MonitoringKanBanSet>("SELECT * FROM `npc_monitoring_kanban_set` WHERE `MarkedDelete` = 0 ORDER BY `Order`;"));
                 return new
                 {
                     errno = 0,
@@ -54,7 +54,7 @@ namespace ApiManagement.Controllers.StatisticManagementController
             {
                 errno = 0,
                 errmsg = "成功",
-                data = (AnalysisHelper.MonitoringKanBanDic.ContainsKey(type) ? AnalysisHelper.MonitoringKanBanDic[type] : new MonitoringKanBanDevice
+                data = (AnalysisHelper.MonitoringKanBanDic.ContainsKey(type) ? AnalysisHelper.MonitoringKanBanDic[type] : new MonitoringKanBan
                 {
                     Time = DateTime.Now
                 })
@@ -62,17 +62,16 @@ namespace ApiManagement.Controllers.StatisticManagementController
         }
 
         // PUT: api/KanBan/5
-        [HttpPut("{id}")]
-        public Result PutSet([FromRoute] int id, [FromBody] MonitoringKanBanSet set)
+        [HttpPut]
+        public Result PutSet([FromBody] MonitoringKanBanSet set)
         {
             var data =
-                ServerConfig.ApiDb.Query<Site>("SELECT * FROM `npc_monitoring_kanban_set` WHERE MarkedDelete = 0 AND `Id` = @Id;", new { Id = id }).FirstOrDefault();
+                ServerConfig.ApiDb.Query<Site>("SELECT * FROM `npc_monitoring_kanban_set` WHERE MarkedDelete = 0 AND `Id` = @Id;", new { Id = set.Id }).FirstOrDefault();
             if (data == null)
             {
                 return Result.GenError<Result>(Error.MonitoringKanBanSetNotExist);
             }
 
-            set.Id = id;
             set.CreateUserId = Request.GetIdentityInformation();
             set.MarkedDateTime = DateTime.Now;
             ServerConfig.ApiDb.Execute(

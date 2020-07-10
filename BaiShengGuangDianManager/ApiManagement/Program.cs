@@ -1,10 +1,7 @@
 ﻿using System;
-using System.Collections.Generic;
 using Microsoft.AspNetCore;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.Extensions.Configuration;
-using ModelBase.Base.UrlMappings;
-using ServiceStack;
 
 namespace ApiManagement
 {
@@ -25,12 +22,16 @@ namespace ApiManagement
         //        .UseStartup<Startup>();
         public static IWebHostBuilder CreateWebHostBuilder(string[] args)
         {
+#if DEBUG
+            return WebHost.CreateDefaultBuilder(args)
+                .UseStartup<Startup>();
+#else
             var configuration = new ConfigurationBuilder().SetBasePath(Environment.CurrentDirectory)
                 .AddJsonFile("appsettings.json")
                 .Build();
-
             return WebHost.CreateDefaultBuilder(args).UseConfiguration(configuration)
                 .UseStartup<Startup>();
+#endif
         }
     }
 }

@@ -64,6 +64,13 @@ namespace ApiManagement.Models.StatisticManagementModel
                     _useList = !UseListStr.IsNullOrEmpty()
                         ? JsonConvert.DeserializeObject<List<int>>(UseListStr) : new List<int>();
                 }
+
+                var str = _useList.OrderBy(x => x).ToJson();
+                if (UseListStr != str)
+                {
+                    UseListStr = str;
+                }
+
                 _useList = _useList.OrderBy(x => x).ToList();
                 return _useList;
             }
@@ -91,6 +98,13 @@ namespace ApiManagement.Models.StatisticManagementModel
                     _maxUseList = !MaxUseListStr.IsNullOrEmpty()
                         ? JsonConvert.DeserializeObject<List<int>>(MaxUseListStr) : new List<int>();
                 }
+
+                var str = _maxUseList.OrderBy(x => x).ToJson();
+                if (MaxUseListStr != str)
+                {
+                    MaxUseListStr = str;
+                }
+
                 _maxUseList = _maxUseList.OrderBy(x => x).ToList();
                 return _maxUseList;
             }
@@ -108,7 +122,7 @@ namespace ApiManagement.Models.StatisticManagementModel
         /// <summary>
         /// 日最小使用台数
         /// </summary>
-        public int MinUse { get; set; } = 0;
+        public int MinUse { get; set; } = -1;
         /// <summary>
         /// 日最大使用率
         /// </summary>
@@ -116,7 +130,7 @@ namespace ApiManagement.Models.StatisticManagementModel
         /// <summary>
         /// 日最小使用率
         /// </summary>
-        public decimal MinUseRate => AllDevice != 0 ? (MinUse * 1m / AllDevice).ToRound(4) : 0;
+        public decimal MinUseRate => AllDevice != 0 ? ((MinUse == -1 ? 0 : MinUse) * 1m / AllDevice).ToRound(4) : 0;
         /// <summary>
         /// 最大同时使用台数日
         /// </summary>
@@ -124,7 +138,7 @@ namespace ApiManagement.Models.StatisticManagementModel
         /// <summary>
         /// 最小同时使用台数日
         /// </summary>
-        public decimal MinSimultaneousUseRate { get; set; } = 0;
+        public decimal MinSimultaneousUseRate { get; set; } = -1;
         /// <summary>
         /// 单台加工利用率=加工时间/24h
         /// </summary>

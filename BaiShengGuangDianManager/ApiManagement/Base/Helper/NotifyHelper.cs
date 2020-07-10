@@ -29,10 +29,7 @@ namespace ApiManagement.Base.Helper
         /// <param name="isAtAll"></param>
         public static void Notify(string content, NotifyMsgEnum msgEnum, NotifyTypeEnum notifyType, NotifyMsgTypeEnum msgType, string[] atMobiles, bool isAtAll = false)
         {
-#if DEBUG
-            notifyType = NotifyTypeEnum.Test;
-#else
-
+#if !DEBUG
             IPHostEntry host;
             string localIp = "?";
             host = Dns.GetHostEntry(Dns.GetHostName());
@@ -48,6 +45,8 @@ namespace ApiManagement.Base.Helper
             {
                 notifyType = NotifyTypeEnum.Test;
             }
+#else
+            notifyType = NotifyTypeEnum.Test;
 #endif
             var groups = ServerConfig.ApiDb.Query<NotifyWebhook>(
                 "SELECT * FROM `notify_webhook` WHERE MarkedDelete = 0 AND `Type` = @type;", new { type = notifyType });
@@ -124,7 +123,7 @@ namespace ApiManagement.Base.Helper
             {
                 if (e != null)
                 {
-                    //Log.ErrorFormat("钉钉消息推送失败;{0}", e);
+                    Log.ErrorFormat("钉钉消息推送失败;{0}", e);
                 }
                 else if (!s.ToLower().Contains("ok"))
                 {
