@@ -43,14 +43,14 @@ namespace ApiManagement.Controllers.MaterialManagementController
 
             if (state != -1)
             {
-                p.Add((state == 0 ? "" : " AND State = @state"));
+                p.Add(" AND State = @state");
             }
 
             if (!valuer.IsNullOrEmpty())
             {
                 p.Add(" AND Valuer = @valuer");
             }
-            var sql = "SELECT * FROM `material_purchase` WHERE `MarkedDelete` = 0" + p.Join("");
+            var sql = "SELECT * FROM `material_purchase` WHERE `MarkedDelete` = 0" + p.Join("") +" ORDER BY ErpId Desc";
             var data = ServerConfig.ApiDb.Query<MaterialPurchase>(sql, new { qId, dId, name, state, valuer });
             if (qId != 0 && !data.Any())
             {

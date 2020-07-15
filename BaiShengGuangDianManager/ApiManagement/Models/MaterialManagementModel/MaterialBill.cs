@@ -15,6 +15,8 @@ namespace ApiManagement.Models.MaterialManagementModel
         public string Images { get; set; }
         public string[] ImageList => Images != null ? JsonConvert.DeserializeObject<string[]>(Images) : new string[0];
         public string Remark { get; set; }
+        public string File { get; set; }
+        public string FileUrl { get; set; }
     }
     public class MaterialBillDetail : MaterialBill
     {

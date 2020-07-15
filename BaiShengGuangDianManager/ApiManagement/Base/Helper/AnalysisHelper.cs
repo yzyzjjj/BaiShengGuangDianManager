@@ -1562,22 +1562,21 @@ namespace ApiManagement.Base.Helper
                 ServerConfig.RedisHelper.SetExpireAt(redisLock, DateTime.Now.AddMinutes(5));
                 try
                 {
-                    var all = ServerConfig.ApiDb.Query<UsuallyDictionary>("SELECT * FROM `usually_dictionary` WHERE MarkedDelete = 0;");
+                    var all = ServerConfig.ApiDb.Query<DataNameDictionary>("SELECT * FROM `data_name_dictionary` WHERE MarkedDelete = 0;");
                     var scripts = new List<ScriptVersion>();
                     foreach (var grouping in all.GroupBy(x => x.ScriptId))
                     {
                         var scriptId = grouping.Key;
-                        var us = all.Where(x => x.ScriptId == scriptId).OrderBy(x => x.VariableNameId)
-                            .ThenByDescending(y => y.VariableTypeId);
+                        var us = all.Where(x => x.ScriptId == scriptId);
 
                         var script = new ScriptVersion();
                         script.Id = scriptId;
                         script.ValueNumber = us.Count(x => x.VariableTypeId == 1);
                         script.InputNumber = us.Count(x => x.VariableTypeId == 2);
                         script.OutputNumber = us.Count(x => x.VariableTypeId == 3);
-                        script.MaxValuePointerAddress = us.Any(x => x.VariableTypeId == 1) ? us.Where(x => x.VariableTypeId == 1).Max(x => x.DictionaryId) < 300 ? 300 : us.Where(x => x.VariableTypeId == 1).Max(x => x.DictionaryId) : 300;
-                        script.MaxInputPointerAddress = us.Any(x => x.VariableTypeId == 2) ? us.Where(x => x.VariableTypeId == 2).Max(x => x.DictionaryId) < 255 ? 255 : us.Where(x => x.VariableTypeId == 2).Max(x => x.DictionaryId) : 255;
-                        script.MaxOutputPointerAddress = us.Any(x => x.VariableTypeId == 3) ? us.Where(x => x.VariableTypeId == 3).Max(x => x.DictionaryId) < 255 ? 255 : us.Where(x => x.VariableTypeId == 3).Max(x => x.DictionaryId) : 255;
+                        script.MaxValuePointerAddress = us.Any(x => x.VariableTypeId == 1) ? us.Where(x => x.VariableTypeId == 1).Max(x => x.PointerAddress) < 300 ? 300 : us.Where(x => x.VariableTypeId == 1).Max(x => x.PointerAddress) : 300;
+                        script.MaxInputPointerAddress = us.Any(x => x.VariableTypeId == 2) ? us.Where(x => x.VariableTypeId == 2).Max(x => x.PointerAddress) < 255 ? 255 : us.Where(x => x.VariableTypeId == 2).Max(x => x.PointerAddress) : 255;
+                        script.MaxOutputPointerAddress = us.Any(x => x.VariableTypeId == 3) ? us.Where(x => x.VariableTypeId == 3).Max(x => x.PointerAddress) < 255 ? 255 : us.Where(x => x.VariableTypeId == 3).Max(x => x.PointerAddress) : 255;
                         var msg = new DeviceInfoMessagePacket(script.MaxValuePointerAddress, script.MaxInputPointerAddress, script.MaxOutputPointerAddress);
                         script.HeartPacket = msg.Serialize();
                         scripts.Add(script);

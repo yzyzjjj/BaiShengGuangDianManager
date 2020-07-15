@@ -29,13 +29,14 @@ namespace ApiManagement.Controllers.DeviceManagementController
     {
         // GET: api/DeviceLibrary
         [HttpGet]
-        public DataResult GetDeviceLibrary([FromQuery] bool hard, bool work, string ids)
+        public DataResult GetDeviceLibrary([FromQuery] bool hard, bool work, string ids, int scriptId)
         {
             var idList = !ids.IsNullOrEmpty() ? ids.Split(",").Select(int.Parse) : new int[0];
             if (!hard)
             {
                 var result = new DataResult();
-                result.datas.AddRange(ServerConfig.ApiDb.Query<DeviceLibrary>($"SELECT * FROM `device_library` WHERE MarkedDelete = 0{(idList.Any() ? " AND Id IN @idList" : "")};", new { idList }));
+                result.datas.AddRange(ServerConfig.ApiDb.Query<DeviceLibrary>($"SELECT * FROM `device_library` WHERE MarkedDelete = 0{(idList.Any() ? " AND Id IN @idList" : "")}{(scriptId!=0 ? " AND ScriptId = @scriptId" : "")};", 
+                    new { idList, scriptId }));
                 return result;
             }
             else
@@ -50,12 +51,12 @@ namespace ApiManagement.Controllers.DeviceManagementController
                         "JOIN site f ON a.SiteId = f.Id " +
                         "JOIN script_version g ON a.ScriptId = g.Id " +
                         "LEFT JOIN (SELECT * FROM(SELECT * FROM maintainer ORDER BY MarkedDelete)a GROUP BY a.Account) h ON a.Administrator = h.Account " +
-                        $"WHERE a.`MarkedDelete` = 0{(idList.Any() ? " AND a.Id IN @idList" : "")} ORDER BY a.Id;", new { idList })
+                        $"WHERE a.`MarkedDelete` = 0{(idList.Any() ? " AND a.Id IN @idList" : "")}{(scriptId != 0 ? " AND a.ScriptId = @scriptId" : "")} ORDER BY a.Id;", new { idList, scriptId })
                     .ToDictionary(x => x.Id);
 
                 var faultDevices = ServerConfig.ApiDb.Query<dynamic>(
-                    $"SELECT * FROM (SELECT a.* FROM `fault_device_repair` a JOIN `device_library` b ON a.DeviceId = b.Id WHERE a.`State` != @state AND a.MarkedDelete = 0{(idList.Any() ? " AND a.Id IN @idList" : "")} ORDER BY a.DeviceId, a.State DESC ) a GROUP BY DeviceCode;",
-                    new { state = RepairStateEnum.Complete, idList });
+                    $"SELECT * FROM (SELECT a.* FROM `fault_device_repair` a JOIN `device_library` b ON a.DeviceId = b.Id WHERE a.`State` != @state AND a.MarkedDelete = 0{(idList.Any() ? " AND a.Id IN @idList" : "")}{(scriptId != 0 ? " AND a.ScriptId = @scriptId" : "")} ORDER BY a.DeviceId, a.State DESC ) a GROUP BY DeviceCode;",
+                    new { state = RepairStateEnum.Complete, idList, scriptId });
                 foreach (var faultDevice in faultDevices)
                 {
                     var device = deviceLibraryDetails.Values.FirstOrDefault(x => x.Id == faultDevice.DeviceId);
@@ -300,20 +301,6 @@ namespace ApiManagement.Controllers.DeviceManagementController
             {
                 return Result.GenError<DataResult>(Error.ScriptVersionNotExist);
             }
-
-            var usuallyDictionaries =
-                ServerConfig.ApiDb.Query<UsuallyDictionaryPrecision>("SELECT a.*, b.`Precision` FROM `usually_dictionary` a JOIN `data_name_dictionary` b ON a.DictionaryId = b.PointerAddress WHERE a.ScriptId = @ScriptId AND a.MarkedDelete = 0;", new { device.ScriptId });
-            if (!usuallyDictionaries.Any())
-            {
-                return Result.GenError<DataResult>(Error.UsuallyDictionaryNotExist);
-            }
-
-            var usuallyDictionaryTypes = ServerConfig.ApiDb.Query<UsuallyDictionaryType>("SELECT `Id` FROM `usually_dictionary_type` WHERE MarkedDelete = 0 AND IsDetail = 1;");
-            if (!usuallyDictionaryTypes.Any())
-            {
-                return Result.GenError<DataResult>(Error.UsuallyDictionaryTypeNotExist);
-            }
-
             var result = new DataResult();
 
             var url = ServerConfig.GateUrl + UrlMappings.Urls["batchSendBackGate"];
@@ -345,6 +332,20 @@ namespace ApiManagement.Controllers.DeviceManagementController
                             {
                                 if (!all)
                                 {
+
+                                    var usuallyDictionaries =
+                                        ServerConfig.ApiDb.Query<UsuallyDictionaryPrecision>("SELECT a.*, b.`Precision` FROM `usually_dictionary` a right JOIN `data_name_dictionary` b ON a.ScriptId = b.ScriptId AND a.DictionaryId = b.PointerAddress WHERE a.ScriptId = @ScriptId AND a.MarkedDelete = 0;", new { device.ScriptId });
+                                    if (!usuallyDictionaries.Any())
+                                    {
+                                        return Result.GenError<DataResult>(Error.UsuallyDictionaryNotExist);
+                                    }
+
+                                    var usuallyDictionaryTypes = ServerConfig.ApiDb.Query<UsuallyDictionaryType>("SELECT `Id` FROM `usually_dictionary_type` WHERE MarkedDelete = 0 AND IsDetail = 1;");
+                                    if (!usuallyDictionaryTypes.Any())
+                                    {
+                                        return Result.GenError<DataResult>(Error.UsuallyDictionaryTypeNotExist);
+                                    }
+
                                     foreach (var usuallyDictionaryType in usuallyDictionaryTypes)
                                     {
                                         var usuallyDictionary =
@@ -401,7 +402,49 @@ namespace ApiManagement.Controllers.DeviceManagementController
                                 }
                                 else
                                 {
-                                    result.datas.Add(res);
+                                    var usuallyDictionaries =
+                                        ServerConfig.ApiDb.Query<DataNameDictionary>("SELECT * FROM `data_name_dictionary` WHERE ScriptId = @ScriptId AND MarkedDelete = 0;", new { device.ScriptId });
+                                    if (!usuallyDictionaries.Any())
+                                    {
+                                        return Result.GenError<DataResult>(Error.UsuallyDictionaryNotExist);
+                                    }
+                                    var deviceTrueData = new DeviceTrueData();
+                                    for (var i = 0; i < res.vals.Count; i++)
+                                    {
+                                        var value = res.vals[i];
+                                        var usuallyDictionary = usuallyDictionaries.FirstOrDefault(x =>
+                                            x.VariableTypeId == 1 && x.PointerAddress == (i + 1));
+                                        if (usuallyDictionary != null)
+                                        {
+                                            var chu = Math.Pow(10, usuallyDictionary.Precision);
+                                            deviceTrueData.vals.Add((decimal)(value / chu));
+                                        }
+                                    }
+
+                                    for (var i = 0; i < res.ins.Count; i++)
+                                    {
+                                        var value = res.ins[i];
+                                        var usuallyDictionary = usuallyDictionaries.FirstOrDefault(x =>
+                                            x.VariableTypeId == 2 && x.PointerAddress == (i + 1));
+                                        if (usuallyDictionary != null)
+                                        {
+                                            var chu = Math.Pow(10, usuallyDictionary.Precision);
+                                            deviceTrueData.ins.Add((decimal)(value / chu));
+                                        }
+                                    }
+
+                                    for (var i = 0; i < res.outs.Count; i++)
+                                    {
+                                        var value = res.outs[i];
+                                        var usuallyDictionary = usuallyDictionaries.FirstOrDefault(x =>
+                                            x.VariableTypeId == 3 && x.PointerAddress == (i + 1));
+                                        if (usuallyDictionary != null)
+                                        {
+                                            var chu = Math.Pow(10, usuallyDictionary.Precision);
+                                            deviceTrueData.outs.Add((decimal)(value / chu));
+                                        }
+                                    }
+                                    result.datas.Add(deviceTrueData);
                                 }
                             }
                         }
@@ -794,11 +837,14 @@ namespace ApiManagement.Controllers.DeviceManagementController
             var isSetProcessData = ServerConfig.RedisHelper.Get<int>(ServerConfig.IsSetProcessDataKey) == 1;
             IEnumerable<dynamic> processDatas = null;
             var dictionaryIds =
-                ServerConfig.ApiDb.Query<UsuallyDictionaryDetail>("SELECT a.Id, VariableName, DictionaryId FROM `usually_dictionary_type` a JOIN `usually_dictionary` b " +
-                                                                  "ON a.Id = b.VariableNameId WHERE b.ScriptId = @ScriptId AND a.MarkedDelete = 0 ORDER BY a.Id;", new
-                                                                  {
-                                                                      device.ScriptId,
-                                                                  });
+                ServerConfig.ApiDb.Query<UsuallyDictionaryPrecision>("SELECT a.Id, VariableName, DictionaryId, b.`Precision` FROM `usually_dictionary_type` a  " +
+                                                                     "JOIN (SELECT a.*, b.`Precision` FROM `usually_dictionary` a " +
+                                                                     "JOIN `data_name_dictionary` b ON a.ScriptId = b.ScriptId AND a.DictionaryId = b.PointerAddress AND a.VariableTypeId = b.VariableTypeId " +
+                                                                     "WHERE a.ScriptId = @ScriptId AND a.MarkedDelete = 0) b ON a.Id = b.VariableNameId  " +
+                                                                     "WHERE b.ScriptId = @ScriptId AND a.MarkedDelete = 0 ORDER BY a.Id;", new
+                                                                     {
+                                                                         device.ScriptId,
+                                                                     });
 
             if (!dictionaryIds.Any())
             {
@@ -835,32 +881,44 @@ namespace ApiManagement.Controllers.DeviceManagementController
                     var j = 0;
                     if (dictionaryIds.Any(x => x.VariableName == key[j] + i))
                     {
-                        messagePacket.Vals.Add(dictionaryIds.First(x => x.VariableName == key[j] + i).DictionaryId - 1, processData.PressurizeMinute);
+                        var dd = dictionaryIds.First(x => x.VariableName == key[j] + i);
+                        var chu = (int)Math.Pow(10, dd.Precision);
+                        messagePacket.Vals.Add(dd.DictionaryId - 1, processData.PressurizeMinute * chu);
                     }
                     j++;
                     if (dictionaryIds.Any(x => x.VariableName == key[j] + i))
                     {
-                        messagePacket.Vals.Add(dictionaryIds.First(x => x.VariableName == key[j] + i).DictionaryId - 1, processData.PressurizeSecond);
+                        var dd = dictionaryIds.First(x => x.VariableName == key[j] + i);
+                        var chu = (int)Math.Pow(10, dd.Precision);
+                        messagePacket.Vals.Add(dd.DictionaryId - 1, processData.PressurizeSecond * chu);
                     }
                     j++;
                     if (dictionaryIds.Any(x => x.VariableName == key[j] + i))
                     {
-                        messagePacket.Vals.Add(dictionaryIds.First(x => x.VariableName == key[j] + i).DictionaryId - 1, processData.ProcessMinute);
+                        var dd = dictionaryIds.First(x => x.VariableName == key[j] + i);
+                        var chu = (int)Math.Pow(10, dd.Precision);
+                        messagePacket.Vals.Add(dd.DictionaryId - 1, processData.ProcessMinute * chu);
                     }
                     j++;
                     if (dictionaryIds.Any(x => x.VariableName == key[j] + i))
                     {
-                        messagePacket.Vals.Add(dictionaryIds.First(x => x.VariableName == key[j] + i).DictionaryId - 1, processData.ProcessSecond);
+                        var dd = dictionaryIds.First(x => x.VariableName == key[j] + i);
+                        var chu = (int)Math.Pow(10, dd.Precision);
+                        messagePacket.Vals.Add(dd.DictionaryId - 1, processData.ProcessSecond * chu);
                     }
                     j++;
                     if (dictionaryIds.Any(x => x.VariableName == key[j] + i))
                     {
-                        messagePacket.Vals.Add(dictionaryIds.First(x => x.VariableName == key[j] + i).DictionaryId - 1, processData.Pressure);
+                        var dd = dictionaryIds.First(x => x.VariableName == key[j] + i);
+                        var chu = (int)Math.Pow(10, dd.Precision);
+                        messagePacket.Vals.Add(dd.DictionaryId - 1, processData.Pressure * chu);
                     }
                     j++;
                     if (dictionaryIds.Any(x => x.VariableName == key[j] + i))
                     {
-                        messagePacket.Vals.Add(dictionaryIds.First(x => x.VariableName == key[j] + i).DictionaryId - 1, processData.Speed * 100);
+                        var dd = dictionaryIds.First(x => x.VariableName == key[j] + i);
+                        var chu = (int)Math.Pow(10, dd.Precision);
+                        messagePacket.Vals.Add(dd.DictionaryId - 1, processData.Speed * chu);
                     }
 
                     i++;
@@ -1040,11 +1098,13 @@ namespace ApiManagement.Controllers.DeviceManagementController
             }
 
             var dictionaryId =
-                ServerConfig.ApiDb.Query<UsuallyDictionaryDetail>("SELECT * FROM `usually_dictionary` WHERE ScriptId = @ScriptId AND VariableNameId = @VariableNameId AND MarkedDelete = 0;", new
+                ServerConfig.ApiDb.Query<UsuallyDictionaryPrecision>("SELECT a.*, b.`Precision` FROM `usually_dictionary` a JOIN `data_name_dictionary` b ON a.DictionaryId = b.PointerAddress WHERE a.ScriptId = @ScriptId AND VariableNameId = @VariableNameId AND a.MarkedDelete = 0;",
+                new
                 {
                     device.ScriptId,
                     VariableNameId = dataInfo.UsuallyDictionaryId
                 }).FirstOrDefault();
+
             if (dictionaryId == null)
             {
                 return Result.GenError<Result>(Error.UsuallyDictionaryTypeNotExist);
@@ -1052,7 +1112,8 @@ namespace ApiManagement.Controllers.DeviceManagementController
             var messagePacket = new SetValMessagePacket();
             if (dictionaryId.VariableTypeId == 1)
             {
-                messagePacket.Vals.Add(dictionaryId.DictionaryId - 1, dataInfo.Value);
+                var chu = (int)Math.Pow(10, dictionaryId.Precision);
+                messagePacket.Vals.Add(dictionaryId.DictionaryId - 1, dataInfo.Value * chu);
             }
             else
             {

@@ -686,6 +686,7 @@ namespace ApiManagement.Controllers.MaterialManagementController
                     BillId = x.BillId,
                     Code = allBill.First(y => y.Id == x.BillId).Code,
                     Type = 2,
+                    Mode = 1,
                     Purpose = materialManagement.PlanId != 0 ? materialManagement.Plan : x.Purpose,
                     PlanId = materialManagement.PlanId,
                     Number = x.Number,

@@ -446,8 +446,8 @@ namespace ApiManagement.Base.Helper
                     var departments =
                         ServerConfig.ApiDb.Query<dynamic>(
                             "SELECT a.Id, a.Department, IFNULL(MIN(b.ErpId), 0) ErpId FROM `material_department` a " +
-                            "LEFT JOIN (SELECT * FROM `material_purchase` WHERE State IN @state AND MarkedDelete = 0) b ON a.Id = b.DepartmentId WHERE a.Get = 1 AND a.MarkedDelete = 0 GROUP BY a.Id",
-                            new { state = validState });
+                            "LEFT JOIN (SELECT * FROM `material_purchase` WHERE State IN @validState AND MarkedDelete = 0) b ON a.Id = b.DepartmentId WHERE a.Get = 1 AND a.MarkedDelete = 0 GROUP BY a.Id",
+                            new { validState });
 
                     var haveDepartments =
                         ServerConfig.ApiDb.Query<MaterialDepartment>(
@@ -475,7 +475,8 @@ namespace ApiManagement.Base.Helper
                             //var zt = res.GroupBy(x => x.f_zt).Select(y => y.Key).Join();
                             var havePurchases =
                                 ServerConfig.ApiDb.Query<MaterialPurchase>(
-                                    "SELECT * FROM `material_purchase` WHERE DepartmentId = @Id AND ErpId >= @ErpId AND MarkedDelete = 0;", new { department.Id, department.ErpId });
+                                    "SELECT * FROM `material_purchase` WHERE State IN @state AND DepartmentId = @Id AND ErpId >= @ErpId AND MarkedDelete = 0;", 
+                                    new { validState, department.Id, department.ErpId });
                             var existPurchases = res.Where(x => havePurchases.Any(y => y.ErpId == x.f_id));
                             if (existPurchases.Any())
                             {

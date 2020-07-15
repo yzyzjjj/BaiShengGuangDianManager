@@ -20,6 +20,7 @@ namespace ApiManagement.Models.DeviceManagementModel
     }
     public class UsuallyDictionaryPrecision : UsuallyDictionary
     {
+        public string VariableName { get; set; }
         public int Precision { get; set; }
 
     }

@@ -255,6 +255,10 @@ namespace ApiManagement.Models.MaterialManagementModel
         /// 本次入库
         /// </summary>
         public decimal Count { get; set; }
+        /// <summary>
+        /// 入库编码
+        /// </summary>
+        public int BillId { get; set; }
         public bool HaveChange(MaterialPurchaseItem materialPurchase)
         {
             var thisProperties = GetType().GetProperties();

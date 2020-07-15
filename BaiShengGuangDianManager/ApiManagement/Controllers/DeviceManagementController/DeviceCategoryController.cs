@@ -1,12 +1,11 @@
-﻿using System;
-using System.Linq;
-using ApiManagement.Base.Server;
+﻿using ApiManagement.Base.Server;
 using ApiManagement.Models.DeviceManagementModel;
 using Microsoft.AspNetCore.Mvc;
 using ModelBase.Base.EnumConfig;
 using ModelBase.Base.Utils;
 using ModelBase.Models.Result;
-using ServiceStack;
+using System;
+using System.Linq;
 
 namespace ApiManagement.Controllers.DeviceManagementController
 {
@@ -58,11 +57,12 @@ namespace ApiManagement.Controllers.DeviceManagementController
                 return Result.GenError<Result>(Error.DeviceCategoryNotExist);
             }
 
-            var cnt =
-                ServerConfig.ApiDb.Query<int>("SELECT COUNT(1) FROM `device_category` WHERE CategoryName = @CategoryName AND MarkedDelete = 0;", new { deviceCategory.CategoryName }).FirstOrDefault();
-            if (cnt > 0)
+            if (deviceCategory.CategoryName != data.CategoryName)
             {
-                if (!deviceCategory.CategoryName.IsNullOrEmpty() && data.CategoryName != deviceCategory.CategoryName)
+                var cnt =
+                    ServerConfig.ApiDb.Query<int>("SELECT COUNT(1) FROM `device_category` WHERE Id != @id AND CategoryName = @CategoryName AND MarkedDelete = 0;",
+                        new { id, deviceCategory.CategoryName }).FirstOrDefault();
+                if (cnt > 0)
                 {
                     return Result.GenError<Result>(Error.DeviceCategoryIsExist);
                 }
@@ -72,8 +72,7 @@ namespace ApiManagement.Controllers.DeviceManagementController
             deviceCategory.CreateUserId = Request.GetIdentityInformation();
             deviceCategory.MarkedDateTime = DateTime.Now;
             ServerConfig.ApiDb.Execute(
-                "UPDATE device_category SET `MarkedDateTime` = @MarkedDateTime, `MarkedDelete` = @MarkedDelete, " +
-                "`ModifyId` = @ModifyId, `CategoryName` = @CategoryName, `Description` = @Description WHERE `Id` = @Id;", deviceCategory);
+                "UPDATE device_category SET `MarkedDateTime` = @MarkedDateTime, `CategoryName` = @CategoryName, `Description` = @Description WHERE `Id` = @Id;", deviceCategory);
 
             return Result.GenError<Result>(Error.Success);
         }
@@ -91,8 +90,8 @@ namespace ApiManagement.Controllers.DeviceManagementController
             deviceCategory.CreateUserId = Request.GetIdentityInformation();
             deviceCategory.MarkedDateTime = DateTime.Now;
             ServerConfig.ApiDb.Execute(
-                "INSERT INTO device_category (`Id`, `CreateUserId`, `MarkedDateTime`, `MarkedDelete`, `ModifyId`, `CategoryName`, `Description`) " +
-                "VALUES (@Id, @CreateUserId, @MarkedDateTime, @MarkedDelete, @ModifyId, @CategoryName, @Description);",
+                "INSERT INTO device_category (`CreateUserId`, `MarkedDateTime`, `CategoryName`, `Description`) " +
+                "VALUES (@CreateUserId, @MarkedDateTime, @CategoryName, @Description);",
                 deviceCategory);
 
             return Result.GenError<Result>(Error.Success);

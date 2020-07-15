@@ -42,4 +42,13 @@ namespace ApiManagement.Models.MaterialManagementModel
         public string Plan { get; set; }
         public IEnumerable<OpMaterialManagement> Bill { get; set; }
     }
+    public class MaterialManagementErp : MaterialBill
+    {
+        public int MId { get; set; }
+        public int BillId { get; set; }
+        public DateTime InTime { get; set; }
+        public DateTime OutTime { get; set; }
+        public decimal Number { get; set; }
+        public bool Exist { get; set; }
+    }
 }
