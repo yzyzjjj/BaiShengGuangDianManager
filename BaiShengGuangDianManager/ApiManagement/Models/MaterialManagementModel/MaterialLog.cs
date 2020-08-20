@@ -40,4 +40,12 @@ namespace ApiManagement.Models.MaterialManagementModel
         public string RelatedPerson { get; set; }
         public string Manager { get; set; }
     }
+
+    public class MaterialLogChange : MaterialLog
+    {
+        public int NewId { get; set; }
+        public DateTime NewTime { get; set; }
+        public decimal ChangeNumber { get; set; }
+        public decimal ChangeOldNumber { get; set; }
+    }
 }

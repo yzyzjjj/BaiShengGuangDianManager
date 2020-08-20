@@ -145,7 +145,7 @@ namespace ApiManagement.Controllers.RepairManagementController
             }
 
             cnt =
-                ServerConfig.ApiDb.Query<int>("SELECT COUNT(1) FROM `fault_device_repair` WHERE a.`State` != @state AND FaultTypeId = @id AND `MarkedDelete` = 0;", 
+                ServerConfig.ApiDb.Query<int>("SELECT COUNT(1) FROM `fault_device_repair` WHERE `State` != @state AND FaultTypeId = @id AND `MarkedDelete` = 0;", 
                     new { id, state = RepairStateEnum.Complete }).FirstOrDefault();
             if (cnt > 0)
             {

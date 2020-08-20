@@ -32,9 +32,11 @@ namespace ApiManagement.Base.Helper
                 ServerConfig.RedisHelper.SetForever(Debug, 0);
             }
 #if DEBUG
+            _totalTimer = new Timer(DoSthTest, null, 5000, 1000 * 10 * 1);
             Console.WriteLine("TimerHelper 调试模式已开启");
 #else
             _totalTimer = new Timer(DoSth, null, 5000, 1000 * 10 * 1);
+            Console.WriteLine("TimerHelper 发布模式已开启");
 #endif
         }
 
@@ -59,9 +61,26 @@ namespace ApiManagement.Base.Helper
             CheckManufacturePlan();
             //Log.Debug("Check_6sItem 调试模式已开启");
             Check_6sItem();
+            //Log.Debug("GetDayBalance 调试模式已开启");
+            GetDayBalance();
             AccountHelper.CheckAccount();
         }
 
+        private static void DoSthTest(object state)
+        {
+
+#if !DEBUG
+            if (ServerConfig.RedisHelper.Get<int>("Debug") != 0)
+            {
+                return;
+            }
+#endif
+            //GetDayBalance();
+        }
+
+        /// <summary>
+        /// 检查点检设备的点检安排
+        /// </summary>
         private static void CheckSpotCheckDevice()
         {
             var checkPlanPre = "CheckPlan";
@@ -133,6 +152,9 @@ namespace ApiManagement.Base.Helper
             }
         }
 
+        /// <summary>
+        /// 检查计划管理的计划状态
+        /// </summary>
         private static void CheckManufacturePlan()
         {
             var manufacturePlanPre = "CheckManufacturePlan";
@@ -286,15 +308,18 @@ namespace ApiManagement.Base.Helper
             }
         }
 
+        /// <summary>
+        /// 获取请购单和请购列表
+        /// </summary>
         private static void GetErpDepartment()
         {
             var _pre = "GetErpDepartment";
-            var lockKey = $"{_pre}:Lock";
-            if (ServerConfig.RedisHelper.SetIfNotExist(lockKey, DateTime.Now.ToStr()))
+            var redisLock = $"{_pre}:Lock";
+            if (ServerConfig.RedisHelper.SetIfNotExist(redisLock, DateTime.Now.ToStr()))
             {
                 try
                 {
-                    ServerConfig.RedisHelper.SetExpireAt(lockKey, DateTime.Now.AddMinutes(5));
+                    ServerConfig.RedisHelper.SetExpireAt(redisLock, DateTime.Now.AddMinutes(5));
                     var f = HttpServer.Get(_url, new Dictionary<string, string>
                     {
                         { "type", "getDepartment" },
@@ -369,7 +394,7 @@ namespace ApiManagement.Base.Helper
                 {
                     Log.Error(e);
                 }
-                ServerConfig.RedisHelper.Remove(lockKey);
+                ServerConfig.RedisHelper.Remove(redisLock);
             }
         }
         private class ErpDepartment
@@ -378,15 +403,18 @@ namespace ApiManagement.Base.Helper
             public List<string> member { get; set; }
         }
 
+        /// <summary>
+        /// 获取报价人
+        /// </summary>
         private static void GetErpValuer()
         {
             var _pre = "GetErpValuer";
-            var lockKey = $"{_pre}:Lock";
-            if (ServerConfig.RedisHelper.SetIfNotExist(lockKey, DateTime.Now.ToStr()))
+            var redisLock = $"{_pre}:Lock";
+            if (ServerConfig.RedisHelper.SetIfNotExist(redisLock, DateTime.Now.ToStr()))
             {
                 try
                 {
-                    ServerConfig.RedisHelper.SetExpireAt(lockKey, DateTime.Now.AddMinutes(5));
+                    ServerConfig.RedisHelper.SetExpireAt(redisLock, DateTime.Now.AddMinutes(5));
                     var f = HttpServer.Get(_url, new Dictionary<string, string>
                     {
                         { "type", "getHjry" },
@@ -421,20 +449,19 @@ namespace ApiManagement.Base.Helper
                 {
                     Log.Error(e);
                 }
-                ServerConfig.RedisHelper.Remove(lockKey);
+                ServerConfig.RedisHelper.Remove(redisLock);
             }
         }
 
         private static void GetErpPurchase()
         {
             var _pre = "GetErpPurchase";
-            var lockKey = $"{_pre}:Lock";
-            if (ServerConfig.RedisHelper.SetIfNotExist(lockKey, DateTime.Now.ToStr()))
+            var redisLock = $"{_pre}:Lock";
+            if (ServerConfig.RedisHelper.SetIfNotExist(redisLock, DateTime.Now.ToStr()))
             {
                 try
                 {
-                    ServerConfig.RedisHelper.SetExpireAt(lockKey, DateTime.Now.AddMinutes(5));
-
+                    ServerConfig.RedisHelper.SetExpireAt(redisLock, DateTime.Now.AddMinutes(5));
                     var validState = new List<MaterialPurchaseStateEnum>
                     {
                         MaterialPurchaseStateEnum.正常,
@@ -471,12 +498,13 @@ namespace ApiManagement.Base.Helper
                             var res = JsonConvert.DeserializeObject<IEnumerable<ErpPurchase>>(rr).OrderBy(x => x.f_id);
                             var updatePurchaseItems = new List<MaterialPurchaseItem>();
                             var addPurchaseItems = new List<MaterialPurchaseItem>();
+                            var updateMaterialBill = new List<MaterialBill>();
                             //var bz = res.GroupBy(x => x.f_bz).Select(y => y.Key).Join();
                             //var zt = res.GroupBy(x => x.f_zt).Select(y => y.Key).Join();
                             var havePurchases =
                                 ServerConfig.ApiDb.Query<MaterialPurchase>(
-                                    "SELECT * FROM `material_purchase` WHERE State IN @state AND DepartmentId = @Id AND ErpId >= @ErpId AND MarkedDelete = 0;", 
-                                    new { validState, department.Id, department.ErpId });
+                                    "SELECT * FROM `material_purchase` WHERE DepartmentId = @Id AND ErpId >= @ErpId AND MarkedDelete = 0;",
+                                    new { department.Id, department.ErpId });
                             var existPurchases = res.Where(x => havePurchases.Any(y => y.ErpId == x.f_id));
                             if (existPurchases.Any())
                             {
@@ -501,28 +529,12 @@ namespace ApiManagement.Base.Helper
                                     {
                                         continue;
                                     }
-                                    var purchase = new MaterialPurchase
-                                    {
-                                        CreateUserId = _createUserId,
-                                        MarkedDateTime = now,
-                                        Time = DateTime.Parse(p.f_date),
-                                        IsErp = true,
-                                        ErpId = p.f_id,
-                                        DepartmentId = dep.Id,
-                                        Purchase = p.f_title,
-                                        Number = p.f_name,
-                                        Name = p.f_ygxm,
-                                        Valuer = p.f_hjry ?? "",
-                                        Step = p.f_bz,
-                                        State = state,
-                                        IsDesign = p.f_istz == "是",
-                                        Priority = priority,
-                                    };
+                                    var purchase = new MaterialPurchase(dep.Id, p, _createUserId, now, state, priority);
                                     var existPurchase = havePurchases.FirstOrDefault(x => x.ErpId == p.f_id);
                                     if (existPurchase != null)
                                     {
                                         purchase.Id = existPurchase.Id;
-                                        if (purchase.HaveChange(existPurchase))
+                                        if (purchase.HaveChange(existPurchase) && existPurchase.State != MaterialPurchaseStateEnum.订单完成)
                                         {
                                             purchases.Add(purchase);
                                         }
@@ -533,7 +545,7 @@ namespace ApiManagement.Base.Helper
                                         }
                                         var existPurchaseItems = havePurchaseItems.Where(x => x.PurchaseId == purchase.Id);
                                         var existPurchaseItemsStock = existPurchaseItems.Where(y => y.Stock == 0);
-                                        if (purchase.State == MaterialPurchaseStateEnum.撤销)
+                                        if (purchase.State == MaterialPurchaseStateEnum.撤销 && existPurchase.State != MaterialPurchaseStateEnum.撤销)
                                         {
                                             //删除
                                             updatePurchaseItems.AddRange(existPurchaseItemsStock.Select(z =>
@@ -546,11 +558,11 @@ namespace ApiManagement.Base.Helper
                                         else
                                         {
                                             IEnumerable<MaterialPurchaseItem> l;
+                                            var erpPurchaseItems = p.goods.Select(good =>
+                                                new MaterialPurchaseItem(purchase.Id, good, _createUserId, now, _urlFile));
+
                                             if (p.goods.Any(x => x.f_id == 0))
                                             {
-                                                var erpPurchaseItems = p.goods.Select(good =>
-                                                    new MaterialPurchaseItem(purchase.Id, good, _createUserId, now, _urlFile));
-
                                                 if (erpPurchaseItems.Any())
                                                 {
                                                     var wlCode = erpPurchaseItems.GroupBy(x => x.Code).Select(y => y.Key);
@@ -658,19 +670,48 @@ namespace ApiManagement.Base.Helper
                                                 {
                                                     updatePurchaseItems.AddRange(l);
                                                 }
+
+                                                //删除存在的code但是请购id变了
+                                                var idChange = existPurchaseItems.Where(x => erpPurchaseItems.Any(y => y.Code == x.Code && y.ErpId != x.ErpId));
+                                                if (idChange.Any())
+                                                {
+                                                    var s = idChange.Select(z =>
+                                                     {
+                                                         z.MarkedDateTime = now;
+                                                         z.MarkedDelete = true;
+                                                         return z;
+                                                     });
+                                                    updatePurchaseItems.AddRange(s);
+                                                }
+
                                                 //更新
-                                                var existGoods = p.goods.Where(x =>
-                                                    existPurchaseItems.Any(y => y.ErpId == x.f_id));
+                                                var existGoods = p.goods.Where(x => existPurchaseItems.Any(y => y.ErpId == x.f_id));
                                                 foreach (var good in existGoods)
                                                 {
                                                     var g = new MaterialPurchaseItem(purchase.Id, good, _createUserId, now, _urlFile);
                                                     var existGood = existPurchaseItems.FirstOrDefault(x => x.ErpId == good.f_id);
+                                                    var change = idChange.FirstOrDefault(x => x.Code == good.f_wlbm);
                                                     if (existGood != null)
                                                     {
                                                         g.Id = existGood.Id;
                                                         g.PurchaseId = existGood.PurchaseId;
                                                         if (g.HaveChange(existGood))
                                                         {
+                                                            updatePurchaseItems.Add(g);
+                                                        }
+                                                        if (change != null && change.BillId > 0)
+                                                        {
+                                                            g.Stock = change.Stock;
+                                                            g.BillId = change.BillId;
+                                                            if (g.Price != change.Price)
+                                                            {
+                                                                updateMaterialBill.Add(new MaterialBill
+                                                                {
+                                                                    Id = g.BillId,
+                                                                    MarkedDateTime = now,
+                                                                    Price = g.Price
+                                                                });
+                                                            }
                                                             updatePurchaseItems.Add(g);
                                                         }
                                                     }
@@ -680,6 +721,27 @@ namespace ApiManagement.Base.Helper
                                                     .Select(z => new MaterialPurchaseItem(purchase.Id, z, _createUserId, now, _urlFile));
                                                 if (l.Any())
                                                 {
+                                                    if (idChange.Any())
+                                                    {
+                                                        foreach (var ll in l)
+                                                        {
+                                                            var change = idChange.FirstOrDefault(x => x.Code == ll.Code);
+                                                            if (change != null && change.BillId > 0)
+                                                            {
+                                                                ll.Stock = change.Stock;
+                                                                ll.BillId = change.BillId;
+                                                                if (ll.Price != change.Price)
+                                                                {
+                                                                    updateMaterialBill.Add(new MaterialBill
+                                                                    {
+                                                                        Id = ll.BillId,
+                                                                        MarkedDateTime = now,
+                                                                        Price = ll.Price
+                                                                    });
+                                                                }
+                                                            }
+                                                        }
+                                                    }
                                                     addPurchaseItems.AddRange(l);
                                                 }
                                             }
@@ -719,28 +781,13 @@ namespace ApiManagement.Base.Helper
 
                                     p.DepartmentId = dep.Id;
                                     p.valid = true;
-                                    purchases.Add(new MaterialPurchase
-                                    {
-                                        CreateUserId = _createUserId,
-                                        MarkedDateTime = now,
-                                        Time = DateTime.Parse(p.f_date),
-                                        IsErp = true,
-                                        ErpId = p.f_id,
-                                        DepartmentId = dep.Id,
-                                        Purchase = p.f_title,
-                                        Number = p.f_name,
-                                        Name = p.f_ygxm,
-                                        Step = p.f_bz,
-                                        State = state,
-                                        IsDesign = p.f_istz == "是",
-                                        Priority = priority,
-                                    });
+                                    purchases.Add(new MaterialPurchase(dep.Id, p, _createUserId, now, state, priority));
                                 }
                                 if (purchases.Any())
                                 {
                                     ServerConfig.ApiDb.Execute(
-                                    "INSERT INTO `material_purchase` (`CreateUserId`, `MarkedDateTime`, `Time`, `IsErp`, `ErpId`, `DepartmentId`, `Purchase`, `Number`, `Name`, `Step`, `State`, `IsDesign`, `Priority`) " +
-                                    "VALUES (@CreateUserId, @MarkedDateTime, @Time, @IsErp, @ErpId, @DepartmentId, @Purchase, @Number, @Name, @Step, @State, @IsDesign, @Priority);", purchases);
+                                    "INSERT INTO `material_purchase` (`CreateUserId`, `MarkedDateTime`, `Time`, `IsErp`, `ErpId`, `DepartmentId`, `Purchase`, `Number`, `Name`, `Valuer`, `Step`, `State`, `IsDesign`, `Priority`) " +
+                                    "VALUES (@CreateUserId, @MarkedDateTime, @Time, @IsErp, @ErpId, @DepartmentId, @Purchase, @Number, @Name, @Valuer, @Step, @State, @IsDesign, @Priority);", purchases);
 
                                     havePurchases =
                                         ServerConfig.ApiDb.Query<MaterialPurchase>(
@@ -764,8 +811,8 @@ namespace ApiManagement.Base.Helper
                             if (addPurchaseItems.Any())
                             {
                                 ServerConfig.ApiDb.Execute(
-                                    "INSERT INTO `material_purchase_item` (`CreateUserId`, `MarkedDateTime`, `Time`, `IsErp`, `ErpId`, `PurchaseId`, `Code`, `Class`, `Category`, `Name`, `Supplier`, `Specification`, `Number`, `Unit`, `Remark`, `Purchaser`, `Order`, `EstimatedTime`, `ArrivalTime`, `File`, `FileUrl`, `IsInspection`, `Currency`, `Payment`, `Transaction`, `Invoice`, `TaxPrice`, `TaxAmount`, `Price`) " +
-                                    "VALUES (@CreateUserId, @MarkedDateTime, @Time, @IsErp, @ErpId, @PurchaseId, @Code, @Class, @Category, @Name, @Supplier, @Specification, @Number, @Unit, @Remark, @Purchaser, @Order, @EstimatedTime, @ArrivalTime, @File, @FileUrl, @IsInspection, @Currency, @Payment, @Transaction, @Invoice, @TaxPrice, @TaxAmount, @Price);",
+                                    "INSERT INTO `material_purchase_item` (`CreateUserId`, `MarkedDateTime`, `Time`, `IsErp`, `ErpId`, `PurchaseId`, `Code`, `Class`, `Category`, `Name`, `Supplier`, `Specification`, `Number`, `Unit`, `Remark`, `Purchaser`, `Order`, `EstimatedTime`, `ArrivalTime`, `File`, `FileUrl`, `IsInspection`, `Currency`, `Payment`, `Transaction`, `Invoice`, `TaxPrice`, `TaxAmount`, `Price`, `Stock`, `BillId`) " +
+                                    "VALUES (@CreateUserId, @MarkedDateTime, @Time, @IsErp, @ErpId, @PurchaseId, @Code, @Class, @Category, @Name, @Supplier, @Specification, @Number, @Unit, @Remark, @Purchaser, @Order, @EstimatedTime, @ArrivalTime, @File, @FileUrl, @IsInspection, @Currency, @Payment, @Transaction, @Invoice, @TaxPrice, @TaxAmount, @Price, @Stock, @BillId);",
                                     addPurchaseItems);
                             }
 
@@ -776,7 +823,14 @@ namespace ApiManagement.Base.Helper
                                     "`Specification` = @Specification, `Number` = @Number, `Unit` = @Unit, `Remark` = @Remark, `Purchaser` = @Purchaser, `Order` = @Order, " +
                                     "`EstimatedTime` = @EstimatedTime, `ArrivalTime` = @ArrivalTime, `File` = @File, `FileUrl` = @FileUrl, `IsInspection` = @IsInspection, " +
                                     "`Currency` = @Currency, `Payment` = @Payment, `Transaction` = @Transaction, `Invoice` = @Invoice, `TaxPrice` = @TaxPrice, `TaxAmount` = @TaxAmount, " +
-                                    "`Price` = @Price WHERE `Id` = @Id;", updatePurchaseItems);
+                                    "`Price` = @Price, `Stock` = IF(@BillId > 0, @Stock, `Stock`), `BillId` = IF(@BillId > 0, @BillId, `BillId`) WHERE `Id` = @Id;", updatePurchaseItems);
+                            }
+
+                            if (updateMaterialBill.Any())
+                            {
+                                ServerConfig.ApiDb.Execute(
+                                    "UPDATE `material_bill` SET `MarkedDateTime` = @MarkedDateTime, `Price` = @Price WHERE `Id` = @Id;",
+                                    updateMaterialBill);
                             }
                         }
                     }
@@ -785,11 +839,11 @@ namespace ApiManagement.Base.Helper
                 {
                     Log.Error(e);
                 }
-                ServerConfig.RedisHelper.Remove(lockKey);
+                ServerConfig.RedisHelper.Remove(redisLock);
             }
         }
 
-        private class ErpPurchase
+        public class ErpPurchase
         {
             /// <summary>
             /// 
@@ -942,6 +996,156 @@ namespace ApiManagement.Base.Helper
             /// </summary>
             public string f_wsdj { get; set; }
         }
-    }
 
+        /// <summary>
+        /// 获取每日库存结存
+        /// </summary>
+        private static void GetDayBalance()
+        {
+            var _pre = "GetDayBalance";
+            var redisLock = $"{_pre}:Lock";
+            if (ServerConfig.RedisHelper.SetIfNotExist(redisLock, DateTime.Now.ToStr()))
+            {
+                try
+                {
+                    ServerConfig.RedisHelper.SetExpireAt(redisLock, DateTime.Now.AddMinutes(5));
+                    DayBalance();
+                }
+                catch (Exception e)
+                {
+                    Log.Error(e);
+                }
+                ServerConfig.RedisHelper.Remove(redisLock);
+            }
+        }
+
+        /// <summary>
+        /// 获取每日库存结存
+        /// </summary>
+        private static void DayBalance(DateTime calTime = default(DateTime))
+        {
+            var _pre = "GetDayBalance";
+            var timeKey = $"{_pre}:Time";
+            try
+            {
+                var now = DateTime.Today;
+                var lastDay = DateTime.Today;
+                if (!ServerConfig.RedisHelper.Exists(timeKey))
+                {
+                    ServerConfig.RedisHelper.SetForever(timeKey, lastDay.ToStr());
+                }
+                else
+                {
+                    lastDay = calTime == default(DateTime) ? ServerConfig.RedisHelper.Get<DateTime>(timeKey) : calTime.Date;
+                }
+
+                if (calTime == default(DateTime) && (now - lastDay).TotalDays > 1)
+                {
+                    lastDay = now.AddDays(-1);
+                }
+
+                var materialStatistics = ServerConfig.ApiDb.Query<MaterialStatistic>(
+                    "SELECT a.`Id` BillId, a.`Code`, b.`CategoryId`, b.`Category`, b.`NameId`, b.`Name`, b.`SupplierId`, b.`Supplier`, a.`SpecificationId`, b.`Specification`, a.`SiteId`, d.Site, a.`Unit`, a.`Stock`, IFNULL(c.Number, 0) TodayNumber, a.`Price` TodayPrice, IFNULL(c.Number, 0) * a.`Price` TodayAmount FROM `material_bill` a JOIN (SELECT a.*, b.CategoryId, b.Category, b.NameId, b.`Name`, b.Supplier FROM `material_specification` a JOIN (SELECT a.*, b.`Name`, b.CategoryId, b.Category FROM `material_supplier` a JOIN (SELECT a.*, b.Category FROM `material_name` a JOIN `material_category` b ON a.CategoryId = b.Id) b ON a.NameId = b.Id) b ON a.SupplierId = b.Id) b ON a.SpecificationId = b.Id LEFT JOIN `material_management` c ON a.Id = c.BillId JOIN `material_site` d ON a.SiteId = d.Id WHERE a.`MarkedDelete` = 0 AND IFNULL(c.Number, 0) > 0 ORDER BY a.Id;").ToList();
+
+                //昨日单价数量总价
+                var yesterdayMaterialStatistics = ServerConfig.ApiDb.Query<MaterialStatistic>(
+                    "SELECT BillId, TodayNumber, TodayPrice, TodayAmount FROM `material_balance` WHERE Time = @Time ORDER BY BillId;", new { Time = lastDay });
+                if (!yesterdayMaterialStatistics.Any())
+                {
+                    yesterdayMaterialStatistics = materialStatistics;
+                }
+
+                var notExist =
+                    yesterdayMaterialStatistics.Where(x => materialStatistics.All(y => y.BillId != x.BillId));
+
+                if (notExist.Any())
+                {
+                    materialStatistics.AddRange(ServerConfig.ApiDb.Query<MaterialStatistic>(
+                        "SELECT a.`Id` BillId, a.`Code`, b.`CategoryId`, b.`Category`, b.`NameId`, b.`Name`, b.`SupplierId`, b.`Supplier`, a.`SpecificationId`, b.`Specification`, a.`SiteId`, d.Site, a.`Unit`, a.`Stock`, IFNULL(c.Number, 0) TodayNumber, a.`Price` TodayPrice, IFNULL(c.Number, 0) * a.`Price` TodayAmount FROM `material_bill` a JOIN (SELECT a.*, b.CategoryId, b.Category, b.NameId, b.`Name`, b.Supplier FROM `material_specification` a JOIN (SELECT a.*, b.`Name`, b.CategoryId, b.Category FROM `material_supplier` a JOIN (SELECT a.*, b.Category FROM `material_name` a JOIN `material_category` b ON a.CategoryId = b.Id) b ON a.NameId = b.Id) b ON a.SupplierId = b.Id) b ON a.SpecificationId = b.Id LEFT JOIN `material_management` c ON a.Id = c.BillId JOIN `material_site` d ON a.SiteId = d.Id WHERE a.Id IN @Id ORDER BY a.Id;",
+                        new { Id = notExist.Select(x => x.BillId) }));
+                }
+                if (yesterdayMaterialStatistics.Any())
+                {
+                    foreach (var ne in yesterdayMaterialStatistics)
+                    {
+                        var bill = materialStatistics.FirstOrDefault(x => x.BillId == ne.BillId);
+                        if (bill != null)
+                        {
+                            bill.LastNumber = ne.TodayNumber;
+                            bill.LastPrice = ne.TodayPrice;
+                            bill.LastAmount = ne.TodayAmount;
+                        }
+                    }
+                }
+
+                //昨日入库领用
+                yesterdayMaterialStatistics = ServerConfig.ApiDb.Query<MaterialStatistic>(
+                   "SELECT a.BillId, SUM(IF(a.Type = 1, a.Number, 0)) Increase,  SUM(IF(a.Type = 2, a.Number, 0)) Consume, SUM(IF(a.Type = 3 AND `Mode` = 0, a.Number, 0)) CorrectIn, SUM(IF(a.Type = 3 AND `Mode` = 1, a.Number, 0)) CorrectCon, SUM(IF(a.Type = 3, a.Number, 0)) Correct FROM material_log a JOIN material_bill b ON a.BillId = b.Id WHERE DATE(Time) = @Time GROUP BY a.BillId;", new { Time = lastDay });
+                //"SELECT a.BillId, SUM(IF(a.Type = 1, a.Number, 0)) Increase,  SUM(IF(a.Type = 1, a.Number, 0)) * b.Price IncreaseAmount,  SUM(IF(a.Type = 2, a.Number, 0)) Consume, SUM(IF(a.Type = 2, a.Number, 0)) * b.Price ConsumeAmount, SUM(IF(a.Type = 3 AND `Mode` = 0, a.Number, 0)) CorrectIn,  SUM(IF(a.Type = 3 AND `Mode` = 0, a.Number, 0)) * b.Price CorrectInAmount, SUM(IF(a.Type = 3 AND `Mode` = 1, a.Number, 0)) CorrectCon,  SUM(IF(a.Type = 3 AND `Mode` = 1, a.Number, 0)) * b.Price CorrectConAmount, SUM(IF(a.Type = 3, a.Number, 0)) Correct,  SUM(IF(a.Type = 3, a.Number, 0)) * b.Price CorrectAmount FROM material_log a JOIN material_bill b ON a.BillId = b.Id WHERE DATE(Time) = @Time GROUP BY a.BillId;", new { Time = lastDay });
+                notExist =
+                  yesterdayMaterialStatistics.Where(x => materialStatistics.All(y => y.BillId != x.BillId));
+
+                if (notExist.Any())
+                {
+                    materialStatistics.AddRange(ServerConfig.ApiDb.Query<MaterialStatistic>(
+                        "SELECT a.`Id` BillId, a.`Code`, b.`CategoryId`, b.`Category`, b.`NameId`, b.`Name`, b.`SupplierId`, b.`Supplier`, a.`SpecificationId`, b.`Specification`, a.`SiteId`, d.Site, a.`Unit`, a.`Stock`, IFNULL(c.Number, 0) TodayNumber, a.`Price` TodayPrice, IFNULL(c.Number, 0) * a.`Price` TodayAmount FROM `material_bill` a JOIN (SELECT a.*, b.CategoryId, b.Category, b.NameId, b.`Name`, b.Supplier FROM `material_specification` a JOIN (SELECT a.*, b.`Name`, b.CategoryId, b.Category FROM `material_supplier` a JOIN (SELECT a.*, b.Category FROM `material_name` a JOIN `material_category` b ON a.CategoryId = b.Id) b ON a.NameId = b.Id) b ON a.SupplierId = b.Id) b ON a.SpecificationId = b.Id LEFT JOIN `material_management` c ON a.Id = c.BillId JOIN `material_site` d ON a.SiteId = d.Id WHERE a.Id IN @Id ORDER BY a.Id;",
+                        new { Id = notExist.Select(x => x.BillId) }));
+                }
+
+                if (yesterdayMaterialStatistics.Any())
+                {
+                    foreach (var ne in yesterdayMaterialStatistics)
+                    {
+                        var bill = materialStatistics.FirstOrDefault(x => x.BillId == ne.BillId);
+                        if (bill != null)
+                        {
+                            bill.Increase = ne.Increase;
+                            bill.IncreaseAmount = ne.Increase * bill.LastPrice;
+                            bill.Consume = ne.Consume;
+                            bill.ConsumeAmount = ne.Consume * bill.LastPrice;
+                            bill.CorrectIn = ne.CorrectIn;
+                            bill.CorrectInAmount = ne.CorrectIn * bill.LastPrice;
+                            bill.CorrectCon = ne.CorrectCon;
+                            bill.CorrectConAmount = ne.CorrectCon * bill.LastPrice;
+                            bill.Correct = ne.Correct;
+                            bill.CorrectAmount = ne.Correct * bill.LastPrice;
+                        }
+                    }
+                }
+
+                foreach (var materialStatistic in materialStatistics)
+                {
+                    materialStatistic.Time = lastDay;
+                }
+                ServerConfig.ApiDb.Execute(
+                    "INSERT INTO `material_balance` (`Time`, `Code`, `BillId`, `CategoryId`, `Category`, `NameId`, `Name`, `SupplierId`, `Supplier`, `SpecificationId`, " +
+                    "`Specification`, `SiteId`, `Site`, `Unit`, `Stock`, `LastNumber`, `LastPrice`, `LastAmount`, `TodayNumber`, `TodayPrice`, " +
+                    "`TodayAmount`, `Increase`, `IncreaseAmount`, `Consume`, `ConsumeAmount`, `CorrectIn`, `CorrectInAmount`, `CorrectCon`, `CorrectConAmount`, " +
+                    "`Correct`, `CorrectAmount`) " +
+                    "VALUES (@Time, @Code, @BillId, @CategoryId, @Category, @NameId, @Name, @SupplierId, @Supplier, @SpecificationId, @Specification, " +
+                    "@SiteId, @Site, @Unit, @Stock, @LastNumber, @LastPrice, @LastAmount, @TodayNumber, @TodayPrice, " +
+                    "@TodayAmount, @Increase, @IncreaseAmount, @Consume, @ConsumeAmount, @CorrectIn, @CorrectInAmount, @CorrectCon, @CorrectConAmount, " +
+                    "@Correct, @CorrectAmount) " +
+                    "ON DUPLICATE KEY UPDATE " +
+                    "`Code` = @Code, `CategoryId` = @CategoryId, `Category` = @Category, `NameId` = @NameId, `Name` = @Name, `SupplierId` = @SupplierId, " +
+                    "`Supplier` = @Supplier, `SpecificationId` = @SpecificationId, `Specification` = @Specification, `SiteId` = @SiteId, `Site` = @Site, `Unit` = @Unit, " +
+                    "`Stock` = @Stock, `LastNumber` = @LastNumber, `LastPrice` = @LastPrice, `LastAmount` = @LastAmount, `TodayNumber` = @TodayNumber, " +
+                    "`TodayPrice` = @TodayPrice, `TodayAmount` = @TodayAmount, `Increase` = @Increase, `IncreaseAmount` = @IncreaseAmount, `Consume` = @Consume, " +
+                    "`ConsumeAmount` = @ConsumeAmount, `CorrectIn` = @CorrectIn, `CorrectInAmount` = @CorrectInAmount, `CorrectCon` = @CorrectCon, `CorrectConAmount` = @CorrectConAmount, " +
+                    "`Correct` = @Correct, `CorrectAmount` = @CorrectAmount", materialStatistics);
+
+                if (calTime == default(DateTime))
+                {
+                    if (!lastDay.InSameDay(now))
+                    {
+                        ServerConfig.RedisHelper.SetForever(timeKey, now.ToStr());
+                    }
+                }
+            }
+            catch (Exception e)
+            {
+                Log.Error(e);
+            }
+        }
+    }
 }

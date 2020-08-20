@@ -5,6 +5,8 @@ namespace ApiManagement.Models.StatisticManagementModel
 
     public class MonitoringProductionData
     {
+        public int DeviceId { get; set; }
+        public string Code { get; set; }
         public DateTime Time { get; set; }
         public int FaChu { get; set; }
         public int HeGe { get; set; }

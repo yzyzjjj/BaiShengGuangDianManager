@@ -12,6 +12,13 @@ namespace ApiManagement.Models.MaterialManagementModel
         public decimal Number { get; set; }
 
     }
+    /// <summary>
+    /// 入库修正/领用修正
+    /// </summary>
+    public class MaterialManagementChange : MaterialManagement
+    {
+        public bool Init { get; set; }
+    }
     public class MaterialManagementDetail : MaterialManagement
     {
         public int CategoryId { get; set; }

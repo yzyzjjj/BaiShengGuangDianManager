@@ -1,7 +1,4 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using ApiManagement.Base.Server;
+﻿using ApiManagement.Base.Server;
 using ApiManagement.Models.DeviceManagementModel;
 using ApiManagement.Models.FlowCardManagementModel;
 using ApiManagement.Models.ProcessManagementModel;
@@ -10,6 +7,9 @@ using ModelBase.Base.EnumConfig;
 using ModelBase.Base.Utils;
 using ModelBase.Models.Result;
 using ServiceStack;
+using System;
+using System.Collections.Generic;
+using System.Linq;
 
 namespace ApiManagement.Controllers.FlowCardManagementController
 {
@@ -636,19 +636,21 @@ namespace ApiManagement.Controllers.FlowCardManagementController
             }
 
             var id = group.First().Key;
-            var cnt =
-                ServerConfig.ApiDb.Query<int>("SELECT COUNT(1) FROM `flowcard_library` WHERE Id = @id AND MarkedDelete = 0;", new { id }).FirstOrDefault();
-            if (cnt == 0)
+            var flowCard =
+                ServerConfig.ApiDb.Query<FlowCardLibrary>("SELECT * FROM `flowcard_library` WHERE Id = @id AND MarkedDelete = 0;", new { id }).FirstOrDefault();
+            if (flowCard == null)
             {
                 return Result.GenError<Result>(Error.FlowCardLibraryNotExist);
             }
 
+            var cnt = 0;
+            IEnumerable<Processor> processors = null;
             var processorIds = flowCardProcessSteps.GroupBy(x => x.ProcessorId).Where(x => x.Key != 0).Select(x => x.Key);
             if (processorIds.Any())
             {
-                cnt =
-                    ServerConfig.ApiDb.Query<int>("SELECT COUNT(1) FROM `processor` WHERE `Id` in @ProcessorId AND MarkedDelete = 0;", new { ProcessorId = processorIds }).FirstOrDefault();
-                if (cnt == 0 || cnt != processorIds.Count())
+                processors =
+                    ServerConfig.ApiDb.Query<Processor>("SELECT * FROM `processor` WHERE `Id` in @ProcessorId AND MarkedDelete = 0;", new { ProcessorId = processorIds });
+                if (!processors.Any() || processors.Count() != processorIds.Count())
                 {
                     return Result.GenError<DataResult>(Error.ProcessorNotExist);
                 }
@@ -673,30 +675,85 @@ namespace ApiManagement.Controllers.FlowCardManagementController
                     return Result.GenError<DataResult>(Error.DeviceNotExist);
                 }
             }
-            var exist = ServerConfig.ApiDb.Query<FlowCardProcessStepDetail>("SELECT * FROM `flowcard_process_step` " +
-                                                                            "WHERE MarkedDelete = 0 AND FlowCardId = @FlowCardId;", new { FlowCardId = id });
+            var exist = ServerConfig.ApiDb.Query<FlowCardProcessStepDetail>("SELECT a.*, b.StepName FROM `flowcard_process_step` a " +
+                                                                            "JOIN `device_process_step` b ON a.ProcessStepId = b.Id " +
+                                                                            "WHERE a.MarkedDelete = 0 AND b.MarkedDelete = 0 AND a.FlowCardId = @FlowCardId;", new { FlowCardId = id });
 
-            var update = flowCardProcessSteps.Where(x => x.Id != 0 && exist.Any(y => y.Id == x.Id
-                         && (y.ProcessorId != x.ProcessorId
-                              || y.ProcessTime != x.ProcessTime
-                              || y.SurveyorId != x.SurveyorId
-                              || y.SurveyTime != x.SurveyTime
-                              || y.QualifiedNumber != x.QualifiedNumber
-                              || y.UnqualifiedNumber != x.UnqualifiedNumber
-                              || y.DeviceId != x.DeviceId))).ToList();
+
+            //var update = flowCardProcessSteps.Where(x => x.Id != 0 && exist.Any(y => y.Id == x.Id
+            //             && (y.ProcessorId != x.ProcessorId
+            //                  || y.ProcessTime != x.ProcessTime
+            //                  || y.SurveyorId != x.SurveyorId
+            //                  || y.SurveyTime != x.SurveyTime
+            //                  || y.QualifiedNumber != x.QualifiedNumber
+            //                  || y.UnqualifiedNumber != x.UnqualifiedNumber
+            //                  || y.DeviceId != x.DeviceId))).ToList();
+
+            var update = flowCardProcessSteps
+                .Select(ClassExtension.ParentCopyToChild<FlowCardProcessStep, FlowCardProcessStepDetail>)
+                .Where(x => x.Id != 0 && exist.Any(y => y.Id == x.Id && (y.HaveChange(x)))).ToList();
 
             var createUserId = Request.GetIdentityInformation();
             var time = DateTime.Now;
+
             foreach (var processStep in update)
             {
                 processStep.CreateUserId = createUserId;
                 processStep.MarkedDateTime = time;
                 processStep.IsReport = true;
+                var step = exist.FirstOrDefault(x => x.Id == processStep.Id);
+                var processor =
+                    processors != null && processors.FirstOrDefault(x => x.Id == processStep.ProcessorId) != null
+                        ? processors.FirstOrDefault(x => x.Id == processStep.ProcessorId).ProcessorName
+                        : "";
+                //var paramDic = new Dictionary<string, string[]>
+                //{
+                //    {"粗抛机", new []{ "CuPaoTime", "CuPaoFaChu", "CuPaoHeGe", "CuPaoLiePian", "CuPaoDeviceId"}},
+                //    {"精抛机", new []{ "JingPaoTime", "JingPaoFaChu", "JingPaoHeGe", "JingPaoLiePian", "JingPaoDeviceId"}},
+                //    {"研磨机", new []{ "YanMoTime", "YanMoFaChu", "YanMoHeGe", "YanMoLiePian", "YanMoDeviceId"}},
+                //};
+                if (step != null)
+                {
+                    switch (step.StepName)
+                    {
+                        case "研磨":
+                            flowCard.YanMoTime = processStep.ProcessTime;
+                            flowCard.YanMoDeviceId = processStep.DeviceId;
+                            flowCard.YanMoFaChu = processStep.QualifiedNumber + processStep.UnqualifiedNumber;
+                            flowCard.YanMoHeGe = processStep.QualifiedNumber;
+                            flowCard.YanMoLiePian = processStep.UnqualifiedNumber;
+                            flowCard.YanMoJiaGongRen = processor;
+                            break;
+                        case "粗抛":
+                            flowCard.CuPaoTime = processStep.ProcessTime;
+                            flowCard.CuPaoDeviceId = processStep.DeviceId;
+                            flowCard.CuPaoFaChu = processStep.QualifiedNumber + processStep.UnqualifiedNumber;
+                            flowCard.CuPaoHeGe = processStep.QualifiedNumber;
+                            flowCard.CuPaoLiePian = processStep.UnqualifiedNumber;
+                            flowCard.CuPaoJiaGongRen = processor;
+                            break;
+                        case "精抛":
+                            flowCard.JingPaoTime = processStep.ProcessTime;
+                            flowCard.JingPaoDeviceId = processStep.DeviceId;
+                            flowCard.JingPaoFaChu = processStep.QualifiedNumber + processStep.UnqualifiedNumber;
+                            flowCard.JingPaoHeGe = processStep.QualifiedNumber;
+                            flowCard.JingPaoLiePian = processStep.UnqualifiedNumber;
+                            flowCard.JingPaoJiaGongRen = processor;
+                            break;
+                    }
+                }
             }
             ServerConfig.ApiDb.Execute(
                 "UPDATE flowcard_process_step SET `MarkedDateTime` = @MarkedDateTime, `ProcessorId` = @ProcessorId, `ProcessTime` = @ProcessTime, " +
                 "`SurveyorId` = @SurveyorId, `SurveyTime` = @SurveyTime, `QualifiedNumber` = @QualifiedNumber, `UnqualifiedNumber` = @UnqualifiedNumber, " +
                 "`DeviceId` = @DeviceId, `IsReport` = @IsReport, `QualifiedRange` = @QualifiedRange, `QualifiedMode` = @QualifiedMode WHERE `Id` = @Id;", update);
+
+
+            ServerConfig.ApiDb.Execute(
+                "UPDATE `flowcard_library` SET " +
+                "`YanMoTime` = @YanMoTime, `YanMoDeviceId` = @YanMoDeviceId, `YanMoFaChu` = @YanMoFaChu, `YanMoHeGe` = @YanMoHeGe, `YanMoLiePian` = @YanMoLiePian, `YanMoJiaGongRen` = @YanMoJiaGongRen, " +
+                "`CuPaoTime` = @CuPaoTime, `CuPaoDeviceId` = @CuPaoDeviceId, `CuPaoFaChu` = @CuPaoFaChu, `CuPaoHeGe` = @CuPaoHeGe, `CuPaoLiePian` = @CuPaoLiePian, `CuPaoJiaGongRen` = @CuPaoJiaGongRen, " +
+                "`JingPaoTime` = @JingPaoTime, `JingPaoDeviceId` = @JingPaoDeviceId, `JingPaoFaChu` = @JingPaoFaChu, `JingPaoHeGe` = @JingPaoHeGe, `JingPaoLiePian` = @JingPaoLiePian, `JingPaoJiaGongRen` = @JingPaoJiaGongRen WHERE `Id` = @Id;", flowCard);
 
             return Result.GenError<Result>(Error.Success);
         }

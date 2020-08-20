@@ -21,6 +21,186 @@ namespace ApiManagement.Controllers.MaterialManagementController
     //[Authorize]
     public class MaterialManagementController : ControllerBase
     {
+        // GET: api/MaterialManagement/Choose?categoryId=0&nameId=0&supplierId=0&specificationId=0&qId=0&siteId
+        [HttpGet("Choose")]
+        public MaterialChooseResult GetMaterialManagementChoose([FromQuery] int categoryId, int nameId, int supplierId, int specificationId, int siteId)
+        {
+            var result = new MaterialChooseResult();
+            if (categoryId != 0 && nameId == 0 && supplierId == 0 && specificationId == 0)
+            {
+                //if (result.Categories.Any())
+                //{
+                result.Names.AddRange(
+                ServerConfig.ApiDb.Query<dynamic>($"SELECT Id, CategoryId, `Name` FROM `material_name` WHERE `MarkedDelete` = 0 AND CategoryId = @Id;", new { Id = categoryId }));
+                //}
+                if (result.Names.Any())
+                {
+                    result.Suppliers.AddRange(
+                    ServerConfig.ApiDb.Query<dynamic>($"SELECT Id, NameId, `Supplier` FROM `material_supplier` WHERE `MarkedDelete` = 0 AND NameId IN @Id;", new { Id = result.Names.Select(x => x.Id) }));
+                }
+
+                if (result.Suppliers.Any())
+                {
+                    result.Specifications.AddRange(
+                    ServerConfig.ApiDb.Query<dynamic>($"SELECT Id, SupplierId, `Specification` FROM `material_specification` WHERE `MarkedDelete` = 0 AND SupplierId IN @Id;", new { Id = result.Suppliers.Select(x => x.Id) }));
+                }
+            }
+            else if (nameId != 0 && supplierId == 0 && specificationId == 0)
+            {
+                //if (result.Names.Any())
+                //{
+                result.Suppliers.AddRange(
+                ServerConfig.ApiDb.Query<dynamic>($"SELECT Id, NameId, `Supplier` FROM `material_supplier` WHERE `MarkedDelete` = 0 AND NameId = @Id;", new { Id = nameId }));
+                //}
+
+                if (result.Suppliers.Any())
+                {
+                    result.Specifications.AddRange(
+                    ServerConfig.ApiDb.Query<dynamic>($"SELECT Id, SupplierId, `Specification` FROM `material_specification` WHERE `MarkedDelete` = 0 AND SupplierId IN @Id;", new { Id = result.Suppliers.Select(x => x.Id) }));
+                }
+            }
+            else if (supplierId != 0 && specificationId == 0)
+            {
+                //if (result.Suppliers.Any())
+                //{
+                result.Specifications.AddRange(
+                ServerConfig.ApiDb.Query<dynamic>($"SELECT Id, SupplierId, `Specification` FROM `material_specification` WHERE `MarkedDelete` = 0 AND SupplierId = @Id;", new { Id = supplierId }));
+                //}
+            }
+            else if (specificationId != 0)
+            {
+
+            }
+            else
+            {
+                result.Categories.AddRange(ServerConfig.ApiDb.Query<dynamic>("SELECT Id, Category FROM `material_category` WHERE `MarkedDelete` = 0;"));
+                result.Names.AddRange(ServerConfig.ApiDb.Query<dynamic>("SELECT Id, CategoryId, `Name` FROM `material_name` WHERE `MarkedDelete` = 0;"));
+                result.Suppliers.AddRange(ServerConfig.ApiDb.Query<dynamic>("SELECT Id, NameId, `Supplier` FROM `material_supplier` WHERE `MarkedDelete` = 0;"));
+                result.Specifications.AddRange(ServerConfig.ApiDb.Query<dynamic>("SELECT Id, SupplierId, `Specification` FROM `material_specification` WHERE `MarkedDelete` = 0;"));
+            }
+            if (siteId != -1)
+            {
+                result.Sites.AddRange(
+                ServerConfig.ApiDb.Query<dynamic>($"SELECT Id, `Site` FROM `material_site` WHERE `MarkedDelete` = 0{(siteId == 0 ? "" : " AND Id = @siteId")};", new { siteId }));
+            }
+
+            return result;
+        }
+        //// GET: api/MaterialManagement/Choose?categoryId=0&nameId=0&supplierId=0&specificationId=0&qId=0&siteId
+        //[HttpGet("Choose")]
+        //public MaterialChooseResult GetMaterialManagementChoose([FromQuery] int categoryId, int nameId, int supplierId, int specificationId, int siteId)
+        //{
+        //    var result = new MaterialChooseResult();
+        //    if (categoryId != 0 && nameId == 0 && supplierId == 0 && specificationId == 0)
+        //    {
+        //        //result.Categories.AddRange(ServerConfig.ApiDb.Query<dynamic>("SELECT Id, Category FROM `material_category` WHERE `MarkedDelete` = 0;"));
+        //        //result.Categories.AddRange(
+        //        //    ServerConfig.ApiDb.Query<dynamic>($"SELECT Id, Category FROM `material_category` WHERE `MarkedDelete` = 0 AND Id = @Id;", new { Id = categoryId }));
+        //        if (result.Categories.Any())
+        //        {
+        //            result.Names.AddRange(
+        //            ServerConfig.ApiDb.Query<dynamic>($"SELECT Id, CategoryId, `Name` FROM `material_name` WHERE `MarkedDelete` = 0 AND CategoryId IN @Id;", new { Id = result.Categories.Select(x => x.Id) }));
+        //        }
+        //        if (result.Names.Any())
+        //        {
+        //            result.Suppliers.AddRange(
+        //            ServerConfig.ApiDb.Query<dynamic>($"SELECT Id, NameId, `Supplier` FROM `material_supplier` WHERE `MarkedDelete` = 0 AND NameId IN @Id;", new { Id = result.Names.Select(x => x.Id) }));
+        //        }
+
+        //        if (result.Suppliers.Any())
+        //        {
+        //            result.Specifications.AddRange(
+        //            ServerConfig.ApiDb.Query<dynamic>($"SELECT Id, SupplierId, `Specification` FROM `material_specification` WHERE `MarkedDelete` = 0 AND SupplierId IN @Id;", new { Id = result.Suppliers.Select(x => x.Id) }));
+        //        }
+        //    }
+        //    else if (nameId != 0 && supplierId == 0 && specificationId == 0)
+        //    {
+        //        //result.Categories.AddRange(ServerConfig.ApiDb.Query<dynamic>("SELECT Id, Category FROM `material_category` WHERE `MarkedDelete` = 0;"));
+        //        //result.Names.AddRange(ServerConfig.ApiDb.Query<dynamic>("SELECT Id, CategoryId, `Name` FROM `material_name` WHERE `MarkedDelete` = 0;"));
+        //        //result.Names.AddRange(
+        //        //    ServerConfig.ApiDb.Query<dynamic>($"SELECT Id, CategoryId, `Name` FROM `material_name` WHERE `MarkedDelete` = 0 AND Id = @Id;", new { Id = nameId }));
+        //        if (result.Names.Any())
+        //        {
+        //            result.Suppliers.AddRange(
+        //            ServerConfig.ApiDb.Query<dynamic>($"SELECT Id, NameId, `Supplier` FROM `material_supplier` WHERE `MarkedDelete` = 0 AND NameId IN @Id;", new { Id = result.Names.Select(x => x.Id) }));
+        //        }
+
+        //        if (result.Suppliers.Any())
+        //        {
+        //            result.Specifications.AddRange(
+        //            ServerConfig.ApiDb.Query<dynamic>($"SELECT Id, SupplierId, `Specification` FROM `material_specification` WHERE `MarkedDelete` = 0 AND SupplierId IN @Id;", new { Id = result.Suppliers.Select(x => x.Id) }));
+        //        }
+
+        //        //if (result.Names.Any())
+        //        //{
+        //        //    result.Categories.AddRange(
+        //        //    ServerConfig.ApiDb.Query<dynamic>($"SELECT Id, Category FROM `material_category` WHERE `MarkedDelete` = 0 AND Id = @Id;", new { Id = result.Names.FirstOrDefault()?.CategoryId ?? 0 }));
+        //        //}
+        //    }
+        //    else if (supplierId != 0 && specificationId == 0)
+        //    {
+        //        //result.Categories.AddRange(ServerConfig.ApiDb.Query<dynamic>("SELECT Id, Category FROM `material_category` WHERE `MarkedDelete` = 0;"));
+        //        //result.Names.AddRange(ServerConfig.ApiDb.Query<dynamic>("SELECT Id, CategoryId, `Name` FROM `material_name` WHERE `MarkedDelete` = 0;"));
+        //        //result.Suppliers.AddRange(ServerConfig.ApiDb.Query<dynamic>("SELECT Id, NameId, `Supplier` FROM `material_supplier` WHERE `MarkedDelete` = 0;"));
+        //        //result.Suppliers.AddRange(
+        //        //    ServerConfig.ApiDb.Query<dynamic>($"SELECT Id, NameId, `Supplier` FROM `material_supplier` WHERE `MarkedDelete` = 0 AND Id = @Id;", new { Id = supplierId }));
+        //        if (result.Suppliers.Any())
+        //        {
+        //            result.Specifications.AddRange(
+        //            ServerConfig.ApiDb.Query<dynamic>($"SELECT Id, SupplierId, `Specification` FROM `material_specification` WHERE `MarkedDelete` = 0 AND SupplierId IN @Id;", new { Id = result.Suppliers.Select(x => x.Id) }));
+        //        }
+
+        //        //if (result.Suppliers.Any())
+        //        //{
+        //        //    result.Names.AddRange(
+        //        //    ServerConfig.ApiDb.Query<dynamic>($"SELECT Id, CategoryId, `Name` FROM `material_name` WHERE `MarkedDelete` = 0 AND Id = @Id;", new { Id = result.Suppliers.FirstOrDefault()?.NameId ?? 0 }));
+        //        //}
+
+        //        //if (result.Names.Any())
+        //        //{
+        //        //    result.Categories.AddRange(
+        //        //    ServerConfig.ApiDb.Query<dynamic>($"SELECT Id, Category FROM `material_category` WHERE `MarkedDelete` = 0 AND Id = @Id;", new { Id = result.Names.FirstOrDefault()?.CategoryId ?? 0 }));
+        //        //}
+        //    }
+        //    else if (specificationId != 0)
+        //    {
+        //        result.Categories.AddRange(ServerConfig.ApiDb.Query<dynamic>("SELECT Id, Category FROM `material_category` WHERE `MarkedDelete` = 0;"));
+        //        result.Names.AddRange(ServerConfig.ApiDb.Query<dynamic>("SELECT Id, CategoryId, `Name` FROM `material_name` WHERE `MarkedDelete` = 0;"));
+        //        result.Suppliers.AddRange(ServerConfig.ApiDb.Query<dynamic>("SELECT Id, NameId, `Supplier` FROM `material_supplier` WHERE `MarkedDelete` = 0;"));
+        //        result.Specifications.AddRange(ServerConfig.ApiDb.Query<dynamic>("SELECT Id, SupplierId, `Specification` FROM `material_specification` WHERE `MarkedDelete` = 0;"));
+        //        //result.Specifications.AddRange(
+        //        //    ServerConfig.ApiDb.Query<dynamic>($"SELECT Id, SupplierId, `Specification` FROM `material_specification` WHERE `MarkedDelete` = 0 AND Id = @Id;", new { Id = specificationId }));
+
+        //        //if (result.Specifications.Any())
+        //        //{
+        //        //    result.Suppliers.AddRange(
+        //        //    ServerConfig.ApiDb.Query<dynamic>($"SELECT Id, NameId, `Supplier` FROM `material_supplier` WHERE `MarkedDelete` = 0 AND Id = @Id;", new { Id = result.Specifications.FirstOrDefault()?.SupplierId ?? 0 }));
+        //        //}
+
+        //        //if (result.Suppliers.Any())
+        //        //{
+        //        //    result.Names.AddRange(
+        //        //    ServerConfig.ApiDb.Query<dynamic>($"SELECT Id, CategoryId, `Name` FROM `material_name` WHERE `MarkedDelete` = 0 AND Id = @Id;", new { Id = result.Suppliers.FirstOrDefault()?.NameId ?? 0 }));
+        //        //}
+
+        //        //if (result.Names.Any())
+        //        //{
+        //        //    result.Categories.AddRange(
+        //        //    ServerConfig.ApiDb.Query<dynamic>($"SELECT Id, Category FROM `material_category` WHERE `MarkedDelete` = 0 AND Id = @Id;", new { Id = result.Names.FirstOrDefault()?.CategoryId ?? 0 }));
+        //        //}
+        //    }
+        //    else
+        //    {
+        //        result.Categories.AddRange(ServerConfig.ApiDb.Query<dynamic>("SELECT Id, Category FROM `material_category` WHERE `MarkedDelete` = 0;"));
+        //        result.Names.AddRange(ServerConfig.ApiDb.Query<dynamic>("SELECT Id, CategoryId, `Name` FROM `material_name` WHERE `MarkedDelete` = 0;"));
+        //        result.Suppliers.AddRange(ServerConfig.ApiDb.Query<dynamic>("SELECT Id, NameId, `Supplier` FROM `material_supplier` WHERE `MarkedDelete` = 0;"));
+        //        result.Specifications.AddRange(ServerConfig.ApiDb.Query<dynamic>("SELECT Id, SupplierId, `Specification` FROM `material_specification` WHERE `MarkedDelete` = 0;"));
+        //    }
+        //    result.Sites.AddRange(
+        //        ServerConfig.ApiDb.Query<dynamic>($"SELECT Id, `Site` FROM `material_site` WHERE `MarkedDelete` = 0{(siteId == 0 ? "" : " AND Id = @siteId")};", new { siteId }));
+        //    return result;
+        //}
+
         // GET: api/MaterialManagement?categoryId=0&nameId=0&supplierId=0&specificationId=0&qId=0&siteId
         [HttpGet]
         public MaterialDataResult GetMaterialManagement([FromQuery] int categoryId, int nameId, int supplierId, int specificationId, int qId, int siteId)
@@ -658,10 +838,9 @@ namespace ApiManagement.Controllers.MaterialManagementController
                             "VALUES (@CreateUserId, @MarkedDateTime, @PlanId, @BillId, @Number, 1);",
                             extraBill.Select(x =>
                             {
-
-                                x.PlanId = materialManagement.PlanId;
                                 x.CreateUserId = createUserId;
                                 x.MarkedDateTime = markedDateTime;
+                                x.PlanId = materialManagement.PlanId;
                                 return x;
                             }));
                     }

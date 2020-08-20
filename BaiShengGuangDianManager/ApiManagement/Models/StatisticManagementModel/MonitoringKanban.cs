@@ -161,7 +161,23 @@ namespace ApiManagement.Models.StatisticManagementModel
         /// 闲置时间 = 运行时间-加工时间
         /// </summary>
         public int IdleTime => RunTime - ProcessTime;
-
+        /// <summary>
+        /// 生产总数
+        /// </summary>
+        public int FaChu { get; set; }
+        /// <summary>
+        /// 合格
+        /// </summary>
+        public int HeGe { get; set; }
+        /// <summary>
+        /// 裂片
+        /// </summary>
+        public int LiePian { get; set; }
+        /// <summary>
+        /// 合格率
+        /// </summary>
+        public decimal Rate => FaChu == 0 ? 0 : ((decimal)HeGe / FaChu).ToRound();
+        public List<MonitoringProductionData> ProductionData = new List<MonitoringProductionData>();
         public void Update(MonitoringKanBan monitoringKanban)
         {
             Time = monitoringKanban.Time;
@@ -211,6 +227,7 @@ namespace ApiManagement.Models.StatisticManagementModel
             AllDevice = 1;
         }
         public int DeviceId { get; set; }
+        public string Code { get; set; }
     }
     public class ProcessUseRate
     {

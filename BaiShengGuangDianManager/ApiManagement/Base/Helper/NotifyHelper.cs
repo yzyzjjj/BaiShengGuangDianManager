@@ -5,6 +5,7 @@ using ModelBase.Base.Utils;
 using System;
 using System.ComponentModel;
 using System.Linq;
+using System.Net;
 #if !DEBUG
 using System.Net;
 #endif
@@ -123,11 +124,11 @@ namespace ApiManagement.Base.Helper
             {
                 if (e != null)
                 {
-                    Log.ErrorFormat("钉钉消息推送失败;{0}", e);
+                    Log.ErrorFormat("钉钉消息推送失败1;{0}", e);
                 }
                 else if (!s.ToLower().Contains("ok"))
                 {
-                    Log.ErrorFormat("钉钉消息推送失败;{0}", s);
+                    Log.ErrorFormat("钉钉消息推送失败2;{0}", s);
                 }
                 else
                 {
@@ -212,11 +213,11 @@ namespace ApiManagement.Base.Helper
             {
                 if (e != null)
                 {
-                    //Log.ErrorFormat("企业微信消息推送失败;{0}", e);
+                    Log.ErrorFormat("企业微信消息推送失败1;{0}", e);
                 }
                 else if (!s.ToLower().Contains("ok"))
                 {
-                    Log.ErrorFormat("企业微信消息推送失败;{0}", s);
+                    Log.ErrorFormat("企业微信消息推送失败2;{0}", s);
                 }
                 else
                 {

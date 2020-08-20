@@ -27,11 +27,11 @@ namespace ApiManagement.Controllers.PlanManagementController
                    "SELECT a.*, IFNULL(b.PlannedConsumption, 0) PlannedConsumption, IFNULL(b.ActualConsumption, 0) ActualConsumption, IFNULL(b.ExtraConsumption, 0) ExtraConsumption, " +
                    "IFNULL(b.PlannedCost, 0) PlannedCost, IFNULL(b.ActualCost, 0) ActualCost FROM `production_plan` a LEFT JOIN ( SELECT PlanId, SUM(IF (Extra = 0,PlannedConsumption,0)) " +
                    "PlannedConsumption, SUM(ActualConsumption) ActualConsumption, SUM(IF (Extra = 1, ActualConsumption,0)) ExtraConsumption, SUM(IF (Extra = 0,PlannedConsumption* b.Price,0)) " +
-                   "PlannedCost, SUM(ActualConsumption * b.Price) ActualCost FROM `production_plan_bill` a JOIN `material_bill` b ON a.BillId = b.Id GROUP BY PlanId ) b ON a.Id = b.PlanId " +
-                   $"WHERE {(qId == 0 ? "" : "a.Id = @qId AND ")}a.`MarkedDelete` = 0;";
+                   "PlannedCost, SUM(ActualConsumption * b.Price) ActualCost FROM `production_plan_bill` a JOIN `material_bill` b ON a.BillId = b.Id WHERE a.`MarkedDelete` = 0 GROUP BY PlanId) b ON a.Id = b.PlanId " +
+                   $"WHERE {(qId == 0 ? "" : "a.Id = @qId AND ")}a.`MarkedDelete` = 0 ORDER BY a.Id DESC;";
             if (simple)
             {
-                sql = $"SELECT * FROM `production_plan` WHERE {(qId == 0 ? "" : "Id = @qId AND ")}`MarkedDelete` = 0;";
+                sql = $"SELECT * FROM `production_plan` WHERE {(qId == 0 ? "" : "Id = @qId AND ")}`MarkedDelete` = 0 ORDER BY Id DESC;";
             }
             var data = ServerConfig.ApiDb.Query<ProductionPlanDetail>(sql, new { qId });
             if (qId != 0 && !data.Any())

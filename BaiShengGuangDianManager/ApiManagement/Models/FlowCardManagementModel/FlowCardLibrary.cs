@@ -19,18 +19,29 @@ namespace ApiManagement.Models.FlowCardManagementModel
         public int FlowCardTypeId { get; set; }
         public List<FlowCardSpecification> Specifications = new List<FlowCardSpecification>();
         public List<FlowCardProcessStepDetail> ProcessSteps = new List<FlowCardProcessStepDetail>();
+
         public int YanMoFaChu { get; set; }
+        public DateTime YanMoTime { get; set; }
+
         public int YanMoHeGe { get; set; }
         public int YanMoLiePian { get; set; }
         public int YanMoDeviceId { get; set; }
+        public string YanMoJiaGongRen { get; set; }
+
+        public DateTime CuPaoTime { get; set; }
         public int CuPaoFaChu { get; set; }
         public int CuPaoHeGe { get; set; }
         public int CuPaoLiePian { get; set; }
         public int CuPaoDeviceId { get; set; }
+        public string CuPaoJiaGongRen { get; set; }
+
+        public DateTime JingPaoTime { get; set; }
         public int JingPaoFaChu { get; set; }
         public int JingPaoHeGe { get; set; }
         public int JingPaoLiePian { get; set; }
         public int JingPaoDeviceId { get; set; }
+        public string JingPaoJiaGongRen { get; set; }
+
 
     }
 

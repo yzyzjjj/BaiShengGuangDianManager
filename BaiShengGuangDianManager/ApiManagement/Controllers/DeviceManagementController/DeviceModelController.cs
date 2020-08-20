@@ -1,11 +1,11 @@
-﻿using System;
-using System.Linq;
-using ApiManagement.Base.Server;
+﻿using ApiManagement.Base.Server;
 using ApiManagement.Models.DeviceManagementModel;
 using Microsoft.AspNetCore.Mvc;
 using ModelBase.Base.EnumConfig;
 using ModelBase.Base.Utils;
 using ModelBase.Models.Result;
+using System;
+using System.Linq;
 
 namespace ApiManagement.Controllers.DeviceManagementController
 {
@@ -21,11 +21,11 @@ namespace ApiManagement.Controllers.DeviceManagementController
             var result = new DataResult();
             if (menu)
             {
-            result.datas.AddRange(ServerConfig.ApiDb.Query<dynamic>("SELECT a.Id, a.ModelName, b.CategoryName FROM `device_model` a JOIN `device_category` b ON a.DeviceCategoryId = b.Id WHERE a.MarkedDelete = 0 ORDER BY a.Id;;"));
+                result.datas.AddRange(ServerConfig.ApiDb.Query<dynamic>("SELECT a.Id, a.ModelName, b.CategoryName FROM `device_model` a JOIN `device_category` b ON a.DeviceCategoryId = b.Id WHERE a.MarkedDelete = 0 ORDER BY a.Id;;"));
             }
             else
             {
-            result.datas.AddRange(ServerConfig.ApiDb.Query<DeviceModelDetail>("SELECT a.*, b.CategoryName FROM `device_model` a JOIN `device_category` b ON a.DeviceCategoryId = b.Id WHERE a.MarkedDelete = 0 ORDER BY a.Id;;"));
+                result.datas.AddRange(ServerConfig.ApiDb.Query<DeviceModelDetail>("SELECT a.*, b.CategoryName FROM `device_model` a JOIN `device_category` b ON a.DeviceCategoryId = b.Id WHERE a.MarkedDelete = 0 ORDER BY a.Id;;"));
             }
             return result;
         }

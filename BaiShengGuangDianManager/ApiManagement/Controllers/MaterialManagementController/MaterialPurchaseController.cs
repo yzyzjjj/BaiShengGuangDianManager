@@ -50,7 +50,7 @@ namespace ApiManagement.Controllers.MaterialManagementController
             {
                 p.Add(" AND Valuer = @valuer");
             }
-            var sql = "SELECT * FROM `material_purchase` WHERE `MarkedDelete` = 0" + p.Join("") +" ORDER BY ErpId Desc";
+            var sql = "SELECT * FROM `material_purchase` WHERE `MarkedDelete` = 0" + p.Join("") + " ORDER BY ErpId Desc";
             var data = ServerConfig.ApiDb.Query<MaterialPurchase>(sql, new { qId, dId, name, state, valuer });
             if (qId != 0 && !data.Any())
             {
@@ -188,6 +188,113 @@ namespace ApiManagement.Controllers.MaterialManagementController
                     MarkedDelete = true,
                     Id = ids
                 });
+            return Result.GenError<Result>(Error.Success);
+        }
+
+        // POST: api/MaterialPurchase/Quote
+        [HttpGet("Quote")]
+        public Result GetQuoteMaterialPurchase([FromQuery] int qId, int pId)
+        {
+            var result = new DataResult();
+            var p = new List<string>();
+            if (qId != 0)
+            {
+                p.Add(" AND Id = @qId");
+            }
+
+            if (pId != 0)
+            {
+                p.Add(" AND PurchaseId = @pId");
+            }
+
+            var sql = "SELECT * FROM `material_purchase_quote` WHERE `MarkedDelete` = 0" + p.Join("");
+            var data = ServerConfig.ApiDb.Query<MaterialPurchaseQuote>(sql, new { qId, pId });
+            if (qId != 0 && !data.Any())
+            {
+                return Result.GenError<DataResult>(Error.MaterialPurchaseNotExist);
+            }
+            result.datas.AddRange(data);
+            return result;
+        }
+
+        // POST: api/MaterialPurchase/Quote
+        [HttpPost("Quote")]
+        public Result QuoteMaterialPurchase([FromBody] MaterialPurchase materialPurchase)
+        {
+            if (materialPurchase.Id == 0)
+            {
+                return Result.GenError<Result>(Error.MaterialPurchaseNotExist);
+            }
+            var purchaseId = materialPurchase.Id;
+            var cnt = ServerConfig.ApiDb.Query<int>("SELECT COUNT(1) FROM `material_purchase` WHERE `MarkedDelete` = 0 AND Id = @purchaseId", new
+            {
+                purchaseId
+            }).FirstOrDefault();
+            if (cnt <= 0)
+            {
+                return Result.GenError<DataResult>(Error.MaterialPurchaseNotExist);
+            }
+
+            var materialPurchaseQuote = materialPurchase.Items;
+            if (materialPurchaseQuote == null || !materialPurchaseQuote.Any())
+            {
+                ServerConfig.ApiDb.Execute(
+                    "UPDATE `material_purchase_quote` SET `MarkedDateTime` = NOW(), `MarkedDelete` = true WHERE `PurchaseId` = @Id;", new { materialPurchase.Id });
+                return Result.GenError<Result>(Error.Success);
+            }
+            if (materialPurchaseQuote.Any(x => x.Illegal()))
+            {
+                return Result.GenError<Result>(Error.MaterialPurchaseQuoteNotEmpty);
+            }
+
+            var oldMaterialPurchaseQuote = ServerConfig.ApiDb.Query<MaterialPurchaseQuote>("SELECT * FROM `material_purchase_quote` WHERE `MarkedDelete` = 0 AND `PurchaseId` = @PurchaseId;",
+                new { purchaseId });
+
+            var markedDateTime = DateTime.Now;
+
+            var delQuote = oldMaterialPurchaseQuote.Where(x => materialPurchaseQuote.All(y => y.Id != x.Id));
+            if (delQuote.Any())
+            {
+                foreach (var quote in delQuote)
+                {
+                    quote.MarkedDateTime = markedDateTime;
+                    quote.MarkedDelete = true;
+                }
+
+                ServerConfig.ApiDb.Execute(
+                    "UPDATE `material_purchase_quote` SET `MarkedDateTime` = @MarkedDateTime, `MarkedDelete` = @MarkedDelete WHERE `Id` = @Id;", delQuote);
+            }
+
+            var oldQuote = materialPurchaseQuote.Where(x => x.Id != 0);
+            if (oldQuote.Any())
+            {
+                foreach (var quote in oldQuote)
+                {
+                    quote.MarkedDateTime = markedDateTime;
+                }
+
+                ServerConfig.ApiDb.Execute(
+                    "UPDATE `material_purchase_quote` SET `MarkedDateTime` = @MarkedDateTime, `MarkedDelete` = @MarkedDelete, `Purchase` = @Purchase, `Time` = @Time, `ItemId` = @ItemId, " +
+                    "`PurchaseId` = @PurchaseId, `Code` = @Code, `Name` = @Name, `Specification` = @Specification, `Number` = @Number, `Unit` = @Unit, `Price` = @Price, " +
+                    "`TaxPrice` = @TaxPrice, `TaxAmount` = @TaxAmount, `Tax` = @Tax WHERE `Id` = @Id;", oldQuote);
+            }
+            var newQuote = materialPurchaseQuote.Where(x => x.Id == 0);
+            if (newQuote.Any())
+            {
+                var createUserId = Request.GetIdentityInformation();
+                foreach (var quote in newQuote)
+                {
+                    quote.CreateUserId = createUserId;
+                    quote.PurchaseId = purchaseId;
+                }
+
+                ServerConfig.ApiDb.Execute(
+                    "INSERT INTO `material_purchase_quote` (`CreateUserId`, `Purchase`, `Time`, `ItemId`, `PurchaseId`, `Code`, `Name`, `Specification`, `Number`, `Unit`, `Price`, `TaxPrice`, `TaxAmount`, `Tax`) " +
+                    "VALUES (@CreateUserId, @Purchase, @Time, @ItemId, @PurchaseId, @Code, @Name, @Specification, @Number, @Unit, @Price, @TaxPrice, @TaxAmount, @Tax);", newQuote);
+            }
+            ServerConfig.ApiDb.Execute(
+                "UPDATE `material_purchase` SET `MarkedDateTime` = now(), `IsQuote` = @IsQuote WHERE Id = @purchaseId;", new { IsQuote = true, purchaseId });
+
             return Result.GenError<Result>(Error.Success);
         }
     }

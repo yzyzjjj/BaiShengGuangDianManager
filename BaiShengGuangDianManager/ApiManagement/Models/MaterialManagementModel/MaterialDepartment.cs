@@ -1,6 +1,8 @@
 ﻿using ApiManagement.Base.Helper;
 using ApiManagement.Models.BaseModel;
+using ServiceStack;
 using System;
+using System.Collections.Generic;
 using System.ComponentModel;
 using System.Linq;
 
@@ -48,6 +50,26 @@ namespace ApiManagement.Models.MaterialManagementModel
     }
     public class MaterialPurchase : CommonBase
     {
+        public MaterialPurchase()
+        { }
+        public MaterialPurchase(int depId, TimerHelper.ErpPurchase erpPurchase, string createUserId, DateTime now, MaterialPurchaseStateEnum state, MaterialPurchasePriorityEnum priority)
+        {
+            CreateUserId = createUserId;
+            MarkedDateTime = now;
+            Time = DateTime.Parse(erpPurchase.f_date);
+            IsErp = true;
+            ErpId = erpPurchase.f_id;
+            DepartmentId = depId;
+            Purchase = erpPurchase.f_title;
+            Number = erpPurchase.f_name;
+            Name = erpPurchase.f_ygxm;
+            Valuer = erpPurchase.f_hjry ?? "";
+            Step = erpPurchase.f_bz;
+            State = state;
+            IsDesign = erpPurchase.f_istz == "是";
+            Priority = priority;
+        }
+
         public DateTime Time { get; set; }
         public bool IsErp { get; set; }
         public int ErpId { get; set; }
@@ -83,7 +105,7 @@ namespace ApiManagement.Models.MaterialManagementModel
         /// 是否引用
         /// </summary>
         public bool IsQuote { get; set; }
-
+        public List<MaterialPurchaseQuote> Items = new List<MaterialPurchaseQuote>();
         public bool HaveChange(MaterialPurchase materialPurchase)
         {
             var thisProperties = GetType().GetProperties();
@@ -288,6 +310,61 @@ namespace ApiManagement.Models.MaterialManagementModel
                 {
                     return true;
                 }
+            }
+            return false;
+        }
+    }
+
+    public class MaterialPurchaseQuote : CommonBase
+    {
+        public MaterialPurchaseQuote()
+        { }
+
+        public string Purchase { get; set; }
+        public DateTime Time { get; set; }
+        public int ItemId { get; set; }
+        public int PurchaseId { get; set; }
+        public string Code { get; set; }
+        public string Name { get; set; }
+        public string Specification { get; set; }
+        public decimal Number { get; set; }
+        public string Unit { get; set; }
+        /// <summary>
+        /// 含税单价 f_hsdj
+        /// </summary>
+        [Description]
+        public decimal TaxPrice { get; set; }
+        /// <summary>
+        /// 未税单价 f_wsdj
+        /// </summary>
+        [Description]
+        public decimal Price { get; set; }
+        /// <summary>
+        /// 含税金额 f_hsje
+        /// </summary>
+        [Description]
+        public decimal TaxAmount { get; set; }
+        /// <summary>
+        ///  税率
+        /// </summary>
+        [Description]
+        public decimal Tax { get; set; }
+
+        public bool Illegal()
+        {
+            //if (Code.IsNullOrEmpty())
+            //{
+            //    return true;
+            //}
+
+            if (Name.IsNullOrEmpty())
+            {
+                return true;
+            }
+
+            if (Specification.IsNullOrEmpty())
+            {
+                return true;
             }
             return false;
         }

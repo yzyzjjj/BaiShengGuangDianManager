@@ -15,6 +15,7 @@ namespace ApiManagement.Models.StatisticManagementModel
         public int DeviceId { get; set; }
         public string Code { get; set; }
         public int DeviceCategoryId { get; set; }
+        public string CategoryName { get; set; }
         public int State { get; set; }
         public int FlowCardId { get; set; }
         /// <summary>

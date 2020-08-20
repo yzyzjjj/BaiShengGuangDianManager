@@ -108,6 +108,8 @@ namespace ApiManagement.Base.Helper
                     Role = _roleList.Join(",");
                 }
             }
+            public string ProductionRole { get; set; }
+            public string MaxProductionRole { get; set; }
 
             public bool IsDeleted { get; set; }
         }

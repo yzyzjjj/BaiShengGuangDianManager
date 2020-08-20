@@ -29,6 +29,7 @@ namespace ApiManagement.Base.Server
             FlowCardHelper.Init();
             AnalysisHelper.Init();
             TimerHelper.Init();
+            WarningHelper.Init();
 
             if (!RedisHelper.Exists(IsSetProcessDataKey))
             {

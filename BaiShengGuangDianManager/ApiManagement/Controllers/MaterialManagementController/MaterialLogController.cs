@@ -1,6 +1,10 @@
 ﻿using ApiManagement.Base.Server;
 using ApiManagement.Models.MaterialManagementModel;
+using ApiManagement.Models.PlanManagementModel;
 using Microsoft.AspNetCore.Mvc;
+using ModelBase.Base.EnumConfig;
+using ModelBase.Base.Utils;
+using ModelBase.Models.Result;
 using ServiceStack;
 using System;
 using System.Collections.Generic;
@@ -71,6 +75,7 @@ namespace ApiManagement.Controllers.MaterialManagementController
             {
                 param.Add("a.Purpose = @purpose");
             }
+            param.Add("a.Number != 0");
 
             //var sql = "SELECT a.*, b.Plan, c.`Code`, c.`Price`, d.`Name`, e.Specification FROM `material_log` a " +
             //          "LEFT JOIN `production_plan` b ON a.PlanId = b.Id " +
@@ -108,6 +113,212 @@ namespace ApiManagement.Controllers.MaterialManagementController
             result.Sum = data.Sum(x => x.Number * x.Price);
             result.datas.AddRange(data);
             return result;
+        }
+
+
+
+        /// <summary>
+        /// 入库修正/领用修正
+        /// </summary>
+        /// <param name="materialLogs"></param>
+        /// <returns></returns>
+        // PUT: api/MaterialLog
+        [HttpPut]
+        public DataResult PutMaterialLog([FromBody] IEnumerable<MaterialLog> materialLogs)
+        {
+            if (materialLogs == null || !materialLogs.Any())
+            {
+                return Result.GenError<DataResult>(Error.MaterialLogNotExist);
+            }
+
+            if (materialLogs.Any(x => x.Number < 0))
+            {
+                return Result.GenError<DataResult>(Error.NumberCannotBeNegative);
+            }
+            if (materialLogs.GroupBy(x => x.Type).Count() > 1)
+            {
+                return Result.GenError<DataResult>(Error.MaterialLogTypeDifferent);
+            }
+
+            var cnt =
+                ServerConfig.ApiDb.Query<int>("SELECT COUNT(1) FROM `material_log` WHERE Id IN @id;",
+                    new { id = materialLogs.Select(x => x.Id) }).FirstOrDefault();
+            if (cnt != materialLogs.Count())
+            {
+                return Result.GenError<DataResult>(Error.MaterialLogNotExist);
+            }
+
+            var result = new DataResult();
+            var markedDateTime = DateTime.Now;
+            var newLogs = new List<MaterialLog>();
+            var newLogChanges = new List<MaterialLogChange>();
+            var billIds = materialLogs.Select(x => x.BillId);
+            var materials = billIds.ToDictionary(x => x, x => new MaterialManagementChange
+            {
+                BillId = x,
+                Number = 0,
+            });
+            foreach (var billId in billIds)
+            {
+                var minId = materialLogs.Where(x => x.BillId == billId).Min().Id;
+                var billLogs = ServerConfig.ApiDb.Query<MaterialLog>("SELECT * FROM `material_log` WHERE Id >= @Id AND BillId = @BillId Order By Time;", new { Id = minId, BillId = billId });
+                foreach (var billLog in billLogs)
+                {
+                    var changeBillLog = ClassExtension.ParentCopyToChild<MaterialLog, MaterialLogChange>(billLog);
+                    if (!materials.ContainsKey(billId))
+                    {
+                        continue;
+                    }
+                    var material = materials[billId];
+                    if (!material.Init)
+                    {
+                        material.Init = true;
+                        material.Number = billLog.OldNumber;
+                    }
+                    var update = materialLogs.FirstOrDefault(x => x.Id == billLog.Id);
+                    if (update == null)
+                    {
+                        billLog.OldNumber = material.Number;
+                    }
+                    var num = update?.Number ?? billLog.Number;
+                    // 1 入库; 2 出库;3 冲正;
+                    switch (billLog.Type)
+                    {
+                        case 1:
+                            billLog.Number = num;
+                            billLog.OldNumber = material.Number;
+                            material.Number += num;
+                            if (num != 0)
+                            {
+                                material.InTime = billLog.Time;
+                            }
+                            break;
+                        case 2:
+                            billLog.Number = num;
+                            if (billLog.Number > material.Number)
+                            {
+                                result.datas.Add(billLog.Name);
+                                result.errno = Error.MaterialLogConsumeLaterError;
+                                return result;
+                            }
+                            billLog.OldNumber = material.Number;
+                            material.Number -= num;
+                            if (num != 0)
+                            {
+                                material.OutTime = billLog.Time;
+                            }
+                            break;
+                        case 3:
+                            billLog.Number = num;
+                            billLog.OldNumber = material.Number;
+                            material.Number = num;
+                            break;
+                    }
+                    changeBillLog.ChangeNumber = billLog.Number;
+                    changeBillLog.ChangeOldNumber = billLog.OldNumber;
+                    newLogs.Add(billLog);
+                    newLogChanges.Add(changeBillLog);
+                }
+            }
+
+            if (newLogChanges.All(x => x.ChangeNumber == x.Number))
+            {
+                return Result.GenError<DataResult>(Error.Success);
+            }
+            var planLogs = newLogChanges.Where(x => x.PlanId != 0 && x.ChangeNumber != x.Number);
+            if (planLogs.Any())
+            {
+                var existProductionPlanBills = ServerConfig.ApiDb.Query<ProductionPlanBill>(
+                    "SELECT * FROM `production_plan_bill` WHERE MarkedDelete = 0 AND PlanId IN @PlanId AND BillId IN @BillId;",
+                    new
+                    {
+                        PlanId = planLogs.Select(x => x.PlanId),
+                        BillId = planLogs.Select(x => x.BillId),
+                    });
+                foreach (var billLog in newLogChanges.OrderByDescending(x => x.Id))
+                {
+                    if (billLog.PlanId != 0)
+                    {
+                        var planBill = existProductionPlanBills.FirstOrDefault(x =>
+                            x.PlanId == billLog.PlanId && x.BillId == billLog.BillId);
+                        if (planBill != null)
+                        {
+                            // 1 退回; 2 领用;
+                            switch (billLog.Type)
+                            {
+                                case 1:
+                                    planBill.ActualConsumption += billLog.Number;
+                                    break;
+                                case 2:
+                                    planBill.ActualConsumption -= billLog.Number;
+                                    break;
+                                case 3:
+                                    break;
+                            }
+                        }
+                    }
+                }
+
+                //var productionPlanBills = new List<ProductionPlanBill>();
+                foreach (var billLog in newLogChanges)
+                {
+                    if (billLog.PlanId != 0)
+                    {
+                        var planBill = existProductionPlanBills.FirstOrDefault(x =>
+                            x.PlanId == billLog.PlanId && x.BillId == billLog.BillId);
+                        if (planBill != null)
+                        {
+                            // 1 退回; 2 领用;
+                            switch (billLog.Type)
+                            {
+                                case 1:
+                                    if (planBill.ActualConsumption < billLog.ChangeNumber)
+                                    {
+                                        result.datas.Add(billLog.Name);
+                                        result.errno = Error.ProductionPlanBillActualConsumeLess;
+                                        return result;
+                                    }
+                                    planBill.ActualConsumption -= billLog.ChangeNumber;
+                                    break;
+                                case 2:
+                                    planBill.ActualConsumption += billLog.ChangeNumber;
+                                    break;
+                                case 3:
+                                    break;
+                            }
+                        }
+                    }
+                }
+
+                ServerConfig.ApiDb.Execute(
+                    "UPDATE `production_plan_bill` SET `ActualConsumption` = @ActualConsumption WHERE `Id` = @Id;",
+                    existProductionPlanBills);
+            }
+
+            if (newLogs.Any())
+            {
+                ServerConfig.ApiDb.Execute(
+                    "UPDATE `material_log` SET `Number` = @Number, `OldNumber` = @OldNumber WHERE `Id` = @Id;",
+                        newLogs);
+
+                ServerConfig.ApiDb.Execute(
+                    "UPDATE `material_management` SET " +
+                    "`InTime` = IF(ISNULL(`InTime`) OR `InTime` != @InTime, @InTime, `InTime`), " +
+                    "`OutTime` = IF(ISNULL(`OutTime`) OR `OutTime` != @OutTime, @OutTime, `OutTime`), " +
+                    "`Number` = @Number WHERE `BillId` = @BillId;",
+                        materials.Values.Where(x => x.Init));
+
+                ServerConfig.ApiDb.Execute(
+                    "INSERT INTO `material_log_change` (`NewTime`, `Id`, `Time`, `BillId`, `Code`, `NameId`, `Name`, `SpecificationId`, `Specification`, `Type`, `Mode`, `Purpose`, `PlanId`, `Plan`, `Number`, `OldNumber`, `RelatedPerson`, `Manager`, `ChangeNumber`, `ChangeOldNumber`) " +
+                    "VALUES ( @NewTime, @Id, @Time, @BillId, @Code, @NameId, @Name, @SpecificationId, @Specification, @Type, @Mode, @Purpose, @PlanId, @Plan, @Number, @OldNumber, @RelatedPerson, @Manager, @ChangeNumber, @ChangeOldNumber);",
+                    newLogChanges.OrderBy(x => x.BillId).ThenBy(y => y.Time).Select(z =>
+                      {
+                          z.NewTime = markedDateTime;
+                          return z;
+                      }));
+            }
+
+            return Result.GenError<DataResult>(Error.Success);
         }
     }
 }

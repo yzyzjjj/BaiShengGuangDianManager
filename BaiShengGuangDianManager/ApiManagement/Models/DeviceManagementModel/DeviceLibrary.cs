@@ -12,6 +12,7 @@ namespace ApiManagement.Models.DeviceManagementModel
         public string Ip { get; set; }
         public int Port { get; set; }
         public string Identifier { get; set; }
+        public int ClassId { get; set; }
         public int DeviceModelId { get; set; }
         public int FirmwareId { get; set; }
         public int HardwareId { get; set; }
@@ -27,6 +28,7 @@ namespace ApiManagement.Models.DeviceManagementModel
 
     public class DeviceLibraryDetail : DeviceLibrary
     {
+        public string Class { get; set; }
         public int DeviceCategoryId { get; set; }
         public string ModelName { get; set; }
         public string CategoryName { get; set; }

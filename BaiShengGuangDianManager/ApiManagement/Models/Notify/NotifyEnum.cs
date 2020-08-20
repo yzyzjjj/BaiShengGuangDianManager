@@ -50,6 +50,10 @@ namespace ApiManagement.Models.Notify
         FaultReport,
         [Description("故障指派")]
         FaultAssign,
+        [Description("设备数据报警")]
+        DeviceData,
+        [Description("生产数据报警")]
+        ProductionData,
     }
 
     public class NotifyFormat

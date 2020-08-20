@@ -1,7 +1,6 @@
 ﻿using ApiManagement.Base.Server;
 using ApiManagement.Models.DeviceManagementModel;
 using ApiManagement.Models.FlowCardManagementModel;
-using Microsoft.Extensions.Configuration;
 using ModelBase.Base.HttpServer;
 using ModelBase.Base.Logger;
 using ModelBase.Base.Utils;
@@ -44,6 +43,7 @@ namespace ApiManagement.Base.Helper
             Console.WriteLine("FlowCardHelper 调试模式已开启");
 #else
             _timer = new Timer(DoSth, null, 5000, 1000 * 60 * 1);
+            Console.WriteLine("FlowCardHelper 发布模式已开启");
 #endif
         }
 
