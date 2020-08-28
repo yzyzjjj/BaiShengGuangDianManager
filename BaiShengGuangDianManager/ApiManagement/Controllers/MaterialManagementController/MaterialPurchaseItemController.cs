@@ -198,6 +198,7 @@ namespace ApiManagement.Controllers.MaterialManagementController
                 File = x.File,
                 FileUrl = x.FileUrl,
                 RelatedPerson = purchases.FirstOrDefault(y => y.Id == x.PurchaseId)?.Name ?? "",
+                Purpose = $"Erp采购-{purchases.FirstOrDefault(y => y.Id == x.PurchaseId)?.ErpId.ToString() ?? ""}",
             }).ToList();
 
             var allBill = ServerConfig.ApiDb.Query<MaterialManagementErp>(
@@ -543,11 +544,12 @@ namespace ApiManagement.Controllers.MaterialManagementController
 
             var logs = new List<MaterialLog>();
             #region 更新
-            var existBill = allBill.Where(x => erpBill.Any(y => y.BillId == x.Id) && x.Exist).ToList();
+            var existBill = allBill.Where(x => erpBill.Any(y => y.BillId == x.Id) && x.Exist).Distinct().ToList();
             if (existBill.Any())
             {
                 foreach (var bill in existBill)
                 {
+                    bill.OldNumber = bill.Number;
                     bill.Number += erpBill.Where(x => x.BillId == bill.BillId).Sum(y => y.Number);
                     bill.InTime = markedDateTime;
                 }
@@ -559,7 +561,8 @@ namespace ApiManagement.Controllers.MaterialManagementController
             var addBill = erpBill.Where(x => existBill.All(y => y.Id != x.BillId));
             if (addBill.Any())
             {
-                ServerConfig.ApiDb.Execute("INSERT INTO material_management (`BillId`, `InTime`, `Number`) VALUES (@BillId, @InTime, @Number);", addBill.GroupBy(y => y.BillId).Select(
+                var billIds = addBill.GroupBy(y => y.BillId);
+                ServerConfig.ApiDb.Execute("INSERT INTO material_management (`BillId`, `InTime`, `Number`) VALUES (@BillId, @InTime, @Number);", billIds.Select(
                 x => new
                 {
                     BillId = x.Key,
@@ -593,9 +596,9 @@ namespace ApiManagement.Controllers.MaterialManagementController
                 BillId = x.BillId,
                 Code = allBill.First(y => y.Id == x.BillId).Code,
                 Type = 1,
-                Purpose = x.Purpose ?? "Erp采购",
+                Purpose = x.Purpose ?? $"Erp采购",
                 Number = x.Number,
-                OldNumber = allBill.First(y => y.Id == x.BillId).Number,
+                OldNumber = existBill.FirstOrDefault(y => y.BillId == x.BillId)?.OldNumber ?? 0,
                 RelatedPerson = x.RelatedPerson,
                 Manager = createUserId
             }));

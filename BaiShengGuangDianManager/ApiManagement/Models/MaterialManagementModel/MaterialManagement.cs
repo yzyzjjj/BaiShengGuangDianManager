@@ -56,6 +56,7 @@ namespace ApiManagement.Models.MaterialManagementModel
         public DateTime InTime { get; set; }
         public DateTime OutTime { get; set; }
         public decimal Number { get; set; }
+        public decimal OldNumber { get; set; }
         public bool Exist { get; set; }
     }
 }

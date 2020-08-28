@@ -1,6 +1,4 @@
 ﻿using System;
-using System.Collections.Generic;
-using Newtonsoft.Json;
 
 namespace ApiManagement.Models.MaterialManagementModel
 {
@@ -151,6 +149,19 @@ namespace ApiManagement.Models.MaterialManagementModel
             CorrectConAmount = 0;
             Correct = 0;
             CorrectAmount = 0;
+        }
+
+        public bool Valid()
+        {
+            return TodayNumber
+                + LastNumber
+                + Increase
+                + Consume
+                + Increase
+                + Consume
+                + CorrectIn
+                + CorrectCon
+                + Correct != 0;
         }
     }
 }

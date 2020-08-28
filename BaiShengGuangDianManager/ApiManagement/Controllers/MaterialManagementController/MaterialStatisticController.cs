@@ -29,34 +29,34 @@ namespace ApiManagement.Controllers.MaterialManagementController
             switch (interval)
             {
                 case MaterialStatisticInterval.天:
-                    day1 = day.Date;
-                    day2 = day1.AddDays(-1);
+                    day2 = day.Date;
+                    day1 = day2.AddDays(-1);
                     break;
                 case MaterialStatisticInterval.周:
-                    day1 = day.WeekEndTime();
-                    day2 = day.WeekBeginTime().AddDays(-1);
+                    day2 = day.WeekEndTime();
+                    day1 = day.WeekBeginTime().AddDays(-1);
                     break;
                 case MaterialStatisticInterval.月:
-                    day1 = day.EndOfMonth();
-                    day2 = day.EndOfLastMonth();
+                    day2 = day.EndOfMonth();
+                    day1 = day.EndOfLastMonth();
                     break;
                 case MaterialStatisticInterval.年:
-                    day1 = day.EndOfYear();
-                    day2 = day.EndOfYear(-1);
+                    day2 = day.EndOfYear();
+                    day1 = day.EndOfYear(-1);
                     break;
                 default: return result;
             }
             var data = ServerConfig.ApiDb.Query<MaterialStatistic>(
                 "SELECT *, SUM(Increase) Increase, SUM(IncreaseAmount) IncreaseAmount, SUM(Consume) Consume, SUM(ConsumeAmount) ConsumeAmount, SUM(CorrectIn) CorrectIn, SUM(CorrectInAmount) CorrectInAmount, SUM(CorrectCon) CorrectCon, SUM(CorrectConAmount) CorrectConAmount, SUM(Correct) Correct, SUM(CorrectAmount) CorrectAmount " +
-                "FROM `material_balance` WHERE Time >= @day1 AND Time <= @day2 GROUP BY BillId ORDER BY BillId DESC;", new
+                "FROM (SELECT * FROM `material_balance` ORDER BY Time DESC) a WHERE Time > @day1 AND Time <= @day2 GROUP BY BillId ORDER BY BillId DESC;", new
                 {
                     day1,
                     day2
                 }).ToList();
             var beforeData = ServerConfig.ApiDb.Query<MaterialStatistic>(
-                "SELECT * FROM `material_balance` WHERE Time = @day2 ORDER BY BillId;", new
+                "SELECT * FROM `material_balance` WHERE Time = @day1 ORDER BY BillId;", new
                 {
-                    day2
+                    day1
                 });
             data.AddRange(beforeData.Where(x => data.All(y => x.BillId != y.BillId)).Select(z =>
             {

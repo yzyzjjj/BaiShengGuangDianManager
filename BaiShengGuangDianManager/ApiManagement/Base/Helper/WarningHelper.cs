@@ -60,7 +60,6 @@ namespace ApiManagement.Base.Helper
                 var redisLock = $"{redisPre}:Lock";
                 ServerConfig.RedisHelper.Remove(redisLock);
 
-                Console.WriteLine("WarningHelper 调试模式已开启");
                 CurrentData = ServerConfig.ApiDb.Query<WarningCurrent>("SELECT a.*, b.VariableName, b.VariableTypeId, b.PointerAddress, b.`Precision`, c.Type, c.ClassId, c.`Name` SetName FROM `warning_current` a " +
                                                                        "JOIN `data_name_dictionary` b ON a.DictionaryId = b.Id " +
                                                                        "JOIN `warning_set` c ON a.SetId = c.Id;")
@@ -68,6 +67,7 @@ namespace ApiManagement.Base.Helper
                 LoadConfig();
 
                 //_timer5S = new Timer(DoSth_5s, null, 5000, 1000 * 5);
+                Console.WriteLine("WarningHelper 调试模式已开启");
 #else
                 if (!ServerConfig.RedisHelper.Exists(Debug))
                 {
@@ -78,7 +78,6 @@ namespace ApiManagement.Base.Helper
                 var redisLock = $"{redisPre}:Lock";
                 ServerConfig.RedisHelper.Remove(redisLock);
 
-                Console.WriteLine("WarningHelper 发布模式已开启");
                 CurrentData = ServerConfig.ApiDb.Query<WarningCurrent>("SELECT a.*, b.VariableName, b.VariableTypeId, b.PointerAddress, b.`Precision`, c.Type, c.ClassId, c.`Name` SetName FROM `warning_current` a " +
                                                                        "JOIN `data_name_dictionary` b ON a.DictionaryId = b.Id " +
                                                                        "JOIN `warning_set` c ON a.SetId = c.Id;")
