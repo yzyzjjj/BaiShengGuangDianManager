@@ -528,8 +528,8 @@ namespace ApiManagement.Controllers.MaterialManagementController
                 if (billId_0.Any())
                 {
                     allBill = ServerConfig.ApiDb.Query<MaterialManagementErp>(
-                        "SELECT a.*, IFNULL(b.Number, 0) Number, IF(ISNULL(b.Number), 0, 1) Exist FROM `material_bill` a LEFT JOIN `material_management` b ON a.Id = b.BillId WHERE a.`Code` IN @Code AND  a.MarkedDelete = 0;",
-                            new { Code = billId_0.Select(x => x.Code) });
+                        "SELECT a.*, IFNULL(b.Number, 0) Number, IF(ISNULL(b.Number), 0, 1) Exist FROM `material_bill` a LEFT JOIN `material_management` b ON a.Id = b.BillId WHERE a.`Code` IN @Code AND a.MarkedDelete = 0;",
+                            new { Code = erpBill.Select(x => x.Code) });
                     foreach (var bill in billId_0)
                     {
                         var materialBill = allBill.FirstOrDefault(x => x.Code == bill.Code);
@@ -558,6 +558,7 @@ namespace ApiManagement.Controllers.MaterialManagementController
             #endregion
 
             #region 添加
+            //var addBill = allBill.Where(x => erpBill.Any(y => y.BillId == x.Id) && !x.Exist).Distinct().ToList();
             var addBill = erpBill.Where(x => existBill.All(y => y.Id != x.BillId));
             if (addBill.Any())
             {

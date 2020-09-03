@@ -129,8 +129,8 @@ namespace ApiManagement.Models.MaterialManagementModel
                     return (decimal)thisValue != (decimal)value;
                 }
 
-                var oldValue = thisValue.ToString();
-                var newValue = value.ToString();
+                var oldValue = thisValue?.ToString() ?? "";
+                var newValue = value?.ToString() ?? "";
                 if (oldValue != newValue)
                 {
                     return true;

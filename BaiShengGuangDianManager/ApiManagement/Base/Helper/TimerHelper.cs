@@ -79,9 +79,25 @@ namespace ApiManagement.Base.Helper
                 return;
             }
 #endif
-            //GetDayBalance();
+            //Log.Debug("GetErpDepartment 调试模式已开启");
+            GetErpDepartment();
+            //Log.Debug("GetErpPurchase 调试模式已开启");
+            GetErpPurchase();
+            //Log.Debug("GetErpValuer 调试模式已开启");
+            GetErpValuer();
+            //Log.Debug("CheckSpotCheckDevice 调试模式已开启");
+            CheckSpotCheckDevice();
+            //Log.Debug("CheckManufacturePlan 调试模式已开启");
+            CheckManufacturePlan();
+            //Log.Debug("Check_6sItem 调试模式已开启");
+            Check_6sItem();
+            //Log.Debug("DayBalanceRecovery 调试模式已开启");
             DayBalanceRecovery();
-            //MaterialRecovery();
+            //Log.Debug("GetDayBalance 调试模式已开启");
+            GetDayBalance();
+            //Log.Debug("MaterialRecovery 调试模式已开启");
+            MaterialRecovery();
+            AccountHelper.CheckAccount();
         }
 
         /// <summary>
@@ -467,7 +483,7 @@ namespace ApiManagement.Base.Helper
             {
                 try
                 {
-                    ServerConfig.RedisHelper.SetExpireAt(redisLock, DateTime.Now.AddMinutes(5));
+                    ServerConfig.RedisHelper.SetExpireAt(redisLock, DateTime.Now.AddMinutes(10));
                     var validState = new List<MaterialPurchaseStateEnum>
                     {
                         MaterialPurchaseStateEnum.正常,
@@ -1089,15 +1105,15 @@ namespace ApiManagement.Base.Helper
                             if (bill != null)
                             {
                                 bill.Increase = ne.Increase;
-                                bill.IncreaseAmount = ne.Increase * bill.LastPrice;
+                                bill.IncreaseAmount = ne.Increase * bill.TodayPrice;
                                 bill.Consume = ne.Consume;
-                                bill.ConsumeAmount = ne.Consume * bill.LastPrice;
+                                bill.ConsumeAmount = ne.Consume * bill.TodayPrice;
                                 bill.CorrectIn = ne.CorrectIn;
-                                bill.CorrectInAmount = ne.CorrectIn * bill.LastPrice;
+                                bill.CorrectInAmount = ne.CorrectIn * bill.TodayPrice;
                                 bill.CorrectCon = ne.CorrectCon;
-                                bill.CorrectConAmount = ne.CorrectCon * bill.LastPrice;
+                                bill.CorrectConAmount = ne.CorrectCon * bill.TodayPrice;
                                 bill.Correct = ne.Correct;
-                                bill.CorrectAmount = ne.Correct * bill.LastPrice;
+                                bill.CorrectAmount = ne.Correct * bill.TodayPrice;
                             }
                         }
                     }
@@ -1146,11 +1162,15 @@ namespace ApiManagement.Base.Helper
         /// <summary>
         /// 获取每日库存结存
         /// </summary>
-        public static void DayBalance(DateTime calTime = default(DateTime))
+        public static void DayBalance(IEnumerable<DateTime> calTimes)
         {
-            ServerConfig.ApiDb.Execute("DELETE FROM `material_balance` WHERE Time = @Time;", new { Time = calTime.Date });
+            if (calTimes != null && calTimes.Any())
+            {
+                ServerConfig.ApiDb.Execute("DELETE FROM `material_balance` WHERE Time IN @Time;", new { Time = calTimes.Select(x => x.Date) });
+            }
         }
 
+        private static bool _runing = false;
         /// <summary>
         /// 日库存结存老数据恢复
         /// </summary>
@@ -1164,6 +1184,15 @@ namespace ApiManagement.Base.Helper
             {
                 try
                 {
+                    if (_runing)
+                    {
+                        ServerConfig.RedisHelper.SetExpireAt(redisLock, DateTime.Now.AddMinutes(10));
+                        return;
+                    }
+
+                    _runing = true;
+                    ServerConfig.RedisHelper.SetExpireAt(redisLock, DateTime.Now.AddMinutes(5 * 12));
+
                     var minLogDay = ServerConfig.ApiDb.Query<DateTime>("SELECT MIN(Time) FROM `material_log`;")
                         .FirstOrDefault();
                     if (minLogDay == default(DateTime))
@@ -1172,7 +1201,7 @@ namespace ApiManagement.Base.Helper
                         return;
                     }
 
-                    ServerConfig.RedisHelper.SetExpireAt(redisLock, DateTime.Now.AddMinutes(5 * 12));
+                    minLogDay = minLogDay.Date;
                     var balanceDays = ServerConfig.ApiDb.Query<DateTime>("SELECT Time FROM `material_balance` GROUP BY Time ORDER BY Time;");
                     if (!balanceDays.Any())
                     {
@@ -1197,6 +1226,7 @@ namespace ApiManagement.Base.Helper
                         lastDay = lastDay.AddDays(-1);
                     }
 
+                    timeDic = timeDic.OrderByDescending(x => x.Key).ToDictionary(y => y.Key, y => y.Value);
                     if (timeDic.Any(x => x.Value == 0))
                     {
                         var materialStatistics = new List<MaterialStatistic>();
@@ -1303,15 +1333,15 @@ namespace ApiManagement.Base.Helper
                                         if (bill != null)
                                         {
                                             bill.Increase = ne.Increase;
-                                            bill.IncreaseAmount = ne.Increase * bill.LastPrice;
+                                            bill.IncreaseAmount = ne.Increase * bill.TodayPrice;
                                             bill.Consume = ne.Consume;
-                                            bill.ConsumeAmount = ne.Consume * bill.LastPrice;
+                                            bill.ConsumeAmount = ne.Consume * bill.TodayPrice;
                                             bill.CorrectIn = ne.CorrectIn;
-                                            bill.CorrectInAmount = ne.CorrectIn * bill.LastPrice;
+                                            bill.CorrectInAmount = ne.CorrectIn * bill.TodayPrice;
                                             bill.CorrectCon = ne.CorrectCon;
-                                            bill.CorrectConAmount = ne.CorrectCon * bill.LastPrice;
+                                            bill.CorrectConAmount = ne.CorrectCon * bill.TodayPrice;
                                             bill.Correct = ne.Correct;
-                                            bill.CorrectAmount = ne.Correct * bill.LastPrice;
+                                            bill.CorrectAmount = ne.Correct * bill.TodayPrice;
                                         }
                                     }
                                 }
@@ -1346,6 +1376,7 @@ namespace ApiManagement.Base.Helper
                     Log.Error(e);
                 }
                 ServerConfig.RedisHelper.Remove(redisLock);
+                _runing = false;
             }
         }
 

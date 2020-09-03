@@ -1,4 +1,5 @@
-﻿using ApiManagement.Base.Server;
+﻿using ApiManagement.Base.Helper;
+using ApiManagement.Base.Server;
 using ApiManagement.Models.MaterialManagementModel;
 using ApiManagement.Models.PlanManagementModel;
 using Microsoft.AspNetCore.Mvc;
@@ -316,6 +317,8 @@ namespace ApiManagement.Controllers.MaterialManagementController
                           z.NewTime = markedDateTime;
                           return z;
                       }));
+
+                TimerHelper.DayBalance(newLogs.GroupBy(x => x.Time).Where(y => !y.Key.InSameDay(markedDateTime)).Select(z => z.Key));
             }
 
             return Result.GenError<DataResult>(Error.Success);
