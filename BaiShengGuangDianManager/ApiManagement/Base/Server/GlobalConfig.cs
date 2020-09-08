@@ -1,4 +1,5 @@
-﻿using ModelBase.Base.Logger;
+﻿using System;
+using ModelBase.Base.Logger;
 using System.ComponentModel;
 using System.Linq;
 using System.Reflection;
@@ -19,7 +20,7 @@ namespace ApiManagement.Base.Server
             var fis = typeof(GlobalConfig).GetFields(BindingFlags.Static | BindingFlags.Public | BindingFlags.NonPublic);
             foreach (var config in globalConfigs)
             {
-                var fi = fis.FirstOrDefault(fItem => fItem.Name == config.key && fItem.GetCustomAttributes(typeof(DataMemberAttribute), true).Length > 0);
+                var fi = fis.FirstOrDefault(fItem => fItem.Name == config.Key && fItem.GetCustomAttributes(typeof(DataMemberAttribute), true).Length > 0);
                 if (fi != null)
                 {
                     fi.SetValue(null, TypeDescriptor.GetConverter(fi.FieldType).ConvertFrom(config.Value));
@@ -56,6 +57,35 @@ namespace ApiManagement.Base.Server
         /// </summary>
         [DataMember]
         public static string CompanyName;
-
+        /// <summary>
+        /// 白班上班时间 8:00
+        /// </summary>
+        [DataMember]
+        public static TimeSpan Morning;
+        /// <summary>
+        /// 中午吃饭时间 11:30
+        /// </summary>
+        [DataMember]
+        public static TimeSpan Noon;
+        /// <summary>
+        /// 下午上班时间 12:30
+        /// </summary>
+        [DataMember]
+        public static TimeSpan Afternoon;
+        /// <summary>
+        /// 正常下班时间 17:00
+        /// </summary>
+        [DataMember]
+        public static TimeSpan Evening;
+        /// <summary>
+        /// 晚上饭后上班时间 18:00
+        /// </summary>
+        [DataMember]
+        public static TimeSpan Night18;
+        /// <summary>
+        /// 夜班上班时间 20:00
+        /// </summary>
+        [DataMember]
+        public static TimeSpan Night20;
     }
 }

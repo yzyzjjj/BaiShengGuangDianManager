@@ -4,6 +4,7 @@ using ApiManagement.Models.DeviceSpotCheckModel;
 using ApiManagement.Models.ManufactureModel;
 using ApiManagement.Models.MaterialManagementModel;
 using ApiManagement.Models.OtherModel;
+using ApiManagement.Models.RepairManagementModel;
 using Microsoft.EntityFrameworkCore.Internal;
 using ModelBase.Base.HttpServer;
 using ModelBase.Base.Logger;
@@ -68,6 +69,7 @@ namespace ApiManagement.Base.Helper
             //Log.Debug("MaterialRecovery 调试模式已开启");
             MaterialRecovery();
             AccountHelper.CheckAccount();
+            MaintainerSchedule();
         }
 
         private static void DoSthTest(object state)
@@ -98,6 +100,7 @@ namespace ApiManagement.Base.Helper
             //Log.Debug("MaterialRecovery 调试模式已开启");
             MaterialRecovery();
             AccountHelper.CheckAccount();
+            MaintainerSchedule();
         }
 
         /// <summary>
@@ -635,7 +638,7 @@ namespace ApiManagement.Base.Helper
                                                                     erpCode.Id = myCode.Id;
                                                                     //try
                                                                     //{
-                                                                    if (erpCode.HaveChange(myCode))
+                                                                    if (ClassExtension.HaveChange(erpCode, myCode))
                                                                     {
                                                                         updatePurchaseItems.Add(erpCode);
                                                                     }
@@ -657,7 +660,7 @@ namespace ApiManagement.Base.Helper
                                                                 var findI = myCodes.IndexOf(myCode);
                                                                 myDic[findI] = true;
                                                                 erpCode.Id = myCode.Id;
-                                                                if (erpCode.HaveChange(myCode))
+                                                                if (ClassExtension.HaveChange(erpCode, myCode))
                                                                 {
                                                                     updatePurchaseItems.Add(erpCode);
                                                                 }
@@ -718,7 +721,7 @@ namespace ApiManagement.Base.Helper
                                                     {
                                                         g.Id = existGood.Id;
                                                         g.PurchaseId = existGood.PurchaseId;
-                                                        if (g.HaveChange(existGood))
+                                                        if (ClassExtension.HaveChange(g, existGood))
                                                         {
                                                             updatePurchaseItems.Add(g);
                                                         }
@@ -1465,6 +1468,322 @@ namespace ApiManagement.Base.Helper
                     Log.Error(e);
                 }
                 ServerConfig.RedisHelper.Remove(redisLock);
+            }
+        }
+
+        /// <summary>
+        /// 维修工自动排班
+        /// </summary>
+        private static void MaintainerSchedule()
+        {
+            var _pre = "MaintainerSchedule";
+            var redisLock = $"{_pre}:Lock";
+            if (ServerConfig.RedisHelper.SetIfNotExist(redisLock, DateTime.Now.ToStr()))
+            {
+                DoMaintainerSchedule();
+                ServerConfig.RedisHelper.Remove(redisLock);
+            }
+        }
+        /// <summary>
+        /// 维修工自动排班
+        /// </summary>
+        public static void DoMaintainerSchedule()
+        {
+            return;
+            try
+            {
+                var today = DateTime.Today;
+                var weekBegin = today.WeekBeginTime().Date;
+                var weekEnd = today.WeekEndTime().Date;
+                var nextWeekBegin = weekBegin.AddDays(7).Date;
+                var lastWeekBegin = weekBegin.AddDays(-7).Date;
+                var lastWeekEnd = weekEnd.AddDays(-7).Date;
+                var maintainers = ServerConfig.ApiDb.Query<Maintainer>("SELECT * FROM `maintainer` WHERE `MarkedDelete` = 0 AND `Order` != 0 ORDER BY `Order`, Id;").ToArray();
+                var len = maintainers.Length;
+
+                var schedules = ServerConfig.ApiDb.Query<MaintainerSchedule>(
+                    "SELECT * FROM `maintainer_schedule` WHERE StartTime >= @Time1 AND StartTime < @Time2 ORDER BY StartTime;", new
+                    {
+                        Time1 = lastWeekBegin,
+                        Time2 = nextWeekBegin
+                    });
+                var i = 0;
+                var leftLen = 0;
+                var _pre = "MaintainerSchedule";
+                var lastWeekNightKey = $"{_pre}:LastWeekNight";
+                var thisWeekNightKey = $"{_pre}:ThisWeekNight";
+                //上周夜班
+                var lastWeekNightMaintainerId = ServerConfig.RedisHelper.Get<int>(lastWeekNightKey);
+                if (lastWeekNightMaintainerId == 0)
+                {
+                    lastWeekNightMaintainerId = schedules.FirstOrDefault(x => (x.StartTime >= lastWeekEnd &&
+                                                                               x.StartTime < lastWeekEnd.AddSeconds(GlobalConfig.Morning.TotalSeconds)))?.MaintainerId ?? 0;
+                }
+
+                //本周夜班 = 上周日夜班 20 - 24
+                var thisWeekNightMaintainerId = ServerConfig.RedisHelper.Get<int>(thisWeekNightKey);
+                if (thisWeekNightMaintainerId == 0)
+                {
+                    thisWeekNightMaintainerId = schedules.FirstOrDefault(x => (x.StartTime >= lastWeekEnd.AddSeconds(GlobalConfig.Night20.TotalSeconds) &&
+                                                                               x.StartTime < lastWeekEnd.AddDays(1)))?.MaintainerId ?? 0;
+                }
+
+                var nextWeekNightMaintainerId = 0;
+                var thisWeekDayMaintainerId = 0;
+                var thisWeekHave = false;
+                if (thisWeekNightMaintainerId == 0)
+                {
+                    if (len > 0)
+                    {
+                        if (lastWeekNightMaintainerId != 0)
+                        {
+                            var maintainer = maintainers.FirstOrDefault(x => x.Id == lastWeekNightMaintainerId);
+                            if (maintainer != null)
+                            {
+                                var index = maintainers.IndexOf(maintainer);
+                                i = index + 1 >= len ? 0 : index + 1;
+                                //上周夜班
+                                lastWeekNightMaintainerId = thisWeekNightMaintainerId;
+                                //本周夜班
+                                thisWeekNightMaintainerId = maintainers[i].Id;
+                                thisWeekHave = true;
+                            }
+                        }
+                        if (!thisWeekHave)
+                        {
+                            thisWeekNightMaintainerId = maintainers[0].Id;
+                        }
+                    }
+                }
+
+                Maintainer[] leftMaintainers = null;
+                var newSchedules = new List<MaintainerSchedule>();
+                //下周新排班
+                if (schedules.Count(x => x.StartTime >= weekBegin && x.StartTime < weekEnd) == 0)
+                {
+                    #region 本周新排班表
+                    leftMaintainers = maintainers.Where(x => x.Id != thisWeekNightMaintainerId).ToArray();
+                    leftLen = leftMaintainers.Length;
+
+                    var i17_20 = 0;
+                    var temp = weekBegin;
+                    DateTime startTime;
+                    DateTime endTime;
+                    MaintainerSchedule schedule;
+                    while (temp <= weekEnd.AddDays(-1))
+                    {
+                        //0-8
+                        startTime = temp;
+                        endTime = temp.AddSeconds(GlobalConfig.Morning.TotalSeconds);
+                        schedule = new MaintainerSchedule
+                        {
+                            StartTime = startTime,
+                            EndTime = endTime,
+                            MaintainerId = thisWeekNightMaintainerId
+                        };
+                        newSchedules.Add(schedule);
+
+                        //8-17
+                        startTime = temp.AddSeconds(GlobalConfig.Morning.TotalSeconds);
+                        endTime = temp.AddSeconds(GlobalConfig.Evening.TotalSeconds);
+                        newSchedules.AddRange(leftMaintainers.OrderBy(y => y.Id).Select(x => new MaintainerSchedule
+                        {
+                            StartTime = startTime,
+                            EndTime = endTime,
+                            MaintainerId = x.Id
+                        }));
+
+                        //17-20
+                        startTime = temp.AddSeconds(GlobalConfig.Evening.TotalSeconds);
+                        endTime = temp.AddSeconds(GlobalConfig.Night20.TotalSeconds);
+                        //本周夜班
+                        schedule = new MaintainerScheduleDetails
+                        {
+                            StartTime = startTime,
+                            EndTime = endTime,
+                            MaintainerId = leftLen > 0 ? leftMaintainers[i17_20].Id : 0
+                        };
+                        newSchedules.Add(schedule);
+                        i17_20 = i17_20 + 1 >= leftLen ? 0 : i17_20 + 1;
+
+                        //20-24
+                        startTime = temp.AddSeconds(GlobalConfig.Night20.TotalSeconds);
+                        endTime = temp.AddDays(1);
+                        schedule = new MaintainerScheduleDetails
+                        {
+                            StartTime = startTime,
+                            EndTime = endTime,
+                            MaintainerId = thisWeekNightMaintainerId
+                        };
+                        newSchedules.Add(schedule);
+                        temp = temp.AddDays(1);
+                    }
+
+                    var maintainer = maintainers.FirstOrDefault(x => x.Id == thisWeekNightMaintainerId);
+                    if (maintainer != null)
+                    {
+                        var index = maintainers.IndexOf(maintainer);
+                        i = index + 1 >= len ? 0 : index + 1;
+                        nextWeekNightMaintainerId = maintainers[i].Id;
+                        if (nextWeekNightMaintainerId == lastWeekNightMaintainerId)
+                        {
+                            nextWeekNightMaintainerId = 0;
+                        }
+
+                        i = i + 1 >= len ? 0 : i + 1;
+                        thisWeekDayMaintainerId = maintainers[i].Id;
+                        if (thisWeekDayMaintainerId == nextWeekNightMaintainerId)
+                        {
+                            thisWeekDayMaintainerId = 0;
+                        }
+                    }
+
+                    //0-8
+                    startTime = temp;
+                    endTime = temp.AddSeconds(GlobalConfig.Morning.TotalSeconds);
+                    newSchedules.Add(new MaintainerSchedule
+                    {
+                        StartTime = startTime,
+                        EndTime = endTime,
+                        MaintainerId = thisWeekNightMaintainerId
+                    });
+
+                    //8-17
+                    startTime = temp.AddSeconds(GlobalConfig.Morning.TotalSeconds);
+                    endTime = temp.AddSeconds(GlobalConfig.Evening.TotalSeconds);
+                    newSchedules.Add(new MaintainerSchedule
+                    {
+                        StartTime = startTime,
+                        EndTime = endTime,
+                        MaintainerId = thisWeekDayMaintainerId
+                    });
+
+                    //17-20
+                    startTime = temp.AddSeconds(GlobalConfig.Evening.TotalSeconds);
+                    endTime = temp.AddSeconds(GlobalConfig.Night20.TotalSeconds);
+                    //本周夜班
+                    newSchedules.Add(new MaintainerScheduleDetails
+                    {
+                        StartTime = startTime,
+                        EndTime = endTime,
+                        MaintainerId = thisWeekDayMaintainerId
+                    });
+
+                    //20-24
+                    startTime = temp.AddSeconds(GlobalConfig.Night20.TotalSeconds);
+                    endTime = temp.AddDays(1);
+                    newSchedules.Add(new MaintainerScheduleDetails
+                    {
+                        StartTime = startTime,
+                        EndTime = endTime,
+                        MaintainerId = nextWeekNightMaintainerId
+                    });
+                    #endregion
+
+                    ServerConfig.RedisHelper.SetForever(lastWeekNightKey, thisWeekNightMaintainerId);
+                    ServerConfig.RedisHelper.SetForever(thisWeekNightKey, nextWeekNightMaintainerId);
+                    ServerConfig.ApiDb.Execute(
+                        "INSERT INTO  `maintainer_schedule` (`StartTime`, `EndTime`, `MaintainerId`) VALUES (@StartTime, @EndTime, @MaintainerId) " +
+                        "ON DUPLICATE KEY UPDATE `MaintainerId` = @MaintainerId;",
+                        newSchedules);
+                }
+                else
+                {
+                    newSchedules.AddRange(schedules.Where(t => t.StartTime >= weekBegin));
+                    #region 检查本周是否有离职的或取消排班的，更新排班表
+                    //var nextNightMaintainerKey = new Tuple<DateTime, bool>(weekEnd, true);
+                    ////检查本周白班是否有离职的
+                    ////var isDayLiZhi = newSchedules.Any(x => (isNew ? x.Key.Item1 >= weekBegin : x.Key.Item1 > today) && !x.Key.Item2 && maintainers.All(y => y.Id != x.Value.MaintainerId));
+                    ////检查本周夜班是否有离职的
+                    //var isNightLiZhi = newSchedules.Any(x => x.Key.Item2 && maintainers.All(y => y.Id != x.Value.MaintainerId));
+                    ////夜班离职,重新排夜班
+                    //if (isNightLiZhi)
+                    //{
+                    //    //上周夜班
+                    //    lastNightMaintainerId = schedules.FirstOrDefault(x => x.Time.InSameWeek(lastWeekBegin) && x.Night)?.MaintainerId ?? 0;
+                    //    //上周夜班
+                    //    if (lastNightMaintainerId == 0)
+                    //    {
+                    //        //本周夜班
+                    //        nextNightMaintainerId = maintainers[0].Id;
+                    //    }
+                    //    else
+                    //    {
+                    //        var maintainer = maintainers.FirstOrDefault(x => x.Id == lastNightMaintainerId);
+                    //        if (maintainer != null)
+                    //        {
+                    //            var index = maintainers.IndexOf(maintainer);
+                    //            i = index + 1 >= len ? 0 : index + 1;
+                    //            //本周夜班
+                    //            nextNightMaintainerId = maintainers[i].Id;
+                    //        }
+                    //        else
+                    //        {
+                    //            //本周夜班
+                    //            nextNightMaintainerId = maintainers[0].Id;
+                    //        }
+                    //    }
+                    //    newSchedules[nextNightMaintainerKey].MaintainerId = nextNightMaintainerId;
+                    //}
+                    //else
+                    //{
+                    //    nextNightMaintainerId = newSchedules[nextNightMaintainerKey].MaintainerId;
+                    //}
+
+                    //leftMaintainers = maintainers.Where(x => x.Id != nextNightMaintainerId).ToArray();
+                    //leftLen = leftMaintainers.Length;
+                    //if (leftLen == 0)
+                    //{
+                    //    leftMaintainers = maintainers.ToArray();
+                    //}
+
+                    ////今日白班
+                    //var todayDayMaintainerKey = new Tuple<DateTime, bool>(today, false);
+                    //var todayDayMaintainerId = newSchedules[todayDayMaintainerKey].MaintainerId;
+                    //if (todayDayMaintainerId == 0)
+                    //{
+                    //    nextDayMaintainerId = leftMaintainers[0].Id;
+                    //}
+                    //else
+                    //{
+                    //    var maintainer = leftMaintainers.FirstOrDefault(x => x.Id == todayDayMaintainerId);
+                    //    if (maintainer != null)
+                    //    {
+                    //        var index = leftMaintainers.IndexOf(maintainer);
+                    //        i = index + 1 >= leftLen ? 0 : index + 1;
+                    //        nextDayMaintainerId = leftMaintainers[i].Id;
+                    //    }
+                    //    else
+                    //    {
+                    //        nextDayMaintainerId = leftMaintainers[0].Id;
+                    //    }
+                    //}
+
+                    //var temp = weekBegin;
+                    //while (temp <= weekEnd)
+                    //{
+                    //    if (temp > today)
+                    //    {
+                    //        var nextDayMaintainerKey = new Tuple<DateTime, bool>(temp, false);
+                    //        if (newSchedules[nextDayMaintainerKey].MaintainerId != 0)
+                    //        {
+                    //            newSchedules[nextDayMaintainerKey].MaintainerId = nextDayMaintainerId;
+                    //            i = i + 1 >= leftLen ? 0 : i + 1;
+                    //            nextDayMaintainerId = leftMaintainers[i].Id;
+                    //        }
+                    //    }
+                    //    temp = temp.AddDays(1);
+                    //}
+                    #endregion
+                    ServerConfig.ApiDb.Execute(
+                        "UPDATE `maintainer_schedule` SET `MaintainerId` = @MaintainerId WHERE `Id` = @Id;",
+                        newSchedules);
+                }
+
+            }
+            catch (Exception e)
+            {
+                Log.Error(e);
             }
         }
     }

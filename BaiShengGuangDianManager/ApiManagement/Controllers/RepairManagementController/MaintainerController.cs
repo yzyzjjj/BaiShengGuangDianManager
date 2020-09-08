@@ -1,4 +1,5 @@
-﻿using ApiManagement.Base.Server;
+﻿using ApiManagement.Base.Helper;
+using ApiManagement.Base.Server;
 using ApiManagement.Models.BaseModel;
 using ApiManagement.Models.RepairManagementModel;
 using Microsoft.AspNetCore.Mvc;
@@ -20,29 +21,121 @@ namespace ApiManagement.Controllers.RepairManagementController
     public class MaintainerController : ControllerBase
     {
         // GET: api/Maintainer
+        /// <summary>
+        /// 
+        /// </summary>
+        /// <param name="qId"></param>
+        /// <param name="menu"></param>
+        /// <param name="arranged">-1 所有； 0 不排班； 1 排班</param>
+        /// <returns></returns>
         [HttpGet]
-        public DataResult GetMaintainer([FromQuery] int qId, bool menu)
+        public DataResult GetMaintainer([FromQuery] int qId, bool menu, int arranged = -1)
         {
             var result = new DataResult();
             string sql;
             if (menu)
             {
                 sql =
-                    $"SELECT Id, `Name`, `Account`, `Phone`, `Remark` FROM `maintainer` WHERE {(qId == 0 ? "" : "Id = @qId AND ")}`MarkedDelete` = 0;";
+                    $"SELECT Id, `Name`, `Account`, `Phone`, `Remark`, `Order` FROM `maintainer` WHERE `MarkedDelete` = 0" +
+                    $"{(qId == 0 ? "" : " AND Id = @qId ")} " +
+                    $"{(arranged == -1 ? "" : (arranged == 0 ? " AND `Order` = 0" : " AND `Order` != 0"))}" +
+                    $";";
                 var data = ServerConfig.ApiDb.Query<dynamic>(sql, new { qId });
-                result.datas.AddRange(data);
+                result.datas.AddRange(data.Where(x => x.Order != 0).OrderBy(y => y.Order).ThenBy(z => z.Id));
+                result.datas.AddRange(data.Where(x => x.Order == 0).OrderBy(y => y.Id));
             }
             else
             {
                 sql =
-                    $"SELECT * FROM `maintainer` WHERE {(qId == 0 ? "" : "Id = @qId AND ")}`MarkedDelete` = 0;";
+                    $"SELECT * FROM `maintainer` WHERE WHERE `MarkedDelete` = 0" +
+                    $"{(qId == 0 ? "" : " AND Id = @qId ")} " +
+                    $"{(arranged == -1 ? "" : (arranged == 0 ? " AND `Order` = 0" : " AND `Order` != 0"))}" +
+                    $";";
                 var data = ServerConfig.ApiDb.Query<Maintainer>(sql, new { qId });
-                result.datas.AddRange(data);
+                result.datas.AddRange(data.Where(x => x.Order != 0).OrderBy(y => y.Order).ThenBy(z => z.Id));
+                result.datas.AddRange(data.Where(x => x.Order == 0).OrderBy(y => y.Id));
             }
 
             if (qId != 0 && !result.datas.Any())
             {
                 return Result.GenError<DataResult>(Error.MaintainerNotExist);
+            }
+            return result;
+        }
+
+        // GET: api/Maintainer/Schedule
+        [HttpGet("Schedule")]
+        public DataResult GetMaintainerSchedule([FromQuery]DateTime time)
+        {
+            var result = new DataResult();
+            var today = time == default(DateTime) ? DateTime.Today : time;
+            var weekBegin = today.WeekBeginTime().Date;
+            var weekEnd = today.WeekEndTime().AddDays(1).Date;
+
+            var schedules = ServerConfig.ApiDb.Query<MaintainerScheduleDetail>(
+                "SELECT a.*, b.`Name`, b.Phone FROM `maintainer_schedule` a JOIN `maintainer` b ON a.MaintainerId = b.Id WHERE a.StartTime >= @Time1 AND a.StartTime < @Time2 ORDER BY a.StartTime;", new
+                {
+                    Time1 = weekBegin,
+                    Time2 = weekEnd
+                });
+            //var scheduleAdjusts = ServerConfig.ApiDb.Query<MaintainerAdjust>(
+            //    "SELECT * FROM `maintainer_adjust` WHERE StartTime >= @Time1 AND StartTime <= @Time2 ORDER BY a.StartTime;", new
+            //    {
+            //        Time1 = weekBegin,
+            //        Time2 = weekEnd
+            //    });
+            var temp = weekBegin;
+            while (temp <= weekEnd)
+            {
+                //0-8
+                var startTime = temp;
+                var endTime = temp.AddSeconds(GlobalConfig.Morning.TotalSeconds);
+                var schedule = new MaintainerScheduleDetails
+                {
+                    StartTime = startTime,
+                    EndTime  = endTime
+                };
+                schedule.Maintainers.AddRange(schedules.Where(x =>
+                    x.StartTime >= startTime && x.StartTime < endTime));
+                result.datas.Add(schedule);
+
+                //8-17
+                startTime = temp.AddSeconds(GlobalConfig.Morning.TotalSeconds);
+                endTime = temp.AddSeconds(GlobalConfig.Evening.TotalSeconds);
+                schedule = new MaintainerScheduleDetails
+                {
+                    StartTime = startTime,
+                    EndTime = endTime
+                };
+                schedule.Maintainers.AddRange(schedules.Where(x =>
+                    x.StartTime >= startTime && x.StartTime < endTime));
+                result.datas.Add(schedule);
+
+                //17-20
+                startTime = temp.AddSeconds(GlobalConfig.Evening.TotalSeconds);
+                endTime = temp.AddSeconds(GlobalConfig.Night20.TotalSeconds);
+                schedule = new MaintainerScheduleDetails
+                {
+                    StartTime = startTime,
+                    EndTime = endTime
+                };
+                schedule.Maintainers.AddRange(schedules.Where(x =>
+                    x.StartTime >= startTime && x.StartTime < endTime));
+                result.datas.Add(schedule);
+
+                //20-24
+                startTime = temp.AddSeconds(GlobalConfig.Night20.TotalSeconds);
+                endTime = temp.AddDays(1);
+                schedule = new MaintainerScheduleDetails
+                {
+                    StartTime = startTime,
+                    EndTime = endTime
+                };
+                schedule.Maintainers.AddRange(schedules.Where(x =>
+                    x.StartTime >= startTime && x.StartTime < endTime));
+                result.datas.Add(schedule);
+
+                temp = temp.AddDays(1);
             }
             return result;
         }
@@ -136,12 +229,67 @@ namespace ApiManagement.Controllers.RepairManagementController
                     maintainer.Phone = (maintainer.Phone.IsNullOrEmpty() || !maintainer.Phone.IsPhone()) ? "" : maintainer.Phone;
                 }
                 sql =
-                    "UPDATE maintainer SET `MarkedDateTime` = @MarkedDateTime, `Phone` = @Phone, `Remark` = @Remark WHERE `Id` = @Id;";
+                    "UPDATE maintainer SET `MarkedDateTime` = @MarkedDateTime, `Phone` = @Phone, `Remark` = @Remark, `Order` = @Order WHERE `Id` = @Id;";
                 ServerConfig.ApiDb.Execute(sql, maintainers);
             }
+            TimerHelper.DoMaintainerSchedule();
             return Result.GenError<Result>(Error.Success);
         }
 
+        // GET: api/Maintainer/Schedule
+        [HttpPut("Schedule")]
+        public DataResult PutMaintainerSchedule([FromBody] IEnumerable<MaintainerSchedule> schedules)
+        {
+            if (schedules == null || !schedules.Any())
+            {
+                return Result.GenError<DataResult>(Error.ParamError);
+            }
+
+            var daySchedule = schedules.Where(x =>
+                x.StartTime >= x.StartTime.Date.AddSeconds(GlobalConfig.Morning.TotalSeconds) &&
+                x.StartTime <= x.StartTime.Date.AddSeconds(GlobalConfig.Night20.TotalSeconds));
+
+            var nightSchedule = schedules.Where(x =>
+                x.StartTime < x.StartTime.Date.AddSeconds(GlobalConfig.Morning.TotalSeconds) &&
+                x.StartTime > x.StartTime.Date.AddSeconds(GlobalConfig.Night20.TotalSeconds));
+
+            if (daySchedule.Any(x =>
+                nightSchedule.Where(y => y.StartTime.InSameDay(x.StartTime))
+                    .Any(z => z.MaintainerId == x.MaintainerId)))
+            {
+                return Result.GenError<DataResult>(Error.ParamError);
+            }
+
+            var result = new DataResult();
+            var today = DateTime.Today;
+            var weekBegin = today.WeekBeginTime();
+            var weekEnd = today.WeekEndTime();
+
+            if (schedules.Any(x => x.StartTime < weekBegin || x.StartTime > weekEnd))
+            {
+                return Result.GenError<DataResult>(Error.ParamError);
+            }
+            var oldSchedules = ServerConfig.ApiDb.Query<MaintainerScheduleDetail>(
+                "SELECT a.*, b.`Name`, b.Phone FROM `maintainer_schedule` a JOIN `maintainer` b ON a.MaintainerId = b.Id WHERE a.StartTime >= @Time1 AND a.StartTime <= @Time2 ORDER BY a.Time;", new
+                {
+                    Time1 = weekBegin,
+                    Time2 = weekEnd
+                });
+
+            var changes = new List<int>();
+            foreach (var oldSchedule in oldSchedules)
+            {
+                var newSchedule = schedules.FirstOrDefault(x => x.Id == oldSchedule.Id);
+                if (newSchedule != null && oldSchedule.MaintainerId != newSchedule.MaintainerId)
+                {
+                    changes.Add(oldSchedule.Id);
+                    oldSchedule.MaintainerId = newSchedule.MaintainerId;
+                }
+            }
+
+            ServerConfig.ApiDb.Execute("UPDATE `maintainer_schedule` SET `MaintainerId` = @MaintainerId WHERE Id = @Id;", oldSchedules.Where(x => changes.Contains(x.Id)));
+            return result;
+        }
 
         // POST: api/Maintainer/Maintainers
         [HttpPost]
@@ -174,10 +322,44 @@ namespace ApiManagement.Controllers.RepairManagementController
             }
 
             var sql =
-                "INSERT INTO maintainer (`CreateUserId`, `MarkedDateTime`, `Name`, `Account`, `Phone`, `Remark`) " +
-                "VALUES (@CreateUserId, @MarkedDateTime, @Name, @Account, @Phone, @Remark);";
+                "INSERT INTO maintainer (`CreateUserId`, `MarkedDateTime`, `Name`, `Account`, `Phone`, `Remark`, `Order`) " +
+                "VALUES (@CreateUserId, @MarkedDateTime, @Name, @Account, @Phone, @Remark, @Order);";
             ServerConfig.ApiDb.Execute(sql, maintainers);
 
+            TimerHelper.DoMaintainerSchedule();
+            return Result.GenError<Result>(Error.Success);
+        }
+
+        // POST: api/Maintainer/Adjust
+        [HttpPost("Adjust")]
+        public Result PostMaintainerAdjust([FromBody] IEnumerable<MaintainerAdjust> maintainers)
+        {
+            if (maintainers.Any(x => x.MaintainerId == 0 || x.StartTime == default(DateTime) || x.EndTime == default(DateTime)))
+            {
+                return Result.GenError<Result>(Error.MaintainerNotExist);
+            }
+            var cnt =
+                ServerConfig.ApiDb.Query<int>("SELECT COUNT(1) FROM `maintainer` WHERE Id IN @MaintainerId AND `MarkedDelete` = 0;", new { MaintainerId = maintainers.Select(x => x.MaintainerId) }).FirstOrDefault();
+            if (cnt < maintainers.Count())
+            {
+                return Result.GenError<Result>(Error.MaintainerNotExist);
+            }
+
+            var createUserId = Request.GetIdentityInformation();
+            var time = DateTime.Now;
+            foreach (var maintainer in maintainers)
+            {
+                maintainer.CreateUserId = createUserId;
+                maintainer.MarkedDateTime = time;
+                maintainer.Remark = maintainer.Remark ?? "";
+            }
+
+            var sql =
+                "INSERT INTO `maintainer_adjust` (`CreateUserId`, `MarkedDateTime`, `Type`, `MaintainerId`, `Remark`, `StartTime`, `EndTime`) " +
+                "VALUES (@CreateUserId, @MarkedDateTime, @Type, @MaintainerId, @Remark, @StartTime, @EndTime);";
+            ServerConfig.ApiDb.Execute(sql, maintainers);
+
+            TimerHelper.DoMaintainerSchedule();
             return Result.GenError<Result>(Error.Success);
         }
 
@@ -185,7 +367,7 @@ namespace ApiManagement.Controllers.RepairManagementController
         /// account
         /// </summary>
         /// <returns></returns>
-        // DELETE: api/Maintainer/Id/5
+        // DELETE: api/Maintainer/
         [HttpDelete]
         public Result DeleteMaintainer([FromBody] BatchDelete batchDelete)
         {
@@ -203,8 +385,36 @@ namespace ApiManagement.Controllers.RepairManagementController
                     MarkedDelete = true,
                     Id = ids
                 });
+
+            TimerHelper.DoMaintainerSchedule();
             return Result.GenError<Result>(Error.Success);
         }
 
+        /// <summary>
+        /// account
+        /// </summary>
+        /// <returns></returns>
+        // DELETE: api/Maintainer/Adjust
+        [HttpDelete("Adjust")]
+        public Result DeleteMaintainerAdjust([FromBody] BatchDelete batchDelete)
+        {
+            var ids = batchDelete.ids;
+            var cnt =
+                ServerConfig.ApiDb.Query<int>("SELECT * FROM `maintainer_adjust` WHERE Id IN @id AND `MarkedDelete` = 0;", new { id = ids }).FirstOrDefault();
+            if (cnt == 0)
+            {
+                return Result.GenError<Result>(Error.ParamError);
+            }
+            ServerConfig.ApiDb.Execute(
+                "UPDATE `maintainer_adjust` SET `MarkedDateTime`= @MarkedDateTime, `MarkedDelete`= @MarkedDelete WHERE Id IN @id", new
+                {
+                    MarkedDateTime = DateTime.Now,
+                    MarkedDelete = true,
+                    Id = ids
+                });
+
+            TimerHelper.DoMaintainerSchedule();
+            return Result.GenError<Result>(Error.Success);
+        }
     }
 }

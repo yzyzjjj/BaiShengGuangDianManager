@@ -26,6 +26,10 @@ namespace ApiManagement.Controllers.RepairManagementController
         public DataResult GetRepairRecord([FromQuery]DateTime startTime, DateTime endTime, int condition,
             string code, DateTime fStartTime, DateTime fEndTime, string maintainer, DateTime eStartTime, DateTime eEndTime, int qId, int faultType = -1, int priority = -1, int grade = -1)
         {
+            if (!maintainer.IsNullOrEmpty())
+            {
+                maintainer += ",";
+            }
             var field = RepairRecord.GetField(new List<string> { "DeviceCode" }, "a.");
             var sql =
                 $"SELECT {field}, IFNULL(d.`Code`, a.DeviceCode) DeviceCode, b.FaultTypeName, IFNULL(c.`Name`, '') `Name`, IFNULL(c.`Account`, '') `Account`, IFNULL(c.`Phone`, '') `Phone` FROM `fault_device_repair` a " +
@@ -40,7 +44,7 @@ namespace ApiManagement.Controllers.RepairManagementController
                    $"{(faultType == -1 ? "" : (" AND a.FaultTypeId " + (condition == 0 ? "=" : "!=") + " @faultType"))}" +
                    $"{(priority == -1 ? "" : (" AND a.Priority " + (condition == 0 ? "=" : "!=") + " @priority"))}" +
                    $"{(grade == -1 ? "" : (" AND a.Grade " + (condition == 0 ? "=" : "!=") + " @grade"))}" +
-                   $"{(maintainer.IsNullOrEmpty() ? "" : (" AND a.Maintainer " + (condition == 0 ? "=" : "!=") + " @maintainer"))}" +
+                   $"{(maintainer.IsNullOrEmpty() ? "" : (" AND CONCAT(a.Maintainer, \",\") " + (condition == 0 ? "LIKE " : " NOT LIKE ") + " @maintainer"))}" +
                    $"{((eStartTime == default(DateTime) || eEndTime == default(DateTime)) ? "" : " AND a.EstimatedTime >= @eStartTime AND a.EstimatedTime <= @eEndTime")}" +
                    $"{(qId == 0 ? "" : (" AND a.Id " + (condition == 0 ? "=" : "!=") + " @qId"))}";
 
@@ -64,6 +68,10 @@ namespace ApiManagement.Controllers.RepairManagementController
         public DataResult GetRepairRecordDeleteLog([FromQuery]DateTime startTime, DateTime endTime, int condition,
             string code, DateTime fStartTime, DateTime fEndTime, string maintainer, DateTime eStartTime, DateTime eEndTime, int qId, int faultType = -1, int priority = -1, int grade = -1)
         {
+            if (!maintainer.IsNullOrEmpty())
+            {
+                maintainer += ",";
+            }
             var field = RepairRecord.GetField(new List<string> { "DeviceCode" }, "a.");
             var sql =
                 $"SELECT {field}, IFNULL(d.`Code`, a.DeviceCode) DeviceCode, b.FaultTypeName, IFNULL(c.`Name`, '') `Name`, IFNULL(c.`Account`, '') `Account`, IFNULL(c.`Phone`, '') `Phone` FROM `fault_device_repair` a " +
@@ -78,7 +86,7 @@ namespace ApiManagement.Controllers.RepairManagementController
                    $"{(faultType == -1 ? "" : (" AND a.FaultTypeId " + (condition == 0 ? "=" : "!=") + " @faultType"))}" +
                    $"{(priority == -1 ? "" : (" AND a.Priority " + (condition == 0 ? "=" : "!=") + " @priority"))}" +
                    $"{(grade == -1 ? "" : (" AND a.Grade " + (condition == 0 ? "=" : "!=") + " @grade"))}" +
-                   $"{(maintainer.IsNullOrEmpty() ? "" : (" AND a.Maintainer " + (condition == 0 ? "=" : "!=") + " @maintainer"))}" +
+                   $"{(maintainer.IsNullOrEmpty() ? "" : (" AND CONCAT(a.Maintainer, \",\") " + (condition == 0 ? "LIKE " : " NOT LIKE ") + " @maintainer"))}" +
                    $"{((eStartTime == default(DateTime) || eEndTime == default(DateTime)) ? "" : " AND a.EstimatedTime >= @eStartTime AND a.EstimatedTime <= @eEndTime")}" +
                    $"{(qId == 0 ? "" : (" AND a.Id " + (condition == 0 ? "=" : "!=") + " @qId"))}";
             var result = new DataResult();
