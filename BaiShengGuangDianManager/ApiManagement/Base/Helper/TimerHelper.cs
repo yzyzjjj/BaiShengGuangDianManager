@@ -559,7 +559,7 @@ namespace ApiManagement.Base.Helper
                                     if (existPurchase != null)
                                     {
                                         purchase.Id = existPurchase.Id;
-                                        if (purchase.HaveChange(existPurchase) && existPurchase.State != MaterialPurchaseStateEnum.订单完成)
+                                        if (ClassExtension.HaveChange(purchase, existPurchase) && existPurchase.State != MaterialPurchaseStateEnum.订单完成)
                                         {
                                             purchases.Add(purchase);
                                         }
@@ -837,16 +837,16 @@ namespace ApiManagement.Base.Helper
                             if (addPurchaseItems.Any())
                             {
                                 ServerConfig.ApiDb.Execute(
-                                    "INSERT INTO `material_purchase_item` (`CreateUserId`, `MarkedDateTime`, `Time`, `IsErp`, `ErpId`, `PurchaseId`, `Code`, `Class`, `Category`, `Name`, `Supplier`, `Specification`, `Number`, `Unit`, `Remark`, `Purchaser`, `Order`, `EstimatedTime`, `ArrivalTime`, `File`, `FileUrl`, `IsInspection`, `Currency`, `Payment`, `Transaction`, `Invoice`, `TaxPrice`, `TaxAmount`, `Price`, `Stock`, `BillId`) " +
-                                    "VALUES (@CreateUserId, @MarkedDateTime, @Time, @IsErp, @ErpId, @PurchaseId, @Code, @Class, @Category, @Name, @Supplier, @Specification, @Number, @Unit, @Remark, @Purchaser, @Order, @EstimatedTime, @ArrivalTime, @File, @FileUrl, @IsInspection, @Currency, @Payment, @Transaction, @Invoice, @TaxPrice, @TaxAmount, @Price, @Stock, @BillId);",
+                                    "INSERT INTO `material_purchase_item` (`CreateUserId`, `MarkedDateTime`, `Time`, `IsErp`, `ErpId`, `PurchaseId`, `Code`, `Class`, `Category`, `Name`, `Supplier`, `SupplierFull`, `Specification`, `Number`, `Unit`, `Remark`, `Purchaser`, `PurchasingCompany`, `Order`, `EstimatedTime`, `ArrivalTime`, `File`, `FileUrl`, `IsInspection`, `Currency`, `Payment`, `Transaction`, `Invoice`, `TaxPrice`, `TaxAmount`, `Price`, `Stock`, `BillId`) " +
+                                    "VALUES (@CreateUserId, @MarkedDateTime, @Time, @IsErp, @ErpId, @PurchaseId, @Code, @Class, @Category, @Name, @Supplier, @SupplierFull, @Specification, @Number, @Unit, @Remark, @Purchaser, @PurchasingCompany, @Order, @EstimatedTime, @ArrivalTime, @File, @FileUrl, @IsInspection, @Currency, @Payment, @Transaction, @Invoice, @TaxPrice, @TaxAmount, @Price, @Stock, @BillId);",
                                     addPurchaseItems);
                             }
 
                             if (updatePurchaseItems.Any())
                             {
                                 ServerConfig.ApiDb.Execute(
-                                    "UPDATE `material_purchase_item` SET `MarkedDateTime` = @MarkedDateTime, `MarkedDelete` = @MarkedDelete, `Class` = @Class, `Category` = @Category, `Name` = @Name, `Supplier` = @Supplier, " +
-                                    "`Specification` = @Specification, `Number` = @Number, `Unit` = @Unit, `Remark` = @Remark, `Purchaser` = @Purchaser, `Order` = @Order, " +
+                                    "UPDATE `material_purchase_item` SET `MarkedDateTime` = @MarkedDateTime, `MarkedDelete` = @MarkedDelete, `Class` = @Class, `Category` = @Category, `Name` = @Name, `Supplier` = @Supplier, `SupplierFull` = @SupplierFull, " +
+                                    "`Specification` = @Specification, `Number` = @Number, `Unit` = @Unit, `Remark` = @Remark, `Purchaser` = @Purchaser, `PurchasingCompany` = @PurchasingCompany, `Order` = @Order, " +
                                     "`EstimatedTime` = @EstimatedTime, `ArrivalTime` = @ArrivalTime, `File` = @File, `FileUrl` = @FileUrl, `IsInspection` = @IsInspection, " +
                                     "`Currency` = @Currency, `Payment` = @Payment, `Transaction` = @Transaction, `Invoice` = @Invoice, `TaxPrice` = @TaxPrice, `TaxAmount` = @TaxAmount, " +
                                     "`Price` = @Price, `Stock` = IF(@BillId > 0, @Stock, `Stock`), `BillId` = IF(@BillId > 0, @BillId, `BillId`) WHERE `Id` = @Id;", updatePurchaseItems);
@@ -954,6 +954,10 @@ namespace ApiManagement.Base.Helper
             /// </summary>
             public string f_gys { get; set; }
             /// <summary>
+            /// 供应商全称
+            /// </summary>
+            public string f_nickname { get; set; }
+            /// <summary>
             /// 规格
             /// </summary>
             public string f_gg { get; set; }
@@ -973,6 +977,10 @@ namespace ApiManagement.Base.Helper
             /// 采购人
             /// </summary>
             public string f_cgname { get; set; }
+            /// <summary>
+            /// 采购公司
+            /// </summary>
+            public string f_gsmc { get; set; }
             /// <summary>
             /// 采购订单号
             /// </summary>
