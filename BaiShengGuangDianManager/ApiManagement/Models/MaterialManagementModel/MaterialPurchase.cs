@@ -385,6 +385,11 @@ namespace ApiManagement.Models.MaterialManagementModel
         /// 品类
         /// </summary>
         public string Purchaser { get; set; }
+        /// <summary>
+        /// 采购公司
+        /// </summary>
+
+        public string PurchasingCompany { get; set; }
 
         public bool Illegal()
         {
