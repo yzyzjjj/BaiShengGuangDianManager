@@ -1,11 +1,11 @@
 ﻿using ApiManagement.Models.BaseModel;
+using ModelBase.Base.Utils;
+using Newtonsoft.Json;
 using ServiceStack;
 using ServiceStack.DataAnnotations;
 using System;
 using System.Collections.Generic;
 using System.Linq;
-using ModelBase.Base.Utils;
-using Newtonsoft.Json;
 using DescriptionAttribute = System.ComponentModel.DescriptionAttribute;
 
 namespace ApiManagement.Models.RepairManagementModel
@@ -28,6 +28,7 @@ namespace ApiManagement.Models.RepairManagementModel
         private bool Cancel2 { get; set; }
         public string Administrator { get; set; }
         public string Maintainer { get; set; }
+        public List<string> Maintainers => Maintainer.IsNullOrEmpty() ? new List<string>() : Maintainer.Split(",").ToList();
         public DateTime AssignTime { get; set; }
         public DateTime EstimatedTime { get; set; }
         public string Remark { get; set; }

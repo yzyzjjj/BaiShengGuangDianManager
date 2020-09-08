@@ -113,8 +113,8 @@ namespace ApiManagement.Controllers.RepairManagementController
             return result;
         }
 
-        /// <summary>
         /// 机台号
+        /// <summary>
         /// </summary>
         /// <param name="code">机台号</param>
         /// <returns></returns>
