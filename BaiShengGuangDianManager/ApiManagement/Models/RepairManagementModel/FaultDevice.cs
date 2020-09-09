@@ -37,7 +37,6 @@ namespace ApiManagement.Models.RepairManagementModel
         public string[] ImageList => Images != null ? JsonConvert.DeserializeObject<string[]>(Images) : new string[0];
         public bool IsReport { get; set; }
 
-
         public static IEnumerable<string> GetMembers(IEnumerable<string> except = null)
         {
             var result = typeof(FaultDevice).GetProperties().Where(x => (IgnoreAttribute)x.GetCustomAttributes(typeof(IgnoreAttribute), false).FirstOrDefault() == null).Select(y => y.Name);

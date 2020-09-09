@@ -13,9 +13,8 @@ namespace ApiManagement.Models.RepairManagementModel
         public DateTime SolveTime { get; set; }
         public string SolvePlan { get; set; }
         public int FaultTypeId1 { get; set; }
-        public int Score { get; set; }
-        public string Scores { get; set; }
-        public List<int> ScoreList => Scores.IsNullOrEmpty() ? new List<int>() : Scores.Split(",").Select(int.Parse).ToList();
+        public string Score { get; set; }
+        public List<int> Scores => Score.IsNullOrEmpty() ? new List<int>() : Score.Split(",").Select(int.Parse).ToList();
         public string Comment { get; set; }
         [Ignore]
         public string CostTime => FaultTime == default(DateTime) || SolveTime == default(DateTime)
