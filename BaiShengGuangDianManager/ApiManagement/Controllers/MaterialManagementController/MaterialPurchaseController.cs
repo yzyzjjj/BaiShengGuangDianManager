@@ -277,7 +277,7 @@ namespace ApiManagement.Controllers.MaterialManagementController
                 ServerConfig.ApiDb.Execute(
                     "UPDATE `material_purchase_quote` SET `MarkedDateTime` = @MarkedDateTime, `Purchase` = @Purchase, `Time` = @Time, `ItemId` = @ItemId, `PurchaseId` = @PurchaseId, " +
                     "`Code` = @Code, `Class` = @Class, `Category` = @Category, `Name` = @Name, `Supplier` = @Supplier, `Specification` = @Specification, `Number` = @Number, `Unit` = @Unit, " +
-                    "`Price` = @Price, `TaxPrice` = @TaxPrice, `TaxAmount` = @TaxAmount, `Tax` = @Tax, `Order` = @Order, `Purchaser` = @Purchaser WHERE `Id` = @Id;", oldQuote);
+                    "`Price` = @Price, `TaxPrice` = @TaxPrice, `TaxAmount` = @TaxAmount, `Tax` = @Tax, `Order` = @Order, `Purchaser` = @Purchaser, `PurchasingCompany` = @PurchasingCompany WHERE `Id` = @Id;", oldQuote);
             }
             var newQuote = materialPurchaseQuote.Where(x => x.Id == 0);
             if (newQuote.Any())
@@ -288,17 +288,17 @@ namespace ApiManagement.Controllers.MaterialManagementController
                     var item = materialPurchaseItems.FirstOrDefault(x => x.Id == quote.ItemId);
                     quote.CreateUserId = createUserId;
                     quote.PurchaseId = purchaseId;
-                    quote.Class = item?.Class ?? "";
-                    quote.Category = item?.Category ?? "";
-                    quote.Supplier = item?.Supplier ?? "";
-                    quote.Order = item?.Order ?? "";
-                    quote.Purchaser = item?.Purchaser ?? "";
+                    quote.Class = quote.Class.IsNullOrEmpty() ? item?.Class ?? "" : quote.Class;
+                    quote.Category = quote.Category.IsNullOrEmpty() ? item?.Category ?? "" : quote.Category;
+                    quote.Supplier = quote.Supplier.IsNullOrEmpty() ? item?.Supplier ?? "" : quote.Supplier;
+                    quote.Order = quote.Order.IsNullOrEmpty() ? item?.Order ?? "" : quote.Order;
+                    quote.Purchaser = quote.Purchaser.IsNullOrEmpty() ? item?.Purchaser ?? "" : quote.Purchaser;
+                    quote.PurchasingCompany = quote.PurchasingCompany.IsNullOrEmpty() ? item?.PurchasingCompany ?? "" : quote.PurchasingCompany;
                 }
 
                 ServerConfig.ApiDb.Execute(
-                    "INSERT INTO `material_purchase_quote` (`CreateUserId`, `Purchase`, `Time`, `ItemId`, `PurchaseId`, `Code`, `Class`, `Category`, `Name`, `Supplier`, `Specification`, `Number`, `Unit`, `Price`, `TaxPrice`, `TaxAmount`, `Tax`, `Order`, `Purchaser`) " +
-                    "VALUES (@CreateUserId, @Purchase, @Time, @ItemId, @PurchaseId, @Code, @Class, @Category, @Name, @Supplier, @Specification, @Number, @Unit, @Price, @TaxPrice, @TaxAmount, @Tax, @Order, @Purchaser);", newQuote);
-
+                    "INSERT INTO `material_purchase_quote` (`CreateUserId`, `Purchase`, `Time`, `ItemId`, `PurchaseId`, `Code`, `Class`, `Category`, `Name`, `Supplier`, `Specification`, `Number`, `Unit`, `Price`, `TaxPrice`, `TaxAmount`, `Tax`, `Order`, `Purchaser`, `PurchasingCompany`) " +
+                    "VALUES (@CreateUserId, @Purchase, @Time, @ItemId, @PurchaseId, @Code, @Class, @Category, @Name, @Supplier, @Specification, @Number, @Unit, @Price, @TaxPrice, @TaxAmount, @Tax, @Order, @Purchaser, @PurchasingCompany);", newQuote);
             }
             ServerConfig.ApiDb.Execute(
                 "UPDATE `material_purchase` SET `MarkedDateTime` = now(), `IsQuote` = @IsQuote WHERE Id = @purchaseId;", new { IsQuote = true, purchaseId });
