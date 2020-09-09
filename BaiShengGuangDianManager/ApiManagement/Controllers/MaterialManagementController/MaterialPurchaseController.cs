@@ -288,12 +288,12 @@ namespace ApiManagement.Controllers.MaterialManagementController
                     var item = materialPurchaseItems.FirstOrDefault(x => x.Id == quote.ItemId);
                     quote.CreateUserId = createUserId;
                     quote.PurchaseId = purchaseId;
-                    quote.Class = item?.Class ?? "";
-                    quote.Category = item?.Category ?? "";
-                    quote.Supplier = item?.Supplier ?? "";
-                    quote.Order = item?.Order ?? "";
-                    quote.Purchaser = item?.Purchaser ?? "";
-                    quote.PurchasingCompany = item?.PurchasingCompany ?? "";
+                    quote.Class = quote.Class.IsNullOrEmpty() ? item?.Class ?? "" : quote.Class;
+                    quote.Category = quote.Category.IsNullOrEmpty() ? item?.Category ?? "" : quote.Category;
+                    quote.Supplier = quote.Supplier.IsNullOrEmpty() ? item?.Supplier ?? "" : quote.Supplier;
+                    quote.Order = quote.Order.IsNullOrEmpty() ? item?.Order ?? "" : quote.Order;
+                    quote.Purchaser = quote.Purchaser.IsNullOrEmpty() ? item?.Purchaser ?? "" : quote.Purchaser;
+                    quote.PurchasingCompany = quote.PurchasingCompany.IsNullOrEmpty() ? item?.PurchasingCompany ?? "" : quote.PurchasingCompany;
                 }
 
                 ServerConfig.ApiDb.Execute(
