@@ -14,6 +14,7 @@ namespace ApiManagement.Models.RepairManagementModel
         public string SolvePlan { get; set; }
         public int FaultTypeId1 { get; set; }
         public string Score { get; set; }
+        [Ignore]
         public List<int> Scores => Score.IsNullOrEmpty() ? new List<int>() : Score.Split(",").Select(int.Parse).ToList();
         public string Comment { get; set; }
         [Ignore]

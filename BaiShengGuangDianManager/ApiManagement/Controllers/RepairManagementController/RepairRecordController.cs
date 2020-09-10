@@ -174,7 +174,7 @@ namespace ApiManagement.Controllers.RepairManagementController
 
             repairRecord.Comment = repairRecord.Comment ?? "";
             ServerConfig.ApiDb.Execute(
-                "UPDATE fault_device_repair SET `Score` = @Score, `Comment` = @Comment WHERE `Id` = @Id;", repairRecord);
+                "UPDATE fault_device_repair SET `Comment` = @Comment WHERE `Id` = @Id;", repairRecord);
 
             return Result.GenError<Result>(Error.Success);
         }

@@ -42,6 +42,10 @@ namespace ApiManagement.Controllers.RepairManagementController
         public DataResult GetFaultDevice([FromQuery]DateTime startTime, DateTime endTime, int condition,
             string code, string maintainer, DateTime eStartTime, DateTime eEndTime, int qId, int faultType = -1, int priority = -1, int grade = -1, int state = -1)
         {
+            if (!maintainer.IsNullOrEmpty())
+            {
+                maintainer += ",";
+            }
             var field = FaultDevice.GetField(new List<string> { "DeviceCode" }, "a.");
             //var sql =
             //    $"SELECT a.*, b.FaultTypeName, IFNULL(c.`Name`, '') `Name`, IFNULL(c.`Account`, '') `Account`, IFNULL(c.`Phone`, '') `Phone` FROM (SELECT {field}, IFNULL(b.`Code`, a.DeviceCode) DeviceCode FROM `fault_device_repair` a " +
@@ -84,6 +88,10 @@ namespace ApiManagement.Controllers.RepairManagementController
         public DataResult GetFaultDeviceDeleteLog([FromQuery]DateTime startTime, DateTime endTime, int condition,
             string code, string maintainer, DateTime eStartTime, DateTime eEndTime, int qId, int faultType = -1, int priority = -1, int grade = -1, int state = -1)
         {
+            if (!maintainer.IsNullOrEmpty())
+            {
+                maintainer += ",";
+            }
             var field = FaultDevice.GetField(new List<string> { "DeviceCode" }, "a.");
             //var sql =
             //    $"SELECT a.*, b.FaultTypeName, IFNULL(c.`Name`, '') `Name`, IFNULL(c.`Account`, '') `Account`, IFNULL(c.`Phone`, '') `Phone` FROM (SELECT {field}, IFNULL(b.`Code`, a.DeviceCode) DeviceCode FROM `fault_device_repair` a " +
@@ -214,7 +222,7 @@ namespace ApiManagement.Controllers.RepairManagementController
             foreach (var faultDevice in faultDevices)
             {
                 var old = oldFaultDevices.FirstOrDefault(x => x.Id == faultDevice.Id);
-                if (old.Maintainer != info)
+                if (!old.Maintainers.Contains(info))
                 {
                     return Result.GenError<Result>(Error.FaultDeviceRepairMaintainerError);
                 }

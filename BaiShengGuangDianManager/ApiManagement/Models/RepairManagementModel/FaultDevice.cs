@@ -28,6 +28,7 @@ namespace ApiManagement.Models.RepairManagementModel
         private bool Cancel2 { get; set; }
         public string Administrator { get; set; }
         public string Maintainer { get; set; }
+        [Ignore]
         public List<string> Maintainers => Maintainer.IsNullOrEmpty() ? new List<string>() : Maintainer.Split(",").ToList();
         public DateTime AssignTime { get; set; }
         public DateTime EstimatedTime { get; set; }
