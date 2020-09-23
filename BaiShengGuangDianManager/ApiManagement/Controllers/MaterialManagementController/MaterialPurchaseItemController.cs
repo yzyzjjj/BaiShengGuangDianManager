@@ -204,6 +204,15 @@ namespace ApiManagement.Controllers.MaterialManagementController
             var allBill = ServerConfig.ApiDb.Query<MaterialManagementErp>(
                 "SELECT a.*, IFNULL(b.Number, 0) Number, IF(ISNULL(b.Number), 0, 1) Exist, b.Id MId, b.BillId FROM `material_bill` a LEFT JOIN `material_management` b ON a.Id = b.BillId WHERE a.MarkedDelete = 0;");
 
+            foreach (var bill in erpBill)
+            {
+                var b = allBill.FirstOrDefault(x => x.Code == bill.Code);
+                if (b != null)
+                {
+                    bill.BillId = b.BillId;
+                }
+            }
+
             var createUserId = Request.GetIdentityInformation();
             if (erpBill.Any(x => x.BillId == 0))
             {
@@ -487,20 +496,21 @@ namespace ApiManagement.Controllers.MaterialManagementController
                     {
                         var code = notExistCode.First().Code;
                         var i = 0;
+                        var  newCode = code;
                         while (true)
                         {
-                            if (allBill.Any(x => x.Code == code) || newCodes.Any(x => x == code))
+                            if (allBill.Any(x => x.Code == newCode) || newCodes.Any(x => x == newCode))
                             {
-                                code += "-" + i++;
+                                newCode = code +"-" + i++;
                             }
                             else
                             {
-                                newCodes.Add(code);
+                                newCodes.Add(newCode);
                                 foreach (var b in materialBills.Where(x => x.SpecificationId == notExistCode.Key.SpecificationId
                                                                           && x.Price == notExistCode.Key.Price
                                                                           && x.SiteId == notExistCode.Key.SiteId))
                                 {
-                                    b.Code = code;
+                                    b.Code = newCode;
                                 }
                                 break;
                             }

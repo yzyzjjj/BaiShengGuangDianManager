@@ -10,6 +10,8 @@ namespace ApiManagement.Models.RepairManagementModel
     public class RepairRecord : FaultDevice
     {
         public string FaultSolver { get; set; }
+        [Ignore]
+        public List<string> FaultSolvers => FaultSolver.IsNullOrEmpty() ? new List<string>() : FaultSolver.Split(",").ToList();
         public DateTime SolveTime { get; set; }
         public string SolvePlan { get; set; }
         public int FaultTypeId1 { get; set; }

@@ -1616,18 +1616,20 @@ namespace ApiManagement.Base.Helper
                             var deviceFaultType = singleFaultType.DeviceFaultTypes.First(x => x.Code == repairRecordDetail.DeviceCode);
                             deviceFaultType.Count++;
 
-                            if (singleFaultType.Operators.All(x => x.Name != repairRecordDetail.FaultSolver))
+                            foreach (var faultSolver in repairRecordDetail.FaultSolvers)
                             {
-                                singleFaultType.Operators.Add(new Operator
+                                if (singleFaultType.Operators.All(x => x.Name != faultSolver))
                                 {
-                                    Name = repairRecordDetail.FaultSolver,
-                                });
+                                    singleFaultType.Operators.Add(new Operator
+                                    {
+                                        Name = faultSolver,
+                                    });
+                                }
+
+                                var @operator = singleFaultType.Operators.First(x => x.Name == faultSolver);
+                                @operator.Count++;
+                                @operator.Time += repairRecordDetail.SolveTime > repairRecordDetail.FaultTime ? (int)(repairRecordDetail.SolveTime - repairRecordDetail.FaultTime).TotalSeconds : 0;
                             }
-
-                            var @operator = singleFaultType.Operators.First(x => x.Name == repairRecordDetail.FaultSolver);
-                            @operator.Count++;
-                            @operator.Time += repairRecordDetail.SolveTime > repairRecordDetail.FaultTime ? (int)(repairRecordDetail.SolveTime - repairRecordDetail.FaultTime).TotalSeconds : 0;
-
                             monitoringFault.RepairSingleFaultTypeStr = monitoringFault.RepairSingleFaultType.OrderBy(x => x.FaultId).ToJSON();
                         }
                         #endregion

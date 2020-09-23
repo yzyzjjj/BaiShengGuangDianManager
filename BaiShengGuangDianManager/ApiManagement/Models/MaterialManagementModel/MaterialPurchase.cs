@@ -277,38 +277,14 @@ namespace ApiManagement.Models.MaterialManagementModel
         /// </summary>
         [IgnoreChange]
         public int BillId { get; set; }
-        //public bool HaveChange(MaterialPurchaseItem materialPurchase)
-        //{
-        //    var thisProperties = GetType().GetProperties();
-        //    var properties = materialPurchase.GetType().GetProperties();
-        //    foreach (var propInfo in typeof(MaterialPurchaseItem).GetProperties())
-        //    {
-        //        var attr = (DescriptionAttribute)propInfo.GetCustomAttributes(typeof(DescriptionAttribute), false).FirstOrDefault();
-        //        if (attr == null)
-        //        {
-        //            continue;
-        //        }
-        //        var thisValue = thisProperties.First(x => x.Name == propInfo.Name).GetValue(this);
-        //        var value = properties.First(x => x.Name == propInfo.Name).GetValue(materialPurchase);
-        //        if (propInfo.PropertyType == typeof(DateTime))
-        //        {
-        //            return (DateTime)thisValue != (DateTime)value;
-        //        }
-
-        //        if (propInfo.PropertyType == typeof(decimal))
-        //        {
-        //            return (decimal)thisValue != (decimal)value;
-        //        }
-
-        //        var oldValue = thisValue.ToString();
-        //        var newValue = value.ToString();
-        //        if (oldValue != newValue)
-        //        {
-        //            return true;
-        //        }
-        //    }
-        //    return false;
-        //}
+        public bool IsSame(MaterialPurchaseItem materialPurchase)
+        {
+            return Code == materialPurchase.Code
+                   && Category == materialPurchase.Category
+                   && Name == materialPurchase.Name
+                   && Supplier == materialPurchase.Supplier
+                   && Specification == materialPurchase.Specification;
+        }
     }
 
     public class MaterialPurchaseQuote : CommonBase

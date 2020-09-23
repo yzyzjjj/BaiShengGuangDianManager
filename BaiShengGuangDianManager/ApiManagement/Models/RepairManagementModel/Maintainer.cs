@@ -38,6 +38,13 @@ namespace ApiManagement.Models.RepairManagementModel
         /// </summary>
         public int Order { get; set; }
     }
+    public class MaintainerScore : Maintainer
+    {
+        /// <summary>
+        /// 评分
+        /// </summary>
+        public int Score { get; set; }
+    }
 
     /// <summary>
     /// 维修工排班
@@ -83,6 +90,12 @@ namespace ApiManagement.Models.RepairManagementModel
         /// </summary>
         public List<MaintainerScheduleDetail> Maintainers = new List<MaintainerScheduleDetail>();
     }
+
+    public enum MaintainerAdjustEnum
+    {
+
+    }
+
     /// <summary>
     /// 维修工调班
     /// </summary>

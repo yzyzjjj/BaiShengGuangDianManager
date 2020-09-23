@@ -51,8 +51,9 @@ namespace ApiManagement.Controllers.PlanManagementController
                         "JOIN ( SELECT a.*, b.`Name`, b.CategoryId, b.Category FROM `material_supplier` a " +
                         "JOIN ( SELECT a.*, b.Category FROM `material_name` a " +
                         "JOIN `material_category` b ON a.CategoryId = b.Id ) b ON a.NameId = b.Id ) b ON a.SupplierId = b.Id ) b ON a.SpecificationId = b.Id JOIN `material_site` c ON a.SiteId = c.Id ) b ON a.BillId = b.Id " +
-                        "LEFT JOIN `material_management` c ON a.BillId = c.BillId WHERE a.PlanId = @planId AND a.`MarkedDelete` = 0 ORDER BY a.Extra, a.Id;";
-                    plan.FirstBill.AddRange(ServerConfig.ApiDb.Query<ProductionPlanBillStockDetail>(sql, new { planId = plan.Id }));
+                        //"LEFT JOIN `material_management` c ON a.BillId = c.BillId WHERE a.PlanId = @planId AND a.`MarkedDelete` = 0 ORDER BY a.Extra, a.Id;";
+                        "LEFT JOIN `material_management` c ON a.BillId = c.BillId WHERE a.PlanId = @planId AND a.`MarkedDelete` = 0 ORDER BY a.Id DESC;";
+                        plan.FirstBill.AddRange(ServerConfig.ApiDb.Query<ProductionPlanBillStockDetail>(sql, new { planId = plan.Id }));
                 }
             }
             var result = new DataResult();

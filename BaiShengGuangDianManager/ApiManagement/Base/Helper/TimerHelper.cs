@@ -651,6 +651,7 @@ namespace ApiManagement.Base.Helper
                                                                 }
                                                                 else
                                                                 {
+                                                                    erpCode.CreateUserId = _createUserId + "1";
                                                                     addPurchaseItems.Add(erpCode);
                                                                 }
                                                             }
@@ -698,7 +699,7 @@ namespace ApiManagement.Base.Helper
                                                 }
 
                                                 //删除存在的code但是请购id变了
-                                                var idChange = existPurchaseItems.Where(x => erpPurchaseItems.Any(y => y.Code == x.Code && y.ErpId != x.ErpId));
+                                                var idChange = existPurchaseItems.Where(x => erpPurchaseItems.Any(y => y.IsSame(x) && y.ErpId != x.ErpId));
                                                 if (idChange.Any())
                                                 {
                                                     var s = idChange.Select(z =>
@@ -751,7 +752,7 @@ namespace ApiManagement.Base.Helper
                                                     {
                                                         foreach (var ll in l)
                                                         {
-                                                            var change = idChange.FirstOrDefault(x => x.Code == ll.Code);
+                                                            var change = idChange.FirstOrDefault(x => x.IsSame(ll));
                                                             if (change != null && change.BillId > 0)
                                                             {
                                                                 ll.Stock = change.Stock;
@@ -766,9 +767,18 @@ namespace ApiManagement.Base.Helper
                                                                     });
                                                                 }
                                                             }
+                                                            ll.CreateUserId = _createUserId + "2";
+                                                            addPurchaseItems.Add(ll);
                                                         }
                                                     }
-                                                    addPurchaseItems.AddRange(l);
+                                                    else
+                                                    {
+                                                        addPurchaseItems.AddRange(l.Select(x =>
+                                                        {
+                                                            x.CreateUserId = _createUserId + "2";
+                                                            return x;
+                                                        }));
+                                                    }
                                                 }
                                             }
                                         }
@@ -825,7 +835,7 @@ namespace ApiManagement.Base.Helper
                                         var purchase = havePurchases.FirstOrDefault(x => x.ErpId == p.f_id);
 
                                         //新增
-                                        var l = p.goods.Select(good => new MaterialPurchaseItem(purchase.Id, good, _createUserId, now, _urlFile));
+                                        var l = p.goods.Select(good => new MaterialPurchaseItem(purchase.Id, good, _createUserId + "3", now, _urlFile));
                                         if (l.Any())
                                         {
                                             addPurchaseItems.AddRange(l);
@@ -1064,7 +1074,8 @@ namespace ApiManagement.Base.Helper
                         "a.`Unit`, a.`Stock`, IFNULL(c.Number, 0) TodayNumber, a.`Price` TodayPrice, IFNULL(c.Number, 0) * a.`Price` TodayAmount FROM `material_bill` a JOIN (SELECT a.*, b.CategoryId, " +
                         "b.Category, b.NameId, b.`Name`, b.Supplier FROM `material_specification` a JOIN (SELECT a.*, b.`Name`, b.CategoryId, b.Category FROM `material_supplier` a JOIN (SELECT a.*, " +
                         "b.Category FROM `material_name` a JOIN `material_category` b ON a.CategoryId = b.Id) b ON a.NameId = b.Id) b ON a.SupplierId = b.Id) b ON a.SpecificationId = b.Id LEFT JOIN " +
-                        "`material_management` c ON a.Id = c.BillId JOIN `material_site` d ON a.SiteId = d.Id WHERE a.`MarkedDelete` = 0 AND IFNULL(c.Number, 0) > 0 ORDER BY a.Id;").ToList();
+                        //"`material_management` c ON a.Id = c.BillId JOIN `material_site` d ON a.SiteId = d.Id WHERE a.`MarkedDelete` = 0 AND IFNULL(c.Number, 0) > 0 ORDER BY a.Id;").ToList();
+                        "`material_management` c ON a.Id = c.BillId JOIN `material_site` d ON a.SiteId = d.Id WHERE a.`MarkedDelete` = 0 ORDER BY a.Id;").ToList();
 
                     //昨日单价数量总价
                     var yesterdayMaterialStatistics = ServerConfig.ApiDb.Query<MaterialStatistic>(
@@ -1093,7 +1104,7 @@ namespace ApiManagement.Base.Helper
                         }
                     }
 
-                    //今日日入库领用
+                    //今日入库领用
                     var todayMaterialStatistics = ServerConfig.ApiDb.Query<MaterialStatistic>(
                        "SELECT a.BillId, SUM(IF(a.Type = 1, a.Number, 0)) Increase,  SUM(IF(a.Type = 2, a.Number, 0)) Consume, SUM(IF(a.Type = 3 AND `Mode` = 0, a.Number, 0)) CorrectIn, " +
                        "SUM(IF(a.Type = 3 AND `Mode` = 1, a.Number, 0)) CorrectCon, SUM(IF(a.Type = 3, a.Number, 0)) Correct FROM material_log a JOIN material_bill b ON a.BillId = b.Id " +
@@ -1129,7 +1140,11 @@ namespace ApiManagement.Base.Helper
                         }
                     }
 
-                    var valid = materialStatistics.Where(x => x.Valid());
+                    var oldValid = ServerConfig.ApiDb.Query<int>(
+                        "SELECT BillId FROM `material_balance` WHERE Time = @Time AND TodayNumber + LastNumber + Increase + Consume + Increase + Consume + CorrectIn + CorrectCon + Correct != 0;",
+                        new { Time = calTime });
+
+                    var valid = materialStatistics.Where(x => x.Valid() || oldValid.Contains(x.BillId));
                     ServerConfig.ApiDb.Execute(
                         "INSERT INTO `material_balance` (`Time`, `Code`, `BillId`, `CategoryId`, `Category`, `NameId`, `Name`, `SupplierId`, `Supplier`, `SpecificationId`, " +
                         "`Specification`, `SiteId`, `Site`, `Unit`, `Stock`, `LastNumber`, `LastPrice`, `LastAmount`, `TodayNumber`, `TodayPrice`, " +
@@ -1488,6 +1503,7 @@ namespace ApiManagement.Base.Helper
             var redisLock = $"{_pre}:Lock";
             if (ServerConfig.RedisHelper.SetIfNotExist(redisLock, DateTime.Now.ToStr()))
             {
+                ServerConfig.RedisHelper.SetExpireAt(redisLock, DateTime.Now.AddMinutes(5 * 12));
                 DoMaintainerSchedule();
                 ServerConfig.RedisHelper.Remove(redisLock);
             }
@@ -1497,15 +1513,15 @@ namespace ApiManagement.Base.Helper
         /// </summary>
         public static void DoMaintainerSchedule()
         {
-            return;
             try
             {
-                var today = DateTime.Today;
-                var weekBegin = today.WeekBeginTime().Date;
-                var weekEnd = today.WeekEndTime().Date;
-                var nextWeekBegin = weekBegin.AddDays(7).Date;
-                var lastWeekBegin = weekBegin.AddDays(-7).Date;
-                var lastWeekEnd = weekEnd.AddDays(-7).Date;
+                var now = DateTime.Now;
+                var today = now.Date;
+                var thisWeekBegin = today.WeekBeginTime().Date;
+                var thisWeekEnd = today.WeekEndTime().Date;
+                var nextWeekBegin = thisWeekBegin.AddDays(7).Date;
+                var lastWeekBegin = thisWeekBegin.AddDays(-7).Date;
+                var lastWeekEnd = thisWeekEnd.AddDays(-7).Date;
                 var maintainers = ServerConfig.ApiDb.Query<Maintainer>("SELECT * FROM `maintainer` WHERE `MarkedDelete` = 0 AND `Order` != 0 ORDER BY `Order`, Id;").ToArray();
                 var len = maintainers.Length;
 
@@ -1565,20 +1581,22 @@ namespace ApiManagement.Base.Helper
                 }
 
                 Maintainer[] leftMaintainers = null;
+                var updateList = new List<int>();
+                var deleteList = new List<int>();
                 var newSchedules = new List<MaintainerSchedule>();
                 //下周新排班
-                if (schedules.Count(x => x.StartTime >= weekBegin && x.StartTime < weekEnd) == 0)
+                if (schedules.Count(x => x.StartTime >= thisWeekBegin && x.StartTime < thisWeekEnd) == 0)
                 {
                     #region 本周新排班表
                     leftMaintainers = maintainers.Where(x => x.Id != thisWeekNightMaintainerId).ToArray();
                     leftLen = leftMaintainers.Length;
 
                     var i17_20 = 0;
-                    var temp = weekBegin;
+                    var temp = thisWeekBegin;
                     DateTime startTime;
                     DateTime endTime;
                     MaintainerSchedule schedule;
-                    while (temp <= weekEnd.AddDays(-1))
+                    while (temp <= thisWeekEnd.AddDays(-1))
                     {
                         //0-8
                         startTime = temp;
@@ -1688,8 +1706,6 @@ namespace ApiManagement.Base.Helper
                     });
                     #endregion
 
-                    ServerConfig.RedisHelper.SetForever(lastWeekNightKey, thisWeekNightMaintainerId);
-                    ServerConfig.RedisHelper.SetForever(thisWeekNightKey, nextWeekNightMaintainerId);
                     ServerConfig.ApiDb.Execute(
                         "INSERT INTO  `maintainer_schedule` (`StartTime`, `EndTime`, `MaintainerId`) VALUES (@StartTime, @EndTime, @MaintainerId) " +
                         "ON DUPLICATE KEY UPDATE `MaintainerId` = @MaintainerId;",
@@ -1697,97 +1713,105 @@ namespace ApiManagement.Base.Helper
                 }
                 else
                 {
-                    newSchedules.AddRange(schedules.Where(t => t.StartTime >= weekBegin));
+                    newSchedules.AddRange(schedules.Where(t => t.StartTime >= thisWeekBegin));
                     #region 检查本周是否有离职的或取消排班的，更新排班表
-                    //var nextNightMaintainerKey = new Tuple<DateTime, bool>(weekEnd, true);
-                    ////检查本周白班是否有离职的
-                    ////var isDayLiZhi = newSchedules.Any(x => (isNew ? x.Key.Item1 >= weekBegin : x.Key.Item1 > today) && !x.Key.Item2 && maintainers.All(y => y.Id != x.Value.MaintainerId));
-                    ////检查本周夜班是否有离职的
-                    //var isNightLiZhi = newSchedules.Any(x => x.Key.Item2 && maintainers.All(y => y.Id != x.Value.MaintainerId));
-                    ////夜班离职,重新排夜班
-                    //if (isNightLiZhi)
-                    //{
-                    //    //上周夜班
-                    //    lastNightMaintainerId = schedules.FirstOrDefault(x => x.Time.InSameWeek(lastWeekBegin) && x.Night)?.MaintainerId ?? 0;
-                    //    //上周夜班
-                    //    if (lastNightMaintainerId == 0)
-                    //    {
-                    //        //本周夜班
-                    //        nextNightMaintainerId = maintainers[0].Id;
-                    //    }
-                    //    else
-                    //    {
-                    //        var maintainer = maintainers.FirstOrDefault(x => x.Id == lastNightMaintainerId);
-                    //        if (maintainer != null)
-                    //        {
-                    //            var index = maintainers.IndexOf(maintainer);
-                    //            i = index + 1 >= len ? 0 : index + 1;
-                    //            //本周夜班
-                    //            nextNightMaintainerId = maintainers[i].Id;
-                    //        }
-                    //        else
-                    //        {
-                    //            //本周夜班
-                    //            nextNightMaintainerId = maintainers[0].Id;
-                    //        }
-                    //    }
-                    //    newSchedules[nextNightMaintainerKey].MaintainerId = nextNightMaintainerId;
-                    //}
-                    //else
-                    //{
-                    //    nextNightMaintainerId = newSchedules[nextNightMaintainerKey].MaintainerId;
-                    //}
+                    var nightSchedules = newSchedules.Where(d => d.StartTime > now && d.StartTime < thisWeekEnd.AddSeconds(GlobalConfig.Morning.TotalSeconds)
+                                                                                   && ((d.StartTime >= d.StartTime.Date && d.StartTime < d.StartTime.Date.AddSeconds(GlobalConfig.Morning.TotalSeconds))
+                                                                                       || (d.StartTime > d.StartTime.Date.AddSeconds(GlobalConfig.Night20.TotalSeconds) && d.StartTime < d.StartTime.Date.AddDays(1))));
+                    //检查本周夜班是否有离职的
+                    var thisWeekNightLiZhi = nightSchedules.Where(x => maintainers.All(y => y.Id != x.MaintainerId));
+                    //本周夜班离职
+                    if (thisWeekNightLiZhi.Any())
+                    {
+                        foreach (var schedule in thisWeekNightLiZhi)
+                        {
+                            schedule.MaintainerId = 0;
+                            updateList.Add(schedule.Id);
+                        }
+                    }
 
-                    //leftMaintainers = maintainers.Where(x => x.Id != nextNightMaintainerId).ToArray();
-                    //leftLen = leftMaintainers.Length;
-                    //if (leftLen == 0)
-                    //{
-                    //    leftMaintainers = maintainers.ToArray();
-                    //}
+                    //下周夜班
+                    var nextWeekNightMaintainer = newSchedules.First(d => d.StartTime > now && d.StartTime >= thisWeekBegin.AddSeconds(GlobalConfig.Night20.TotalSeconds));
+                    //检查下周夜班是否有离职的
+                    var isNextWeekNightLiZhi = maintainers.All(y => y.Id != nextWeekNightMaintainer?.MaintainerId);
+                    //下周夜班离职
+                    if (nextWeekNightMaintainer != null && isNextWeekNightLiZhi)
+                    {
+                        //var maintainer = maintainers.FirstOrDefault(x => x.Id == thisWeekNightMaintainerId);
+                        //if (maintainer != null)
+                        //{
+                        //    var index = maintainers.IndexOf(maintainer);
+                        //    i = index + 1 >= len ? 0 : index + 1;
+                        //    nextWeekNightMaintainerId = maintainers[i].Id;
+                        //    if (nextWeekNightMaintainerId == lastWeekNightMaintainerId)
+                        //    {
+                        //        nextWeekNightMaintainerId = 0;
+                        //    }
 
-                    ////今日白班
-                    //var todayDayMaintainerKey = new Tuple<DateTime, bool>(today, false);
-                    //var todayDayMaintainerId = newSchedules[todayDayMaintainerKey].MaintainerId;
-                    //if (todayDayMaintainerId == 0)
-                    //{
-                    //    nextDayMaintainerId = leftMaintainers[0].Id;
-                    //}
-                    //else
-                    //{
-                    //    var maintainer = leftMaintainers.FirstOrDefault(x => x.Id == todayDayMaintainerId);
-                    //    if (maintainer != null)
-                    //    {
-                    //        var index = leftMaintainers.IndexOf(maintainer);
-                    //        i = index + 1 >= leftLen ? 0 : index + 1;
-                    //        nextDayMaintainerId = leftMaintainers[i].Id;
-                    //    }
-                    //    else
-                    //    {
-                    //        nextDayMaintainerId = leftMaintainers[0].Id;
-                    //    }
-                    //}
+                        //    i = i + 1 >= len ? 0 : i + 1;
+                        //    thisWeekDayMaintainerId = maintainers[i].Id;
+                        //    if (thisWeekDayMaintainerId == nextWeekNightMaintainerId)
+                        //    {
+                        //        thisWeekDayMaintainerId = 0;
+                        //    }
+                        //}
+                        updateList.Add(nextWeekNightMaintainer.Id);
+                        nextWeekNightMaintainer.MaintainerId = 0;
+                        //leftMaintainers = maintainers.Where(x => x.Id != nextNightMaintainerId).ToArray();
+                        //leftLen = leftMaintainers.Length;
+                        //if (leftLen == 0)
+                        //{
+                        //    leftMaintainers = maintainers.ToArray();
+                        //}
+                    }
+                    //本周白班 8 - 17
+                    var day8_17Schedules = newSchedules.Where(d => d.StartTime > now && d.StartTime < thisWeekEnd.AddDays(-1).AddSeconds(GlobalConfig.Evening.TotalSeconds)
+                                                                                   && (d.StartTime >= d.StartTime.Date.AddSeconds(GlobalConfig.Morning.TotalSeconds) && d.StartTime < d.StartTime.Date.AddSeconds(GlobalConfig.Evening.TotalSeconds)));
 
-                    //var temp = weekBegin;
-                    //while (temp <= weekEnd)
-                    //{
-                    //    if (temp > today)
-                    //    {
-                    //        var nextDayMaintainerKey = new Tuple<DateTime, bool>(temp, false);
-                    //        if (newSchedules[nextDayMaintainerKey].MaintainerId != 0)
-                    //        {
-                    //            newSchedules[nextDayMaintainerKey].MaintainerId = nextDayMaintainerId;
-                    //            i = i + 1 >= leftLen ? 0 : i + 1;
-                    //            nextDayMaintainerId = leftMaintainers[i].Id;
-                    //        }
-                    //    }
-                    //    temp = temp.AddDays(1);
-                    //}
+                    //检查本周白班是否有离职的
+                    var day8_17LiZhi = day8_17Schedules.Where(x => maintainers.All(y => y.Id != x.MaintainerId));
+                    //下周夜班离职
+                    if (day8_17LiZhi.Any())
+                    {
+                        foreach (var schedule in day8_17LiZhi)
+                        {
+                            deleteList.Add(schedule.Id);
+                        }
+                    }
+
+                    //本周白班 17 - 20
+                    var day17_20Schedules = newSchedules.Where(d => d.StartTime > now && d.StartTime < thisWeekEnd.AddDays(-1).AddSeconds(GlobalConfig.Night20.TotalSeconds)
+                                                                                      && (d.StartTime >= d.StartTime.Date.AddSeconds(GlobalConfig.Evening.TotalSeconds) && d.StartTime < d.StartTime.Date.AddSeconds(GlobalConfig.Night20.TotalSeconds)));
+
+                    //检查本周白班是否有离职的
+                    var day17_20SLiZhi = day17_20Schedules.Where(x => maintainers.All(y => y.Id != x.MaintainerId));
+                    //下周夜班离职
+                    if (day17_20SLiZhi.Any())
+                    {
+                        foreach (var schedule in day17_20SLiZhi)
+                        {
+                            schedule.MaintainerId = 0;
+                            updateList.Add(schedule.Id);
+                        }
+                    }
                     #endregion
-                    ServerConfig.ApiDb.Execute(
+                    if (updateList.Any())
+                    {
+                        ServerConfig.ApiDb.Execute(
                         "UPDATE `maintainer_schedule` SET `MaintainerId` = @MaintainerId WHERE `Id` = @Id;",
-                        newSchedules);
+                            newSchedules.Where(x => updateList.Any(y => y == x.Id)));
+                    }
+                    if (deleteList.Any())
+                    {
+                        ServerConfig.ApiDb.Execute(
+                            "DELETE FROM `maintainer_schedule` WHERE `Id` = @Id;",
+                            newSchedules.Where(x => deleteList.Any(y => y == x.Id)));
+                    }
                 }
 
+
+                ServerConfig.RedisHelper.SetForever(lastWeekNightKey, thisWeekNightMaintainerId);
+                ServerConfig.RedisHelper.SetForever(thisWeekNightKey, nextWeekNightMaintainerId);
             }
             catch (Exception e)
             {

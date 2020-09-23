@@ -28,13 +28,17 @@ namespace ApiManagement.Controllers.RepairManagementController
         {
             if (!maintainer.IsNullOrEmpty())
             {
-                maintainer += ",";
+                maintainer = $"%{maintainer},%";
             }
             var field = RepairRecord.GetField(new List<string> { "DeviceCode" }, "a.");
+            //var sql =
+            //    $"SELECT {field}, IFNULL(d.`Code`, a.DeviceCode) DeviceCode, b.FaultTypeName, IFNULL(c.`Name`, '') `Name`, IFNULL(c.`Account`, '') `Account`, IFNULL(c.`Phone`, '') `Phone` FROM `fault_device_repair` a " +
+            //    $"JOIN `fault_type` b ON a.FaultTypeId = b.Id " +
+            //    $"LEFT JOIN (SELECT * FROM (SELECT * FROM maintainer ORDER BY MarkedDelete ) a GROUP BY a.Account ) c ON a.Maintainer = c.Account " +
+            //    $"LEFT JOIN `device_library` d ON a.DeviceId = d.Id";
             var sql =
-                $"SELECT {field}, IFNULL(d.`Code`, a.DeviceCode) DeviceCode, b.FaultTypeName, IFNULL(c.`Name`, '') `Name`, IFNULL(c.`Account`, '') `Account`, IFNULL(c.`Phone`, '') `Phone` FROM `fault_device_repair` a " +
+                $"SELECT {field}, IFNULL(d.`Code`, a.DeviceCode) DeviceCode, b.FaultTypeName FROM `fault_device_repair` a " +
                 $"JOIN `fault_type` b ON a.FaultTypeId = b.Id " +
-                $"LEFT JOIN (SELECT * FROM (SELECT * FROM maintainer ORDER BY MarkedDelete ) a GROUP BY a.Account ) c ON a.Maintainer = c.Account " +
                 $"LEFT JOIN `device_library` d ON a.DeviceId = d.Id";
 
             sql += $" WHERE a.MarkedDelete = 0 AND `State` = @fState " +
@@ -44,14 +48,21 @@ namespace ApiManagement.Controllers.RepairManagementController
                    $"{(faultType == -1 ? "" : (" AND a.FaultTypeId " + (condition == 0 ? "=" : "!=") + " @faultType"))}" +
                    $"{(priority == -1 ? "" : (" AND a.Priority " + (condition == 0 ? "=" : "!=") + " @priority"))}" +
                    $"{(grade == -1 ? "" : (" AND a.Grade " + (condition == 0 ? "=" : "!=") + " @grade"))}" +
-                   $"{(maintainer.IsNullOrEmpty() ? "" : (" AND CONCAT(a.Maintainer, \",\") " + (condition == 0 ? "LIKE " : " NOT LIKE ") + " @maintainer"))}" +
+                   $"{(maintainer.IsNullOrEmpty() ? "" : (" AND CONCAT(a.FaultSolver, \",\") " + (condition == 0 ? "LIKE " : " NOT LIKE ") + " @maintainer"))}" +
                    $"{((eStartTime == default(DateTime) || eEndTime == default(DateTime)) ? "" : " AND a.EstimatedTime >= @eStartTime AND a.EstimatedTime <= @eEndTime")}" +
                    $"{(qId == 0 ? "" : (" AND a.Id " + (condition == 0 ? "=" : "!=") + " @qId"))}";
-
+            var faults = ServerConfig.ApiDb.Query<RepairRecordDetail>(sql,
+                new { fState = RepairStateEnum.Complete, startTime, endTime, condition, code, fStartTime, fEndTime, faultType, priority, grade, maintainer, eStartTime, eEndTime, qId });
+            var maintainers = ServerConfig.ApiDb.Query<Maintainer>("SELECT * FROM `maintainer` WHERE `MarkedDelete` = 0;").ToArray();
+            foreach (var fault in faults)
+            {
+                var mans = maintainers.Where(x => fault.Maintainers.Any(y => y == x.Account));
+                fault.Name = mans.Select(x => x.Name).Join() ?? "";
+                fault.Account = mans.Select(x => x.Account).Join() ?? "";
+                fault.Phone = mans.Select(x => x.Phone).Join() ?? "";
+            }
             var result = new DataResult();
-            result.datas.AddRange(ServerConfig.ApiDb.Query<RepairRecordDetail>(sql,
-                    new { fState = RepairStateEnum.Complete, startTime, endTime, condition, code, fStartTime, fEndTime, faultType, priority, grade, maintainer, eStartTime, eEndTime, qId })
-                .OrderByDescending(x => x.SolveTime).ThenByDescending(x => x.DeviceCode));
+            result.datas.AddRange(faults.OrderByDescending(x => x.SolveTime).ThenByDescending(x => x.DeviceCode));
             if (qId != 0 && !result.datas.Any())
             {
                 result.errno = Error.RepairRecordNotExist;
@@ -70,13 +81,17 @@ namespace ApiManagement.Controllers.RepairManagementController
         {
             if (!maintainer.IsNullOrEmpty())
             {
-                maintainer += ",";
+                maintainer = $"%{maintainer},%";
             }
             var field = RepairRecord.GetField(new List<string> { "DeviceCode" }, "a.");
+            //var sql =
+            //    $"SELECT {field}, IFNULL(d.`Code`, a.DeviceCode) DeviceCode, b.FaultTypeName, IFNULL(c.`Name`, '') `Name`, IFNULL(c.`Account`, '') `Account`, IFNULL(c.`Phone`, '') `Phone` FROM `fault_device_repair` a " +
+            //    $"JOIN `fault_type` b ON a.FaultTypeId = b.Id " +
+            //    $"LEFT JOIN (SELECT * FROM (SELECT * FROM maintainer ORDER BY MarkedDelete ) a GROUP BY a.Account ) c ON a.Maintainer = c.Account " +
+            //    $"LEFT JOIN `device_library` d ON a.DeviceId = d.Id";
             var sql =
-                $"SELECT {field}, IFNULL(d.`Code`, a.DeviceCode) DeviceCode, b.FaultTypeName, IFNULL(c.`Name`, '') `Name`, IFNULL(c.`Account`, '') `Account`, IFNULL(c.`Phone`, '') `Phone` FROM `fault_device_repair` a " +
+                $"SELECT {field}, IFNULL(d.`Code`, a.DeviceCode) DeviceCode, b.FaultTypeName FROM `fault_device_repair` a " +
                 $"JOIN `fault_type` b ON a.FaultTypeId = b.Id " +
-                $"LEFT JOIN (SELECT * FROM (SELECT * FROM maintainer ORDER BY MarkedDelete ) a GROUP BY a.Account ) c ON a.Maintainer = c.Account " +
                 $"LEFT JOIN `device_library` d ON a.DeviceId = d.Id";
 
             sql += $" WHERE a.MarkedDelete = 1 AND `State` = @fState AND a.Cancel = 1 " +
@@ -89,10 +104,18 @@ namespace ApiManagement.Controllers.RepairManagementController
                    $"{(maintainer.IsNullOrEmpty() ? "" : (" AND CONCAT(a.Maintainer, \",\") " + (condition == 0 ? "LIKE " : " NOT LIKE ") + " @maintainer"))}" +
                    $"{((eStartTime == default(DateTime) || eEndTime == default(DateTime)) ? "" : " AND a.EstimatedTime >= @eStartTime AND a.EstimatedTime <= @eEndTime")}" +
                    $"{(qId == 0 ? "" : (" AND a.Id " + (condition == 0 ? "=" : "!=") + " @qId"))}";
+            var faults = ServerConfig.ApiDb.Query<RepairRecordDetail>(sql,
+                new { fState = RepairStateEnum.Complete, startTime, endTime, condition, code, fStartTime, fEndTime, faultType, priority, grade, maintainer, eStartTime, eEndTime, qId });
+            var maintainers = ServerConfig.ApiDb.Query<Maintainer>("SELECT * FROM `maintainer` WHERE `MarkedDelete` = 0;").ToArray();
+            foreach (var fault in faults)
+            {
+                var mans = maintainers.Where(x => fault.Maintainers.Any(y => y == x.Account));
+                fault.Name = mans.Select(x => x.Name).Join() ?? "";
+                fault.Account = mans.Select(x => x.Account).Join() ?? "";
+                fault.Phone = mans.Select(x => x.Phone).Join() ?? "";
+            }
             var result = new DataResult();
-            result.datas.AddRange(ServerConfig.ApiDb.Query<RepairRecordDetail>(sql,
-                    new { fState = RepairStateEnum.Complete, startTime, endTime, condition, code, fStartTime, fEndTime, faultType, priority, grade, maintainer, eStartTime, eEndTime, qId })
-                .OrderByDescending(x => x.SolveTime).ThenByDescending(x => x.DeviceCode));
+            result.datas.AddRange(faults.OrderByDescending(x => x.SolveTime).ThenByDescending(x => x.DeviceCode));
             return result;
         }
 
@@ -143,22 +166,55 @@ namespace ApiManagement.Controllers.RepairManagementController
         [HttpGet("ScoreRank")]
         public DataResult GetScoreRank([FromQuery]DateTime startTime, DateTime endTime)
         {
-            var sql =
-                $" SELECT a.Id, a.`Name`, a.Account, IFNULL(b.Score, 0) Score FROM maintainer a  LEFT JOIN (SELECT FaultSolver, SUM(Score) Score FROM fault_device_repair " +
-                $"WHERE `State` = @state AND MarkedDelete = 0 GROUP BY FaultSolver) b ON a.`Name`= b.FaultSolver WHERE MarkedDelete = 0 ORDER BY b.Score DESC;";
+            var maintainers = ServerConfig.ApiDb.Query<MaintainerScore>("SELECT * FROM `maintainer`;");
+            var scores = maintainers.Where(x => !x.MarkedDelete).ToList();
+            var logs = ServerConfig.ApiDb.Query<RepairRecord>(
+                "SELECT FaultSolver, Score FROM fault_device_repair WHERE `State` = @state AND MarkedDelete = 0 AND SolveTime >= @startTime AND SolveTime <= @endTime",
+                new { startTime, endTime, state = RepairStateEnum.Complete });
+            foreach (var log in logs)
+            {
+                for (var i = 0; i < log.FaultSolvers.Count; i++)
+                {
+                    var name = log.FaultSolvers[i];
+                    if (scores.Any(x => x.Name == name))
+                    {
+                        scores.First(x => x.Name == name).Score += log.Scores.Count > i ? log.Scores[i] : 0;
+                    }
+                    else if (maintainers.Any(x => x.Name == name))
+                    {
+                        var maintainer = maintainers.First(x => x.Name == name);
+                        scores.Add(new MaintainerScore
+                        {
+                            Id = maintainer.Id,
+                            Name = maintainer.Name,
+                            Account = maintainer.Account,
+                            Score = log.Scores.Count < i ? log.Scores[i] : 0
+                        });
+                    }
+                }
+            }
+            //var sql =
+            //    $" SELECT a.Id, a.`Name`, a.Account, IFNULL(b.Score, 0) Score FROM maintainer a  LEFT JOIN (SELECT FaultSolver, SUM(Score) Score FROM fault_device_repair " +
+            //    $"WHERE `State` = @state AND MarkedDelete = 0 GROUP BY FaultSolver) b ON a.`Name`= b.FaultSolver WHERE MarkedDelete = 0 ORDER BY b.Score DESC;";
             var result = new DataResult();
-            result.datas.AddRange(ServerConfig.ApiDb.Query<dynamic>(sql, new { startTime, endTime, state= RepairStateEnum.Complete }));
+            result.datas.AddRange(scores.OrderByDescending(x => x.Score).Select(y => new
+            {
+                y.Id,
+                y.Name,
+                y.Account,
+                y.Score
+            }));
             return result;
         }
 
         /// <summary>
-        /// 维修评分
+        /// 维修评价
         /// </summary>
         /// <param name="repairRecord"></param>
         /// <returns></returns>
         // PUT: api/RepairRecord/Id/5
-        [HttpPut("Score")]
-        public Result PutRepairRecord([FromBody] RepairRecord repairRecord)
+        [HttpPut("Comment")]
+        public Result PutRepairRecordComment([FromBody] RepairRecord repairRecord)
         {
             var record =
                 ServerConfig.ApiDb.Query<RepairRecord>("SELECT * FROM `fault_device_repair` WHERE Id = @id AND MarkedDelete = 0;", new { id = repairRecord.Id }).FirstOrDefault();
@@ -180,12 +236,13 @@ namespace ApiManagement.Controllers.RepairManagementController
         }
 
         /// <summary>
-        /// 更新记录
+        /// 维修评分
         /// </summary>
+        /// <param name="repairRecords"></param>
         /// <returns></returns>
         // PUT: api/RepairRecord/Id/5
-        [HttpPut]
-        public Result PutRepairRecord([FromBody] IEnumerable<RepairRecord> repairRecords)
+        [HttpPut("Score")]
+        public Result PutRepairRecordScore([FromBody] IEnumerable<RepairRecord> repairRecords)
         {
             var cnt =
                 ServerConfig.ApiDb.Query<int>("SELECT COUNT(1) FROM `fault_device_repair` WHERE Id IN @id AND `State` = @state AND MarkedDelete = 0;",
@@ -196,7 +253,46 @@ namespace ApiManagement.Controllers.RepairManagementController
             }
 
             ServerConfig.ApiDb.Execute(
-                "UPDATE fault_device_repair SET `FaultSolver` = @FaultSolver, `SolveTime` = @SolveTime, `SolvePlan` = @SolvePlan, `FaultTypeId1` = @FaultTypeId1 WHERE `Id` = @Id;", repairRecords);
+                "UPDATE fault_device_repair SET `Score` = @Score WHERE `Id` = @Id;", repairRecords);
+
+            return Result.GenError<Result>(Error.Success);
+        }
+
+        /// <summary>
+        /// 更新记录
+        /// </summary>
+        /// <returns></returns>
+        // PUT: api/RepairRecord/Id/5
+        [HttpPut]
+        public Result PutRepairRecord([FromBody] IEnumerable<RepairRecord> repairRecords)
+        {
+            var data =
+                ServerConfig.ApiDb.Query<RepairRecord>("SELECT * FROM `fault_device_repair` WHERE Id IN @id AND `State` = @state AND MarkedDelete = 0;",
+                    new { id = repairRecords.Select(x => x.Id), state = RepairStateEnum.Complete });
+            if (data.Count() != repairRecords.Count())
+            {
+                return Result.GenError<Result>(Error.RepairRecordNotExist);
+            }
+
+            var now = DateTime.Now;
+            foreach (var record in repairRecords)
+            {
+                var old = data.First(x => x.Id == record.Id);
+                if (record.FaultSolver != old.FaultSolver)
+                {
+                    var faultSolvers = new List<string>();
+                    faultSolvers.AddRange(record.FaultSolvers.Where(x => old.FaultSolvers.Contains(x)));
+                    var scores = faultSolvers.Select(solver => old.FaultSolvers.IndexOf(solver)).Select(index => old.Scores[index]).ToList();
+                    faultSolvers.AddRange(record.FaultSolvers.Where(x => !old.FaultSolvers.Contains(x)));
+                    record.FaultSolver = faultSolvers.Join();
+                    record.Score = scores.Join();
+                }
+
+                record.MarkedDateTime = now;
+            }
+
+            ServerConfig.ApiDb.Execute(
+                "UPDATE fault_device_repair SET `MarkedDateTime` = @MarkedDateTime, `FaultSolver` = @FaultSolver, `Score` = @Score, `SolveTime` = @SolveTime, `SolvePlan` = @SolvePlan, `FaultTypeId1` = @FaultTypeId1 WHERE `Id` = @Id;", repairRecords);
 
             return Result.GenError<Result>(Error.Success);
         }

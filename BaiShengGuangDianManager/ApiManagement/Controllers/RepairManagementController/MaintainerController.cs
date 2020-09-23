@@ -85,7 +85,7 @@ namespace ApiManagement.Controllers.RepairManagementController
             //        Time2 = weekEnd
             //    });
             var temp = weekBegin;
-            while (temp <= weekEnd)
+            while (temp < weekEnd)
             {
                 //0-8
                 var startTime = temp;
@@ -93,7 +93,7 @@ namespace ApiManagement.Controllers.RepairManagementController
                 var schedule = new MaintainerScheduleDetails
                 {
                     StartTime = startTime,
-                    EndTime  = endTime
+                    EndTime = endTime
                 };
                 schedule.Maintainers.AddRange(schedules.Where(x =>
                     x.StartTime >= startTime && x.StartTime < endTime));
@@ -108,7 +108,8 @@ namespace ApiManagement.Controllers.RepairManagementController
                     EndTime = endTime
                 };
                 schedule.Maintainers.AddRange(schedules.Where(x =>
-                    x.StartTime >= startTime && x.StartTime < endTime));
+                    x.StartTime >= startTime && x.StartTime < endTime
+                    && x.MaintainerId != 0));
                 result.datas.Add(schedule);
 
                 //17-20
@@ -238,39 +239,20 @@ namespace ApiManagement.Controllers.RepairManagementController
 
         // GET: api/Maintainer/Schedule
         [HttpPut("Schedule")]
-        public DataResult PutMaintainerSchedule([FromBody] IEnumerable<MaintainerSchedule> schedules)
+        public Result PutMaintainerSchedule([FromBody] IEnumerable<MaintainerSchedule> schedules)
         {
             if (schedules == null || !schedules.Any())
             {
-                return Result.GenError<DataResult>(Error.ParamError);
+                return Result.GenError<Result>(Error.ParamError);
             }
 
-            var daySchedule = schedules.Where(x =>
-                x.StartTime >= x.StartTime.Date.AddSeconds(GlobalConfig.Morning.TotalSeconds) &&
-                x.StartTime <= x.StartTime.Date.AddSeconds(GlobalConfig.Night20.TotalSeconds));
-
-            var nightSchedule = schedules.Where(x =>
-                x.StartTime < x.StartTime.Date.AddSeconds(GlobalConfig.Morning.TotalSeconds) &&
-                x.StartTime > x.StartTime.Date.AddSeconds(GlobalConfig.Night20.TotalSeconds));
-
-            if (daySchedule.Any(x =>
-                nightSchedule.Where(y => y.StartTime.InSameDay(x.StartTime))
-                    .Any(z => z.MaintainerId == x.MaintainerId)))
-            {
-                return Result.GenError<DataResult>(Error.ParamError);
-            }
-
-            var result = new DataResult();
-            var today = DateTime.Today;
+            var now = DateTime.Now;
+            var today = now.Date;
             var weekBegin = today.WeekBeginTime();
             var weekEnd = today.WeekEndTime();
 
-            if (schedules.Any(x => x.StartTime < weekBegin || x.StartTime > weekEnd))
-            {
-                return Result.GenError<DataResult>(Error.ParamError);
-            }
             var oldSchedules = ServerConfig.ApiDb.Query<MaintainerScheduleDetail>(
-                "SELECT a.*, b.`Name`, b.Phone FROM `maintainer_schedule` a JOIN `maintainer` b ON a.MaintainerId = b.Id WHERE a.StartTime >= @Time1 AND a.StartTime <= @Time2 ORDER BY a.Time;", new
+                "SELECT a.*, b.`Name`, b.Phone FROM `maintainer_schedule` a JOIN `maintainer` b ON a.MaintainerId = b.Id WHERE a.StartTime >= @Time1 AND a.StartTime <= @Time2 ORDER BY a.StartTime;", new
                 {
                     Time1 = weekBegin,
                     Time2 = weekEnd
@@ -282,13 +264,18 @@ namespace ApiManagement.Controllers.RepairManagementController
                 var newSchedule = schedules.FirstOrDefault(x => x.Id == oldSchedule.Id);
                 if (newSchedule != null && oldSchedule.MaintainerId != newSchedule.MaintainerId)
                 {
+                    if (oldSchedule.EndTime < now)
+                    {
+                        return Result.GenError<Result>(Error.OldMaintainerSchedule);
+                    }
+
                     changes.Add(oldSchedule.Id);
                     oldSchedule.MaintainerId = newSchedule.MaintainerId;
                 }
             }
 
             ServerConfig.ApiDb.Execute("UPDATE `maintainer_schedule` SET `MaintainerId` = @MaintainerId WHERE Id = @Id;", oldSchedules.Where(x => changes.Contains(x.Id)));
-            return result;
+            return Result.GenError<Result>(Error.Success);
         }
 
         // POST: api/Maintainer/Maintainers
