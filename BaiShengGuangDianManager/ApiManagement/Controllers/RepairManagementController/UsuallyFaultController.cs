@@ -16,7 +16,7 @@ namespace ApiManagement.Controllers.RepairManagementController
     /// </summary>
     [Microsoft.AspNetCore.Mvc.Route("api/[controller]")]
     [ApiController]
-    public class UsuallyFaultController : ControllerBase
+    public class UserController : ControllerBase
     {
         // GET: api/UsuallyFault
         [HttpGet]

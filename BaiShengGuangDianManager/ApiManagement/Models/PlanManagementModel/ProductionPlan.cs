@@ -1,6 +1,8 @@
 ﻿using System.Collections.Generic;
+using System.Linq;
 using ApiManagement.Models.BaseModel;
 using Microsoft.EntityFrameworkCore.ChangeTracking.Internal;
+using ServiceStack;
 
 namespace ApiManagement.Models.PlanManagementModel
 {
@@ -24,5 +26,22 @@ namespace ApiManagement.Models.PlanManagementModel
     public class OpProductionPlan : ProductionPlan
     {
         public IEnumerable<ProductionPlanBill> Bill { get; set; }
+    }
+
+    public class ProductionPlanMove : CommonBase
+    {
+        /// <summary>
+        /// 转出
+        /// </summary>
+        public int FromId { get; set; }
+        /// <summary>
+        /// 转移到
+        /// </summary>
+        public int ToId { get; set; }
+        /// <summary>
+        /// 转移id
+        /// </summary>
+        public IEnumerable<int> Bill { get; set; }
+        public string List => Bill != null ? Bill.Join() : "";
     }
 }

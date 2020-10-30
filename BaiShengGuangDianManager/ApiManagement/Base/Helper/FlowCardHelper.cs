@@ -27,7 +27,7 @@ namespace ApiManagement.Base.Helper
         private static bool _isUpdateProductionProcessStep;
         private static bool _isUpdateProductionProcess;
         private static bool _isUpdateProductionSpecification;
-        private static Dictionary<string, string> _processStepName = new Dictionary<string, string>
+        private static readonly Dictionary<string, string> ProcessStepName = new Dictionary<string, string>
         {
             {"线切割", "线切割"},
             {"精磨", "精磨"},
@@ -249,8 +249,8 @@ namespace ApiManagement.Base.Helper
                                     var i = 1;
                                     foreach (var processStep in newProductionProcessStep)
                                     {
-                                        var n = _processStepName.ContainsKey(processStep.n)
-                                            ? _processStepName[processStep.n]
+                                        var n = ProcessStepName.ContainsKey(processStep.n)
+                                            ? ProcessStepName[processStep.n]
                                             : processStep.n;
 
                                         var dps = deviceProcessSteps.FirstOrDefault(x => x.StepName == n);
@@ -525,7 +525,7 @@ namespace ApiManagement.Base.Helper
             try
             {
                 //计划号
-                var flowCardLibraries = ServerConfig.ApiDb.Query<FlowCardLibrary>("SELECT a.Id, a.FlowCardName, a.ProductionProcessId FROM `flowcard_library` a LEFT JOIN flowcard_process_step b ON a.Id = b.FlowCardId WHERE a.MarkedDelete = 0 AND ISNULL(b.Id) ORDER BY a.Id;", 60).ToDictionary(x => x.Id);
+                var flowCardLibraries = ServerConfig.ApiDb.Query<FlowCardLibrary>("SELECT a.Id, a.FlowCardName, a.ProductionProcessId FROM `flowcard_library` a LEFT JOIN flowcard_process_step b ON a.Id = b.FlowCardId WHERE a.CreateTime > ADDDATE(NOW(), -30) AND a.MarkedDelete = 0 AND ISNULL(b.Id);", 60).ToDictionary(x => x.Id);
                 if (flowCardLibraries.Any())
                 {
                     //数据库计划号工序
@@ -633,8 +633,8 @@ namespace ApiManagement.Base.Helper
                                     var i = 1;
                                     foreach (var processStep in newProductionProcessStep)
                                     {
-                                        var n = _processStepName.ContainsKey(processStep.n)
-                                            ? _processStepName[processStep.n]
+                                        var n = ProcessStepName.ContainsKey(processStep.n)
+                                            ? ProcessStepName[processStep.n]
                                             : processStep.n;
 
                                         var dps = deviceProcessSteps.FirstOrDefault(x => x.StepName == n);

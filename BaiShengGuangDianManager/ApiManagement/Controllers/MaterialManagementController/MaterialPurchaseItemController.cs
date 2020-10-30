@@ -206,7 +206,12 @@ namespace ApiManagement.Controllers.MaterialManagementController
 
             foreach (var bill in erpBill)
             {
-                var b = allBill.FirstOrDefault(x => x.Code == bill.Code);
+                var b = allBill.FirstOrDefault(x => x.Code == bill.Code
+                                                    && x.Category == bill.Category
+                                                    && x.Name == bill.Name
+                                                    && x.Supplier == bill.Supplier
+                                                    && x.Specification == bill.Specification
+                                                    && x.Price == bill.Price);
                 if (b != null)
                 {
                     bill.BillId = b.BillId;
@@ -496,12 +501,12 @@ namespace ApiManagement.Controllers.MaterialManagementController
                     {
                         var code = notExistCode.First().Code;
                         var i = 0;
-                        var  newCode = code;
+                        var newCode = code;
                         while (true)
                         {
                             if (allBill.Any(x => x.Code == newCode) || newCodes.Any(x => x == newCode))
                             {
-                                newCode = code +"-" + i++;
+                                newCode = code + "-" + i++;
                             }
                             else
                             {

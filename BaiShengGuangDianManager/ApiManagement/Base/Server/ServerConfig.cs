@@ -30,6 +30,8 @@ namespace ApiManagement.Base.Server
             AnalysisHelper.Init();
             TimerHelper.Init();
             WarningHelper.Init();
+            WorkFlowHelper.Instance.Init();
+            ScheduleHelper.Instance.Init();
 
             if (!RedisHelper.Exists(IsSetProcessDataKey))
             {

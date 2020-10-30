@@ -49,7 +49,7 @@ namespace ApiManagement.Models.MaterialManagementModel
         public string Plan { get; set; }
         public IEnumerable<OpMaterialManagement> Bill { get; set; }
     }
-    public class MaterialManagementErp : MaterialBill
+    public class MaterialManagementErp : MaterialBillDetail
     {
         public int MId { get; set; }
         public int BillId { get; set; }

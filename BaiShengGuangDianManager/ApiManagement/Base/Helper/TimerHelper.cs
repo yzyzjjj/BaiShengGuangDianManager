@@ -33,7 +33,7 @@ namespace ApiManagement.Base.Helper
                 ServerConfig.RedisHelper.SetForever(Debug, 0);
             }
 #if DEBUG
-            _totalTimer = new Timer(DoSthTest, null, 5000, 1000 * 10 * 1);
+            _totalTimer = new Timer(DoSthTest, null, 5000, 1000 * 60 * 1);
             Console.WriteLine("TimerHelper 调试模式已开启");
 #else
             _totalTimer = new Timer(DoSth, null, 5000, 1000 * 10 * 1);
@@ -484,9 +484,9 @@ namespace ApiManagement.Base.Helper
             var redisLock = $"{_pre}:Lock";
             if (ServerConfig.RedisHelper.SetIfNotExist(redisLock, DateTime.Now.ToStr()))
             {
+                ServerConfig.RedisHelper.SetExpireAt(redisLock, DateTime.Now.AddMinutes(10));
                 try
                 {
-                    ServerConfig.RedisHelper.SetExpireAt(redisLock, DateTime.Now.AddMinutes(10));
                     var validState = new List<MaterialPurchaseStateEnum>
                     {
                         MaterialPurchaseStateEnum.正常,
@@ -603,7 +603,11 @@ namespace ApiManagement.Base.Helper
                                                         });
                                                     if (l.Any())
                                                     {
-                                                        updatePurchaseItems.AddRange(l);
+                                                        updatePurchaseItems.AddRange(l.Select(x =>
+                                                        {
+                                                            x.CreateUserId = _createUserId + "608";
+                                                            return x;
+                                                        }));
                                                     }
 
                                                     foreach (var code in wlCode)
@@ -640,6 +644,7 @@ namespace ApiManagement.Base.Helper
                                                                     //{
                                                                     if (ClassExtension.HaveChange(erpCode, myCode))
                                                                     {
+                                                                        erpCode.CreateUserId = _createUserId + "647";
                                                                         updatePurchaseItems.Add(erpCode);
                                                                     }
                                                                     //}
@@ -651,7 +656,7 @@ namespace ApiManagement.Base.Helper
                                                                 }
                                                                 else
                                                                 {
-                                                                    erpCode.CreateUserId = _createUserId + "1";
+                                                                    erpCode.CreateUserId = _createUserId + "659";
                                                                     addPurchaseItems.Add(erpCode);
                                                                 }
                                                             }
@@ -663,6 +668,7 @@ namespace ApiManagement.Base.Helper
                                                                 erpCode.Id = myCode.Id;
                                                                 if (ClassExtension.HaveChange(erpCode, myCode))
                                                                 {
+                                                                    erpCode.CreateUserId = _createUserId + "671";
                                                                     updatePurchaseItems.Add(erpCode);
                                                                 }
                                                             }
@@ -678,7 +684,11 @@ namespace ApiManagement.Base.Helper
                                                             });
                                                         if (l.Any())
                                                         {
-                                                            updatePurchaseItems.AddRange(l);
+                                                            updatePurchaseItems.AddRange(l.Select(x =>
+                                                            {
+                                                                x.CreateUserId = _createUserId + "689";
+                                                                return x;
+                                                            }));
                                                         }
                                                     }
                                                 }
@@ -695,11 +705,25 @@ namespace ApiManagement.Base.Helper
                                                     });
                                                 if (l.Any())
                                                 {
-                                                    updatePurchaseItems.AddRange(l);
+                                                    updatePurchaseItems.AddRange(l.Select(x =>
+                                                    {
+                                                        x.CreateUserId = _createUserId + "710";
+                                                        return x;
+                                                    }));
                                                 }
 
                                                 //删除存在的code但是请购id变了
-                                                var idChange = existPurchaseItems.Where(x => erpPurchaseItems.Any(y => y.IsSame(x) && y.ErpId != x.ErpId));
+                                                var idChange = existPurchaseItems.Where(x =>
+                                                {
+                                                    var erpPurchaseItem = erpPurchaseItems.FirstOrDefault(y => y.IsSame(x) && y.ErpId == x.ErpId);
+                                                    if (erpPurchaseItem != null)
+                                                    {
+                                                        return false;
+                                                    }
+
+                                                    erpPurchaseItem = erpPurchaseItems.FirstOrDefault(y => y.IsSame(x));
+                                                    return erpPurchaseItem != null && erpPurchaseItem.ErpId != x.ErpId;
+                                                });
                                                 if (idChange.Any())
                                                 {
                                                     var s = idChange.Select(z =>
@@ -708,7 +732,11 @@ namespace ApiManagement.Base.Helper
                                                         z.MarkedDelete = true;
                                                         return z;
                                                     });
-                                                    updatePurchaseItems.AddRange(s);
+                                                    updatePurchaseItems.AddRange(s.Select(x =>
+                                                    {
+                                                        x.CreateUserId = _createUserId + "727";
+                                                        return x;
+                                                    }));
                                                 }
 
                                                 //更新
@@ -724,6 +752,7 @@ namespace ApiManagement.Base.Helper
                                                         g.PurchaseId = existGood.PurchaseId;
                                                         if (ClassExtension.HaveChange(g, existGood))
                                                         {
+                                                            g.CreateUserId = _createUserId + "745";
                                                             updatePurchaseItems.Add(g);
                                                         }
                                                         if (change != null && change.BillId > 0)
@@ -739,6 +768,7 @@ namespace ApiManagement.Base.Helper
                                                                     Price = g.Price
                                                                 });
                                                             }
+                                                            g.CreateUserId = _createUserId + "761";
                                                             updatePurchaseItems.Add(g);
                                                         }
                                                     }
@@ -767,7 +797,7 @@ namespace ApiManagement.Base.Helper
                                                                     });
                                                                 }
                                                             }
-                                                            ll.CreateUserId = _createUserId + "2";
+                                                            ll.CreateUserId = _createUserId + "790";
                                                             addPurchaseItems.Add(ll);
                                                         }
                                                     }
@@ -775,7 +805,7 @@ namespace ApiManagement.Base.Helper
                                                     {
                                                         addPurchaseItems.AddRange(l.Select(x =>
                                                         {
-                                                            x.CreateUserId = _createUserId + "2";
+                                                            x.CreateUserId = _createUserId + "798";
                                                             return x;
                                                         }));
                                                     }
@@ -838,18 +868,21 @@ namespace ApiManagement.Base.Helper
                                         var l = p.goods.Select(good => new MaterialPurchaseItem(purchase.Id, good, _createUserId + "3", now, _urlFile));
                                         if (l.Any())
                                         {
-                                            addPurchaseItems.AddRange(l);
+                                            addPurchaseItems.AddRange(l.Select(x =>
+                                            {
+                                                x.CreateUserId = _createUserId + "863";
+                                                return x;
+                                            }));
                                         }
                                     }
                                 }
                             }
 
-                            if (addPurchaseItems.Any())
+                            if (updateMaterialBill.Any())
                             {
                                 ServerConfig.ApiDb.Execute(
-                                    "INSERT INTO `material_purchase_item` (`CreateUserId`, `MarkedDateTime`, `Time`, `IsErp`, `ErpId`, `PurchaseId`, `Code`, `Class`, `Category`, `Name`, `Supplier`, `SupplierFull`, `Specification`, `Number`, `Unit`, `Remark`, `Purchaser`, `PurchasingCompany`, `Order`, `EstimatedTime`, `ArrivalTime`, `File`, `FileUrl`, `IsInspection`, `Currency`, `Payment`, `Transaction`, `Invoice`, `TaxPrice`, `TaxAmount`, `Price`, `Stock`, `BillId`) " +
-                                    "VALUES (@CreateUserId, @MarkedDateTime, @Time, @IsErp, @ErpId, @PurchaseId, @Code, @Class, @Category, @Name, @Supplier, @SupplierFull, @Specification, @Number, @Unit, @Remark, @Purchaser, @PurchasingCompany, @Order, @EstimatedTime, @ArrivalTime, @File, @FileUrl, @IsInspection, @Currency, @Payment, @Transaction, @Invoice, @TaxPrice, @TaxAmount, @Price, @Stock, @BillId);",
-                                    addPurchaseItems);
+                                    "UPDATE `material_bill` SET `MarkedDateTime` = @MarkedDateTime, `Price` = @Price WHERE `Id` = @Id;",
+                                    updateMaterialBill);
                             }
 
                             if (updatePurchaseItems.Any())
@@ -862,11 +895,12 @@ namespace ApiManagement.Base.Helper
                                     "`Price` = @Price, `Stock` = IF(@BillId > 0, @Stock, `Stock`), `BillId` = IF(@BillId > 0, @BillId, `BillId`) WHERE `Id` = @Id;", updatePurchaseItems);
                             }
 
-                            if (updateMaterialBill.Any())
+                            if (addPurchaseItems.Any())
                             {
                                 ServerConfig.ApiDb.Execute(
-                                    "UPDATE `material_bill` SET `MarkedDateTime` = @MarkedDateTime, `Price` = @Price WHERE `Id` = @Id;",
-                                    updateMaterialBill);
+                                    "INSERT INTO `material_purchase_item` (`CreateUserId`, `MarkedDateTime`, `Time`, `IsErp`, `ErpId`, `PurchaseId`, `Code`, `Class`, `Category`, `Name`, `Supplier`, `SupplierFull`, `Specification`, `Number`, `Unit`, `Remark`, `Purchaser`, `PurchasingCompany`, `Order`, `EstimatedTime`, `ArrivalTime`, `File`, `FileUrl`, `IsInspection`, `Currency`, `Payment`, `Transaction`, `Invoice`, `TaxPrice`, `TaxAmount`, `Price`, `Stock`, `BillId`) " +
+                                    "VALUES (@CreateUserId, @MarkedDateTime, @Time, @IsErp, @ErpId, @PurchaseId, @Code, @Class, @Category, @Name, @Supplier, @SupplierFull, @Specification, @Number, @Unit, @Remark, @Purchaser, @PurchasingCompany, @Order, @EstimatedTime, @ArrivalTime, @File, @FileUrl, @IsInspection, @Currency, @Payment, @Transaction, @Invoice, @TaxPrice, @TaxAmount, @Price, @Stock, @BillId);",
+                                    addPurchaseItems);
                             }
                         }
                     }
@@ -876,6 +910,7 @@ namespace ApiManagement.Base.Helper
                     Log.Error(e);
                 }
                 ServerConfig.RedisHelper.Remove(redisLock);
+                //ServerConfig.RedisHelper.SetExpireAt(redisLock, DateTime.Now.AddMinutes(2));
             }
         }
 
@@ -1173,7 +1208,7 @@ namespace ApiManagement.Base.Helper
                     //        x.Time = tomorrow;
                     //        return x;
                     //    }));
-                    ServerConfig.ApiDb.Execute("DELETE FROM `material_balance` WHERE TodayNumber + LastNumber + Increase + Consume + Increase + Consume + CorrectIn + CorrectCon + Correct = 0;");
+                    ServerConfig.ApiDb.Execute("DELETE FROM `material_balance` WHERE TodayNumber = 0 AND LastNumber = 0 AND Increase = 0 AND Consume = 0 AND Increase = 0 AND Consume = 0 AND CorrectIn = 0 AND CorrectCon = 0 AND Correct = 0;");
 
                     ServerConfig.RedisHelper.SetForever(timeKey, now.ToStr());
                 }
@@ -1731,7 +1766,7 @@ namespace ApiManagement.Base.Helper
                     }
 
                     //下周夜班
-                    var nextWeekNightMaintainer = newSchedules.First(d => d.StartTime > now && d.StartTime >= thisWeekBegin.AddSeconds(GlobalConfig.Night20.TotalSeconds));
+                    var nextWeekNightMaintainer = newSchedules.FirstOrDefault(d => d.StartTime > now && d.StartTime >= thisWeekBegin.AddSeconds(GlobalConfig.Night20.TotalSeconds));
                     //检查下周夜班是否有离职的
                     var isNextWeekNightLiZhi = maintainers.All(y => y.Id != nextWeekNightMaintainer?.MaintainerId);
                     //下周夜班离职

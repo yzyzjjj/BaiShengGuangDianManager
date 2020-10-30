@@ -95,7 +95,7 @@ namespace ApiManagement.Controllers.MaterialManagementController
                     bill.LastAmount = bd.TodayAmount;
                 }
             }
-            result.datas.AddRange(data);
+            result.datas.AddRange(data.Where(x=>x.Valid()));
             return result;
         }
     }

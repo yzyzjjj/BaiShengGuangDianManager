@@ -115,7 +115,7 @@ namespace ApiManagement.Controllers.OtherController
                         if (ServerConfig.RedisHelper.Exists(flowCardDeviceKey))
                         {
                             var currentDeviceListDb = ServerConfig.ApiDb.Query<FlowCardReport>(
-                                "SELECT Id, DeviceId, FlowCardId, StartTime FROM `npc_monitoring_process_log` WHERE OpName = '加工' AND NOT ISNULL(EndTime) AND DeviceId = @DeviceId ORDER BY StartTime DESC;",
+                                "SELECT Id, DeviceId, FlowCardId, StartTime FROM `npc_monitoring_process_log` WHERE DeviceId = @DeviceId AND OpName = '加工' AND NOT ISNULL(EndTime) AND FlowCardId = 0",
                                 new
                                 {
                                     DeviceId = deviceId
@@ -123,37 +123,37 @@ namespace ApiManagement.Controllers.OtherController
 
                             if (currentDeviceListDb.Any())
                             {
-                                FlowCardReport first = null;
-                                foreach (var x in currentDeviceListDb)
-                                {
-                                    if (x.FlowCardId == 0)
-                                    {
-                                        first = x;
-                                    }
-                                    else
-                                    {
-                                        break;
-                                    }
-                                }
+                                var first = currentDeviceListDb.LastOrDefault();
+                                //foreach (var x in currentDeviceListDb)
+                                //{
+                                //    if (x.FlowCardId == 0)
+                                //    {
+                                //        first = x;
+                                //    }
+                                //    else
+                                //    {
+                                //        break;
+                                //    }
+                                //}
 
-                                if (first != null)
+                                //if (first != null)
+                                //{
+                                var param = currentDeviceListDb.Where(x => x.Id >= first.Id).Select(y => new
                                 {
-                                    var param = currentDeviceListDb.Where(x => x.Id >= first.Id).Select(y => new
-                                    {
-                                        FlowCardId = flowCardId,
-                                        FlowCard = lck,
-                                        ProcessorId = processorId,
-                                        Processor = jgr,
-                                        Id = y.Id,
-                                        DeviceId = deviceId
-                                    });
+                                    FlowCardId = flowCardId,
+                                    FlowCard = lck,
+                                    ProcessorId = processorId,
+                                    Processor = jgr,
+                                    Id = y.Id,
+                                    DeviceId = deviceId
+                                });
 
-                                    ServerConfig.ApiDb.Execute(
-                                        "UPDATE npc_monitoring_process_log SET `FlowCardId` = @FlowCardId, `FlowCard` = @FlowCard, `ProcessorId` = @ProcessorId, `Processor` = @Processor WHERE `Id` = @Id AND DeviceId = @DeviceId AND `FlowCardId` = 0;",
-                                        param);
-                                    deviceList.First(x => x.DeviceId == deviceId).Id = currentDeviceListDb.First(x => x.DeviceId == deviceId).Id;
-                                    Log.Debug($"UPDATE 流程卡:{lck}, 流程卡Id:{flowCardId}, 机台号:{jth}, 设备Id:{deviceId}, 工序:{gx}, 加工人:{jgr}, Id:{param.LastOrDefault()?.Id ?? 0} - {param.FirstOrDefault()?.Id ?? 0}");
-                                }
+                                ServerConfig.ApiDb.Execute(
+                                    "UPDATE npc_monitoring_process_log SET `FlowCardId` = @FlowCardId, `FlowCard` = @FlowCard, `ProcessorId` = @ProcessorId, `Processor` = @Processor " +
+                                    "WHERE `Id` = @Id AND DeviceId = @DeviceId AND OpName = '加工' AND NOT ISNULL(EndTime) AND `FlowCardId` = 0;", param);
+                                deviceList.First(x => x.DeviceId == deviceId).Id = currentDeviceListDb.First(x => x.DeviceId == deviceId).Id;
+                                Log.Debug($"UPDATE 流程卡:{lck}, 流程卡Id:{flowCardId}, 机台号:{jth}, 设备Id:{deviceId}, 工序:{gx}, 加工人:{jgr}, Id:{currentDeviceListDb.LastOrDefault()?.Id ?? 0} - {currentDeviceListDb.FirstOrDefault()?.Id ?? 0}");
+                                //}
                                 ServerConfig.RedisHelper.SetForever(flowCardDeviceKey, deviceList);
                             }
                         }

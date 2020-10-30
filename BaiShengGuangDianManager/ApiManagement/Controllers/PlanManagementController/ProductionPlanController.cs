@@ -53,7 +53,7 @@ namespace ApiManagement.Controllers.PlanManagementController
                         "JOIN `material_category` b ON a.CategoryId = b.Id ) b ON a.NameId = b.Id ) b ON a.SupplierId = b.Id ) b ON a.SpecificationId = b.Id JOIN `material_site` c ON a.SiteId = c.Id ) b ON a.BillId = b.Id " +
                         //"LEFT JOIN `material_management` c ON a.BillId = c.BillId WHERE a.PlanId = @planId AND a.`MarkedDelete` = 0 ORDER BY a.Extra, a.Id;";
                         "LEFT JOIN `material_management` c ON a.BillId = c.BillId WHERE a.PlanId = @planId AND a.`MarkedDelete` = 0 ORDER BY a.Id DESC;";
-                        plan.FirstBill.AddRange(ServerConfig.ApiDb.Query<ProductionPlanBillStockDetail>(sql, new { planId = plan.Id }));
+                    plan.FirstBill.AddRange(ServerConfig.ApiDb.Query<ProductionPlanBillStockDetail>(sql, new { planId = plan.Id }));
                 }
             }
             var result = new DataResult();
@@ -228,6 +228,71 @@ namespace ApiManagement.Controllers.PlanManagementController
                     pBill);
             }
 
+            return Result.GenError<Result>(Error.Success);
+        }
+
+        // POST: api/ProductionPlan
+        /// <summary>
+        /// 计划转移
+        /// </summary>
+        /// <returns></returns>
+        [HttpPost("Move")]
+        public Result MoveProductionPlan([FromBody] ProductionPlanMove productionPlan)
+        {
+            if (productionPlan.Bill == null || !productionPlan.Bill.Any())
+            {
+                return Result.GenError<Result>(Error.ParamError);
+            }
+
+            var fromId = productionPlan.FromId;
+            var toId = productionPlan.ToId;
+            if (fromId == toId)
+            {
+                return Result.GenError<Result>(Error.ProductionPlanSame);
+            }
+            var plans = ServerConfig.ApiDb.Query<ProductionPlan>("SELECT * FROM `production_plan` WHERE Id IN @ids AND MarkedDelete = 0;",
+                new { ids = new List<int> { fromId, toId } });
+            if (plans.Count() != 2)
+            {
+                return Result.GenError<Result>(Error.ProductionPlanNotExist);
+            }
+
+            var planBill =
+                ServerConfig.ApiDb.Query<ProductionPlanBill>("SELECT * FROM `production_plan_bill` WHERE Id IN @Bill AND PlanId = @fromId AND `MarkedDelete` = 0;",
+                    new { fromId, productionPlan.Bill });
+
+            if (planBill.Count() != productionPlan.Bill.Count())
+            {
+                return Result.GenError<Result>(Error.ProductionPlanBillNotExist);
+            }
+
+            if (planBill.Any(y => y.ActualConsumption <= 0))
+            {
+                return Result.GenError<Result>(Error.ProductionPlanBillNotExist);
+            }
+
+            var createUserId = Request.GetIdentityInformation();
+            var markedDateTime = DateTime.Now;
+            foreach (var bill in planBill)
+            {
+                bill.MarkedDateTime = markedDateTime;
+                bill.PlanId = toId;
+            }
+            ServerConfig.ApiDb.Execute(
+                "UPDATE `production_plan_bill` SET `MarkedDateTime` = @MarkedDateTime, `PlanId` = @PlanId WHERE `Id` = @Id;"
+                , planBill);
+
+            var bills = planBill.GroupBy(x => x.BillId).Select(y => y.Key);
+            var plan = plans.FirstOrDefault(x => x.Id == toId)?.Plan ?? "";
+            ServerConfig.ApiDb.Execute(
+                "UPDATE `material_log` SET PlanId = @toId, Purpose = @plan WHERE PlanId = @fromId AND BillId IN @bills;"
+                , new { fromId, toId, plan, bills });
+
+            productionPlan.CreateUserId = createUserId;
+            productionPlan.MarkedDateTime = markedDateTime;
+            ServerConfig.ApiDb.Execute(
+                "INSERT INTO  `production_plan_move` (`CreateUserId`, `MarkedDateTime`, `FromPlanId`, `ToPlanId`, `List`) VALUES (@CreateUserId, @MarkedDateTime, @FromId, @ToId, @List);"
+                , productionPlan);
             return Result.GenError<Result>(Error.Success);
         }
 

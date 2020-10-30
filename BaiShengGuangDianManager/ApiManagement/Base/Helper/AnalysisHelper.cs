@@ -99,7 +99,7 @@ namespace ApiManagement.Base.Helper
         private static void DoSth_60s(object state)
         {
             UpdateProcessLog();
-            FlowCardReport();
+            //FlowCardReport();
         }
 
         /// <summary>
@@ -1153,7 +1153,7 @@ namespace ApiManagement.Base.Helper
                         MonitoringKanBanDic[type].FaChu = allDevice.Sum(x => x.FaChu);
                         MonitoringKanBanDic[type].HeGe = allDevice.Sum(x => x.HeGe);
                         MonitoringKanBanDic[type].LiePian = allDevice.Sum(x => x.LiePian);
-                        MonitoringKanBanDic[type].ProductionData = allDevice.Select(x => new MonitoringProductionData
+                        MonitoringKanBanDic[type].ProductionList = allDevice.Select(x => new MonitoringProductionData
                         {
                             DeviceId = x.DeviceId,
                             Code = x.Code,

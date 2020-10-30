@@ -10,6 +10,10 @@ namespace ApiManagement.Models.StatisticManagementModel
 {
     public class MonitoringKanBan
     {
+        public MonitoringKanBan()
+        {
+            ProductionList = new List<MonitoringProductionData>();
+        }
         //[JsonIgnore]
         //public bool Init = false;
         //[JsonIgnore]
@@ -177,7 +181,11 @@ namespace ApiManagement.Models.StatisticManagementModel
         /// 合格率
         /// </summary>
         public decimal Rate => FaChu == 0 ? 0 : ((decimal)HeGe / FaChu).ToRound();
-        public List<MonitoringProductionData> ProductionData = new List<MonitoringProductionData>();
+        /// <summary>
+        /// 生产数据
+        /// </summary>
+        public List<MonitoringProductionData> ProductionList { get; set; }
+        public string ProductionData => ProductionList.ToJSON();
         public void Update(MonitoringKanBan monitoringKanban)
         {
             Time = monitoringKanban.Time;
