@@ -18,7 +18,7 @@ namespace ApiManagement.Models.SmartFactoryModel
         }
         public static readonly SmartProductProcessHelper Instance = new SmartProductProcessHelper();
         #region Get
-        public IEnumerable<SmartProductProcess> GetSameSmartProductProcesses(IEnumerable<int> productIds)
+        public IEnumerable<SmartProductProcess> GetSmartProductProcesses(IEnumerable<int> productIds)
         {
             return ServerConfig.ApiDb.Query<SmartProductProcess>(
                 "SELECT * FROM `t_product_process` WHERE MarkedDelete = 0 AND ProductId IN @productIds;", new { productIds });
@@ -46,6 +46,18 @@ namespace ApiManagement.Models.SmartFactoryModel
         #endregion
 
         #region Delete
+        /// <summary>
+        /// 批量删除
+        /// </summary>
+        /// <param name="productId"></param>
+        public void DeleteByProductId(int productId)
+        {
+            ServerConfig.ApiDb.Execute($"UPDATE `{Table}` SET `MarkedDateTime`= NOW(), `MarkedDelete`= true WHERE `ProductId` = @productId;", new { productId });
+        }
+        public void DeleteByProductId(IEnumerable<int> productIds)
+        {
+            ServerConfig.ApiDb.Execute($"UPDATE `{Table}` SET `MarkedDateTime`= NOW(), `MarkedDelete`= true WHERE `ProductId` IN @productIds;", new { productIds });
+        }
         #endregion
     }
 }

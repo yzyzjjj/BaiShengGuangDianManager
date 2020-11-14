@@ -90,5 +90,13 @@ namespace ApiManagement.Models.SmartFactoryModel
         /// 按时率
         /// </summary>
         public string RiskLevelStr => RiskLevel.ToString();
+        /// <summary>
+        /// 已完成数量
+        /// </summary>
+        public int Done { get; set; }
+        /// <summary>
+        /// 未完成数量
+        /// </summary>
+        public int Left { get; set; }
     }
 }

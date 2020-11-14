@@ -576,6 +576,7 @@ namespace ApiManagement.Base.Helper
                                             updatePurchaseItems.AddRange(existPurchaseItemsStock.Select(z =>
                                             //updatePurchaseItems.AddRange(existPurchaseItems.Select(z =>
                                             {
+                                                z.ModifyId = 579;
                                                 z.MarkedDateTime = now;
                                                 z.MarkedDelete = true;
                                                 return z;
@@ -594,13 +595,14 @@ namespace ApiManagement.Base.Helper
                                                     var wlCode = erpPurchaseItems.GroupBy(x => x.Code).Select(y => y.Key);
 
                                                     //删除不存在的code
-                                                    l = existPurchaseItemsStock
-                                                        .Where(x => wlCode.Any(y => y != x.Code)).Select(z =>
-                                                        {
-                                                            z.MarkedDateTime = now;
-                                                            z.MarkedDelete = true;
-                                                            return z;
-                                                        });
+                                                    l = existPurchaseItems
+                                                        .Where(x => wlCode.All(y => y != x.Code) && x.Stock != 0).Select(z =>
+                                                          {
+                                                              z.ModifyId = 601;
+                                                              z.MarkedDateTime = now;
+                                                              z.MarkedDelete = true;
+                                                              return z;
+                                                          });
                                                     if (l.Any())
                                                     {
                                                         updatePurchaseItems.AddRange(l.Select(x =>
@@ -678,6 +680,7 @@ namespace ApiManagement.Base.Helper
                                                         l = myCodes
                                                             .Where(x => myDic.Where(md => !md.Value).Any(y => myCodes.IndexOf(x) == y.Key)).Select(z =>
                                                             {
+                                                                z.ModifyId = 682;
                                                                 z.MarkedDateTime = now;
                                                                 z.MarkedDelete = true;
                                                                 return z;
@@ -699,6 +702,7 @@ namespace ApiManagement.Base.Helper
                                                 l = existPurchaseItemsStock
                                                     .Where(x => p.goods.All(y => y.f_id != x.ErpId)).Select(z =>
                                                     {
+                                                        z.ModifyId = 704;
                                                         z.MarkedDateTime = now;
                                                         z.MarkedDelete = true;
                                                         return z;
@@ -728,6 +732,7 @@ namespace ApiManagement.Base.Helper
                                                 {
                                                     var s = idChange.Select(z =>
                                                     {
+                                                        z.ModifyId = 734;
                                                         z.MarkedDateTime = now;
                                                         z.MarkedDelete = true;
                                                         return z;
@@ -888,7 +893,7 @@ namespace ApiManagement.Base.Helper
                             if (updatePurchaseItems.Any())
                             {
                                 ServerConfig.ApiDb.Execute(
-                                    "UPDATE `material_purchase_item` SET `MarkedDateTime` = @MarkedDateTime, `MarkedDelete` = @MarkedDelete, `Class` = @Class, `Category` = @Category, `Name` = @Name, `Supplier` = @Supplier, `SupplierFull` = @SupplierFull, " +
+                                    "UPDATE `material_purchase_item` SET  `ModifyId` = @ModifyId, `MarkedDateTime` = @MarkedDateTime, `MarkedDelete` = @MarkedDelete, `Class` = @Class, `Category` = @Category, `Name` = @Name, `Supplier` = @Supplier, `SupplierFull` = @SupplierFull, " +
                                     "`Specification` = @Specification, `Number` = @Number, `Unit` = @Unit, `Remark` = @Remark, `Purchaser` = @Purchaser, `PurchasingCompany` = @PurchasingCompany, `Order` = @Order, " +
                                     "`EstimatedTime` = @EstimatedTime, `ArrivalTime` = @ArrivalTime, `File` = @File, `FileUrl` = @FileUrl, `IsInspection` = @IsInspection, " +
                                     "`Currency` = @Currency, `Payment` = @Payment, `Transaction` = @Transaction, `Invoice` = @Invoice, `TaxPrice` = @TaxPrice, `TaxAmount` = @TaxAmount, " +

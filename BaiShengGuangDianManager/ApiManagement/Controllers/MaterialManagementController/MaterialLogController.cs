@@ -296,6 +296,35 @@ namespace ApiManagement.Controllers.MaterialManagementController
                     existProductionPlanBills);
             }
 
+            var purchases = newLogChanges.Where(x => x.Purpose.Contains("Erp采购"));
+            if (purchases.Any())
+            {
+                var erpIds = purchases.Select(x => int.TryParse(x.Purpose.Replace("Erp采购-", ""), out var erpId) ? erpId : 0).Where(y => y != 0);
+                var pBillIds = purchases.Select(x => x.BillId);
+                var purchaseItems = ServerConfig.ApiDb.Query<MaterialPurchaseItem>(
+                    "SELECT a.* FROM `material_purchase_item` a " +
+                    "JOIN `material_purchase` b ON a.PurchaseId = b.Id " +
+                    "WHERE b.ErpId IN @erpIds AND a.BillId IN @pBillIds AND a.MarkedDelete = 0 AND b.MarkedDelete = 0;", new
+                    {
+                        erpIds,
+                        pBillIds
+                    });
+
+                foreach (var purchase in purchases)
+                {
+                    if (int.TryParse(purchase.Purpose.Replace("Erp采购-", ""), out var erpId) && erpId != 0)
+                    {
+                        var pItem = purchaseItems.FirstOrDefault(x => x.BillId == purchase.BillId);
+                        if (purchase.ChangeNumber < purchase.Number)
+                        {
+                            pItem.Stock -= purchase.Number - purchase.ChangeNumber;
+                        }
+                    }
+                }
+
+                ServerConfig.ApiDb.Execute("UPDATE `material_purchase_item` SET `Stock` = @Stock WHERE `Id` = @Id;",
+                    purchaseItems);
+            }
             if (newLogs.Any())
             {
                 ServerConfig.ApiDb.Execute(
@@ -320,6 +349,7 @@ namespace ApiManagement.Controllers.MaterialManagementController
 
                 TimerHelper.DayBalance(newLogs.GroupBy(x => x.Time).Where(y => !y.Key.InSameDay(markedDateTime)).Select(z => z.Key));
             }
+
 
             return Result.GenError<DataResult>(Error.Success);
         }

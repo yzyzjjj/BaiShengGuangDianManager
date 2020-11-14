@@ -25,5 +25,4 @@ namespace ApiManagement.Models.SmartFactoryModel
         /// </summary>
         public string Process { get; set; }
     }
-
 }

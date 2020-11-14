@@ -20,11 +20,12 @@ namespace ApiManagement.Controllers.SmartFactoryController.ProcessFolder
     {
         // GET: api/SmartProcessCode
         [HttpGet]
-        public DataResult GetSmartProcessCode([FromQuery]int qId, bool menu)
+        public DataResult GetSmartProcessCode([FromQuery]int qId, int categoryId, bool menu)
         {
             var result = new DataResult();
-            var sql = $"SELECT a.*, IFNULL(b.Category, '') Category FROM t_process_code a JOIN t_process_code_category b ON a.CategoryId = b.Id WHERE a.MarkedDelete = 0{(qId == 0 ? "" : " AND a.Id = @qId")} ORDER BY a.Id;";
-            var data = ServerConfig.ApiDb.Query<SmartProcessCodeDetail>(sql, new { qId });
+            var sql = $"SELECT a.*, IFNULL(b.Category, '') Category FROM t_process_code a JOIN t_process_code_category b ON a.CategoryId = b.Id " +
+                      $"WHERE a.MarkedDelete = 0{(qId == 0 ? "" : " AND a.Id = @qId")}{(categoryId == 0 ? "" : " AND a.CategoryId = @categoryId")} ORDER BY a.Id;";
+            var data = ServerConfig.ApiDb.Query<SmartProcessCodeDetail>(sql, new { qId, categoryId });
             if (menu)
             {
                 result.datas.AddRange(data.Select(x => new { x.Id, x.Code }));

@@ -45,7 +45,13 @@ namespace ApiManagement.Models.MaterialManagementModel
     {
         public int NewId { get; set; }
         public DateTime NewTime { get; set; }
+        /// <summary>
+        /// 修改后
+        /// </summary>
         public decimal ChangeNumber { get; set; }
+        /// <summary>
+        /// 修改前
+        /// </summary>
         public decimal ChangeOldNumber { get; set; }
     }
 }

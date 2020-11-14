@@ -20,7 +20,7 @@ namespace ApiManagement.Models.SmartFactoryModel
         /// <summary>
         /// 设备状态
         /// </summary>
-        public SmartDeviceState State { get; set; } = SmartDeviceState.未加工;
+        public SmartDeviceOperateState State { get; set; } = SmartDeviceOperateState.未加工;
         /// <summary>
         /// 设备类别
         /// </summary>
@@ -49,7 +49,7 @@ namespace ApiManagement.Models.SmartFactoryModel
         {
             get
             {
-                if (State == SmartDeviceState.加工中)
+                if (State == SmartDeviceOperateState.加工中)
                 {
                     var thisProcess = NextProcesses.First();
                     return EndTime.AddSeconds((thisProcess.Item3 - ThisProcessCount) * thisProcess.Item4 + NextProcesses.Take(1).Sum(x => x.Item3 * x.Item4));
@@ -76,7 +76,7 @@ namespace ApiManagement.Models.SmartFactoryModel
         /// <summary>
         /// 已加工时间
         /// </summary>
-        public int ThisDoingSecond => State == SmartDeviceState.加工中 ? (int)(DateTime.Now - StartTime).TotalSeconds : 0;
+        public int ThisDoingSecond => State == SmartDeviceOperateState.加工中 ? (int)(DateTime.Now - StartTime).TotalSeconds : 0;
         /// <summary>
         /// 剩余加工时间
         /// </summary>
@@ -95,7 +95,7 @@ namespace ApiManagement.Models.SmartFactoryModel
         /// </summary>
         public void Init()
         {
-            State = SmartDeviceState.未加工;
+            State = SmartDeviceOperateState.未加工;
             ProcessId = 0;
             ThisProcessCount = 0;
             ThisTotalSecond = 0;
@@ -122,7 +122,7 @@ namespace ApiManagement.Models.SmartFactoryModel
                 var process = SmartFlowCardProcessHelper.Instance.Get<SmartFlowCardProcess>(ProcessId);
                 if (process != null && process.State == SmartFlowCardProcessState.等待中)
                 {
-                    if (State == SmartDeviceState.未加工)
+                    if (State == SmartDeviceOperateState.未加工)
                     {
                         ThisProcessCount++;
                         f = true;
@@ -138,7 +138,7 @@ namespace ApiManagement.Models.SmartFactoryModel
                         process.Doing = process.Left < processNumber ? process.Left : processNumber;
                         SmartFlowCardProcessHelper.Instance.Update(process);
                         WorkFlowHelper.Instance.OnSmartFlowCardProcessChanged(new List<SmartFlowCardProcess> { process });
-                        State = SmartDeviceState.加工中;
+                        State = SmartDeviceOperateState.加工中;
                     }
                 }
             }
@@ -153,7 +153,7 @@ namespace ApiManagement.Models.SmartFactoryModel
             processorId = 0;
             var now = DateTime.Now;
             var f = false;
-            if (State == SmartDeviceState.加工中)
+            if (State == SmartDeviceOperateState.加工中)
             {
                 if (EndTime <= now)
                 {
@@ -207,7 +207,7 @@ namespace ApiManagement.Models.SmartFactoryModel
                             SmartFlowCardProcessLogHelper.Instance.Add(log);
                         }
                     }
-                    State = SmartDeviceState.准备中;
+                    State = SmartDeviceOperateState.准备中;
                     StartTime = now;
                     EndTime = now.AddSeconds(30);
                 }
@@ -218,7 +218,7 @@ namespace ApiManagement.Models.SmartFactoryModel
         public void ReadyDone()
         {
             var now = DateTime.Now;
-            if (State == SmartDeviceState.准备中)
+            if (State == SmartDeviceOperateState.准备中)
             {
                 if (EndTime <= now)
                 {
@@ -229,7 +229,7 @@ namespace ApiManagement.Models.SmartFactoryModel
                     else
                     {
 
-                        State = SmartDeviceState.未加工;
+                        State = SmartDeviceOperateState.未加工;
                     }
                 }
             }
@@ -243,7 +243,7 @@ namespace ApiManagement.Models.SmartFactoryModel
             processorId = 0;
             var now = DateTime.Now;
             var f = false;
-            if (State == SmartDeviceState.故障中)
+            if (State == SmartDeviceOperateState.故障中)
             {
                 f = true;
                 if (ProcessId != 0)

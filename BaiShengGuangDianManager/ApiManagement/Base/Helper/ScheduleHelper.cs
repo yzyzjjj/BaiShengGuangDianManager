@@ -17,9 +17,9 @@ namespace ApiManagement.Base.Helper
     {
         public static List<DeviceStateWeight> 故障_暂停概率 = new List<DeviceStateWeight>
         {
-            new DeviceStateWeight( SmartDeviceState.未加工, 500),
-            new DeviceStateWeight( SmartDeviceState.故障中, 1),
-            new DeviceStateWeight( SmartDeviceState.暂停中, 1),
+            new DeviceStateWeight( SmartDeviceOperateState.未加工, 500),
+            new DeviceStateWeight( SmartDeviceOperateState.故障中, 1),
+            new DeviceStateWeight( SmartDeviceOperateState.暂停中, 1),
         };
         public static List<RateWeight> 合格率 = new List<RateWeight>
         {
@@ -272,11 +272,11 @@ namespace ApiManagement.Base.Helper
         /// <param name="categoryId">设备类型id</param>
         /// <param name="deviceId">设备id</param>
         /// <returns></returns>
-        public SmartDeviceState GetDeviceState(int categoryId, int deviceId)
+        public SmartDeviceOperateState GetDeviceState(int categoryId, int deviceId)
         {
             var deviceKey = GetDeviceKey(categoryId);
             var devices = ServerConfig.RedisHelper.Get<List<SmartProcessDevice>>(deviceKey);
-            return devices.FirstOrDefault(x => x.Id == deviceId)?.State ?? SmartDeviceState.缺失;
+            return devices.FirstOrDefault(x => x.Id == deviceId)?.State ?? SmartDeviceOperateState.缺失;
         }
 
 
@@ -515,7 +515,7 @@ namespace ApiManagement.Base.Helper
                         UnLockDevice(deviceCategoryId);
                         break;
                     }
-                    var 闲置设备 = devices.Where(x => x.CategoryId == deviceCategoryId && x.State == SmartDeviceState.未加工)
+                    var 闲置设备 = devices.Where(x => x.CategoryId == deviceCategoryId && x.State == SmartDeviceOperateState.未加工)
                                         .OrderBy(a => a.FinalEndTime)
                                         .ThenBy(b => b.NextProcesses.Count)
                                         .ThenBy(c => c.Id);
@@ -533,7 +533,7 @@ namespace ApiManagement.Base.Helper
 
                     if (deviceId == 0)
                     {
-                        var 准备中设备 = devices.Where(x => x.CategoryId == deviceCategoryId && x.State == SmartDeviceState.准备中);
+                        var 准备中设备 = devices.Where(x => x.CategoryId == deviceCategoryId && x.State == SmartDeviceOperateState.准备中);
                         if (准备中设备.Any())
                         {
                             var device = 准备中设备.First();
@@ -701,7 +701,7 @@ namespace ApiManagement.Base.Helper
         /// <param name="deviceCategoryId">设备类型id</param>
         /// <param name="state"></param>
         /// <returns></returns>
-        public void UpdateDeviceState(int deviceId, int deviceCategoryId, SmartDeviceState state)
+        public void UpdateDeviceState(int deviceId, int deviceCategoryId, SmartDeviceOperateState state)
         {
             while (LockDevice(deviceCategoryId, $"更新设备状态-{state}"))
             {
@@ -711,7 +711,7 @@ namespace ApiManagement.Base.Helper
                 if (device != null)
                 {
                     device.State = state;
-                    if (state == SmartDeviceState.故障中)
+                    if (state == SmartDeviceOperateState.故障中)
                     {
                         if (device.BreakThisProcess(out var processorId))
                         {
@@ -853,7 +853,7 @@ namespace ApiManagement.Base.Helper
                         {
                             switch (weight.State)
                             {
-                                case SmartDeviceState.故障中:
+                                case SmartDeviceOperateState.故障中:
                                     faults.Add(new SmartProcessFault
                                     {
                                         CreateUserId = createUserId,
@@ -869,7 +869,7 @@ namespace ApiManagement.Base.Helper
                                     UpdateDeviceState(processDevice.DeviceId, processDevice.DeviceCategoryId, weight.State);
                                     categroy_0.Add(processDevice.Id);
                                     break;
-                                case SmartDeviceState.暂停中:
+                                case SmartDeviceOperateState.暂停中:
                                     processDevice.State = SmartFlowCardProcessState.暂停中;
                                     UpdateDeviceState(processDevice.DeviceId, processDevice.DeviceCategoryId, weight.State);
                                     categroy_0.Add(processDevice.Id);
@@ -914,12 +914,12 @@ namespace ApiManagement.Base.Helper
 
     public class DeviceStateWeight : IWeightRandom
     {
-        public DeviceStateWeight(SmartDeviceState state, int weight)
+        public DeviceStateWeight(SmartDeviceOperateState state, int weight)
         {
             State = state;
             Weight = weight;
         }
-        public SmartDeviceState State { get; }
+        public SmartDeviceOperateState State { get; }
 
         public int Weight { get; }
     }

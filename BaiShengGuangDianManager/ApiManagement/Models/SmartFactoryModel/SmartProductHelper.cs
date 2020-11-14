@@ -10,10 +10,10 @@ namespace ApiManagement.Models.SmartFactoryModel
         {
             Table = "t_product";
             InsertSql =
-                "INSERT INTO `t_product` (`CreateUserId`, `MarkedDateTime`, `Product`, `Remark`) " +
-                "VALUES (@CreateUserId, @MarkedDateTime, @Product, @Remark);";
+                "INSERT INTO `t_product` (`CreateUserId`, `MarkedDateTime`, `Product`, `CategoryId`, `CapacityId`, `Remark`) " +
+                "VALUES (@CreateUserId, @MarkedDateTime, @Product, @CategoryId, @Product, @Remark);";
             UpdateSql =
-                "UPDATE `t_product` SET `MarkedDateTime` = @MarkedDateTime, `Product` = @Product, `Remark` = @Remark WHERE `Id` = @Id;";
+                "UPDATE `t_product` SET `MarkedDateTime` = @MarkedDateTime, `Product` = @Product, `CategoryId` = @CategoryId, `CapacityId` = @CapacityId, `Remark` = @Remark WHERE `Id` = @Id;";
         }
         public static readonly SmartProductHelper Instance = new SmartProductHelper();
         #region Get

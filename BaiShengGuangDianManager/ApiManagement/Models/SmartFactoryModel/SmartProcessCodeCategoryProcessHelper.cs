@@ -26,6 +26,15 @@ namespace ApiManagement.Models.SmartFactoryModel
         {
             return ServerConfig.ApiDb.Query<SmartProcessCodeCategoryProcess>("SELECT * FROM `t_process_code_category_process` WHERE MarkedDelete = 0 AND ProcessCodeCategoryId IN @processCodeCategoryIds;", new { processCodeCategoryIds });
         }
+        /// <summary>
+        /// 通过流程编号类型获取标准流程
+        /// </summary>
+        /// <param name="processCodeCategoryId"></param>
+        /// <returns></returns>
+        public IEnumerable<SmartProcessCodeCategoryProcess> GetSmartProcessCodeCategoryProcessesByProcessCodeCategoryId(int processCodeCategoryId)
+        {
+            return ServerConfig.ApiDb.Query<SmartProcessCodeCategoryProcess>("SELECT * FROM `t_process_code_category_process` WHERE MarkedDelete = 0 AND ProcessCodeCategoryId = @processCodeCategoryId;", new { processCodeCategoryId });
+        }
         #endregion
 
         #region Add

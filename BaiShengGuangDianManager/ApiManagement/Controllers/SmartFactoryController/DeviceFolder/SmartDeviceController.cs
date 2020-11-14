@@ -24,7 +24,7 @@ namespace ApiManagement.Controllers.SmartFactoryController.DeviceFolder
         {
             var result = new DataResult();
             var sql = menu ? $"SELECT Id, `Code` FROM t_device WHERE MarkedDelete = 0{(qId == 0 ? "" : " AND Id = @qId")};"
-                : $"SELECT a.*, IFNULL(b.Category, '') Category FROM t_device a LEFT JOIN t_device_category b ON a.CategoryId = b.Id WHERE a.MarkedDelete = 0{(qId == 0 ? "" : " AND a.Id = @qId")};";
+                : $"SELECT a.*, b.Category, c.Model FROM t_device a JOIN t_device_category b ON a.CategoryId = b.Id JOIN t_device_model c ON a.ModelId = c.Id WHERE a.MarkedDelete = 0{(qId == 0 ? "" : " AND a.Id = @qId")};";
             result.datas.AddRange(menu
                 ? ServerConfig.ApiDb.Query<dynamic>(sql, new { qId })
                 : ServerConfig.ApiDb.Query<SmartDeviceDetail>(sql, new { qId }));

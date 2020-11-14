@@ -23,7 +23,7 @@ namespace ApiManagement.Controllers.SmartFactoryController.ProcessFolder
         {
             var result = new DataResult();
             var sql = menu ? $"SELECT Id, `Category` FROM `t_process_code_category` WHERE MarkedDelete = 0{(qId == 0 ? "" : " AND Id = @qId")};"
-                : $"SELECT a.*, b.List FROM `t_process_code_category` a JOIN (SELECT ProcessCodeCategoryId, GROUP_CONCAT(Process) List FROM `t_process_code_category_process` a JOIN `t_process` b ON a.ProcessId = b.Id WHERE a.MarkedDelete = 0 GROUP BY ProcessCodeCategoryId) b ON a.Id = b.ProcessCodeCategoryId WHERE MarkedDelete = 0{(qId == 0 ? "" : " AND a.Id = @qId")};";
+                : $"SELECT a.*, IFNULL(b.List, '') List FROM `t_process_code_category` a LEFT JOIN (SELECT ProcessCodeCategoryId, GROUP_CONCAT(Process) List FROM `t_process_code_category_process` a JOIN `t_process` b ON a.ProcessId = b.Id WHERE a.MarkedDelete = 0 GROUP BY ProcessCodeCategoryId) b ON a.Id = b.ProcessCodeCategoryId WHERE MarkedDelete = 0{(qId == 0 ? "" : " AND a.Id = @qId")};";
             result.datas.AddRange(menu
                 ? ServerConfig.ApiDb.Query<dynamic>(sql, new { qId })
                 : ServerConfig.ApiDb.Query<SmartProcessCodeCategory>(sql, new { qId }));

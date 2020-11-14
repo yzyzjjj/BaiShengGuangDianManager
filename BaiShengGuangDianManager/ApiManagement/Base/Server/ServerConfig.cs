@@ -31,30 +31,16 @@ namespace ApiManagement.Base.Server
             TimerHelper.Init();
             WarningHelper.Init();
             WorkFlowHelper.Instance.Init();
-            ScheduleHelper.Instance.Init();
+//#if DEBUG
+//            ScheduleHelper.Instance.Init();
+//#endif
 
             if (!RedisHelper.Exists(IsSetProcessDataKey))
             {
                 RedisHelper.SetForever(IsSetProcessDataKey, 1);
             }
-            //NotifyHelper.Notify("测试", NotifyTypeEnum.Main, NotifyMsgTypeEnum.text, new[] { "18815276513" });
-            //NotifyHelper.Notify("测试", NotifyTypeEnum.Repair, NotifyMsgTypeEnum.text, new[] { "18815276513" });
-            //NotifyHelper.Notify("测试", NotifyTypeEnum.Test, NotifyMsgTypeEnum.text, new[] { "18815276513" });
-            //NotifyHelper.Notify("测试", NotifyTypeEnum.Test, NotifyMsgTypeEnum.text, new[] { "18815276513" });
 
             Log.InfoFormat("ServerConfig Done");
-            //var p1 = new ManufacturePlan
-            //{
-
-            //};
-            //var p2 = new ManufacturePlan
-            //{
-            //    State = ManufacturePlanState.Assigned
-            //};
-            //p1.HaveChange(p2, out var _);
-
-
-
         }
     }
 }

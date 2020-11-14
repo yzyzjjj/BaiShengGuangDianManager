@@ -88,7 +88,7 @@
         #endregion
     }
 
-    public enum SmartDeviceState
+    public enum SmartDeviceOperateState
     {
         未加工 = 0,
         加工中 = 1,
@@ -106,10 +106,30 @@
         设备繁忙 = 3,
         缺少设备 = 4,
     }
+    /// <summary>
+    /// 准时率
+    /// </summary>
     public enum RiskLevelState
     {
         低 = 0,
         中 = 1,
         高 = 2
+    }
+    /// <summary>
+    /// 操作工状态
+    /// </summary>
+    public enum OperatorState
+    {
+        全部 = 0,
+        正常 = 1,
+        休息 = 2,
+    }
+
+    public enum SmartDeviceState
+    {
+        全部 = 0,
+        正常 = 1,
+        故障 = 2,
+        报废 = 3,
     }
 }

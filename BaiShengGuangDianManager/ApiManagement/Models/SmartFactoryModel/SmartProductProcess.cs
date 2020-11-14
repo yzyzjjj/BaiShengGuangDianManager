@@ -55,4 +55,12 @@ namespace ApiManagement.Models.SmartFactoryModel
         }
         public decimal TotalSecond => Crafts.Sum(x => x.TotalSecond);
     }
+
+    public class SmartProductProcessDetail : SmartProductProcess
+    {
+        /// <summary>
+        /// 流程
+        /// </summary>
+        public string Process { get; set; }
+    }
 }

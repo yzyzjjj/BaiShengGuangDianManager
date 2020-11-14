@@ -63,6 +63,14 @@ namespace ApiManagement.Controllers.SmartFactoryController.FlowCardFolder
                         {
                             d.Consume = (int)(DateTime.Now - st).TotalSeconds;
                         }
+
+                        var last = processes.LastOrDefault(x => x.Before != 0);
+                        if (last != null)
+                        {
+
+                            d.Done = last.Qualified + last.Unqualified;
+                            d.Left = last.Before - d.Done;
+                        }
                     }
                 }
             }

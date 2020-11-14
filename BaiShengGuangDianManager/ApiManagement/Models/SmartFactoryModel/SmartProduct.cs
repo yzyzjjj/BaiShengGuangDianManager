@@ -13,6 +13,14 @@ namespace ApiManagement.Models.SmartFactoryModel
         /// </summary>
         public string Product { get; set; }
         /// <summary>
+        /// 流程编号类型id
+        /// </summary>
+        public int CategoryId { get; set; }
+        /// <summary>
+        /// 产能id
+        /// </summary>
+        public int CapacityId { get; set; }
+        /// <summary>
         /// 备注
         /// </summary>
         public string Remark { get; set; }
@@ -30,6 +38,18 @@ namespace ApiManagement.Models.SmartFactoryModel
     public class SmartProductDetail : SmartProduct
     {
         /// <summary>
+        /// 流程编号类型
+        /// </summary>
+        public string Category { get; set; }
+        /// <summary>
+        /// 产能
+        /// </summary>
+        public string Capacity { get; set; }
+        /// <summary>
+        /// 日最大产能 该日产能为末道工序最大产能
+        /// </summary>
+        public int Number { get; set; }
+        /// <summary>
         /// 流程编号清单
         /// </summary>
         public string ProcessCodeIds { get; set; }
@@ -39,14 +59,9 @@ namespace ApiManagement.Models.SmartFactoryModel
         public List<string> ProcessCodesList { get; set; } = new List<string>();
         public string ProcessCodes => ProcessCodesList.Join();
         public List<SmartProductProcessDetail> ProductProcesses { get; set; } = new List<SmartProductProcessDetail>();
-    }
 
-    public class SmartProductProcessDetail : SmartProductProcess
-    {
-        /// <summary>
-        /// 流程
-        /// </summary>
-        public string Process { get; set; }
+        public List<SmartProductCapacityDetail> ProductCapacities { get; set; } = new List<SmartProductCapacityDetail>();
+
     }
 
 }

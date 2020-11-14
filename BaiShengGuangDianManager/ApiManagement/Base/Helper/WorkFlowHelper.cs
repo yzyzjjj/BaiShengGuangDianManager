@@ -19,9 +19,10 @@ namespace ApiManagement.Base.Helper
         /// 用户创建
         /// </summary>
         public event EventHandler<SmartUser> SmartUserCreated;
-        public void OnOrderCreated(SmartUser user)
+        public void OnSmartUserCreated(SmartUser user)
         {
-            SmartUserCreated?.BeginInvoke(this, user, null, null);
+            //SmartUserCreated?.BeginInvoke(this, user, null, null);
+            SmartUserCreated?.Invoke(this, user);
         }
 
         /// <summary>
@@ -49,9 +50,9 @@ namespace ApiManagement.Base.Helper
         /// 用户改变
         /// </summary>
         public event EventHandler<IEnumerable<SmartUser>> SmartUserChanged;
-        public void OnOrderCreated(IEnumerable<SmartUser> user)
+        public void OnSmartUserChanged(IEnumerable<SmartUser> user)
         {
-            //SmartUserCreated?.BeginInvoke(this, user, null, null);
+            SmartUserChanged?.Invoke(this, user);
         }
         /// <summary>
         /// 流程卡工序 更新  开始加工 结束加工 录报表
@@ -97,6 +98,23 @@ namespace ApiManagement.Base.Helper
         {
             SmartProcessFaultChanged?.Invoke(this, processFaults);
         }
+
+        /// <summary>
+        /// 操作工等级改变 增删改
+        /// </summary>
+        public event EventHandler<IEnumerable<SmartOperatorLevel>> SmartOperatorLevelChanged;
+        public void OnSmartOperatorLevelChanged(IEnumerable<SmartOperatorLevel> operatorLevels)
+        {
+            SmartOperatorLevelChanged?.Invoke(this, operatorLevels);
+        }
+        /// <summary>
+        /// 产能类型设置改变 增删改
+        /// </summary>
+        public event EventHandler<IEnumerable<SmartCapacityList>> SmartCapacityListChanged;
+        public void OnSmartCapacityListChanged(IEnumerable<SmartCapacityList> capacityLists)
+        {
+            SmartCapacityListChanged?.Invoke(this, capacityLists);
+        }
         #endregion
 
         #region 需要更新
@@ -115,6 +133,14 @@ namespace ApiManagement.Base.Helper
         public void OnSmartLineWorkOrderNeedUpdate(IEnumerable<WorkOrderIdProcessCodeId> workOrderIdProcessCodeIds)
         {
             SmartLineWorkOrderNeedUpdate?.Invoke(this, workOrderIdProcessCodeIds);
+        }
+        /// <summary>
+        /// 产能类型需更新
+        /// </summary>
+        public event EventHandler<IEnumerable<SmartCapacity>> SmartCapacityNeedUpdate;
+        public void OnSmartCapacityNeedUpdate(IEnumerable<SmartCapacity> smartCapacities)
+        {
+            SmartCapacityNeedUpdate?.Invoke(this, smartCapacities);
         }
         #endregion
 
@@ -310,6 +336,82 @@ namespace ApiManagement.Base.Helper
                 }
             };
 
+            SmartOperatorLevelChanged += (o, operatorLevels) =>
+            {
+                if (operatorLevels == null || !operatorLevels.Any())
+                {
+                    return;
+                }
+
+                var levels =
+                    SmartOperatorLevelHelper.Instance.GetAll<SmartOperatorLevel>().OrderBy(x => x.Order).ThenBy(y => y.Id);
+
+                for (var i = 0; i < levels.Count(); i++)
+                {
+                    levels.ElementAt(i).Order = i;
+                }
+
+                ServerConfig.ApiDb.Execute("UPDATE `t_operator_level` SET `Order` = @Order WHERE `Id` = @Id;", levels);
+            };
+
+
+            SmartCapacityListChanged += (o, capacityLists) =>
+            {
+                if (capacityLists == null || !capacityLists.Any())
+                {
+                    return;
+                }
+
+                var capacityIds = capacityLists.GroupBy(x => x.CapacityId).Select(y => y.Key);
+                var list = ServerConfig.ApiDb.Query<SmartCapacityList>("SELECT * FROM (SELECT * FROM `t_capacity_list` " +
+                                                                       "WHERE MarkedDelete = 0 AND CapacityId IN @capacityIds ORDER BY Id DESC) a GROUP BY CapacityId;;", new
+                                                                       {
+                                                                           capacityIds
+                                                                       });
+
+                var modelIds = capacityLists.SelectMany(x => x.DeviceList).Select(y => y.ModelId).Distinct();
+                var modelCount = ServerConfig.ApiDb.Query<dynamic>(
+                    "SELECT ModelId, COUNT(1) Count FROM `t_device` WHERE ModelId IN @modelIds GROUP BY ModelId;",
+                    new
+                    {
+                        modelIds
+                    });
+
+                var processIds = capacityLists.Select(x => x.ProcessId).Distinct();
+                var operatorCount = ServerConfig.ApiDb.Query<dynamic>(
+                    "SELECT LevelId, COUNT(1) Count FROM t_operator WHERE ProcessId IN @processIds GROUP BY LevelId;;", new
+                    {
+                        processIds
+                    });
+                var capacities = new List<SmartCapacity>();
+                foreach (var l in list)
+                {
+                    var capacity = new SmartCapacity
+                    {
+                        Id = l.CapacityId,
+                        Last = l.Id
+                    };
+                    var devices = l.DeviceList;
+                    foreach (var device in devices)
+                    {
+                        device.Count = modelCount.FirstOrDefault(x => (int)x.ModelId == device.ModelId) != null
+                            ? (int)modelCount.FirstOrDefault(x => (int)x.ModelId == device.ModelId).Count : 0;
+                    }
+                    var deviceCapacity = devices.Sum(x => x.Total);
+                    var operators = l.OperatorList;
+                    foreach (var op in operators)
+                    {
+                        op.Count = operatorCount.FirstOrDefault(x => (int)x.LevelId == op.LevelId) != null
+                            ? (int)operatorCount.FirstOrDefault(x => (int)x.LevelId == op.LevelId).Count : 0;
+                    }
+                    var operatorCapacity = operators.Sum(x => x.Total);
+                    capacity.Number = Math.Max(deviceCapacity, operatorCapacity);
+                    capacities.Add(capacity);
+                }
+
+                ServerConfig.ApiDb.Execute("UPDATE `t_capacity` SET `Number` = @Number, `Last` = @Last WHERE `Id` = @Id;", capacities);
+            };
+
             SmartLineTaskOrderNeedUpdate += (o, taskOrderIdProcessCodeIds) =>
             {
                 if (taskOrderIdProcessCodeIds == null || !taskOrderIdProcessCodeIds.Any())
@@ -404,7 +506,7 @@ namespace ApiManagement.Base.Helper
                         process.StandardId);
                     if (!smartLines.ContainsKey(key))
                     {
-                        smartLines.Add(key, new SmartLineWorkOrder{ ProcessId = process.StandardId });
+                        smartLines.Add(key, new SmartLineWorkOrder { ProcessId = process.StandardId });
                     }
 
                     if (smartLines[key].StartTime == default(DateTime))
