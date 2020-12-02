@@ -9,6 +9,7 @@ using ServiceStack;
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using ApiManagement.Base.Helper;
 
 namespace ApiManagement.Controllers.SmartFactoryController.OperatorFolder
 {
@@ -45,7 +46,7 @@ namespace ApiManagement.Controllers.SmartFactoryController.OperatorFolder
             }
             else if (menu)
             {
-                sql = $"SELECT Id, `Name` FROM `t_operator` WHERE MarkedDelete = 0{(qId == 0 ? "" : " AND Id = @qId")};";
+                sql = $"SELECT Id, `Name` FROM `t_operator` WHERE MarkedDelete = 0{(qId == 0 ? "" : " AND Id = @qId")} ORDER BY a.Id;";
             }
             else if (add)
             {
@@ -99,7 +100,7 @@ namespace ApiManagement.Controllers.SmartFactoryController.OperatorFolder
                       $"JOIN `t_user` b ON a.UserId = b.Id " +
                       $"JOIN `t_process` c ON a.ProcessId = c.Id " +
                       $"JOIN `t_operator_level` d ON a.LevelId = d.Id " +
-                      $"WHERE a.MarkedDelete = 0{(paramList.Join(""))};";
+                      $"WHERE a.MarkedDelete = 0{(paramList.Join(""))} ORDER BY a.Id;";
             }
 
             result.datas.AddRange(menu
@@ -142,6 +143,7 @@ namespace ApiManagement.Controllers.SmartFactoryController.OperatorFolder
                 smartOperator.MarkedDateTime = markedDateTime;
             }
             SmartOperatorHelper.Instance.Update(smartOperators);
+            WorkFlowHelper.Instance.OnSmartOperatorChanged(smartOperators);
             return Result.GenError<Result>(Error.Success);
         }
 
@@ -157,6 +159,7 @@ namespace ApiManagement.Controllers.SmartFactoryController.OperatorFolder
                 smartOperator.MarkedDateTime = markedDateTime;
             }
             SmartOperatorHelper.Instance.Add(smartOperators);
+            WorkFlowHelper.Instance.OnSmartOperatorChanged(smartOperators);
             return Result.GenError<Result>(Error.Success);
         }
 
@@ -169,12 +172,13 @@ namespace ApiManagement.Controllers.SmartFactoryController.OperatorFolder
         public Result DeleteSmartOperator([FromBody] BatchDelete batchDelete)
         {
             var ids = batchDelete.ids;
-            var count = SmartOperatorHelper.Instance.GetCountByIds(ids);
-            if (count == 0)
+            var operators = SmartOperatorHelper.Instance.GetByIds<SmartOperator>(ids);
+            if (!operators.Any())
             {
                 return Result.GenError<Result>(Error.SmartOperatorNotExist);
             }
             SmartOperatorHelper.Instance.Delete(ids);
+            WorkFlowHelper.Instance.OnSmartOperatorChanged(operators);
             return Result.GenError<Result>(Error.Success);
         }
     }

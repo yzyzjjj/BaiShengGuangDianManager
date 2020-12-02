@@ -24,7 +24,7 @@ namespace ApiManagement.Controllers.SmartFactoryController.ProcessFolder
         {
             var result = new DataResult();
             var sql =
-                $"SELECT a.*, b.Process FROM `t_process_code_category_process` a JOIN `t_process` b ON a.ProcessId = b.Id WHERE a.MarkedDelete = 0 AND b.MarkedDelete = 0" +
+                $"SELECT a.*, b.Process, b.Remark FROM `t_process_code_category_process` a JOIN `t_process` b ON a.ProcessId = b.Id WHERE a.MarkedDelete = 0 AND b.MarkedDelete = 0" +
                 $"{(qId == 0 ? "" : " AND a.Id = @qId")}" +
                 $"{(categoryId == 0 ? "" : " AND ProcessCodeCategoryId = @categoryId")}" +
                 $" ORDER BY `Order`;";

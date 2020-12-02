@@ -34,8 +34,9 @@ namespace ApiManagement.Controllers.SmartFactoryController.CapacityFolder
             if (capacityId != 0 && categoryId != 0)
             {
                 sql =
-                    "SELECT IFNULL(c.Id, 0) Id, a.Id ProcessId, b.Process, b.DeviceCategoryId, b.Category" +
-                    ", IFNULL(c.DeviceModel, '') DeviceModel, IFNULL(c.DeviceNumber, '') DeviceNumber, IFNULL(c.OperatorLevel, '') OperatorLevel, IFNULL(c.OperatorNumber, '') OperatorNumber " +
+                    "SELECT IFNULL(c.Id, 0) Id, a.Id ProcessId, b.Process, b.DeviceCategoryId, b.Category, " +
+                    "IFNULL(c.DeviceModel, '') DeviceModel, IFNULL(c.DeviceNumber, '') DeviceNumber, IFNULL(c.DeviceSingle, '') DeviceSingle, IFNULL(c.DeviceSingleCount, '') DeviceSingleCount, " +
+                    "IFNULL(c.OperatorLevel, '') OperatorLevel, IFNULL(c.OperatorNumber, '') OperatorNumber, IFNULL(c.OperatorSingle, '') OperatorSingle, IFNULL(c.OperatorSingleCount, '') OperatorSingleCount " +
                     "FROM `t_process_code_category_process` a " +
                     "JOIN (SELECT a.*, IFNULL(b.Category, '') Category FROM `t_process` a " +
                     "LEFT JOIN `t_device_category` b ON a.DeviceCategoryId = b.Id) b ON a.ProcessId = b.Id " +
@@ -52,8 +53,9 @@ namespace ApiManagement.Controllers.SmartFactoryController.CapacityFolder
 
                 categoryId = capacity.CategoryId;
                 sql =
-                    "SELECT IFNULL(c.Id, 0) Id, a.Id ProcessId, b.Process, b.DeviceCategoryId, b.Category" +
-                    ", IFNULL(c.DeviceModel, '') DeviceModel, IFNULL(c.DeviceNumber, '') DeviceNumber, IFNULL(c.OperatorLevel, '') OperatorLevel, IFNULL(c.OperatorNumber, '') OperatorNumber " +
+                    "SELECT IFNULL(c.Id, 0) Id, a.Id ProcessId, b.Process, b.DeviceCategoryId, b.Category, " +
+                    "IFNULL(c.DeviceModel, '') DeviceModel, IFNULL(c.DeviceNumber, '') DeviceNumber, IFNULL(c.DeviceSingle, '') DeviceSingle, IFNULL(c.DeviceSingleCount, '') DeviceSingleCount, " +
+                    "IFNULL(c.OperatorLevel, '') OperatorLevel, IFNULL(c.OperatorNumber, '') OperatorNumber, IFNULL(c.OperatorSingle, '') OperatorSingle, IFNULL(c.OperatorSingleCount, '') OperatorSingleCount " +
                     "FROM `t_process_code_category_process` a " +
                     "JOIN (SELECT a.*, IFNULL(b.Category, '') Category FROM `t_process` a " +
                     "LEFT JOIN `t_device_category` b ON a.DeviceCategoryId = b.Id) b ON a.ProcessId = b.Id " +
@@ -98,11 +100,14 @@ namespace ApiManagement.Controllers.SmartFactoryController.CapacityFolder
         public object GetSmartCapacityListInfo([FromQuery]int qId, int processId)
         {
             var result = new DataResult();
-            var categoryId = 0;
-            SmartCapacityList capacityList;
+            var deviceCategoryId = 0;
+            SmartCapacityListDetail capacityList = null;
             if (qId != 0)
             {
-                capacityList = SmartCapacityListHelper.Instance.Get<SmartCapacityList>(qId);
+                capacityList = ServerConfig.ApiDb.Query<SmartCapacityListDetail>($"SELECT a.*, b.DeviceCategoryId CategoryId FROM `t_capacity_list` a " +
+                         "JOIN (SELECT a.*, b.Process, b.DeviceCategoryId FROM `t_process_code_category_process` a " +
+                        $"JOIN `t_process` b ON a.ProcessId = b.Id) b ON a.ProcessId = b.Id " +
+                        "WHERE a.MarkedDelete = 0 AND a.Id = @qId;", new { qId }).FirstOrDefault();
                 if (capacityList == null)
                 {
                     return Result.GenError<Result>(Error.SmartCapacityListNotExist);
@@ -113,12 +118,12 @@ namespace ApiManagement.Controllers.SmartFactoryController.CapacityFolder
                     return Result.GenError<Result>(Error.SmartCapacityNotExist);
                 }
 
-                categoryId = capacity.CategoryId;
+                deviceCategoryId = capacityList.CategoryId;
             }
             else if (processId != 0)
             {
                 var process = ServerConfig.ApiDb.Query<dynamic>(
-                    "SELECT a.Id, b.DeviceCategoryId FROM `t_process_code_category_process` a JOIN `t_process` b ON a.ProcessId = b.Id WHERE a.MarkedDelete = 0 AND a.Id = @processId;", new
+                    "SELECT a.Id, b.DeviceCategoryId, b.Id ProcessId FROM `t_process_code_category_process` a JOIN `t_process` b ON a.ProcessId = b.Id WHERE a.MarkedDelete = 0 AND a.Id = @processId;", new
                     {
                         processId
                     }).FirstOrDefault();
@@ -126,30 +131,27 @@ namespace ApiManagement.Controllers.SmartFactoryController.CapacityFolder
                 {
                     return Result.GenError<Result>(Error.SmartProcessCodeCategoryProcessNotExist);
                 }
-                capacityList = new SmartCapacityList
+
+                capacityList = new SmartCapacityListDetail
                 {
                     ProcessId = process.Id
                 };
-                categoryId = process.DeviceCategoryId;
+                deviceCategoryId = process.DeviceCategoryId;
             }
             else
             {
                 return Result.GenError<Result>(Error.ParamError);
             }
 
+            capacityList.PId = SmartProcessCodeCategoryProcessHelper.Instance.Get<SmartProcessCodeCategoryProcess>(capacityList.ProcessId)?.ProcessId ?? 0;
             var actDevices = new List<SmartDeviceCapacity>();
-            if (categoryId != 0)
+            if (deviceCategoryId != 0)
             {
-                var models = SmartDeviceModelHelper.Instance.GetSmartDeviceModelDetails(categoryId);
+                var models = SmartDeviceModelHelper.Instance.GetSmartDeviceModelDetails(deviceCategoryId);
                 var devices = capacityList.DeviceList;
                 if (models.Any())
                 {
-                    var modelCount = ServerConfig.ApiDb.Query<dynamic>(
-                        "SELECT ModelId, COUNT(1) Count FROM `t_device` WHERE ModelId IN @modelId GROUP BY ModelId;", new
-                        {
-                            modelId = models.Select(x => x.Id)
-                        });
-
+                    var modelCount = SmartDeviceModelHelper.Instance.GetNormalModelCount(models.Select(x => x.Id));
                     foreach (var model in models)
                     {
                         var device = devices.FirstOrDefault(x => x.ModelId == model.Id) ?? new SmartDeviceCapacity();
@@ -157,8 +159,8 @@ namespace ApiManagement.Controllers.SmartFactoryController.CapacityFolder
                         device.CategoryId = model.CategoryId;
                         device.ModelId = model.Id;
                         device.Model = model.Model;
-                        device.Count = modelCount.FirstOrDefault(x => (int)x.ModelId == model.Id) != null
-                            ? (int)modelCount.FirstOrDefault(x => (int)x.ModelId == model.Id).Count : 0;
+                        device.Count = modelCount.FirstOrDefault(x => x.ModelId == model.Id) != null
+                            ? modelCount.FirstOrDefault(x => x.ModelId == model.Id).Count : 0;
                         actDevices.Add(device);
                     }
                 }
@@ -168,11 +170,7 @@ namespace ApiManagement.Controllers.SmartFactoryController.CapacityFolder
             var levels = SmartOperatorLevelHelper.Instance.GetAll<SmartOperatorLevel>().OrderBy(x => x.Order);
             if (levels.Any())
             {
-                var operatorCount = ServerConfig.ApiDb.Query<dynamic>(
-                    "SELECT LevelId, COUNT(1) Count FROM t_operator WHERE ProcessId = @ProcessId GROUP BY LevelId;", new
-                    {
-                        capacityList.ProcessId
-                    });
+                var operatorCount = SmartOperatorHelper.Instance.GetNormalOperatorCount(capacityList.ProcessId);
                 var operators = capacityList.OperatorList;
                 if (levels.Any())
                 {
@@ -181,8 +179,8 @@ namespace ApiManagement.Controllers.SmartFactoryController.CapacityFolder
                         var op = operators.FirstOrDefault(x => x.LevelId == level.Id) ?? new SmartOperatorCapacity();
                         op.Level = level.Level;
                         op.LevelId = level.Id;
-                        op.Count = operatorCount.FirstOrDefault(x => (int)x.LevelId == level.Id) != null
-                            ? (int)operatorCount.FirstOrDefault(x => (int)x.LevelId == level.Id).Count : 0;
+                        op.Count = operatorCount.FirstOrDefault(x => x.ProcessId == capacityList.PId && x.LevelId == op.LevelId) != null
+                            ? operatorCount.FirstOrDefault(x => x.ProcessId == capacityList.PId && x.LevelId == level.Id).Count : 0;
                         actOperators.Add(op);
                     }
                 }
@@ -192,7 +190,7 @@ namespace ApiManagement.Controllers.SmartFactoryController.CapacityFolder
             return new
             {
                 errno = 0,
-                msg = "成功",
+                errmsg = "成功",
                 Devices = actDevices,
                 Operators = actOperators
             };

@@ -132,4 +132,10 @@
         故障 = 2,
         报废 = 3,
     }
+    public enum SmartProductCapacityError
+    {
+        正常 = 0,
+        产能未设置 = 1,
+        合格率未设置 = 2,
+    }
 }

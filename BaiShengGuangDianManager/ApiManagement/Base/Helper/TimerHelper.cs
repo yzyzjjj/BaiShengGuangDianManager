@@ -1028,6 +1028,10 @@ namespace ApiManagement.Base.Helper
             /// </summary>
             public string f_cgname { get; set; }
             /// <summary>
+            /// 采购数量
+            /// </summary>
+            public string f_cgddnum { get; set; }
+            /// <summary>
             /// 采购公司
             /// </summary>
             public string f_gsmc { get; set; }

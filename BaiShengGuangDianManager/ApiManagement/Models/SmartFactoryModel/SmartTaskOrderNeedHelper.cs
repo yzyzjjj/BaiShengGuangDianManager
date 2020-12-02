@@ -10,9 +10,11 @@ namespace ApiManagement.Models.SmartFactoryModel
         {
             Table = "t_task_order_need";
             InsertSql =
-                "INSERT INTO `t_task_order_need` (`CreateUserId`, `MarkedDateTime`, `TaskOrderId`, `ProcessId`, `ProductId`, `Target`, `Stock`, `EstimatedTime`) " +
-                "VALUES (@CreateUserId, @MarkedDateTime, @TaskOrderId, @ProcessId, @ProductId, @Target, @Stock, @EstimatedTime);";
-            UpdateSql = "UPDATE `t_task_order_need` SET `MarkedDateTime` = @MarkedDateTime, `Target` = @Target, `Stock` = @Stock, `EstimatedTime` = @EstimatedTime WHERE `Id` = @Id;";
+                "INSERT INTO `t_task_order_need` (`CreateUserId`, `MarkedDateTime`, `Batch`, `TaskOrderId`, `ProcessId`, `PId`, `ProductId`, `Target`, `Stock`, `EstimatedStartTime`, `EstimatedCompleteTime`) " +
+                "VALUES (@CreateUserId, @MarkedDateTime, @Batch, @TaskOrderId, @ProcessId, @PId, @ProductId, @Target, @Stock, @EstimatedStartTime, @EstimatedCompleteTime);";
+            UpdateSql = "UPDATE `t_task_order_need` SET `MarkedDateTime` = @MarkedDateTime, `Target` = @Target, `Stock` = @Stock" +
+                        ", `EstimatedStartTime` = IF(@EstimatedStartTime = '0001-01-01 00:00:00', `EstimatedStartTime`, @EstimatedStartTime)" +
+                        ", `EstimatedCompleteTime` = IF(@EstimatedCompleteTime = '0001-01-01 00:00:00', `EstimatedCompleteTime`, @EstimatedCompleteTime) WHERE `Id` = @Id;";
         }
         public static readonly SmartTaskOrderNeedHelper Instance = new SmartTaskOrderNeedHelper();
         #region Get
@@ -32,7 +34,6 @@ namespace ApiManagement.Models.SmartFactoryModel
         #endregion
 
         #region Update
-
         #endregion
 
         #region Delete

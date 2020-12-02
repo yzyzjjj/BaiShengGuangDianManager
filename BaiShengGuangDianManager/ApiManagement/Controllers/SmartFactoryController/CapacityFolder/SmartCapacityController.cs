@@ -48,11 +48,11 @@ namespace ApiManagement.Controllers.SmartFactoryController.CapacityFolder
                 return Result.GenError<Result>(Error.ParamError);
             }
 
-            if (!smartCapacities.Any(x => x.Capacity.IsNullOrEmpty()))
-            {
-                return Result.GenError<Result>(Error.SmartProcessNotEmpty);
-            }
-            var smartCapacityIds = smartCapacities.Select(x => x.Id);
+            //if (!smartCapacities.Any(x => x.Capacity.IsNullOrEmpty()))
+            //{
+            //    return Result.GenError<Result>(Error.SmartProcessNotEmpty);
+            //}
+            var smartCapacityIds = smartCapacities.Select(x => x.Id).Where(y => y != 0);
             var data = SmartDeviceHelper.Instance.GetByIds<SmartCapacity>(smartCapacityIds);
             if (data.Count() != smartCapacities.Count())
             {
@@ -63,7 +63,6 @@ namespace ApiManagement.Controllers.SmartFactoryController.CapacityFolder
             var markedDateTime = DateTime.Now;
             foreach (var smartCapacity in smartCapacities)
             {
-                smartCapacity.CreateUserId = createUserId;
                 smartCapacity.MarkedDateTime = markedDateTime;
             }
             SmartCapacityHelper.Instance.Update(smartCapacities);
@@ -88,7 +87,7 @@ namespace ApiManagement.Controllers.SmartFactoryController.CapacityFolder
             }
 
             var processes = SmartProcessCodeCategoryProcessHelper.Instance
-                .GetSmartProcessCodeCategoryProcessesByProcessCodeCategoryId(capacity.CategoryId);
+                .GetSmartProcessCodeCategoryProcessesByProcessCodeCategoryId(smartCapacity.CategoryId);
             if (!processes.Any())
             {
                 return Result.GenError<Result>(Error.SmartProcessCodeCategoryProcessNotExist);
@@ -104,19 +103,22 @@ namespace ApiManagement.Controllers.SmartFactoryController.CapacityFolder
                 return Result.GenError<Result>(Error.SmartCapacityListNotEmpty);
             }
 
-            var smartCapacityListIds = smartCapacityLists.Select(x => x.Id);
-            var data = SmartCapacityListHelper.Instance.GetByIds<SmartCapacityList>(smartCapacityListIds);
-            if (data.Count() != smartCapacityLists.Count())
+            var smartCapacityListIds = smartCapacityLists.Select(x => x.Id).Where(y => y != 0);
+            if (smartCapacityListIds.Any())
             {
-                return Result.GenError<Result>(Error.SmartCapacityListNotExist);
-            }
+                var data = SmartCapacityListHelper.Instance.GetByIds<SmartCapacityList>(smartCapacityListIds);
+                if (data.Count() != smartCapacityListIds.Count())
+                {
+                    return Result.GenError<Result>(Error.SmartCapacityListNotExist);
+                }
 
+            }
             var createUserId = Request.GetIdentityInformation();
             var markedDateTime = DateTime.Now;
             if (capacity.CategoryId != smartCapacity.CategoryId)
             {
-                capacity.MarkedDateTime = markedDateTime;
-                SmartCapacityHelper.Instance.UpdateSmartCapacity(capacity);
+                smartCapacity.MarkedDateTime = markedDateTime;
+                SmartCapacityHelper.Instance.UpdateSmartCapacity(smartCapacity);
             }
 
             foreach (var smartCapacityList in smartCapacityLists)

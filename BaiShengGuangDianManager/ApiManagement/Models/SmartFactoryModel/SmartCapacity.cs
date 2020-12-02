@@ -18,6 +18,14 @@ namespace ApiManagement.Models.SmartFactoryModel
         /// </summary>
         public int Number { get; set; }
         /// <summary>
+        /// 设备日产能
+        /// </summary>
+        public int DeviceNumber { get; set; }
+        /// <summary>
+        /// 人员日产能
+        /// </summary>
+        public int OperatorNumber { get; set; }
+        /// <summary>
         /// 末道工序顺序
         /// </summary>
         public int Last { get; set; }

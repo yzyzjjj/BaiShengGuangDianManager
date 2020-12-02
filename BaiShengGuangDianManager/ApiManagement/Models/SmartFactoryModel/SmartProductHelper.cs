@@ -11,7 +11,7 @@ namespace ApiManagement.Models.SmartFactoryModel
             Table = "t_product";
             InsertSql =
                 "INSERT INTO `t_product` (`CreateUserId`, `MarkedDateTime`, `Product`, `CategoryId`, `CapacityId`, `Remark`) " +
-                "VALUES (@CreateUserId, @MarkedDateTime, @Product, @CategoryId, @Product, @Remark);";
+                "VALUES (@CreateUserId, @MarkedDateTime, @Product, @CategoryId, @CapacityId, @Remark);";
             UpdateSql =
                 "UPDATE `t_product` SET `MarkedDateTime` = @MarkedDateTime, `Product` = @Product, `CategoryId` = @CategoryId, `CapacityId` = @CapacityId, `Remark` = @Remark WHERE `Id` = @Id;";
         }
@@ -28,6 +28,11 @@ namespace ApiManagement.Models.SmartFactoryModel
         {
             return ServerConfig.ApiDb.Query<SmartProduct>(
                 "SELECT * FROM `t_product` WHERE MarkedDelete = 0 AND Product IN @products;", new { products });
+        }
+        public IEnumerable<SmartProduct> GetSmartProductsByCapacityIds(IEnumerable<int> capacityIds)
+        {
+            return ServerConfig.ApiDb.Query<SmartProduct>(
+                "SELECT * FROM `t_product` WHERE MarkedDelete = 0 AND CapacityId IN @capacityIds;", new { capacityIds });
         }
         //public IEnumerable<SmartProduct> GetSmartProducts(int taskOrderId, int processCodeId)
         //{

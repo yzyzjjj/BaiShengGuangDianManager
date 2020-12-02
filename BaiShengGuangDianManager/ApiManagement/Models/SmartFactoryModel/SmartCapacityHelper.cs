@@ -42,7 +42,7 @@ namespace ApiManagement.Models.SmartFactoryModel
         public void UpdateSmartCapacity(SmartCapacity capacity)
         {
             ServerConfig.ApiDb.Execute(
-              "UPDATE `t_capacity` SET `MarkedDateTime` = @MarkedDateTime, `CategoryId` = @CategoryId WHERE `Id` = @Id;", new { capacity });
+              "UPDATE `t_capacity` SET `MarkedDateTime` = @MarkedDateTime, `CategoryId` = @CategoryId WHERE `Id` = @Id;", capacity);
         }
         #endregion
 

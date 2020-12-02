@@ -47,6 +47,14 @@ namespace ApiManagement.Base.Helper
 
         #region 改变
         /// <summary>
+        /// 排程改变
+        /// </summary>
+        public event EventHandler<IEnumerable<int>> TaskOrderArrangeChanged;
+        public void OnTaskOrderArrangeChanged(IEnumerable<int> tasks = null)
+        {
+            TaskOrderArrangeChanged?.Invoke(this, tasks);
+        }
+        /// <summary>
         /// 用户改变
         /// </summary>
         public event EventHandler<IEnumerable<SmartUser>> SmartUserChanged;
@@ -115,6 +123,14 @@ namespace ApiManagement.Base.Helper
         {
             SmartCapacityListChanged?.Invoke(this, capacityLists);
         }
+        /// <summary>
+        /// 操作工改变
+        /// </summary>
+        public event EventHandler<IEnumerable<SmartOperator>> SmartOperatorChanged;
+        public void OnSmartOperatorChanged(IEnumerable<SmartOperator> operators)
+        {
+            SmartOperatorChanged?.Invoke(this, operators);
+        }
         #endregion
 
         #region 需要更新
@@ -141,6 +157,14 @@ namespace ApiManagement.Base.Helper
         public void OnSmartCapacityNeedUpdate(IEnumerable<SmartCapacity> smartCapacities)
         {
             SmartCapacityNeedUpdate?.Invoke(this, smartCapacities);
+        }
+        /// <summary>
+        /// 计划号产能需更新
+        /// </summary>
+        public event EventHandler<IEnumerable<SmartProduct>> SmartProductCapacityNeedUpdate;
+        public void OnSmartProductCapacityNeedUpdate(IEnumerable<SmartProduct> smartProducts)
+        {
+            SmartProductCapacityNeedUpdate?.Invoke(this, smartProducts);
         }
         #endregion
 
@@ -354,7 +378,6 @@ namespace ApiManagement.Base.Helper
                 ServerConfig.ApiDb.Execute("UPDATE `t_operator_level` SET `Order` = @Order WHERE `Id` = @Id;", levels);
             };
 
-
             SmartCapacityListChanged += (o, capacityLists) =>
             {
                 if (capacityLists == null || !capacityLists.Any())
@@ -363,54 +386,83 @@ namespace ApiManagement.Base.Helper
                 }
 
                 var capacityIds = capacityLists.GroupBy(x => x.CapacityId).Select(y => y.Key);
-                var list = ServerConfig.ApiDb.Query<SmartCapacityList>("SELECT * FROM (SELECT * FROM `t_capacity_list` " +
-                                                                       "WHERE MarkedDelete = 0 AND CapacityId IN @capacityIds ORDER BY Id DESC) a GROUP BY CapacityId;;", new
-                                                                       {
-                                                                           capacityIds
-                                                                       });
+                //产能类型没有日产能
+                //var list = ServerConfig.ApiDb.Query<SmartCapacityList>("SELECT * FROM (SELECT a.* FROM `t_capacity_list` a " +
+                //                                                       "JOIN `t_process_code_category_process` b ON a.ProcessId = b.Id " +
+                //                                                       "WHERE a.MarkedDelete = 0 AND b.MarkedDelete = 0 AND a.CapacityId IN @capacityIds ORDER BY b.`Order` DESC) a GROUP BY CapacityId;", new
+                //                                                       {
+                //                                                           capacityIds
+                //                                                       });
 
-                var modelIds = capacityLists.SelectMany(x => x.DeviceList).Select(y => y.ModelId).Distinct();
-                var modelCount = ServerConfig.ApiDb.Query<dynamic>(
-                    "SELECT ModelId, COUNT(1) Count FROM `t_device` WHERE ModelId IN @modelIds GROUP BY ModelId;",
-                    new
-                    {
-                        modelIds
-                    });
+                //var modelIds = capacityLists.SelectMany(x => x.DeviceList).Select(y => y.ModelId).Distinct();
+                //var modelCount = ServerConfig.ApiDb.Query<dynamic>(
+                //    "SELECT ModelId, COUNT(1) Count FROM `t_device` WHERE ModelId IN @modelIds AND MarkedDelete = 0 GROUP BY ModelId;",
+                //    new
+                //    {
+                //        modelIds
+                //    });
 
-                var processIds = capacityLists.Select(x => x.ProcessId).Distinct();
-                var operatorCount = ServerConfig.ApiDb.Query<dynamic>(
-                    "SELECT LevelId, COUNT(1) Count FROM t_operator WHERE ProcessId IN @processIds GROUP BY LevelId;;", new
-                    {
-                        processIds
-                    });
-                var capacities = new List<SmartCapacity>();
-                foreach (var l in list)
+                //var processIds = capacityLists.Select(x => x.ProcessId).Distinct();
+                //var operatorCount = ServerConfig.ApiDb.Query<dynamic>(
+                //    "SELECT LevelId, COUNT(1) Count FROM `t_operator` a " +
+                //    "JOIN `t_process_code_category_process` b ON a.ProcessId = b.ProcessId WHERE b.Id IN @processIds AND a.MarkedDelete = 0 GROUP BY LevelId", new
+                //    {
+                //        processIds
+                //    });
+                //var capacities = new List<SmartCapacity>();
+                //foreach (var l in list)
+                //{
+                //    var capacity = new SmartCapacity
+                //    {
+                //        Id = l.CapacityId,
+                //        Last = l.Id
+                //    };
+                //    var devices = l.DeviceList;
+                //    foreach (var device in devices)
+                //    {
+                //        device.Count = modelCount.FirstOrDefault(x => (int)x.ModelId == device.ModelId) != null
+                //            ? (int)modelCount.FirstOrDefault(x => (int)x.ModelId == device.ModelId).Count : 0;
+                //    }
+                //    var deviceCapacity = devices.Sum(x => x.Total);
+                //    var operators = l.OperatorList;
+                //    foreach (var op in operators)
+                //    {
+                //        op.Count = operatorCount.FirstOrDefault(x => (int)x.LevelId == op.LevelId) != null
+                //            ? (int)operatorCount.FirstOrDefault(x => (int)x.LevelId == op.LevelId).Count : 0;
+                //    }
+                //    var operatorCapacity = operators.Sum(x => x.Total);
+                //    capacity.DeviceNumber = deviceCapacity;
+                //    capacity.OperatorNumber = operatorCapacity;
+                //    capacity.Number = Math.Max(capacity.DeviceNumber, capacity.OperatorNumber);
+                //    capacities.Add(capacity);
+                //}
+
+                //ServerConfig.ApiDb.Execute("UPDATE `t_capacity` SET `Number` = @Number, `DeviceNumber` = @DeviceNumber, `OperatorNumber` = @OperatorNumber, `Last` = @Last WHERE `Id` = @Id;", capacities);
+                var smartProducts = SmartProductHelper.Instance.GetSmartProductsByCapacityIds(capacityIds);
+                OnSmartProductCapacityNeedUpdate(smartProducts);
+            };
+
+
+            SmartOperatorChanged += (o, operators) =>
+            {
+                var smartProducts = SmartProductHelper.Instance.GetAll<SmartProduct>();
+                OnSmartProductCapacityNeedUpdate(smartProducts);
+            };
+
+            TaskOrderArrangeChanged += (o, taskOrderArrange) =>
+            {
+                if (taskOrderArrange == null)
                 {
-                    var capacity = new SmartCapacity
-                    {
-                        Id = l.CapacityId,
-                        Last = l.Id
-                    };
-                    var devices = l.DeviceList;
-                    foreach (var device in devices)
-                    {
-                        device.Count = modelCount.FirstOrDefault(x => (int)x.ModelId == device.ModelId) != null
-                            ? (int)modelCount.FirstOrDefault(x => (int)x.ModelId == device.ModelId).Count : 0;
-                    }
-                    var deviceCapacity = devices.Sum(x => x.Total);
-                    var operators = l.OperatorList;
-                    foreach (var op in operators)
-                    {
-                        op.Count = operatorCount.FirstOrDefault(x => (int)x.LevelId == op.LevelId) != null
-                            ? (int)operatorCount.FirstOrDefault(x => (int)x.LevelId == op.LevelId).Count : 0;
-                    }
-                    var operatorCapacity = operators.Sum(x => x.Total);
-                    capacity.Number = Math.Max(deviceCapacity, operatorCapacity);
-                    capacities.Add(capacity);
+                    return;
                 }
 
-                ServerConfig.ApiDb.Execute("UPDATE `t_capacity` SET `Number` = @Number, `Last` = @Last WHERE `Id` = @Id;", capacities);
+
+
+
             };
+
+
+
 
             SmartLineTaskOrderNeedUpdate += (o, taskOrderIdProcessCodeIds) =>
             {
@@ -561,6 +613,136 @@ namespace ApiManagement.Base.Helper
                     "`EndTime` = IF(@EndTime = '0001-01-01 00:00:00', `EndTime`, @EndTime), `Before` = @Before, `Doing` = @Doing, `Qualified` = @Qualified, `Unqualified` = @Unqualified " +
                     "WHERE WorkOrderId = @WorkOrderId AND ProcessCodeCategoryId = @ProcessCodeCategoryId AND ProcessId = @ProcessId;",
                     smartLines.Values);
+            };
+
+            SmartProductCapacityNeedUpdate += (o, smartProducts) =>
+            {
+                if (smartProducts == null || !smartProducts.Any())
+                {
+                    return;
+                }
+
+                var productsIds = smartProducts.Select(x => x.Id);
+                smartProducts = SmartProductHelper.Instance.GetByIds<SmartProduct>(productsIds);
+                var capacityIds = smartProducts.Select(x => x.CapacityId);
+                var capacities = SmartCapacityListHelper.Instance.GetSmartCapacityListsWithOrder(capacityIds);
+                var productCapacities = SmartProductCapacityHelper.Instance.GetSmartProductCapacities(productsIds).Select(
+                    x =>
+                    {
+                        x.DeviceNumber = 0;
+                        x.OperatorNumber = 0;
+                        x.Number = 0;
+                        return x;
+                    });
+
+                var modelIds = capacities.SelectMany(x => x.DeviceList).Select(y => y.ModelId).Distinct();
+                var modelCount = SmartDeviceModelHelper.Instance.GetNormalModelCount(modelIds);
+                    
+                var processIds = capacities.Select(x => x.ProcessId).Distinct();
+                var operatorCount = SmartOperatorHelper.Instance.GetNormalOperatorCount(processIds);
+
+                var smartProductCapacities = new List<SmartProductCapacity>();
+                foreach (var smartProduct in smartProducts)
+                {
+                    smartProduct.Number = 0;
+                    smartProduct.DeviceNumber = 0;
+                    smartProduct.OperatorNumber = 0;
+                    var productId = smartProduct.Id;
+                    var capacityId = smartProduct.CapacityId;
+                    var capacityList = capacities.Where(x => x.CapacityId == capacityId);
+                    var pCapacities = productCapacities.Where(x => x.ProductId == productId);
+                    smartProduct.DeviceNumber = 0;
+                    smartProduct.OperatorNumber = 0;
+                    smartProduct.Number = 0;
+                    for (var i = 0; i < capacityList.Count(); i++)
+                    {
+                        var l = capacityList.ElementAt(i);
+                        var pc = pCapacities.FirstOrDefault(x => x.ProcessId == l.ProcessId);
+                        if (pc == null)
+                        {
+                            continue;
+                        }
+
+                        var deviceCapacity = 0;
+                        if (l.CategoryId != 0)
+                        {
+                            var devices = l.DeviceList;
+                            foreach (var device in devices)
+                            {
+                                device.Count = modelCount.FirstOrDefault(x => (int)x.ModelId == device.ModelId) != null
+                                    ? (int)modelCount.FirstOrDefault(x => (int)x.ModelId == device.ModelId).Count : 0;
+                            }
+                            deviceCapacity = devices.Sum(x => x.Total);
+                        }
+                        var operators = l.OperatorList;
+                        foreach (var op in operators)
+                        {
+                            op.Count = operatorCount.FirstOrDefault(x => (int)x.ProcessId == l.PId && (int)x.LevelId == op.LevelId) != null
+                                ? (int)operatorCount.FirstOrDefault(x => (int)x.ProcessId == l.PId && (int)x.LevelId == op.LevelId).Count : 0;
+                        }
+                        var operatorCapacity = operators.Sum(x => x.Total);
+                        if (i == 0)
+                        {
+                            deviceCapacity = l.CategoryId == 0 ? operatorCapacity : deviceCapacity;
+                            smartProduct.DeviceNumber = (int)Math.Floor(deviceCapacity * pc.Rate / 100);
+                            smartProduct.OperatorNumber = (int)Math.Floor(operatorCapacity * pc.Rate / 100);
+                            smartProduct.Number = Math.Max(smartProduct.DeviceNumber, smartProduct.OperatorNumber);
+                        }
+                        else
+                        {
+                            //smartProduct.DeviceNumber = l.CategoryId != 0 ? Math.Min(deviceCapacity, smartProduct.DeviceNumber) : 0;
+                            //smartProduct.OperatorNumber = Math.Min(operatorCapacity, smartProduct.OperatorNumber);
+                            //smartProduct.Number = Math.Max(smartProduct.DeviceNumber, smartProduct.OperatorNumber);
+                            //检验设备无设备产能取人员产能
+                            //var deviceNumber = l.CategoryId != 0 ? Math.Min(deviceCapacity, smartProduct.DeviceNumber) : operatorCapacity;
+                            //var operatorNumber = Math.Min(operatorCapacity, smartProduct.OperatorNumber);
+                            deviceCapacity = l.CategoryId == 0 ? operatorCapacity : deviceCapacity;
+                            //上道工序合格品数量 > 当前工序最大产能
+                            var tDeviceCapacity = smartProduct.DeviceNumber > deviceCapacity
+                                 ? (int)Math.Floor(deviceCapacity * pc.Rate / 100)
+                                 : (int)Math.Floor(smartProduct.DeviceNumber * pc.Rate / 100);
+                            //上道工序合格品数量 > 当前工序最大产能
+                            var tOperatorCapacity = smartProduct.OperatorNumber > operatorCapacity
+                                 ? (int)Math.Floor(operatorCapacity * pc.Rate / 100)
+                                 : (int)Math.Floor(smartProduct.OperatorNumber * pc.Rate / 100);
+
+                            //pc.DeviceNumber = tDeviceCapacity;
+                            //pc.OperatorNumber = tOperatorCapacity;
+                            //pc.Number = Math.Max(smartProduct.DeviceNumber, smartProduct.OperatorNumber);
+
+                            smartProduct.DeviceNumber = tDeviceCapacity;
+                            smartProduct.OperatorNumber = tOperatorCapacity;
+                            smartProduct.Number = Math.Max(smartProduct.DeviceNumber, smartProduct.OperatorNumber);
+                        }
+                        pc.DeviceNumber = smartProduct.DeviceNumber;
+                        pc.OperatorNumber = smartProduct.OperatorNumber;
+                        pc.Number = smartProduct.Number;
+                        var f = false;
+                        if (deviceCapacity == 0 && operatorCapacity == 0)
+                        {
+                            f = true;
+                            pc.Error = SmartProductCapacityError.产能未设置;
+                        }
+
+                        if (pc.Rate == 0)
+                        {
+                            f = true;
+                            pc.Error = SmartProductCapacityError.合格率未设置;
+                        }
+
+                        smartProductCapacities.Add((SmartProductCapacity)pc.Clone());
+
+                        if (f)
+                        {
+                            break;
+                        }
+                    }
+                }
+                smartProductCapacities.AddRange(productCapacities.Where(x => smartProductCapacities.All(y => y.Id != x.Id)));
+                ServerConfig.ApiDb.Execute("UPDATE `t_product` SET `Number` = @Number, `DeviceNumber` = @DeviceNumber, `OperatorNumber` = @OperatorNumber WHERE `Id` = @Id;", smartProducts);
+                ServerConfig.ApiDb.Execute("UPDATE `t_product_capacity` SET `Number` = @Number, `DeviceNumber` = @DeviceNumber, `OperatorNumber` = @OperatorNumber, `Error` = @Error WHERE `Id` = @Id;", smartProductCapacities);
+
+                OnTaskOrderArrangeChanged();
             };
         }
     }

@@ -32,4 +32,19 @@
         /// </summary>
         public string Process { get; set; }
     }
+    public class SmartOperatorCount
+    {
+        /// <summary>
+        /// 标准流程id
+        /// </summary>
+        public int ProcessId { get; set; }
+        /// <summary>
+        /// 人员等级Id
+        /// </summary>
+        public int LevelId { get; set; }
+        /// <summary>
+        /// 数量
+        /// </summary>
+        public int Count { get; set; }
+    }
 }

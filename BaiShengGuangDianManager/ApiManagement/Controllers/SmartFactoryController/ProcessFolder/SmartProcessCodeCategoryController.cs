@@ -23,7 +23,7 @@ namespace ApiManagement.Controllers.SmartFactoryController.ProcessFolder
         {
             var result = new DataResult();
             var sql = menu ? $"SELECT Id, `Category` FROM `t_process_code_category` WHERE MarkedDelete = 0{(qId == 0 ? "" : " AND Id = @qId")};"
-                : $"SELECT a.*, IFNULL(b.List, '') List FROM `t_process_code_category` a LEFT JOIN (SELECT ProcessCodeCategoryId, GROUP_CONCAT(Process) List FROM `t_process_code_category_process` a JOIN `t_process` b ON a.ProcessId = b.Id WHERE a.MarkedDelete = 0 GROUP BY ProcessCodeCategoryId) b ON a.Id = b.ProcessCodeCategoryId WHERE MarkedDelete = 0{(qId == 0 ? "" : " AND a.Id = @qId")};";
+                : $"SELECT a.*, IFNULL(b.List, '') List FROM `t_process_code_category` a LEFT JOIN (SELECT ProcessCodeCategoryId, GROUP_CONCAT(Process ORDER BY a.`Order`) List FROM `t_process_code_category_process` a JOIN `t_process` b ON a.ProcessId = b.Id WHERE a.MarkedDelete = 0 GROUP BY ProcessCodeCategoryId) b ON a.Id = b.ProcessCodeCategoryId WHERE MarkedDelete = 0{(qId == 0 ? "" : " AND a.Id = @qId")};";
             result.datas.AddRange(menu
                 ? ServerConfig.ApiDb.Query<dynamic>(sql, new { qId })
                 : ServerConfig.ApiDb.Query<SmartProcessCodeCategory>(sql, new { qId }));
@@ -60,27 +60,30 @@ namespace ApiManagement.Controllers.SmartFactoryController.ProcessFolder
                     new { Id = smartProcessCodeCategories.Select(x => x.Id) });
             foreach (var smartProcessCodeCategory in smartProcessCodeCategories)
             {
-
                 smartProcessCodeCategory.CreateUserId = createUserId;
                 smartProcessCodeCategory.MarkedDateTime = markedDateTime;
                 var categoryProcesses = exist.Where(x => x.ProcessCodeCategoryId == smartProcessCodeCategory.Id);
                 if (smartProcessCodeCategory.Processes != null && smartProcessCodeCategory.Processes.Any())
                 {
-                    add.AddRange(smartProcessCodeCategory.Processes.Where(x => x.Id == 0).Select(y =>
-                    {
-                        y.CreateUserId = createUserId;
-                        y.MarkedDateTime = markedDateTime;
-                        y.ProcessCodeCategoryId = smartProcessCodeCategory.Id;
-                        return y;
-                    }));
+                    add.AddRange(smartProcessCodeCategory.Processes.Where(x => x.Id == 0 && categoryProcesses.FirstOrDefault(a => a.Order == x.Order && a.ProcessId == x.ProcessId) == null)
+                        .Select(y =>
+                          {
+                              y.CreateUserId = createUserId;
+                              y.MarkedDateTime = markedDateTime;
+                              y.ProcessCodeCategoryId = smartProcessCodeCategory.Id;
+                              return y;
+                          }));
 
-                    update.AddRange(smartProcessCodeCategory.Processes.Where(x => categoryProcesses.Any(y => y.Id == x.Id)).Select(z =>
+                    update.AddRange(smartProcessCodeCategory.Processes.Where(x => categoryProcesses.Any(y => y.Id == x.Id) 
+                                                                                  || (x.Id == 0 && categoryProcesses.FirstOrDefault(a => a.Order == x.Order && a.ProcessId == x.ProcessId) != null)).Select(z =>
                     {
+                        var first = categoryProcesses.FirstOrDefault(a => a.Order == z.Order && a.ProcessId == z.ProcessId);
+                        z.Id = (int) first?.Id;
                         z.MarkedDateTime = markedDateTime;
                         return z;
                     }));
 
-                    update.AddRange(categoryProcesses.Where(x => smartProcessCodeCategory.Processes.Any(y => y.Id == x.Id)).Select(z =>
+                    update.AddRange(categoryProcesses.Where(x => smartProcessCodeCategory.Processes.All(y => y.Id != x.Id)).Select(z =>
                     {
                         z.MarkedDateTime = markedDateTime;
                         z.MarkedDelete = true;
@@ -109,7 +112,7 @@ namespace ApiManagement.Controllers.SmartFactoryController.ProcessFolder
             if (update.Any())
             {
                 ServerConfig.ApiDb.Execute(
-                    "UPDATE `t_process_code_category_process` SET `MarkedDateTime` = @MarkedDateTime, `MarkedDelete` = @MarkedDelete, `ProcessCodeCategoryId` = @ProcessCodeCategoryId, `Order` = @Order, `ProcessId` = @ProcessId WHERE `Id` = @Id;", update);
+                    "UPDATE `t_process_code_category_process` SET `MarkedDateTime` = @MarkedDateTime, `MarkedDelete` = @MarkedDelete, `Order` = @Order, `ProcessId` = @ProcessId WHERE `Id` = @Id;", update);
             }
 
             SmartProcessCodeCategoryHelper.Instance.Update(smartProcessCodeCategories);

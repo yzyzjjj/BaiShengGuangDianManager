@@ -1,7 +1,4 @@
 ﻿using ApiManagement.Base.Helper;
-using ApiManagement.Models.ManufactureModel;
-using ApiManagement.Models.Notify;
-using ApiManagement.Models.StatisticManagementModel;
 using Microsoft.Extensions.Configuration;
 using ModelBase.Base.Dapper;
 using ModelBase.Base.Logger;
@@ -31,9 +28,7 @@ namespace ApiManagement.Base.Server
             TimerHelper.Init();
             WarningHelper.Init();
             WorkFlowHelper.Instance.Init();
-//#if DEBUG
-//            ScheduleHelper.Instance.Init();
-//#endif
+            ScheduleHelper.Instance.Init();
 
             if (!RedisHelper.Exists(IsSetProcessDataKey))
             {

@@ -16,6 +16,10 @@ namespace ApiManagement.Models.SmartFactoryModel
         /// 备注
         /// </summary>
         public string Remark { get; set; }
+        /// <summary>
+        /// 顺序
+        /// </summary>
+        public int Order { get; set; }
     }
 
     public class SmartProcessDetail : SmartProcess

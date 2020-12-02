@@ -24,6 +24,18 @@ namespace ApiManagement.Models.SmartFactoryModel
         /// 备注
         /// </summary>
         public string Remark { get; set; }
+        /// <summary>
+        /// 日最大产能 该日产能为末道工序最大产能
+        /// </summary>
+        public int Number { get; set; }
+        /// <summary>
+        /// 设备日产能
+        /// </summary>
+        public int DeviceNumber { get; set; }
+        /// <summary>
+        /// 人员日产能
+        /// </summary>
+        public int OperatorNumber { get; set; }
     }
 
     public class SmartProcessCraft
@@ -45,10 +57,10 @@ namespace ApiManagement.Models.SmartFactoryModel
         /// 产能
         /// </summary>
         public string Capacity { get; set; }
-        /// <summary>
-        /// 日最大产能 该日产能为末道工序最大产能
-        /// </summary>
-        public int Number { get; set; }
+        ///// <summary>
+        ///// 日最大产能 该日产能为末道工序最大产能
+        ///// </summary>
+        //public int Number { get; set; }
         /// <summary>
         /// 流程编号清单
         /// </summary>

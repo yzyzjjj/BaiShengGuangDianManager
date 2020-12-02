@@ -24,15 +24,25 @@ namespace ApiManagement.Models.SmartFactoryModel
         /// </summary>
         public string DeviceNumber { get; set; }
         /// <summary>
+        /// 设备单次加工数量
+        /// </summary>
+        public string DeviceSingle { get; set; }
+        /// <summary>
+        /// 单设备日加工次数
+        /// </summary>
+        public string DeviceSingleCount { get; set; }
+        /// <summary>
         /// 设备产能
         /// </summary>
         public IEnumerable<SmartDeviceCapacity> DeviceList
         {
             get
             {
-                var deviceCapacities = new List<SmartDeviceCapacity>();
+                var capacities = new List<SmartDeviceCapacity>();
                 var deviceModels = DeviceModel.IsNullOrEmpty() ? new List<int>() : DeviceModel.Split(",").Select(int.Parse);
                 var deviceNumbers = DeviceNumber.IsNullOrEmpty() ? new List<int>() : DeviceNumber.Split(",").Select(int.Parse);
+                var deviceSingles = DeviceSingle.IsNullOrEmpty() ? new List<int>() : DeviceSingle.Split(",").Select(int.Parse);
+                var deviceSingleCounts = DeviceSingleCount.IsNullOrEmpty() ? new List<int>() : DeviceSingleCount.Split(",").Select(int.Parse);
                 for (var i = 0; i < deviceModels.Count(); i++)
                 {
                     var ModelId = deviceModels.ElementAt(i);
@@ -41,13 +51,25 @@ namespace ApiManagement.Models.SmartFactoryModel
                     {
                         number = deviceNumbers.ElementAt(i);
                     }
-                    deviceCapacities.Add(new SmartDeviceCapacity
+                    var single = 0;
+                    if (deviceSingles.Count() > i)
+                    {
+                        single = deviceSingles.ElementAt(i);
+                    }
+                    var singleCount = 0;
+                    if (deviceSingleCounts.Count() > i)
+                    {
+                        singleCount = deviceSingleCounts.ElementAt(i);
+                    }
+                    capacities.Add(new SmartDeviceCapacity
                     {
                         ModelId = ModelId,
-                        Number = number
+                        Number = number,
+                        Single = single,
+                        SingleCount = singleCount
                     });
                 }
-                return deviceCapacities;
+                return capacities;
             }
         }
         /// <summary>
@@ -59,30 +81,52 @@ namespace ApiManagement.Models.SmartFactoryModel
         /// </summary>
         public string OperatorNumber { get; set; }
         /// <summary>
-        /// 设备产能
+        /// 单人员每日加工次数
+        /// </summary>
+        public string OperatorSingle { get; set; }
+        /// <summary>
+        /// 人员单次加工次数
+        /// </summary>
+        public string OperatorSingleCount { get; set; }
+        /// <summary>
+        /// 人员产能
         /// </summary>
         public IEnumerable<SmartOperatorCapacity> OperatorList
         {
             get
             {
-                var deviceCapacities = new List<SmartOperatorCapacity>();
+                var capacities = new List<SmartOperatorCapacity>();
                 var operatorLevels = OperatorLevel.IsNullOrEmpty() ? new List<int>() : OperatorLevel.Split(",").Select(int.Parse);
-                var OperatorNumbers = OperatorNumber.IsNullOrEmpty() ? new List<int>() : OperatorNumber.Split(",").Select(int.Parse);
+                var operatorNumbers = OperatorNumber.IsNullOrEmpty() ? new List<int>() : OperatorNumber.Split(",").Select(int.Parse);
+                var operatorSingles = OperatorSingle.IsNullOrEmpty() ? new List<int>() : OperatorSingle.Split(",").Select(int.Parse);
+                var operatorSingleCounts = OperatorSingleCount.IsNullOrEmpty() ? new List<int>() : OperatorSingleCount.Split(",").Select(int.Parse);
                 for (var i = 0; i < operatorLevels.Count(); i++)
                 {
                     var levelId = operatorLevels.ElementAt(i);
                     var number = 0;
-                    if (OperatorNumbers.Count() > i)
+                    if (operatorNumbers.Count() > i)
                     {
-                        number = OperatorNumbers.ElementAt(i);
+                        number = operatorNumbers.ElementAt(i);
                     }
-                    deviceCapacities.Add(new SmartOperatorCapacity
+                    var single = 0;
+                    if (operatorSingles.Count() > i)
+                    {
+                        single = operatorSingles.ElementAt(i);
+                    }
+                    var singleCount = 0;
+                    if (operatorSingleCounts.Count() > i)
+                    {
+                        singleCount = operatorSingleCounts.ElementAt(i);
+                    }
+                    capacities.Add(new SmartOperatorCapacity
                     {
                         LevelId = levelId,
-                        Number = number
+                        Number = number,
+                        Single = single,
+                        SingleCount = singleCount
                     });
                 }
-                return deviceCapacities;
+                return capacities;
             }
         }
         /// <summary>
@@ -91,8 +135,8 @@ namespace ApiManagement.Models.SmartFactoryModel
         /// <returns></returns>
         public bool IsSet()
         {
-            return (!DeviceModel.IsNullOrEmpty() && !DeviceNumber.IsNullOrEmpty())
-                   || (!OperatorLevel.IsNullOrEmpty() && !OperatorNumber.IsNullOrEmpty());
+            return (!DeviceModel.IsNullOrEmpty() && !DeviceNumber.IsNullOrEmpty() && !DeviceSingle.IsNullOrEmpty() && !DeviceSingleCount.IsNullOrEmpty())
+                   || (!OperatorLevel.IsNullOrEmpty() && !OperatorNumber.IsNullOrEmpty() && !OperatorSingle.IsNullOrEmpty() && !OperatorSingleCount.IsNullOrEmpty());
         }
     }
 
@@ -127,6 +171,15 @@ namespace ApiManagement.Models.SmartFactoryModel
         /// </summary>
         public string DeviceNumber { get; set; }
         /// <summary>
+        /// 设备单次加工数量
+        /// </summary>
+        public string DeviceSingle { get; set; }
+        /// <summary>
+        /// 单设备日加工次数
+        /// </summary>
+        public string DeviceSingleCount { get; set; }
+
+        /// <summary>
         /// 人员等级
         /// </summary>
         public string OperatorLevel { get; set; }
@@ -134,6 +187,14 @@ namespace ApiManagement.Models.SmartFactoryModel
         /// 人员产能
         /// </summary>
         public string OperatorNumber { get; set; }
+        /// <summary>
+        /// 人员单次加工数量
+        /// </summary>
+        public string OperatorSingle { get; set; }
+        /// <summary>
+        /// 单人员每日加工次数
+        /// </summary>
+        public string OperatorSingleCount { get; set; }
     }
 
     public class SmartCapacityListDetail : SmartCapacityList
@@ -150,9 +211,53 @@ namespace ApiManagement.Models.SmartFactoryModel
         /// 设备类型
         /// </summary>
         public string Category { get; set; }
+        /// <summary>
+        /// 顺序
+        /// </summary>
+        public int Order { get; set; }
+        /// <summary>
+        /// 流程id
+        /// </summary>
+        public int PId { get; set; }
+
+        /// <summary>
+        /// 日最大产能 该日产能为末道工序最大产能
+        /// </summary>
+        public int Number { get; set; }
+        /// <summary>
+        /// 设备日产能
+        /// </summary>
+        public int DNumber { get; set; }
+        /// <summary>
+        /// 人员日产能
+        /// </summary>
+        public int ONumber { get; set; }
     }
 
-    public class SmartDeviceCapacity
+    public class SmartDeviceCapacityBase
+    {
+        /// <summary>
+        /// 该型号设备/人员数量
+        /// </summary>
+        public int Count { get; set; } = 0;
+        /// <summary>
+        /// 单次数量
+        /// </summary>
+        public int Single { get; set; } = 0;
+        /// <summary>
+        /// 单日加工次数
+        /// </summary>
+        public int SingleCount { get; set; } = 0;
+        /// <summary>
+        /// 单台日产能
+        /// </summary>
+        public int Number { get; set; } = 0;
+        /// <summary>
+        /// 日总产能
+        /// </summary>
+        public int Total => Count * Number;
+    }
+    public class SmartDeviceCapacity : SmartDeviceCapacityBase
     {
         /// <summary>
         /// 设备类型
@@ -170,20 +275,8 @@ namespace ApiManagement.Models.SmartFactoryModel
         /// 设备型号id
         /// </summary>
         public int ModelId { get; set; }
-        /// <summary>
-        /// 该型号设备数量
-        /// </summary>
-        public int Count { get; set; } = 0;
-        /// <summary>
-        /// 单台日产能
-        /// </summary>
-        public int Number { get; set; } = 0;
-        /// <summary>
-        /// 日总产能
-        /// </summary>
-        public int Total => Count * Number;
     }
-    public class SmartOperatorCapacity
+    public class SmartOperatorCapacity : SmartDeviceCapacityBase
     {
         /// <summary>
         /// 人员等级
@@ -193,17 +286,5 @@ namespace ApiManagement.Models.SmartFactoryModel
         /// 人员等级id
         /// </summary>
         public int LevelId { get; set; }
-        /// <summary>
-        /// 员工数量
-        /// </summary>
-        public int Count { get; set; } = 0;
-        /// <summary>
-        /// 单人日产能
-        /// </summary>
-        public int Number { get; set; } = 0;
-        /// <summary>
-        /// 日总产能
-        /// </summary>
-        public int Total => Count * Number;
     }
 }

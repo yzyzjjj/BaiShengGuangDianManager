@@ -22,7 +22,7 @@ namespace ApiManagement.Controllers.MaterialManagementController
     {
         // GET: api/MaterialPurchase/?qId=0
         [HttpGet]
-        public DataResult GetMaterialPurchase([FromQuery] int qId, int dId, string name, string valuer, int state = -1)
+        public DataResult GetMaterialPurchase([FromQuery] int qId, int dId, string name, string valuer, string order, int state = -1)
         {
             var result = new DataResult();
             var p = new List<string>();
@@ -50,8 +50,24 @@ namespace ApiManagement.Controllers.MaterialManagementController
             {
                 p.Add(" AND Valuer = @valuer");
             }
+
+            var purchaseIds = new List<int>();
+            if (!order.IsNullOrEmpty())
+            {
+                purchaseIds.AddRange(ServerConfig.ApiDb.Query<int>("SELECT PurchaseId FROM `material_purchase_item` " +
+                                                         "WHERE MarkedDelete = 0 AND `Order` = @order GROUP BY PurchaseId;", new { order }));
+                if (!purchaseIds.Any())
+                {
+                    return result;
+                }
+
+                if (purchaseIds.Any())
+                {
+                    p.Add(" AND Id IN @purchaseIds");
+                }
+            }
             var sql = "SELECT * FROM `material_purchase` WHERE `MarkedDelete` = 0" + p.Join("") + " ORDER BY ErpId Desc";
-            var data = ServerConfig.ApiDb.Query<MaterialPurchase>(sql, new { qId, dId, name, state, valuer });
+            var data = ServerConfig.ApiDb.Query<MaterialPurchase>(sql, new { qId, dId, name, state, valuer, purchaseIds });
             if (qId != 0 && !data.Any())
             {
                 return Result.GenError<DataResult>(Error.MaterialPurchaseNotExist);

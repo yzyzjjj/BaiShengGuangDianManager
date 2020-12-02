@@ -65,6 +65,15 @@ namespace ApiManagement.Models.BaseModel
             return ServerConfig.ApiDb.Query<T>($"SELECT * FROM `{Table}` WHERE `MarkedDelete` = 0;");
         }
         /// <summary>
+        /// 获取所有数据
+        /// </summary>
+        /// <typeparam name="T"></typeparam>
+        /// <returns></returns>
+        public IEnumerable<T> GetAllData<T>() where T : CommonBase
+        {
+            return ServerConfig.ApiDb.Query<T>($"SELECT * FROM `{Table}`;");
+        }
+        /// <summary>
         /// 获取总数量
         /// </summary>
         /// <returns></returns>

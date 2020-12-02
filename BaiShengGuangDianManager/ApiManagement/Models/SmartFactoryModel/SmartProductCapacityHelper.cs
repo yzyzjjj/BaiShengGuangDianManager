@@ -18,10 +18,10 @@ namespace ApiManagement.Models.SmartFactoryModel
         }
         public static readonly SmartProductCapacityHelper Instance = new SmartProductCapacityHelper();
         #region Get
-        public IEnumerable<SmartProductCapacity> GetSmartProductCapacities(IEnumerable<int> productIds)
+        public IEnumerable<SmartProductCapacityDetail> GetSmartProductCapacities(IEnumerable<int> productIds)
         {
-            return ServerConfig.ApiDb.Query<SmartProductCapacity>(
-                "SELECT * FROM `t_product_capacity` WHERE MarkedDelete = 0 AND ProductId IN @productIds;", new { productIds });
+            return ServerConfig.ApiDb.Query<SmartProductCapacityDetail>(
+                "SELECT a.*, b.CapacityId FROM `t_product_capacity` a JOIN `t_product` b ON a.ProductId = b.Id WHERE a.MarkedDelete = 0 AND a.ProductId IN @productIds;", new { productIds });
         }
         #endregion
 

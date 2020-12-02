@@ -4,8 +4,6 @@ using ModelBase.Base.Logic;
 using ServiceStack;
 using System;
 using System.Collections.Generic;
-using System.ComponentModel;
-using System.Linq;
 
 namespace ApiManagement.Models.MaterialManagementModel
 {
@@ -138,7 +136,7 @@ namespace ApiManagement.Models.MaterialManagementModel
             Supplier = good.f_gys ?? string.Empty;
             SupplierFull = good.f_nickname ?? string.Empty;
             Specification = good.f_gg;
-            Number = decimal.Parse(good.f_num);
+            Number = decimal.TryParse(good.f_cgddnum, out var a) ? a : decimal.Parse(good.f_num);
             Unit = good.f_dw;
             Remark = good.f_node;
             Purchaser = good.f_cgname ?? string.Empty;

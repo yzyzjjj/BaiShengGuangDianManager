@@ -1,4 +1,5 @@
-﻿using ApiManagement.Base.Server;
+﻿using ApiManagement.Base.Helper;
+using ApiManagement.Base.Server;
 using ApiManagement.Models.BaseModel;
 using ApiManagement.Models.SmartFactoryModel;
 using Microsoft.AspNetCore.Mvc;
@@ -37,21 +38,24 @@ namespace ApiManagement.Controllers.SmartFactoryController.ProductFolder
             else
             {
                 var processCodeIds = data.SelectMany(x => x.ProcessCodeIdsList).Distinct();
-                var processCodeIdsList = ServerConfig.ApiDb.Query<SmartProcessCode>(
-                    "SELECT * FROM `t_process_code` WHERE Id IN @processCodeIds", new
-                    {
-                        processCodeIds
-                    });
-                if (processCodeIdsList.Any())
+                if (processCodeIds.Any())
                 {
-                    foreach (var d in data)
-                    {
-                        foreach (var processCodeId in d.ProcessCodeIdsList)
+                    var processCodeIdsList = ServerConfig.ApiDb.Query<SmartProcessCode>(
+                        "SELECT * FROM `t_process_code` WHERE Id IN @processCodeIds", new
                         {
-                            var processCode = processCodeIdsList.FirstOrDefault(x => x.Id == processCodeId);
-                            if (processCode != null)
+                            processCodeIds
+                        });
+                    if (processCodeIdsList.Any())
+                    {
+                        foreach (var d in data)
+                        {
+                            foreach (var processCodeId in d.ProcessCodeIdsList)
                             {
-                                d.ProcessCodesList.Add(processCode.Code);
+                                var processCode = processCodeIdsList.FirstOrDefault(x => x.Id == processCodeId);
+                                if (processCode != null)
+                                {
+                                    d.ProcessCodesList.Add(processCode.Code);
+                                }
                             }
                         }
                     }
@@ -62,7 +66,9 @@ namespace ApiManagement.Controllers.SmartFactoryController.ProductFolder
                     var smartProduct = data.FirstOrDefault();
                     if (smartProduct != null)
                     {
-                        smartProduct.ProductProcesses.AddRange(ServerConfig.ApiDb.Query<SmartProductProcessDetail>(
+                        if (processCodeIds.Any())
+                        {
+                            smartProduct.ProductProcesses.AddRange(ServerConfig.ApiDb.Query<SmartProductProcessDetail>(
                             "SELECT a.*, b.Process FROM `t_product_process` a " +
                             "JOIN (SELECT a.Id, b.Process FROM `t_process_code_category_process` a JOIN `t_process` b ON a.ProcessId = b.Id) b ON a.ProcessId = b.Id " +
                             "WHERE a.MarkedDelete = 0 AND a.ProductId = @ProductId AND a.ProcessCodeId IN @ProcessCodeId ORDER BY a.ProcessCodeId"
@@ -71,11 +77,12 @@ namespace ApiManagement.Controllers.SmartFactoryController.ProductFolder
                                 ProductId = qId,
                                 ProcessCodeId = smartProduct.ProcessCodeIdsList
                             }));
+                        }
 
                         smartProduct.ProductCapacities.AddRange(ServerConfig.ApiDb.Query<SmartProductCapacityDetail>(
-                            "SELECT a.Id, c.Id ListId, a.ProcessId, b.Process, b.DeviceCategoryId, b.Category, IFNULL(d.Rate, 0) Rate, IFNULL(d.`Day`, 0) `Day`, IFNULL(d.`Hour`, 0) `Hour`, IFNULL(d.`Min`, 0) `Min`, IFNULL(d.`Sec`, 0) `Sec` FROM `t_process_code_category_process` a " +
+                            "SELECT IFNULL(d.Id, 0) Id, IFNULL(c.Id, 0) ListId, a.Id ProcessId, b.Id PId, b.Process, b.DeviceCategoryId, b.Category, IFNULL(d.Rate, 0) Rate, IFNULL(d.`Day`, 0) `Day`, IFNULL(d.`Hour`, 0) `Hour`, IFNULL(d.`Min`, 0) `Min`, IFNULL(d.`Sec`, 0) `Sec` FROM `t_process_code_category_process` a " +
                             "JOIN (SELECT a.*, IFNULL(b.Category, '') Category FROM `t_process` a LEFT JOIN `t_device_category` b ON a.DeviceCategoryId = b.Id) b ON a.ProcessId = b.Id " +
-                            "JOIN (SELECT * FROM `t_capacity_list` WHERE  MarkedDelete = 0 AND CapacityId = @CapacityId) c ON a.ProcessId = c.ProcessId  " +
+                            "LEFT JOIN (SELECT * FROM `t_capacity_list` WHERE  MarkedDelete = 0 AND CapacityId = @CapacityId) c ON a.Id = c.ProcessId  " +
                             "LEFT JOIN (SELECT * FROM `t_product_capacity` WHERE MarkedDelete = 0 AND ProductId = @ProductId) d ON a.Id = d.ProcessId " +
                             "WHERE a.MarkedDelete = 0 AND ProcessCodeCategoryId = @ProcessCodeCategoryId ORDER BY a.`Order`"
                             , new
@@ -92,6 +99,7 @@ namespace ApiManagement.Controllers.SmartFactoryController.ProductFolder
                         return result;
                     }
                 }
+
                 else
                 {
                     result.datas.AddRange(data);
@@ -119,6 +127,15 @@ namespace ApiManagement.Controllers.SmartFactoryController.ProductFolder
                 return Result.GenError<Result>(Error.ParamError);
             }
 
+            if (smartProducts.Any(x => x.CapacityId == 0))
+            {
+                return Result.GenError<Result>(Error.SmartCapacityListNotEmpty);
+            }
+
+            if (smartProducts.SelectMany(x => x.ProductCapacities).Any(y => y.Id == 0 && y.ProcessId == 0))
+            {
+                return Result.GenError<Result>(Error.SmartCapacityListNotEmpty);
+            }
             var products = smartProducts.Select(x => x.Product);
             var productIds = smartProducts.Select(x => x.Id);
             if (products.Any(x => x.IsNullOrEmpty()))
@@ -160,50 +177,28 @@ namespace ApiManagement.Controllers.SmartFactoryController.ProductFolder
                         process.ProductId = smartProduct.Id;
                     }
                 }
+                if (smartProduct.ProductCapacities != null && smartProduct.ProductCapacities.Any())
+                {
+                    foreach (var capacity in smartProduct.ProductCapacities)
+                    {
+                        capacity.ProductId = smartProduct.Id;
+                    }
+                }
             }
 
             SmartProductHelper.Instance.Update(smartProducts);
-            //var smartProductProcesses = SmartProductProcessHelper.Instance.GetSmartProductProcesses(productIds);
-            ////删除
-            //var deleteProcesses = smartProductProcesses.Where(z => smartProducts.SelectMany(x => x.ProductProcesses).Where(y => y.Id != 0).All(a => a.Id != z.Id));
-            //if (deleteProcesses.Any())
-            //{
-            //    SmartProductProcessHelper.Instance.Delete(deleteProcesses.Select(x => x.Id));
-            //}
-
-            ////更新 
-            //var updateProcesses = smartProducts.SelectMany(x => x.ProductProcesses).Where(y => y.Id != 0);
-            //if (updateProcesses.Any())
-            //{
-            //    SmartProductProcessHelper.Instance.Update(updateProcesses.Select(x =>
-            //    {
-            //        x.MarkedDateTime = markedDateTime;
-            //        return x;
-            //    }));
-            //}
-
-            ////新增
-            //var addProcesses = smartProducts.SelectMany(x => x.ProductProcesses).Where(y => y.Id == 0);
-            //if (addProcesses.Any())
-            //{
-            //    SmartProductProcessHelper.Instance.Add(addProcesses.Select(x =>
-            //    {
-            //        x.CreateUserId = createUserId;
-            //        x.MarkedDateTime = markedDateTime;
-            //        return x;
-            //    }));
-            //}
 
             var smartProductCapacities = SmartProductCapacityHelper.Instance.GetSmartProductCapacities(productIds);
+            var productCapacities = smartProducts.SelectMany(x => x.ProductCapacities);
             //删除
-            var deleteCapacities = smartProductCapacities.Where(z => smartProducts.SelectMany(x => x.ProductCapacities).Where(y => y.Id != 0).All(a => a.Id != z.Id));
+            var deleteCapacities = smartProductCapacities.Where(z => productCapacities.Where(y => y.Id != 0).All(a => a.Id != z.Id));
             if (deleteCapacities.Any())
             {
                 SmartProductCapacityHelper.Instance.Delete(deleteCapacities.Select(x => x.Id));
             }
 
             //更新 
-            var updateCapacities = smartProducts.SelectMany(x => x.ProductCapacities).Where(y => y.Id != 0);
+            var updateCapacities = productCapacities.Where(y => y.Id != 0);
             if (updateCapacities.Any())
             {
                 SmartProductCapacityHelper.Instance.Update(updateCapacities.Select(x =>
@@ -214,7 +209,7 @@ namespace ApiManagement.Controllers.SmartFactoryController.ProductFolder
             }
 
             //新增
-            var addCapacities = smartProducts.SelectMany(x => x.ProductCapacities).Where(y => y.Id == 0);
+            var addCapacities = productCapacities.Where(y => y.Id == 0);
             if (addCapacities.Any())
             {
                 SmartProductCapacityHelper.Instance.Add(addCapacities.Select(x =>
@@ -224,6 +219,8 @@ namespace ApiManagement.Controllers.SmartFactoryController.ProductFolder
                     return x;
                 }));
             }
+            WorkFlowHelper.Instance.OnSmartProductCapacityNeedUpdate(smartProducts);
+
             return Result.GenError<Result>(Error.Success);
         }
 
@@ -241,6 +238,15 @@ namespace ApiManagement.Controllers.SmartFactoryController.ProductFolder
                 return Result.GenError<Result>(Error.SmartProductNotEmpty);
             }
 
+            if (smartProducts.Any(x => x.CapacityId == 0))
+            {
+                return Result.GenError<Result>(Error.SmartCapacityListNotEmpty);
+            }
+            if (smartProducts.SelectMany(x => x.ProductCapacities).Any(y => y.Rate <= 0))
+            {
+                return Result.GenError<Result>(Error.SmartCapacityRateError);
+            }
+
             if (smartProducts.Count() != products.GroupBy(x => x).Count())
             {
                 return Result.GenError<Result>(Error.SmartProductDuplicate);
@@ -254,19 +260,20 @@ namespace ApiManagement.Controllers.SmartFactoryController.ProductFolder
                 return result;
             }
             var productProcesses = smartProducts.SelectMany(x => x.ProductProcesses);
-            var productProcessIds = productProcesses.Select(x => x.Id);
-            var processCodes = SmartProcessCodeHelper.Instance.GetByIds<SmartProcessCode>(productProcessIds);
-            foreach (var smartProduct in smartProducts)
+            if (productProcesses.Any())
             {
-                if (processCodes.Where(x => smartProduct.ProcessCodeIdsList.Contains(x.Id)).GroupBy(y => y.CategoryId).Count() > 1)
+                var productProcessIds = productProcesses.Select(x => x.Id);
+                var processCodes = SmartProcessCodeHelper.Instance.GetByIds<SmartProcessCode>(productProcessIds);
+                foreach (var smartProduct in smartProducts)
                 {
-                    result.errno = Error.SmartProductProcessCodeCategoryMustBeSame;
-                    result.datas.Add(smartProduct.Product);
+                    if (processCodes.Where(x => smartProduct.ProcessCodeIdsList.Contains(x.Id)).GroupBy(y => y.CategoryId).Count() > 1)
+                    {
+                        result.errno = Error.SmartProductProcessCodeCategoryMustBeSame;
+                        result.datas.Add(smartProduct.Product);
+                    }
                 }
             }
             var productCapacities = smartProducts.SelectMany(x => x.ProductCapacities);
-
-
 
             if (result.errno != Error.Success)
             {
@@ -321,7 +328,9 @@ namespace ApiManagement.Controllers.SmartFactoryController.ProductFolder
                     }
                 }
                 SmartProductCapacityHelper.Instance.Add(productCapacities.Where(y => y.ProductId != 0));
+                WorkFlowHelper.Instance.OnSmartProductCapacityNeedUpdate(productList);
             }
+
             return Result.GenError<Result>(Error.Success);
         }
 
