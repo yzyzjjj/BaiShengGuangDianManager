@@ -494,31 +494,35 @@ namespace ApiManagement.Controllers.SmartFactoryController.ScheduleFolder
                             {
                                 var t = startTime.AddDays(i);
                                 var pr = pro.Where(p => p.ProcessTime == t);
+                                var d = new List<SmartTaskOrderScheduleInfoResult21>();
                                 if (pr.Any())
                                 {
-                                    var d = pr.Select(x => new SmartTaskOrderScheduleInfoResult21
+                                    d = pr.Select(x => new SmartTaskOrderScheduleInfoResult21
                                     {
                                         ProcessTime = t,
                                         TaskOrderId = x.TaskOrderId,
                                         TaskOrder = x.TaskOrder,
                                         Put = x.Put,
                                         HavePut = x.HavePut,
-                                    }).OrderBy(x => x.TaskOrderId);
-                                    dates.Add(new
-                                    {
-                                        ProcessTime = t,
-                                        Put = pr.Sum(x => x.Put),
-                                        HavePut = pr.Sum(x => x.HavePut),
-                                        Data = d
-                                    });
+                                    }).ToList();
+                                    //}).OrderBy(x => x.TaskOrderId).ToList();
                                 }
+
+                                dates.Add(new
+                                {
+                                    ProcessTime = t,
+                                    Put = pr.Sum(x => x.Put),
+                                    HavePut = pr.Sum(x => x.HavePut),
+                                    Data = d
+                                });
                             }
 
                             var b = new
                             {
                                 ProductId = product.ProductId,
                                 Product = product.Product,
-                                Data = dates.OrderBy(x => x.ProcessTime)
+                                //Data = dates.OrderBy(x => x.ProcessTime)
+                                Data = dates
                             };
                             return b;
                         }).OrderBy(x => x.ProductId);

@@ -961,7 +961,7 @@ namespace ApiManagement.Base.Helper
             //{
 
             //}
-            var list = new List<SmartTaskOrderScheduleCostDays>();
+            var costDays = new List<SmartTaskOrderScheduleCostDays>();
             if (arrangeId == "")
             {
                 var now = DateTime.Now;
@@ -1244,7 +1244,7 @@ namespace ApiManagement.Base.Helper
                     }
                 }
 
-                BestArrange(way, total, cnScore, waitTasks, cnCostList, cnSchedules, out list, out var best);
+                BestArrange(way, total, cnScore, waitTasks, cnCostList, cnSchedules, out costDays, out var best);
                 //schedules = best.Values.OrderBy(x => x.ProcessTime).SelectMany(y => y.Needs).SelectMany(z => z.Value).Where(t => tasks.Any(task => task.Id == t.TaskOrderId));
                 schedules = best.Values.OrderBy(x => x.ProcessTime).SelectMany(y => y.Needs).SelectMany(z => z.Value);
                 schedule.AddRange(schedules);
@@ -1308,7 +1308,7 @@ namespace ApiManagement.Base.Helper
                     }
                 }
             }
-            return list;
+            return costDays;
         }
 
         /// <summary>
@@ -1320,17 +1320,17 @@ namespace ApiManagement.Base.Helper
         /// <param name="waitTasks"></param>
         /// <param name="cnCostList"></param>
         /// <param name="cnSchedules"></param>
-        /// <param name="list"></param>
+        /// <param name="costDays"></param>
         /// <param name="schedules"></param>
         private static void BestArrange(int way, int total,
             int[][] cnScore,
             List<SmartTaskOrderConfirm> waitTasks,
             List<SmartTaskOrderScheduleCostDays>[][] cnCostList,
             Dictionary<DateTime, SmartTaskOrderScheduleDay>[][] cnSchedules,
-            out List<SmartTaskOrderScheduleCostDays> list,
+            out List<SmartTaskOrderScheduleCostDays> costDays,
             out Dictionary<DateTime, SmartTaskOrderScheduleDay> schedules)
         {
-            list = new List<SmartTaskOrderScheduleCostDays>();
+            costDays = new List<SmartTaskOrderScheduleCostDays>();
             schedules = new Dictionary<DateTime, SmartTaskOrderScheduleDay>();
             if (way != cnScore.Length)
             {
@@ -1356,7 +1356,7 @@ namespace ApiManagement.Base.Helper
                 {
                     if (i == 1)
                     {
-                        list = cnCostList[b1][j1];
+                        costDays = cnCostList[b1][j1];
                         schedules = cnSchedules[b1][j1];
                     }
                     else
@@ -1369,12 +1369,12 @@ namespace ApiManagement.Base.Helper
                 {
                     if (l.Sum(x => x.OverdueDay) < l1.Sum(x => x.OverdueDay))
                     {
-                        list = cnCostList[b][i];
+                        costDays = cnCostList[b][i];
                         schedules = cnSchedules[b][i];
                     }
                     else
                     {
-                        list = cnCostList[b1][j1];
+                        costDays = cnCostList[b1][j1];
                         schedules = cnSchedules[b1][j1];
                     }
 
@@ -1385,6 +1385,8 @@ namespace ApiManagement.Base.Helper
                 l1 = cnCostList[b1][j1];
                 s1 = cnSchedules[b1][j1];
             }
+
+            costDays = costDays.OrderBy(x => x.EstimatedStartTime).ThenBy(y => y.EstimatedCompleteTime).ToList();
         }
 
 
