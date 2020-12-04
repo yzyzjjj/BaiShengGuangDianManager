@@ -302,7 +302,7 @@ namespace ApiManagement.Controllers.MaterialManagementController
                 var erpIds = purchases.Select(x => int.TryParse(x.Purpose.Replace("Erp采购-", ""), out var erpId) ? erpId : 0).Where(y => y != 0);
                 var pBillIds = purchases.Select(x => x.BillId);
                 var purchaseItems = ServerConfig.ApiDb.Query<MaterialPurchaseItem>(
-                    "SELECT a.* FROM `material_purchase_item` a " +
+                    "SELECT a.*, b.ErpId FROM `material_purchase_item` a " +
                     "JOIN `material_purchase` b ON a.PurchaseId = b.Id " +
                     "WHERE b.ErpId IN @erpIds AND a.BillId IN @pBillIds AND a.MarkedDelete = 0 AND b.MarkedDelete = 0;", new
                     {
@@ -314,10 +314,10 @@ namespace ApiManagement.Controllers.MaterialManagementController
                 {
                     if (int.TryParse(purchase.Purpose.Replace("Erp采购-", ""), out var erpId) && erpId != 0)
                     {
-                        var pItem = purchaseItems.FirstOrDefault(x => x.BillId == purchase.BillId);
+                        var pItem = purchaseItems.FirstOrDefault(x => x.BillId == purchase.BillId && x.ErpId == erpId);
                         //if (purchase.ChangeNumber < purchase.Number)
                         {
-                            pItem.Stock -= purchase.Number - purchase.ChangeNumber;
+                            pItem.Stock += purchase.ChangeNumber - purchase.Number;
                         }
                     }
                 }
