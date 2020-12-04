@@ -315,7 +315,7 @@ namespace ApiManagement.Controllers.MaterialManagementController
                     if (int.TryParse(purchase.Purpose.Replace("Erp采购-", ""), out var erpId) && erpId != 0)
                     {
                         var pItem = purchaseItems.FirstOrDefault(x => x.BillId == purchase.BillId);
-                        if (purchase.ChangeNumber < purchase.Number)
+                        //if (purchase.ChangeNumber < purchase.Number)
                         {
                             pItem.Stock -= purchase.Number - purchase.ChangeNumber;
                         }
