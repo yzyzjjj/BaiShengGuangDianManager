@@ -39,4 +39,15 @@ namespace ApiManagement.Models.SmartFactoryModel
         public string Model { get; set; }
     }
 
+    public class SmartDeviceProcess : SmartDevice
+    {
+        /// <summary>
+        /// 设备类别
+        /// </summary>
+        public string Category { get; set; }
+        /// <summary>
+        /// 设备型号
+        /// </summary>
+        public string Model { get; set; }
+    }
 }

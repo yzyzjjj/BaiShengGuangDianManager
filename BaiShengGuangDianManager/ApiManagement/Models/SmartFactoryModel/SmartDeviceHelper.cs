@@ -1,4 +1,5 @@
-﻿using ApiManagement.Models.BaseModel;
+﻿using ApiManagement.Base.Server;
+using ApiManagement.Models.BaseModel;
 using System.Collections.Generic;
 
 namespace ApiManagement.Models.SmartFactoryModel
@@ -15,6 +16,16 @@ namespace ApiManagement.Models.SmartFactoryModel
         }
         public static readonly SmartDeviceHelper Instance = new SmartDeviceHelper();
         #region Get
+        /// <summary>
+        /// 获取状态正常的设备
+        /// </summary>
+        /// <returns></returns>
+        public IEnumerable<SmartDevice> GetNormalSmartDevices()
+        {
+            return ServerConfig.ApiDb.Query<SmartDevice>(
+                "SELECT * FROM `t_device` WHERE MarkedDelete = 0 AND State = @state;"
+                , new { state = SmartDeviceState.正常 });
+        }
         #endregion
 
         #region Add

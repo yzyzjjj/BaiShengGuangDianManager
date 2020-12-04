@@ -16,7 +16,7 @@
         /// </summary>
         public int LevelId { get; set; }
         /// <summary>
-        /// 标准流程id
+        /// 流程id
         /// </summary>
         public int ProcessId { get; set; }
     }
@@ -35,7 +35,7 @@
     public class SmartOperatorCount
     {
         /// <summary>
-        /// 标准流程id
+        /// 流程id
         /// </summary>
         public int ProcessId { get; set; }
         /// <summary>
