@@ -23,8 +23,8 @@ namespace ApiManagement.Controllers.SmartFactoryController.ProcessFolder
         public DataResult GetSmartProcess([FromQuery]int qId, bool menu)
         {
             var result = new DataResult();
-            var sql = menu ? $"SELECT Id, `Process` FROM `t_process` WHERE MarkedDelete = 0{(qId == 0 ? "" : " AND Id = @qId")};"
-                : $"SELECT a.*, IFNULL(b.Category, '') DeviceCategory FROM `t_process` a LEFT JOIN t_device_category b ON a.DeviceCategoryId = b.Id WHERE a.MarkedDelete = 0{(qId == 0 ? "" : " AND a.Id = @qId")};";
+            var sql = menu ? $"SELECT Id, `Process`, `Order` FROM `t_process` WHERE MarkedDelete = 0{(qId == 0 ? "" : " AND Id = @qId")} ORDER BY `Order`;"
+                : $"SELECT a.*, IFNULL(b.Category, '') DeviceCategory FROM `t_process` a LEFT JOIN t_device_category b ON a.DeviceCategoryId = b.Id WHERE a.MarkedDelete = 0{(qId == 0 ? "" : " AND a.Id = @qId")} ORDER BY `Order`;";
             result.datas.AddRange(menu
                 ? ServerConfig.ApiDb.Query<dynamic>(sql, new { qId })
                 : ServerConfig.ApiDb.Query<SmartProcessDetail>(sql, new { qId }));

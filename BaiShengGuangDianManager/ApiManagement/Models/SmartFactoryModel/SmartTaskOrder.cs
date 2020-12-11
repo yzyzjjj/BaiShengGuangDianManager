@@ -96,6 +96,11 @@ namespace ApiManagement.Models.SmartFactoryModel
         /// </summary>
         public DateTime EndTime { get; set; }
         /// <summary>
+        /// 设置结束时间
+        /// </summary>
+        [JsonIgnore]
+        public DateTime SetEndTime { get; set; }
+        /// <summary>
         /// 耗时
         /// </summary>
         public int CostDay
@@ -109,16 +114,61 @@ namespace ApiManagement.Models.SmartFactoryModel
                 return 0;
             }
         }
+
+        /// <summary>
+        /// 预计逾期
+        /// </summary>
+        public int OverdueDay
+        {
+            get
+            {
+                if (SetEndTime != default(DateTime))
+                {
+                    var time = EndTime != default(DateTime) ? EndTime : DateTime.Today;
+                    if (time > SetEndTime)
+                    {
+                        return (int)(time - SetEndTime).TotalDays;
+                    }
+                }
+                return 0;
+            }
+        }
+        /// <summary>
+        /// 预计逾期
+        /// </summary>
+        public int ActualOverdueDay
+        {
+            get
+            {
+                if (DeliveryTime != default(DateTime))
+                {
+                    var time = ActualEndTime != default(DateTime) ? ActualEndTime : DateTime.Today;
+                    if (time > DeliveryTime)
+                    {
+                        return (int)(time - DeliveryTime).TotalDays;
+                    }
+                }
+                return 0;
+            }
+        }
         /// <summary>
         /// 预计完成日期
         /// </summary>
         public DateTime EstimatedTime { get; set; }
         /// <summary>
+        /// 实际开始日期
+        /// </summary>
+        public DateTime ActualStartTime { get; set; }
+        /// <summary>
+        /// 实际完成日期
+        /// </summary>
+        public DateTime ActualEndTime { get; set; }
+        /// <summary>
         /// 等级
         /// </summary>
         public int LevelId { get; set; }
         /// <summary>
-        /// 等级排序   越大越可以排程是越可以被改变
+        /// 等级排序   越大排程时越可以被改变
         /// </summary>
         public int Order { get; set; }
 

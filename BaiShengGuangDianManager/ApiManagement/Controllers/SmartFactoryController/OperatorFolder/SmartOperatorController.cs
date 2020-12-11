@@ -35,23 +35,23 @@ namespace ApiManagement.Controllers.SmartFactoryController.OperatorFolder
         /// <param name="condition"> 0 等于  1 包含</param>
         /// <returns></returns>
         [HttpGet]
-        public DataResult GetSmartOperator([FromQuery]int qId, bool menu, bool add, string number, string name, int levelId, int processId, int condition, OperatorState state)
+        public DataResult GetSmartOperator([FromQuery]int qId, bool menu, bool add, string number, string name, int levelId, int processId, int condition, SmartOperatorState state)
         {
             var result = new DataResult();
             string sql;
             if (menu && add)
             {
                 sql = $"SELECT a.Id, a.`Name` FROM `t_user` a LEFT JOIN(SELECT * FROM `t_operator` WHERE MarkedDelete = 0) b ON a.Id = b.UserId " +
-                      $"WHERE a.MarkedDelete = 0 AND ISNULL(b.Id) ORDER BY a.Id;";
+                      $"WHERE a.MarkedDelete = 0 AND ISNULL(b.Id) ORDER BY b.ProcessId, b.Priority, a.Id;";
             }
             else if (menu)
             {
-                sql = $"SELECT Id, `Name` FROM `t_operator` WHERE MarkedDelete = 0{(qId == 0 ? "" : " AND Id = @qId")} ORDER BY a.Id;";
+                sql = $"SELECT Id, `Name` FROM `t_operator` WHERE MarkedDelete = 0{(qId == 0 ? "" : " AND Id = @qId")} ORDER BY ProcessId, Priority, a.Id;";
             }
             else if (add)
             {
                 sql = $"SELECT a.* FROM `t_user` a LEFT JOIN (SELECT * FROM `t_operator` WHERE MarkedDelete = 0) b ON a.Id = b.UserId " +
-                      $"WHERE a.MarkedDelete = 0 AND ISNULL(b.Id) ORDER BY a.Id;";
+                      $"WHERE a.MarkedDelete = 0 AND ISNULL(b.Id) ORDER BY b.ProcessId, b.Priority, a.Id;";
             }
             else
             {
@@ -100,7 +100,7 @@ namespace ApiManagement.Controllers.SmartFactoryController.OperatorFolder
                       $"JOIN `t_user` b ON a.UserId = b.Id " +
                       $"JOIN `t_process` c ON a.ProcessId = c.Id " +
                       $"JOIN `t_operator_level` d ON a.LevelId = d.Id " +
-                      $"WHERE a.MarkedDelete = 0{(paramList.Join(""))} ORDER BY a.Id;";
+                      $"WHERE a.MarkedDelete = 0{(paramList.Join(""))} ORDER BY a.ProcessId, a.Priority, a.Id;";
             }
 
             result.datas.AddRange(menu

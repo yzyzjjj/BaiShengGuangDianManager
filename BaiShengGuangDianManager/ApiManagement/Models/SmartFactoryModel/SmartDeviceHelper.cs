@@ -10,9 +10,9 @@ namespace ApiManagement.Models.SmartFactoryModel
         {
             Table = "t_device";
             InsertSql =
-                "INSERT INTO `t_device` (`CreateUserId`, `MarkedDateTime`, `Code`, `CategoryId`, `ModelId`, `Remark`) " +
-                "VALUES (@CreateUserId, @MarkedDateTime, @Code, @CategoryId, @ModelId, @Remark);";
-            UpdateSql = "UPDATE `t_device` SET `MarkedDateTime` = @MarkedDateTime, `State` = @State, `Code` = @Code, `CategoryId` = @CategoryId, `ModelId` = @ModelId, `Remark` = @Remark WHERE `Id` = @Id;";
+                "INSERT INTO `t_device` (`CreateUserId`, `MarkedDateTime`, `Code`, `CategoryId`, `ModelId`, `Remark`, `Priority`) " +
+                "VALUES (@CreateUserId, @MarkedDateTime, @Code, @CategoryId, @ModelId, @Remark, @Priority);";
+            UpdateSql = "UPDATE `t_device` SET `MarkedDateTime` = @MarkedDateTime, `State` = @State, `Code` = @Code, `CategoryId` = @CategoryId, `ModelId` = @ModelId, `Remark` = @Remark, `Priority` = @Priority WHERE `Id` = @Id;";
         }
         public static readonly SmartDeviceHelper Instance = new SmartDeviceHelper();
         #region Get

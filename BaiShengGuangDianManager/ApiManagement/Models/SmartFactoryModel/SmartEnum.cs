@@ -118,7 +118,7 @@
     /// <summary>
     /// 操作工状态
     /// </summary>
-    public enum OperatorState
+    public enum SmartOperatorState
     {
         全部 = 0,
         正常 = 1,

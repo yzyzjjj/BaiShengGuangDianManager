@@ -23,6 +23,11 @@ namespace ApiManagement.Models.SmartFactoryModel
             return ServerConfig.ApiDb.Query<SmartProductCapacityDetail>(
                 "SELECT a.*, b.CapacityId FROM `t_product_capacity` a JOIN `t_product` b ON a.ProductId = b.Id WHERE a.MarkedDelete = 0 AND a.ProductId IN @productIds;", new { productIds });
         }
+        public IEnumerable<SmartProductCapacityDetail> GetAllSmartProductCapacities(IEnumerable<int> productIds)
+        {
+            return ServerConfig.ApiDb.Query<SmartProductCapacityDetail>(
+                "SELECT a.*, b.CapacityId FROM `t_product_capacity` a JOIN `t_product` b ON a.ProductId = b.Id WHERE a.ProductId IN @productIds;", new { productIds });
+        }
         #endregion
 
         #region Add

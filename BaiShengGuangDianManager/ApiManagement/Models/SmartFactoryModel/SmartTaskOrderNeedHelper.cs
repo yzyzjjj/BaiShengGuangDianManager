@@ -18,14 +18,14 @@ namespace ApiManagement.Models.SmartFactoryModel
         }
         public static readonly SmartTaskOrderNeedHelper Instance = new SmartTaskOrderNeedHelper();
         #region Get
-        public IEnumerable<SmartTaskOrderNeed> GetSmartTaskOrderNeedsByTaskOrderId(int workOrderId)
+        public IEnumerable<SmartTaskOrderNeed> GetSmartTaskOrderNeedsByTaskOrderId(int taskOrderId)
         {
-            return ServerConfig.ApiDb.Query<SmartTaskOrderNeed>("SELECT * FROM `t_task_order` WHERE MarkedDelete = 0 AND WorkOrderId = @workOrderId;", new { workOrderId });
+            return ServerConfig.ApiDb.Query<SmartTaskOrderNeed>("SELECT * FROM `t_task_order_need` WHERE MarkedDelete = 0 AND TaskOrderId = @taskOrderId;", new { taskOrderId });
         }
 
-        public IEnumerable<SmartTaskOrderNeed> GetSmartTaskOrderNeedsByTaskOrderIds(IEnumerable<int> workOrderIds)
+        public IEnumerable<SmartTaskOrderNeedDetail> GetSmartTaskOrderNeedsByTaskOrderIds(IEnumerable<int> taskOrderIds)
         {
-            return ServerConfig.ApiDb.Query<SmartTaskOrderNeed>("SELECT * FROM `t_task_order` WHERE MarkedDelete = 0 AND WorkOrderId IN @workOrderIds;", new { workOrderIds });
+            return ServerConfig.ApiDb.Query<SmartTaskOrderNeedDetail>("SELECT a.*, b.`Order` FROM `t_task_order_need` a JOIN `t_process` b ON a.PId = b.Id WHERE a.MarkedDelete = 0 AND a.TaskOrderId IN @taskOrderIds;", new { taskOrderIds });
         }
 
         #endregion

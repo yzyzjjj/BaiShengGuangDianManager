@@ -9,7 +9,7 @@
         /// <summary>
         /// 1 正常 2 休息
         /// </summary>
-        public OperatorState State { get; set; }
+        public SmartOperatorState State { get; set; }
         public string StateStr => State.ToString();
         /// <summary>
         /// 人员等级Id
@@ -19,6 +19,10 @@
         /// 流程id
         /// </summary>
         public int ProcessId { get; set; }
+        /// <summary>
+        /// 被使用优先级/好用等级  越小越好
+        /// </summary>
+        public int Priority { get; set; }
     }
 
     public class SmartOperatorDetail : SmartOperator
@@ -31,6 +35,10 @@
         /// 标准流程
         /// </summary>
         public string Process { get; set; }
+        /// <summary>
+        /// 人员等级顺序，越大约靠前
+        /// </summary>
+        public int Order { get; set; }
     }
     public class SmartOperatorCount
     {

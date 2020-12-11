@@ -38,6 +38,16 @@ namespace ApiManagement.Models.SmartFactoryModel
             return ServerConfig.ApiDb.Query<SmartCapacityListDetail>(
                 "SELECT a.*, b.Process, b.`Order`, b.DeviceCategoryId CategoryId, b.ProcessId PId FROM `t_capacity_list` a JOIN (SELECT a.Id, b.Process, b.`Order`, b.DeviceCategoryId, a.ProcessId FROM `t_process_code_category_process` a JOIN `t_process` b ON a.ProcessId = b.Id WHERE a.MarkedDelete = 0) b ON a.ProcessId = b.Id WHERE a.MarkedDelete = 0 AND a.CapacityId IN @capacityIds ORDER BY a.CapacityId, b.`Order`", new { capacityIds });
         }
+        /// <summary>
+        /// 按顺序获取 顺序 标准流程id  流程id
+        /// </summary>
+        /// <param name="capacityIds"></param>
+        /// <returns></returns>
+        public IEnumerable<SmartCapacityListDetail> GetAllSmartCapacityListsWithOrder(IEnumerable<int> capacityIds)
+        {
+            return ServerConfig.ApiDb.Query<SmartCapacityListDetail>(
+                "SELECT a.*, b.Process, b.`Order`, b.DeviceCategoryId CategoryId, b.ProcessId PId FROM `t_capacity_list` a JOIN (SELECT a.Id, b.Process, b.`Order`, b.DeviceCategoryId, a.ProcessId FROM `t_process_code_category_process` a JOIN `t_process` b ON a.ProcessId = b.Id) b ON a.ProcessId = b.Id WHERE a.CapacityId IN @capacityIds ORDER BY a.CapacityId, b.`Order`", new { capacityIds });
+        }
         public IEnumerable<SmartCapacityList> GetSmartCapacityLists(int capacityId)
         {
             return ServerConfig.ApiDb.Query<SmartCapacityList>(

@@ -1,4 +1,5 @@
 ﻿using ModelBase.Base.Utils;
+using Newtonsoft.Json;
 using ServiceStack;
 using System;
 using System.Collections.Generic;
@@ -11,6 +12,14 @@ namespace ApiManagement.Models.SmartFactoryModel
     /// </summary>
     public class SmartTaskOrderSchedule : SmartTaskOrderNeedDetail, ICloneable
     {
+        /// <summary>
+        /// 0 设备 1 人员
+        /// </summary>
+        public int IsDevice { get; set; }
+        /// <summary>
+        /// true 设备 false 人员
+        /// </summary>
+        public bool Device => IsDevice == 0;
         /// <summary>
         /// 加工时间
         /// </summary>
@@ -26,7 +35,7 @@ namespace ApiManagement.Models.SmartFactoryModel
         /// <summary>
         /// 流程id
         /// </summary>
-        public new int PId { get; set; }
+        //public new int PId { get; set; }
         /// <summary>
         /// 设备类型id
         /// </summary>
@@ -34,7 +43,7 @@ namespace ApiManagement.Models.SmartFactoryModel
         /// <summary>
         /// 加工设备列表  id  次数
         /// </summary>
-        public string Devices { get; set; }
+        public string Devices { get; set; } = string.Empty;
         private Dictionary<int, int> _deviceList { get; set; }
         /// <summary>
         /// 加工设备列表  id  次数
@@ -68,7 +77,7 @@ namespace ApiManagement.Models.SmartFactoryModel
         /// <summary>
         /// 加工人员列表  id  次数
         /// </summary>
-        public string Operators { get; set; }
+        public string Operators { get; set; } = string.Empty;
         private Dictionary<int, int> _operatorList { get; set; }
         /// <summary>
         /// 加工设备列表  id  次数
@@ -94,7 +103,7 @@ namespace ApiManagement.Models.SmartFactoryModel
             }
             set
             {
-                _deviceList = value;
+                _operatorList = value;
                 Operators = _operatorList.Select(x => $"{x.Key},{x.Value}").Join();
             }
         }
@@ -134,13 +143,10 @@ namespace ApiManagement.Models.SmartFactoryModel
         public SmartTaskOrderScheduleDay(DateTime processTime)
         {
             ProcessTime = processTime;
-            UseInfo = new Dictionary<int, List<ArrangeInfo>>();
+            DeviceUse = new Dictionary<int, List<ArrangeInfo>>();
+            OperatorUse = new Dictionary<int, List<ArrangeInfo>>();
         }
 
-        /// <summary>
-        /// 0 设备 1 人员
-        /// </summary>
-        public bool IsDevice { get; set; }
         /// <summary>
         /// 加工时间
         /// </summary>
@@ -151,48 +157,53 @@ namespace ApiManagement.Models.SmartFactoryModel
         /// </summary>
         public Dictionary<int, List<SmartTaskOrderScheduleDetail>> Needs { get; set; } = new Dictionary<int, List<SmartTaskOrderScheduleDetail>>();
 
-        //设备类型  <设备型号 设备id  <任务单 计划号 设备次数 最大次数 产能指数>>
-        //流程工序  <人员等级 人员id  <任务单 计划号 人员次数 最大次数 产能指数>>
-        private Dictionary<int, List<ArrangeInfo>> UseInfo { get; set; }
+        /// <summary>
+        ///设备类型  (设备型号 设备id  (任务单 计划号 设备次数 最大次数 产能指数))
+        /// </summary>
+        private Dictionary<int, List<ArrangeInfo>> DeviceUse { get; set; }
+        /// <summary>
+        ///流程工序  (人员等级 人员id  (任务单 计划号 人员次数 最大次数 产能指数>>
+        /// </summary>
+        private Dictionary<int, List<ArrangeInfo>> OperatorUse { get; set; }
 
-        public void Init(IEnumerable<SmartDevice> deviceList, IEnumerable<SmartOperator> operatorList, bool arrangeDevice)
+        public void Init(IEnumerable<SmartDevice> deviceList, IEnumerable<SmartOperatorDetail> operatorList)
         {
-            IsDevice = arrangeDevice;
-            if (arrangeDevice)
+            if (deviceList != null && deviceList.Any())
             {
-                if (deviceList == null)
+                //设备类型
+                var categoryIds = deviceList.GroupBy(x => x.CategoryId).Select(y => y.Key);
+                foreach (var categoryId in categoryIds)
                 {
-                    return;
-                }
-
-                foreach (var data in deviceList)
-                {
-                    //设备类型
-                    var categoryId = data.CategoryId;
                     //设备类型  设备型号 设备id
-                    if (!UseInfo.ContainsKey(categoryId))
+                    if (!DeviceUse.ContainsKey(categoryId))
                     {
-                        UseInfo.Add(categoryId, new List<ArrangeInfo>());
-                        UseInfo[categoryId].Add(new ArrangeInfo(data.ModelId, data.Id));
+                        DeviceUse.Add(categoryId, new List<ArrangeInfo>());
+                    }
+
+                    var devices = deviceList.Where(x => x.CategoryId == categoryId).OrderBy(y => y.Priority);
+                    foreach (var device in devices)
+                    {
+                        DeviceUse[categoryId].Add(new ArrangeInfo(device.ModelId, device.Id));
                     }
                 }
             }
-            else
-            {
-                if (operatorList == null)
-                {
-                    return;
-                }
 
-                foreach (var data in operatorList)
+            if (operatorList != null && operatorList.Any())
+            {
+                //流程工序
+                var processIds = operatorList.GroupBy(x => x.ProcessId).Select(y => y.Key);
+                foreach (var processId in processIds)
                 {
-                    //流程工序
-                    var processId = data.ProcessId;
                     //流程工序  人员等级 人员id
-                    if (!UseInfo.ContainsKey(processId))
+                    if (!OperatorUse.ContainsKey(processId))
                     {
-                        UseInfo.Add(processId, new List<ArrangeInfo>());
-                        UseInfo[processId].Add(new ArrangeInfo(data.LevelId, data.Id));
+                        OperatorUse.Add(processId, new List<ArrangeInfo>());
+                    }
+
+                    var operators = operatorList.Where(x => x.ProcessId == processId).OrderBy(y => y.Order).ThenBy(y => y.Priority); ;
+                    foreach (var op in operators)
+                    {
+                        OperatorUse[processId].Add(new ArrangeInfo(op.LevelId, op.Id));
                     }
                 }
             }
@@ -208,8 +219,8 @@ namespace ApiManagement.Models.SmartFactoryModel
         /// <param name="deviceList">设备</param>
         /// <param name="operatorList">人员</param>
         /// <param name="waitIndex">等待消耗的产能</param>
-        /// <returns></returns>
-        public Dictionary<int, decimal> ProcessLeftCapacityIndex(int categoryId, int pId,
+        /// <returns>设备id或人员id  型号 剩余产能 / 流程工序  人员等级 人员id</returns>
+        public Dictionary<int, Tuple<int, decimal>> ProcessLeftCapacityIndex(int categoryId, int pId,
             SmartCapacityListDetail capacityList,
             IEnumerable<SmartDevice> deviceList,
             IEnumerable<SmartOperator> operatorList,
@@ -217,32 +228,35 @@ namespace ApiManagement.Models.SmartFactoryModel
             decimal waitIndex)
         {
             var defaultIndex = 1;
-            //设备id或人员id   剩余产能
-            var result = new Dictionary<int, decimal>();
+            //设备id或人员id  型号 剩余产能
+            var result = new Dictionary<int, Tuple<int, decimal>>();
             if (arrangeDevice)
             {
                 //设备类型  设备型号 设备id
-                if (UseInfo.ContainsKey(categoryId))
+                if (DeviceUse.ContainsKey(categoryId))
                 {
-                    var arrangeInfos = UseInfo[categoryId];
-                    foreach (var device in capacityList.DeviceList)
+                    var infos = DeviceUse[categoryId];
+                    foreach (var deviceCapacity in capacityList.DeviceList)
                     {
-                        var canUseModels =
-                            deviceList.Where(x => x.CategoryId == categoryId && x.ModelId == device.ModelId);
-                        foreach (var model in canUseModels)
+                        foreach (var device in infos)
                         {
-                            if (!result.ContainsKey(model.Id))
+                            if (!result.ContainsKey(device.Id))
                             {
-                                result.Add(model.Id, defaultIndex - waitIndex);
+                                result.Add(device.Id, new Tuple<int, decimal>(device.Item, defaultIndex - waitIndex));
+                            }
+                            foreach (var arrange in device.Arranges)
+                            {
+                                result[device.Id] = new Tuple<int, decimal>(device.Item, result[device.Id].Item2 - arrange.CapacityIndex);
                             }
                         }
 
-                        var modes = arrangeInfos.Where(x => x.Item == device.ModelId);
-                        foreach (var mode in modes)
+                        var canUseDevices =
+                            deviceList.Where(x => x.CategoryId == categoryId && x.ModelId == deviceCapacity.ModelId);
+                        foreach (var device in canUseDevices)
                         {
-                            foreach (var arrange in mode.Arranges)
+                            if (!result.ContainsKey(device.Id))
                             {
-                                result[mode.Id] -= arrange.CapacityIndex;
+                                result.Add(device.Id, new Tuple<int, decimal>(device.ModelId, defaultIndex - waitIndex));
                             }
                         }
                     }
@@ -251,77 +265,103 @@ namespace ApiManagement.Models.SmartFactoryModel
             else
             {
                 //流程工序  人员等级 人员id
-                if (UseInfo.ContainsKey(pId))
+                if (OperatorUse.ContainsKey(pId))
                 {
-                    var arrangeInfos = UseInfo[pId];
-                    foreach (var op in capacityList.OperatorList)
+                    var infos = OperatorUse[pId];
+                    foreach (var operatorCapacity in capacityList.OperatorList)
                     {
-                        var canUseLevels =
-                            operatorList.Where(x => x.ProcessId == pId && x.LevelId == op.LevelId);
-                        foreach (var level in canUseLevels)
+                        foreach (var op in infos)
                         {
-                            if (!result.ContainsKey(level.Id))
+                            if (!result.ContainsKey(op.Id))
                             {
-                                result.Add(level.Id, defaultIndex - waitIndex);
+                                result.Add(op.Id, new Tuple<int, decimal>(op.Item, defaultIndex - waitIndex));
+                            }
+                            foreach (var arrange in op.Arranges)
+                            {
+                                result[op.Id] = new Tuple<int, decimal>(op.Item, result[op.Id].Item2 - arrange.CapacityIndex);
                             }
                         }
 
-                        var levels = arrangeInfos.Where(x => x.Item == op.LevelId);
-                        foreach (var level in levels)
+                        var canUseOperators =
+                            operatorList.Where(x => x.ProcessId == pId && x.LevelId == operatorCapacity.LevelId);
+                        foreach (var op in canUseOperators)
                         {
-                            foreach (var arrange in level.Arranges)
+                            if (!result.ContainsKey(op.Id))
                             {
-                                result[level.Id] -= arrange.CapacityIndex;
+                                result.Add(op.Id, new Tuple<int, decimal>(op.LevelId, defaultIndex - waitIndex));
                             }
                         }
                     }
                 }
             }
-            return result;
+            return result.Where(x => x.Value.Item2 > 0).ToDictionary(y => y.Key, y => new Tuple<int, decimal>(y.Value.Item1, y.Value.Item2));
         }
+
         /// <summary>
         /// 安排生产， 增加产能指数
         /// </summary>
         /// <param name="schedule"></param>
         /// <param name="arrangeInfos"></param>
-        /// <param name="arrangeDevice">是否设备</param>
-        public void AddTaskOrderSchedule(SmartTaskOrderScheduleDetail schedule, List<ArrangeInfo> arrangeInfos, bool arrangeDevice)
+        public void AddTaskOrderSchedule(SmartTaskOrderScheduleDetail schedule, List<ArrangeInfo> arrangeInfos)
         {
+            if (!arrangeInfos.Any())
+            {
+                return;
+            }
+
             if (schedule.ProcessTime == ProcessTime)
             {
+                //是否设备
+                var arrangeDevice = schedule.Device;
                 if (!Needs.ContainsKey(schedule.PId))
                 {
                     Needs.Add(schedule.PId, new List<SmartTaskOrderScheduleDetail>());
                 }
-                Needs[schedule.PId].Add(schedule);
                 var item = arrangeDevice ? schedule.CategoryId : schedule.PId;
+                var use = arrangeDevice ? DeviceUse : OperatorUse;
                 foreach (var arrangeInfo in arrangeInfos)
                 {
-                    if (!UseInfo.ContainsKey(item))
+                    if (!use.ContainsKey(item))
                     {
-                        UseInfo.Add(item, new List<ArrangeInfo>());
-                        UseInfo[item].Add(new ArrangeInfo(arrangeInfo.Item, arrangeInfo.Id));
+                        use.Add(item, new List<ArrangeInfo>());
+                        use[item].Add(new ArrangeInfo(arrangeInfo.Item, arrangeInfo.Id));
                     }
 
-                    var first = UseInfo[item].FirstOrDefault(x => x.Id == arrangeInfo.Id);
+                    var first = use[item].FirstOrDefault(x => x.Id == arrangeInfo.Id);
                     if (first == null)
                     {
-                        UseInfo[item].Add(new ArrangeInfo(arrangeInfo.Item, arrangeInfo.Id));
+                        use[item].Add(new ArrangeInfo(arrangeInfo.Item, arrangeInfo.Id));
+                        first = use[item].FirstOrDefault(x => x.Id == arrangeInfo.Id);
                     }
-
                     foreach (var arrange in arrangeInfo.Arranges)
                     {
-                        var productArrange = first.Arranges.FirstOrDefault(x => x.ProductId == arrange.ProductId && x.PId == arrange.PId);
-                        if (productArrange != null)
+                        if (arrange.Count > 0)
                         {
-                            productArrange.Count += arrange.Count;
+                            var productArrange = first.Arranges.FirstOrDefault(x => x.ProductId == arrange.ProductId && x.PId == arrange.PId);
+                            if (productArrange != null)
+                            {
+                                productArrange.Count += arrange.Count;
+                            }
+                            else
+                            {
+                                first.Arranges.Add(arrange);
+                            }
                         }
-                        else
-                        {
-                            first.Arranges.Add(arrange);
-                        }
+
                     }
                 }
+
+                var arranges = arrangeInfos.ToDictionary(x => x.Id, info => info.Arranges.Sum(y => y.Count));
+                if (arrangeDevice)
+                {
+                    schedule.DeviceList = arranges;
+                }
+                else
+                {
+                    schedule.OperatorsList = arranges;
+                }
+
+                Needs[schedule.PId].Add(schedule);
             }
         }
 
@@ -331,23 +371,41 @@ namespace ApiManagement.Models.SmartFactoryModel
         /// 人员  流程工序  等级  产能指数
         /// </summary>
         public IEnumerable<SmartTaskOrderScheduleIndex> CapacityIndexList
-            => UseInfo.SelectMany(x => x.Value.SelectMany(y => y.Arranges.Select(z => new SmartTaskOrderScheduleIndex
+        {
+            get
             {
-                IsDevice = IsDevice,
-                ProcessTime = ProcessTime,
-                PId = z.PId,
-                DealId = y.Id,
-                Index = z.CapacityIndex,
-            })));
+                var list = new List<SmartTaskOrderScheduleIndex>();
+                list.AddRange(DeviceUse.SelectMany(x => x.Value.Where(z => z.Arranges.Any()).SelectMany(y => y.Arranges.Select(z =>
+                    new SmartTaskOrderScheduleIndex
+                    {
+                        IsDevice = true,
+                        ProcessTime = ProcessTime,
+                        PId = z.PId,
+                        DealId = y.Id,
+                        Index = z.CapacityIndex,
+                    }))));
+
+                list.AddRange(OperatorUse.SelectMany(x => x.Value.Where(z => z.Arranges.Any()).SelectMany(y => y.Arranges.Select(z =>
+                      new SmartTaskOrderScheduleIndex
+                      {
+                          IsDevice = false,
+                          ProcessTime = ProcessTime,
+                          PId = z.PId,
+                          DealId = y.Id,
+                          Index = z.CapacityIndex,
+                      }))));
+                return list;
+            }
+        }
 
         /// <summary>
         /// 工序是否有安排
         /// </summary>
         /// <returns></returns>
-        //public bool HaveArranged()
-        //{
-        //    return CapacityIndex.Sum(x => x.Value.Sum(y => y.Value)) > 0;
-        //}
+        public bool HaveArranged()
+        {
+            return CapacityIndexList.Sum(x => x.Index) > 0;
+        }
     }
 
     /// <summary>
@@ -381,11 +439,12 @@ namespace ApiManagement.Models.SmartFactoryModel
     /// </summary>
     public class ArrangeDetail
     {
-        public ArrangeDetail(int taskOrderId, int productId, int pId, int count, int maxCount)
+        public ArrangeDetail(int taskOrderId, int productId, int pId, int single, int count, int maxCount)
         {
             ProductId = productId;
             PId = pId;
             TaskOrderId = taskOrderId;
+            Single = single;
             Count = count;
             MaxCount = maxCount;
         }
@@ -401,6 +460,10 @@ namespace ApiManagement.Models.SmartFactoryModel
         /// 任务单
         /// </summary>
         public int TaskOrderId { get; set; }
+        /// <summary>
+        /// 单次生产数量
+        /// </summary>
+        public int Single { get; set; }
         /// <summary>
         /// 设备安排次数 / 人员安排次数
         /// </summary>
@@ -470,7 +533,7 @@ namespace ApiManagement.Models.SmartFactoryModel
             {
                 if (MustCompleteTime != default(DateTime))
                 {
-                    var time = MustCompleteTime != default(DateTime) ? MustCompleteTime : DateTime.Today;
+                    var time = EstimatedCompleteTime != default(DateTime) ? EstimatedCompleteTime : DateTime.Today;
                     if (time > MustCompleteTime)
                     {
                         return (int)(time - MustCompleteTime).TotalDays;
@@ -517,8 +580,12 @@ namespace ApiManagement.Models.SmartFactoryModel
         public int OperatorDay { get; set; }
     }
 
-    public class SmartTaskOrderScheduleInfoResult1
+    public class SmartTaskOrderScheduleInfoResultBase
     {
+        /// <summary>
+        /// 0 设备 1 人员
+        /// </summary>
+        public int IsDevice { get; set; }
         /// <summary>
         /// 时间
         /// </summary>
@@ -545,7 +612,7 @@ namespace ApiManagement.Models.SmartFactoryModel
         public int Order { get; set; }
     }
 
-    public class SmartTaskOrderScheduleInfoResult2 : SmartTaskOrderScheduleInfoResult1
+    public class SmartTaskOrderScheduleInfoResult1 : SmartTaskOrderScheduleInfoResultBase
     {
         /// <summary>
         /// 投入
@@ -557,18 +624,26 @@ namespace ApiManagement.Models.SmartFactoryModel
         public int HavePut { get; set; }
     }
 
-    public class SmartTaskOrderScheduleInfoResult2Detail : SmartTaskOrderScheduleInfoResult2
+    public class SmartTaskOrderScheduleInfoResult1Detail : SmartTaskOrderScheduleInfoResult1
     {
         /// <summary>
         /// 标准流程id
         /// </summary>
-        public List<SmartTaskOrderScheduleInfoResult21> Tasks { get; set; } = new List<SmartTaskOrderScheduleInfoResult21>();
+        public List<SmartTaskOrderScheduleInfoResult11> Tasks { get; set; } = new List<SmartTaskOrderScheduleInfoResult11>();
     }
     /// <summary>
     /// 投料详情
     /// </summary>
-    public class SmartTaskOrderScheduleInfoResult21
+    public class SmartTaskOrderScheduleInfoResult11
     {
+        /// <summary>
+        /// 0 设备 1 人员
+        /// </summary>
+        public int IsDevice { get; set; }
+        /// <summary>
+        /// true 设备 false 人员
+        /// </summary>
+        public bool Device => IsDevice == 0;
         /// <summary>
         /// 时间
         /// </summary>
@@ -589,8 +664,82 @@ namespace ApiManagement.Models.SmartFactoryModel
         /// 已投入
         /// </summary>
         public int HavePut { get; set; }
+
+        /// <summary>
+        /// 加工设备列表  id  次数
+        /// </summary>
+        [JsonIgnore]
+        public string Devices { get; set; }
+        private Dictionary<int, int> _deviceList { get; set; }
+        /// <summary>
+        /// 加工设备列表  id  次数
+        /// </summary>
+        [JsonIgnore]
+        public Dictionary<int, int> DeviceList
+        {
+            get
+            {
+                if (_deviceList == null)
+                {
+                    _deviceList = new Dictionary<int, int>();
+                    if (!Devices.IsNullOrEmpty())
+                    {
+                        var s = Devices.Split(",").Select(int.Parse).ToArray();
+                        for (var i = 0; i < s.Length / 2; i++)
+                        {
+                            var index = i * 2;
+                            _deviceList.Add(s[index], s[index + 1]);
+                        }
+                    }
+                }
+                return _deviceList;
+            }
+            set
+            {
+                _deviceList = value;
+                Devices = _deviceList.Select(x => $"{x.Key},{x.Value}").Join();
+            }
+        }
+
+        /// <summary>
+        /// 加工人员列表  id  次数
+        /// </summary>
+        [JsonIgnore]
+        public string Operators { get; set; }
+        private Dictionary<int, int> _operatorList { get; set; }
+        /// <summary>
+        /// 加工设备列表  id  次数
+        /// </summary>
+        [JsonIgnore]
+        public Dictionary<int, int> OperatorsList
+        {
+            get
+            {
+                if (_operatorList == null)
+                {
+                    _operatorList = new Dictionary<int, int>();
+                    if (!Operators.IsNullOrEmpty())
+                    {
+                        var s = Operators.Split(",").Select(int.Parse).ToArray();
+                        for (var i = 0; i < s.Length / 2; i++)
+                        {
+                            var index = i * 2;
+                            _operatorList.Add(s[index], s[index + 1]);
+                        }
+                    }
+                }
+                return _operatorList;
+            }
+            set
+            {
+                _deviceList = value;
+                Operators = _operatorList.Select(x => $"{x.Key},{x.Value}").Join();
+            }
+        }
+        public Dictionary<int, Tuple<string, int>> Arranges { get; set; } = new Dictionary<int, Tuple<string, int>>();
     }
-    public class SmartTaskOrderScheduleInfoResult3 : SmartTaskOrderScheduleInfoResult1
+
+    public class SmartTaskOrderScheduleInfoResult2 : SmartTaskOrderScheduleInfoResultBase
     {
         /// <summary>
         /// 标准流程id

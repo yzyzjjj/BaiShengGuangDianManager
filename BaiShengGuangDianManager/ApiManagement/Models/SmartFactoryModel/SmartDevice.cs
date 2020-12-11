@@ -25,6 +25,10 @@ namespace ApiManagement.Models.SmartFactoryModel
         /// 备注
         /// </summary>
         public string Remark { get; set; }
+        /// <summary>
+        /// 被使用优先级/好用等级  越小越好
+        /// </summary>
+        public int Priority { get; set; }
     }
 
     public class SmartDeviceDetail : SmartDevice

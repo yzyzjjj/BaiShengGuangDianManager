@@ -11,9 +11,9 @@ namespace ApiManagement.Models.SmartFactoryModel
         {
             Table = "t_operator";
             InsertSql =
-                "INSERT INTO `t_operator` (`CreateUserId`, `MarkedDateTime`, `UserId`, `State`, `ProcessId`, `LevelId`, `Remark`) " +
-                "VALUES (@CreateUserId, @MarkedDateTime, @UserId, @State, @ProcessId, @LevelId, @Remark);";
-            UpdateSql = "UPDATE `t_operator` SET `MarkedDateTime` = @MarkedDateTime, `State` = @State, `ProcessId` = @ProcessId, `LevelId` = @LevelId, `Remark` = @Remark WHERE `Id` = @Id;";
+                "INSERT INTO `t_operator` (`CreateUserId`, `MarkedDateTime`, `UserId`, `State`, `ProcessId`, `LevelId`, `Remark`, `Priority`) " +
+                "VALUES (@CreateUserId, @MarkedDateTime, @UserId, @State, @ProcessId, @LevelId, @Remark, @Priority);";
+            UpdateSql = "UPDATE `t_operator` SET `MarkedDateTime` = @MarkedDateTime, `State` = @State, `ProcessId` = @ProcessId, `LevelId` = @LevelId, `Remark` = @Remark, `Priority` = @Priority WHERE `Id` = @Id;";
         }
         public static readonly SmartOperatorHelper Instance = new SmartOperatorHelper();
         #region Get
@@ -34,6 +34,25 @@ namespace ApiManagement.Models.SmartFactoryModel
                     processIds
                 });
         }
+        /// <summary>
+        /// 获取所有员工
+        /// </summary>
+        /// <returns></returns>
+        public IEnumerable<SmartOperator> GetAllSmartOperators()
+        {
+            return ServerConfig.ApiDb.Query<SmartOperator>(
+                "SELECT a.*, b.`Name` FROM `t_operator` a JOIN `t_user` b ON a.UserId = b.Id;");
+        }
+        /// <summary>
+        /// 获取状态正常的员工
+        /// </summary>
+        /// <returns></returns>
+        public IEnumerable<SmartOperatorDetail> GetNormalSmartOperators()
+        {
+            return ServerConfig.ApiDb.Query<SmartOperatorDetail>(
+                "SELECT a.*, b.`Name`, c.`Order` FROM `t_operator` a JOIN `t_user` b ON a.UserId = b.Id JOIN `t_operator_level` c ON a.LevelId = c.Id WHERE a.`MarkedDelete` = 0 AND a.State = @state;"
+                    , new { state = SmartOperatorState.正常 });
+        }
         public IEnumerable<SmartOperatorCount> GetNormalOperatorCount(IEnumerable<int> processIds)
         {
             return ServerConfig.ApiDb.Query<SmartOperatorCount>(
@@ -41,7 +60,7 @@ namespace ApiManagement.Models.SmartFactoryModel
                 "JOIN `t_process_code_category_process` b ON a.ProcessId = b.ProcessId WHERE b.Id IN @processIds AND a.MarkedDelete = 0 AND a.State = @state GROUP BY a.ProcessId, LevelId", new
                 {
                     processIds,
-                    state = OperatorState.正常
+                    state = SmartOperatorState.正常
                 });
         }
 
@@ -61,7 +80,7 @@ namespace ApiManagement.Models.SmartFactoryModel
                 "JOIN `t_process_code_category_process` b ON a.ProcessId = b.ProcessId WHERE b.Id = @processId AND a.MarkedDelete = 0 AND a.State = @state GROUP BY a.ProcessId, LevelId", new
                 {
                     processId,
-                    state = OperatorState.正常
+                    state = SmartOperatorState.正常
                 });
         }
         #endregion
