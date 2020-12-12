@@ -14,7 +14,7 @@ namespace ApiManagement.Models.SmartFactoryModel
         /// <summary>
         /// 0 设备 1 人员
         /// </summary>
-        public int Type { get; set; }
+        public bool IsDevice { get; set; }
         /// <summary>
         /// 加工时间
         /// </summary>

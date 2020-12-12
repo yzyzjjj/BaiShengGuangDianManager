@@ -28,11 +28,13 @@ namespace ApiManagement.Controllers.SmartFactoryController.ScheduleFolder
                 return result;
             }
 
-            var r = ServerConfig.ApiDb.Query<SmartTaskOrderScheduleInfoResult2>(
+            var r = ServerConfig.ApiDb.Query<SmartTaskOrderScheduleInfoResult1>(
                 $"SELECT a.ProcessTime, a.ProductId, b.Product, a.PId, c.Process, c.`Order`, SUM(a.Put) Put, SUM(a.HavePut) HavePut " +
                 $"FROM `t_task_order_schedule` a " +
-                $"JOIN `t_product` b ON a.ProductId = b.Id JOIN `t_process` c ON a.PId = c.Id " +
-                $"WHERE Batch = (SELECT MAX(Batch) FROM `t_task_order_schedule`) AND ProcessTime >= @startTime AND ProcessTime <= @endTime{(pId == 0 ? "" : " AND a.PId = @pId")} " +
+                $"JOIN `t_product` b ON a.ProductId = b.Id " +
+                $"JOIN `t_process` c ON a.PId = c.Id " +
+                $"JOIN (SELECT * FROM (SELECT ProcessTime, Batch FROM `t_task_order_schedule` ORDER BY Batch DESC, ProcessTime DESC) a GROUP BY a.ProcessTime) d ON a.ProcessTime = d.ProcessTime AND a.Batch = d.Batch " +
+                $"WHERE a.ProcessTime >= @startTime AND a.ProcessTime <= @endTime {(pId == 0 ? "" : " AND a.PId = @pId")} " +
                 $"GROUP BY a.ProcessTime, a.ProductId, a.PId ORDER BY a.ProcessTime, a.ProductId, c.`Order`;", new
                 {
                     startTime,
@@ -98,17 +100,36 @@ namespace ApiManagement.Controllers.SmartFactoryController.ScheduleFolder
                 return result;
             }
 
-            result.datas.AddRange(ServerConfig.ApiDb.Query<SmartTaskOrderScheduleInfoResult21>(
-                $"SELECT a.ProcessTime, a.TaskOrderId, b.TaskOrder, a.Put, a.HavePut " +
+            var data = ServerConfig.ApiDb.Query<SmartTaskOrderScheduleInfoResult11>(
+                $"SELECT a.ProcessTime, a.TaskOrderId, b.TaskOrder, a.Put, a.HavePut, a.IsDevice, a.Devices, a.Operators " +
                 $"FROM `t_task_order_schedule` a " +
                 $"JOIN `t_task_order` b ON a.TaskOrderId = b.Id " +
-                $"WHERE Batch = (SELECT MAX(Batch) FROM `t_task_order_schedule`) AND a.ProductId = @productId AND a.PId = @pId AND a.ProcessTime = @time " +
+                $"JOIN (SELECT * FROM (SELECT ProcessTime, Batch FROM `t_task_order_schedule` ORDER BY Batch DESC, ProcessTime DESC) a GROUP BY a.ProcessTime) d ON a.ProcessTime = d.ProcessTime AND a.Batch = d.Batch " +
+                $"WHERE a.ProductId = @productId AND a.PId = @pId AND a.ProcessTime = @time " +
                 $"ORDER BY a.TaskOrderId;", new
                 {
                     time,
                     productId,
                     pId
-                }));
+                });
+            if (data.Any())
+            {
+                //设备型号数量
+                var deviceList = SmartDeviceHelper.Instance.GetAll<SmartDevice>();
+                //人员等级数量
+                var operatorList = SmartOperatorHelper.Instance.GetAllSmartOperators();
+                foreach (var x in data)
+                {
+                    x.Arranges = x.Device
+                        ? x.DeviceList.ToDictionary(y => y.Key,
+                            y => new Tuple<string, int>(deviceList.FirstOrDefault(z => z.Id == y.Key)?.Code ?? "",
+                                y.Value))
+                        : x.OperatorsList.ToDictionary(y => y.Key,
+                            y => new Tuple<string, int>(operatorList.FirstOrDefault(z => z.Id == y.Key)?.Name ?? "",
+                                y.Value));
+                }
+                result.datas.AddRange(data);
+            }
             return result;
         }
 
@@ -122,11 +143,12 @@ namespace ApiManagement.Controllers.SmartFactoryController.ScheduleFolder
                 return result;
             }
 
-            var r = ServerConfig.ApiDb.Query<SmartTaskOrderScheduleInfoResult3>(
+            var r = ServerConfig.ApiDb.Query<SmartTaskOrderScheduleInfoResult2>(
                 $"SELECT a.ProcessTime, a.ProductId, b.Product, a.PId, c.Process, c.`Order`, SUM(a.Target) Target, SUM(a.DoneTarget) DoneTarget " +
                 $"FROM `t_task_order_schedule` a " +
                 $"JOIN `t_product` b ON a.ProductId = b.Id JOIN `t_process` c ON a.PId = c.Id " +
-                $"WHERE Batch = (SELECT MAX(Batch) FROM `t_task_order_schedule`) AND ProcessTime >= @startTime AND ProcessTime <= @endTime " +
+                $"JOIN (SELECT * FROM (SELECT ProcessTime, Batch FROM `t_task_order_schedule` ORDER BY Batch DESC, ProcessTime DESC) a GROUP BY a.ProcessTime) d ON a.ProcessTime = d.ProcessTime AND a.Batch = d.Batch " +
+                $"WHERE a.ProcessTime >= @startTime AND a.ProcessTime <= @endTime " +
                 $"GROUP BY a.ProcessTime, a.ProductId, a.PId ORDER BY a.ProcessTime, a.ProductId, c.`Order`;", new
                 {
                     startTime,
@@ -195,7 +217,8 @@ namespace ApiManagement.Controllers.SmartFactoryController.ScheduleFolder
                 $"SELECT a.ProcessTime, a.TaskOrderId, b.TaskOrder, a.Target, a.DoneTarget " +
                 $"FROM `t_task_order_schedule` a " +
                 $"JOIN `t_task_order` b ON a.TaskOrderId = b.Id " +
-                $"WHERE Batch = (SELECT MAX(Batch) FROM `t_task_order_schedule`) AND a.ProductId = @productId AND a.PId = @pId AND a.ProcessTime = @time " +
+                $"JOIN (SELECT * FROM (SELECT ProcessTime, Batch FROM `t_task_order_schedule` ORDER BY Batch DESC, ProcessTime DESC) a GROUP BY a.ProcessTime) d ON a.ProcessTime = d.ProcessTime AND a.Batch = d.Batch " +
+                $"WHERE a.ProductId = @productId AND a.PId = @pId AND a.ProcessTime = @time " +
                 $"ORDER BY a.TaskOrderId;", new
                 {
                     time,
@@ -353,6 +376,8 @@ namespace ApiManagement.Controllers.SmartFactoryController.ScheduleFolder
                 Id = x.Id,
                 TaskOrder = x.TaskOrder,
                 ProductId = x.ProductId,
+                StartTime = x.StartTime,
+                EndTime = x.EndTime,
                 Product = products.FirstOrDefault(y => y.Id == x.ProductId)?.Product ?? ""
             });
             foreach (var task in tOrders)
@@ -470,13 +495,27 @@ namespace ApiManagement.Controllers.SmartFactoryController.ScheduleFolder
                 return Result.GenError<Result>(Error.ParamError);
             }
 
+            var today = DateTime.Today;
             var schedules = new List<SmartTaskOrderScheduleDetail>();
             var costDays = ScheduleHelper.ArrangeSchedule(taskOrders, ref schedules);
-            var startTime = costDays.Any() ? costDays.Min(x => x.EstimatedStartTime) : DateTime.Today;
-            var completeTime = costDays.Any() ? costDays.Max(x => x.EstimatedCompleteTime) : DateTime.Today;
+            var startTime = costDays.Any() ? costDays.Min(x => x.EstimatedStartTime) : today;
+            if (startTime == default(DateTime))
+            {
+                startTime = today;
+            }
+            var completeTime = costDays.Any() ? costDays.Max(x => x.EstimatedCompleteTime) : today;
+            if (completeTime == default(DateTime))
+            {
+                completeTime = today;
+            }
             var put = new List<object>();
+            var orders = new List<SmartTaskOrderNeedOrder>();
             if (schedules.Any())
             {
+                //设备型号数量
+                var deviceList = SmartDeviceHelper.Instance.GetAll<SmartDevice>();
+                //人员等级数量
+                var operatorList = SmartOperatorHelper.Instance.GetAllSmartOperators();
                 //按工序排
                 var processes = schedules.GroupBy(x => new { x.PId, x.Process, x.Order }).Select(y => y.Key);
                 put.AddRange(processes.Select(process =>
@@ -494,16 +533,19 @@ namespace ApiManagement.Controllers.SmartFactoryController.ScheduleFolder
                             {
                                 var t = startTime.AddDays(i);
                                 var pr = pro.Where(p => p.ProcessTime == t);
-                                var d = new List<SmartTaskOrderScheduleInfoResult21>();
+                                var d = new List<SmartTaskOrderScheduleInfoResult11>();
                                 if (pr.Any())
                                 {
-                                    d = pr.Select(x => new SmartTaskOrderScheduleInfoResult21
+                                    d = pr.Select(x => new SmartTaskOrderScheduleInfoResult11
                                     {
                                         ProcessTime = t,
                                         TaskOrderId = x.TaskOrderId,
                                         TaskOrder = x.TaskOrder,
                                         Put = x.Put,
                                         HavePut = x.HavePut,
+                                        Arranges = x.Device
+                                            ? x.DeviceList.ToDictionary(y => y.Key, y => new Tuple<string, int>(deviceList.FirstOrDefault(z => z.Id == y.Key)?.Code ?? "", y.Value))
+                                            : x.OperatorsList.ToDictionary(y => y.Key, y => new Tuple<string, int>(operatorList.FirstOrDefault(z => z.Id == y.Key)?.Name ?? "", y.Value))
                                     }).ToList();
                                     //}).OrderBy(x => x.TaskOrderId).ToList();
                                 }
@@ -537,14 +579,15 @@ namespace ApiManagement.Controllers.SmartFactoryController.ScheduleFolder
                     };
                     return a;
                 }).OrderBy(x => x.Order));
+
+                orders.AddRange(costDays.SelectMany(x => x.CostDays).GroupBy(y => new { y.PId, y.Process, y.Order }).Select(z => new SmartTaskOrderNeedOrder
+                {
+                    Id = z.Key.PId,
+                    Process = z.Key.Process,
+                    Order = z.Key.Order
+                }).OrderBy(z => z.Order));
             }
 
-            var orders = schedules.GroupBy(x => new { x.PId, x.Process, x.Order }).Select(y => new SmartTaskOrderNeedOrder
-            {
-                Id = y.Key.PId,
-                Process = y.Key.Process,
-                Order = y.Key.Order
-            }).OrderBy(z => z.Order);
             return new
             {
                 errno = 0,

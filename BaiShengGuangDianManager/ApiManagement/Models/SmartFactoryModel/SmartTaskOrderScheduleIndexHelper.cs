@@ -14,9 +14,9 @@ namespace ApiManagement.Models.SmartFactoryModel
         {
             Table = "t_task_order_schedule_index";
             InsertSql =
-                "INSERT INTO `t_task_order_schedule_index` (`CreateUserId`, `MarkedDateTime`, `Batch`, `ProcessTime`, `PId`, `Index`) " +
-                "VALUES (@CreateUserId, @MarkedDateTime, @Batch, @ProcessTime, @PId, @Index);";
-            UpdateSql = "UPDATE `t_task_order_schedule_index` SET `MarkedDateTime` = @MarkedDateTime, `PId` = @PId, `Index` = @Index WHERE `Id` = @Id;";
+                "INSERT INTO `t_task_order_schedule_index` (`CreateUserId`, `MarkedDateTime`, `Batch`, `IsDevice`, `ProcessTime`, `PId`, `DealId`, `Index`) " +
+                "VALUES (@CreateUserId, @MarkedDateTime, @Batch, @IsDevice, @ProcessTime, @PId, @DealId, @Index);";
+            UpdateSql = "UPDATE `t_task_order_schedule_index` SET `MarkedDateTime` = @MarkedDateTime, `Index` = @Index WHERE `Id` = @Id;";
         }
         public static readonly SmartTaskOrderScheduleIndexHelper Instance = new SmartTaskOrderScheduleIndexHelper();
         #region Get
