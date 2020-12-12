@@ -6,6 +6,7 @@ using ModelBase.Models.Result;
 using ServiceStack;
 using ServiceStack.Text;
 using System;
+using System.Diagnostics;
 using System.Linq;
 
 namespace ApiManagement.Controllers.MaterialManagementController
@@ -20,7 +21,8 @@ namespace ApiManagement.Controllers.MaterialManagementController
     {
         // GET: api/MaterialValuer/Balance?qId=0
         [HttpGet("Balance")]
-        public DataResult GetMaterialValuer([FromQuery] DateTime day, MaterialStatisticInterval interval, int categoryId = 0, int nameId = 0, int supplierId = 0, int specificationId = 0, int siteId = 0)
+        public DataResult GetMaterialValuer([FromQuery] DateTime day, MaterialStatisticInterval interval, 
+            int categoryId = 0, int nameId = 0, int supplierId = 0, int specificationId = 0, int siteId = 0)
         {
             var result = new DataResult();
             DateTime day1;
@@ -45,6 +47,7 @@ namespace ApiManagement.Controllers.MaterialManagementController
                     break;
                 default: return result;
             }
+
             var data = ServerConfig.ApiDb.Query<MaterialStatistic>(
                 $"SELECT *, SUM(Increase) Increase, SUM(IncreaseAmount) IncreaseAmount, SUM(Consume) Consume, SUM(ConsumeAmount) ConsumeAmount, SUM(CorrectIn) CorrectIn, SUM(CorrectInAmount) CorrectInAmount, SUM(CorrectCon) CorrectCon, SUM(CorrectConAmount) CorrectConAmount, SUM(Correct) Correct, SUM(CorrectAmount) CorrectAmount " +
                 $"FROM (SELECT * FROM `material_balance` WHERE 1 = 1 " +
@@ -52,8 +55,9 @@ namespace ApiManagement.Controllers.MaterialManagementController
                 $"{(nameId != 0 ? "AND NameId = @nameId " : "")}" +
                 $"{(supplierId != 0 ? "AND SupplierId = @supplierId " : "")}" +
                 $"{(specificationId != 0 ? "AND SpecificationId = @specificationId " : "")}" +
-                $"{(siteId != 0 ? "AND SiteId = @siteId " : "")}" +
-                $"ORDER BY Time DESC) a WHERE Time > @day1 AND Time <= @day2 GROUP BY BillId ORDER BY BillId DESC;", new
+                $"{(siteId != 0 ? "AND SiteId = @siteId " : "")} " +
+                $"And Time > @day1 AND Time <= @day2 " +
+                $"ORDER BY Time DESC) a GROUP BY BillId ORDER BY BillId DESC;", new
                 {
                     day1,
                     day2,
@@ -62,7 +66,7 @@ namespace ApiManagement.Controllers.MaterialManagementController
                     supplierId,
                     specificationId,
                     siteId
-                }).ToList();
+                }, 60).ToList();
             var beforeData = ServerConfig.ApiDb.Query<MaterialStatistic>(
                 "SELECT * FROM `material_balance` WHERE Time = @day1 " +
                 $"{(categoryId != 0 ? "AND CategoryId = @categoryId " : "")}" +
@@ -95,7 +99,12 @@ namespace ApiManagement.Controllers.MaterialManagementController
                     bill.LastAmount = bd.TodayAmount;
                 }
             }
-            result.datas.AddRange(data.Where(x=>x.Valid()));
+
+            var d = data.Where(x => x.Valid()).OrderBy(x => x.BillId);
+            var t1 = d.Sum(x => x.IncreaseAmount);
+            var t2 = d.Sum(x => x.ConsumeAmount);
+            var t3 = d.Sum(x => x.TodayAmount);
+            result.datas.AddRange(d);
             return result;
         }
     }

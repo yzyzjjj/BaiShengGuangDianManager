@@ -1118,8 +1118,8 @@ namespace ApiManagement.Base.Helper
                         "a.`Unit`, a.`Stock`, IFNULL(c.Number, 0) TodayNumber, a.`Price` TodayPrice, IFNULL(c.Number, 0) * a.`Price` TodayAmount FROM `material_bill` a JOIN (SELECT a.*, b.CategoryId, " +
                         "b.Category, b.NameId, b.`Name`, b.Supplier FROM `material_specification` a JOIN (SELECT a.*, b.`Name`, b.CategoryId, b.Category FROM `material_supplier` a JOIN (SELECT a.*, " +
                         "b.Category FROM `material_name` a JOIN `material_category` b ON a.CategoryId = b.Id) b ON a.NameId = b.Id) b ON a.SupplierId = b.Id) b ON a.SpecificationId = b.Id LEFT JOIN " +
-                        //"`material_management` c ON a.Id = c.BillId JOIN `material_site` d ON a.SiteId = d.Id WHERE a.`MarkedDelete` = 0 AND IFNULL(c.Number, 0) > 0 ORDER BY a.Id;").ToList();
-                        "`material_management` c ON a.Id = c.BillId JOIN `material_site` d ON a.SiteId = d.Id WHERE a.`MarkedDelete` = 0 ORDER BY a.Id;").ToList();
+                        "`material_management` c ON a.Id = c.BillId JOIN `material_site` d ON a.SiteId = d.Id WHERE a.`MarkedDelete` = 0 AND IFNULL(c.Number, 0) > 0 ORDER BY a.Id;").ToList();
+                    //"`material_management` c ON a.Id = c.BillId JOIN `material_site` d ON a.SiteId = d.Id WHERE a.`MarkedDelete` = 0 ORDER BY a.Id;").ToList();
 
                     //昨日单价数量总价
                     var yesterdayMaterialStatistics = ServerConfig.ApiDb.Query<MaterialStatistic>(
@@ -1217,7 +1217,7 @@ namespace ApiManagement.Base.Helper
                     //        x.Time = tomorrow;
                     //        return x;
                     //    }));
-                    ServerConfig.ApiDb.Execute("DELETE FROM `material_balance` WHERE TodayNumber = 0 AND LastNumber = 0 AND Increase = 0 AND Consume = 0 AND Increase = 0 AND Consume = 0 AND CorrectIn = 0 AND CorrectCon = 0 AND Correct = 0;");
+                    //ServerConfig.ApiDb.Execute("DELETE FROM `material_balance` WHERE TodayNumber = 0 AND LastNumber = 0 AND Increase = 0 AND Consume = 0 AND Increase = 0 AND Consume = 0 AND CorrectIn = 0 AND CorrectCon = 0 AND Correct = 0;");
 
                     ServerConfig.RedisHelper.SetForever(timeKey, now.ToStr());
                 }
