@@ -88,22 +88,23 @@ namespace ApiManagement.Controllers.MaterialManagementController
                 z.Init();
                 return z;
             }));
-
-            foreach (var bd in beforeData)
+            //data.AddRange(beforeData.Where(x => data.All(y => x.BillId != y.BillId)));
+            foreach (var da in data)
             {
-                var bill = data.FirstOrDefault(x => x.BillId == bd.BillId);
+                da.LastNumber = 0;
+                da.LastPrice = 0;
+                var bill = beforeData.FirstOrDefault(x => x.BillId == da.BillId);
                 if (bill != null)
                 {
-                    bill.LastNumber = bd.TodayNumber;
-                    bill.LastPrice = bd.TodayPrice;
-                    bill.LastAmount = bd.TodayAmount;
+                    da.LastNumber = bill.TodayNumber;
+                    da.LastPrice = bill.TodayPrice;
                 }
             }
 
             var d = data.Where(x => x.Valid()).OrderBy(x => x.BillId);
-            var t1 = d.Sum(x => x.IncreaseAmount);
-            var t2 = d.Sum(x => x.ConsumeAmount);
-            var t3 = d.Sum(x => x.TodayAmount);
+            //var t1 = d.Sum(x => x.IncreaseAmount);
+            //var t2 = d.Sum(x => x.ConsumeAmount);
+            //var t3 = d.Sum(x => x.TodayAmount);
             result.datas.AddRange(d);
             return result;
         }

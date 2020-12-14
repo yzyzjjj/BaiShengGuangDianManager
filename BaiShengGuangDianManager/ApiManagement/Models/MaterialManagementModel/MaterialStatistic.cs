@@ -77,10 +77,11 @@ namespace ApiManagement.Models.MaterialManagementModel
         /// 上次单价
         /// </summary>
         public decimal LastPrice { get; set; }
+
         /// <summary>
         /// 上次总价
         /// </summary>
-        public decimal LastAmount { get; set; }
+        public decimal LastAmount => LastNumber * LastPrice;
         /// <summary>
         /// 今日数量
         /// </summary>
@@ -92,7 +93,7 @@ namespace ApiManagement.Models.MaterialManagementModel
         /// <summary>
         /// 今日价格
         /// </summary>
-        public decimal TodayAmount { get; set; }
+        public decimal TodayAmount => TodayNumber * TodayPrice;
         /// <summary>
         /// 今日入库数量
         /// </summary>
@@ -138,7 +139,6 @@ namespace ApiManagement.Models.MaterialManagementModel
         {
             LastNumber = 0;
             LastPrice = 0;
-            LastAmount = 0;
             Increase = 0;
             IncreaseAmount = 0;
             Consume = 0;

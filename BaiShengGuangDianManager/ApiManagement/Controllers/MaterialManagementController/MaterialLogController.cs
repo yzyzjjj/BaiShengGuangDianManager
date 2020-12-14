@@ -347,7 +347,8 @@ namespace ApiManagement.Controllers.MaterialManagementController
                           return z;
                       }));
 
-                TimerHelper.DayBalance(newLogs.GroupBy(x => x.Time).Where(y => !y.Key.InSameDay(markedDateTime)).Select(z => z.Key));
+                //TimerHelper.DayBalance(newLogs.GroupBy(x => x.Time).Where(y => !y.Key.InSameDay(markedDateTime)).Select(z => z.Key));
+                TimerHelper.DayBalance(newLogs);
             }
 
 
