@@ -90,49 +90,6 @@ namespace ApiManagement.Controllers.SmartFactoryController.ScheduleFolder
             return result;
         }
 
-        // Post: api/SmartSchedule/Put/Detail
-        [HttpGet("Put/Detail")]
-        public object GetArrangedTaskOrderPutDetail([FromQuery]DateTime time, int productId, int pId)
-        {
-            var result = new DataResult();
-            if (time == default(DateTime) || productId == 0 || pId == 0)
-            {
-                return result;
-            }
-
-            var data = ServerConfig.ApiDb.Query<SmartTaskOrderScheduleInfoResult11>(
-                $"SELECT a.ProcessTime, a.TaskOrderId, b.TaskOrder, a.Put, a.HavePut, a.IsDevice, a.Devices, a.Operators " +
-                $"FROM `t_task_order_schedule` a " +
-                $"JOIN `t_task_order` b ON a.TaskOrderId = b.Id " +
-                $"JOIN (SELECT * FROM (SELECT ProcessTime, Batch FROM `t_task_order_schedule` ORDER BY Batch DESC, ProcessTime DESC) a GROUP BY a.ProcessTime) d ON a.ProcessTime = d.ProcessTime AND a.Batch = d.Batch " +
-                $"WHERE a.ProductId = @productId AND a.PId = @pId AND a.ProcessTime = @time " +
-                $"ORDER BY a.TaskOrderId;", new
-                {
-                    time,
-                    productId,
-                    pId
-                });
-            if (data.Any())
-            {
-                //设备型号数量
-                var deviceList = SmartDeviceHelper.Instance.GetAll<SmartDevice>();
-                //人员等级数量
-                var operatorList = SmartOperatorHelper.Instance.GetAllSmartOperators();
-                foreach (var x in data)
-                {
-                    x.Arranges = x.Device
-                        ? x.DeviceList.ToDictionary(y => y.Key,
-                            y => new Tuple<string, int>(deviceList.FirstOrDefault(z => z.Id == y.Key)?.Code ?? "",
-                                y.Value))
-                        : x.OperatorsList.ToDictionary(y => y.Key,
-                            y => new Tuple<string, int>(operatorList.FirstOrDefault(z => z.Id == y.Key)?.Name ?? "",
-                                y.Value));
-                }
-                result.datas.AddRange(data);
-            }
-            return result;
-        }
-
         // Post: api/SmartSchedule/Warehouse
         [HttpGet("Warehouse")]
         public object GetArrangedTaskOrderWarehouse([FromQuery]DateTime startTime, DateTime endTime)
@@ -203,6 +160,123 @@ namespace ApiManagement.Controllers.SmartFactoryController.ScheduleFolder
             return result;
         }
 
+
+        // Post: api/SmartSchedule/Warehouse
+        [HttpGet("PutAndWarehouse")]
+        public object GetArrangedTaskOrderPutAndWarehouse([FromQuery]DateTime startTime, DateTime endTime)
+        {
+            var result = new DataResult();
+            if (startTime == default(DateTime) || endTime == default(DateTime))
+            {
+                return result;
+            }
+
+            var r = ServerConfig.ApiDb.Query<SmartTaskOrderScheduleInfoAllResult>(
+                $"SELECT a.ProcessTime, a.ProductId, b.Product, a.PId, c.Process, c.`Order`, SUM(a.Put) Put, SUM(a.HavePut) HavePut, SUM(a.Target) Target, SUM(a.DoneTarget) DoneTarget " +
+                $"FROM `t_task_order_schedule` a " +
+                $"JOIN `t_product` b ON a.ProductId = b.Id JOIN `t_process` c ON a.PId = c.Id " +
+                $"JOIN (SELECT * FROM (SELECT ProcessTime, Batch FROM `t_task_order_schedule` ORDER BY Batch DESC, ProcessTime DESC) a GROUP BY a.ProcessTime) d ON a.ProcessTime = d.ProcessTime AND a.Batch = d.Batch " +
+                $"WHERE a.ProcessTime >= @startTime AND a.ProcessTime <= @endTime " +
+                $"GROUP BY a.ProcessTime, a.ProductId, a.PId ORDER BY a.ProcessTime, a.ProductId, c.`Order`;", new
+                {
+                    startTime,
+                    endTime
+                });
+            if (r.Any())
+            {
+                //按工序排
+                var processes = r.GroupBy(x => new { x.PId, x.Process, x.Order }).Select(y => y.Key);
+                result.datas.AddRange(processes.Select(process =>
+                {
+                    var value = r.Where(y => y.PId == process.PId);
+                    var products = value.GroupBy(y => new { y.ProductId, y.Product }).Select(z => z.Key);
+                    var datas = new List<object>();
+                    if (products.Any())
+                    {
+                        var data = products.Select(product =>
+                        {
+                            var dates = new List<object>();
+                            var pro = value.Where(z => z.ProductId == product.ProductId);
+                            for (var i = 0; i < (endTime - startTime).TotalDays + 1; i++)
+                            {
+                                var t = startTime.AddDays(i);
+                                var pr = pro.Where(p => p.ProcessTime == t);
+                                dates.Add(new
+                                {
+                                    ProcessTime = t,
+                                    Put = pr.Sum(x => x.Put),
+                                    HavePut = pr.Sum(x => x.HavePut),
+                                    Target = pr.Sum(x => x.Target),
+                                    DoneTarget = pr.Sum(x => x.DoneTarget),
+                                });
+                            }
+
+                            var b = new
+                            {
+                                ProductId = product.ProductId,
+                                Product = product.Product,
+                                Data = dates
+                            };
+                            return b;
+                        });
+                        datas.AddRange(data);
+                    }
+                    var a = new
+                    {
+                        PId = process.PId,
+                        Process = process.Process,
+                        Data = datas
+                    };
+                    return a;
+                }));
+            }
+            return result;
+        }
+
+
+        // Post: api/SmartSchedule/Put/Detail
+        [HttpGet("Put/Detail")]
+        public object GetArrangedTaskOrderPutDetail([FromQuery]DateTime time, int productId, int pId)
+        {
+            var result = new DataResult();
+            if (time == default(DateTime) || productId == 0 || pId == 0)
+            {
+                return result;
+            }
+
+            var data = ServerConfig.ApiDb.Query<SmartTaskOrderScheduleInfoResult11>(
+                $"SELECT a.ProcessTime, a.TaskOrderId, b.TaskOrder, a.Put, a.HavePut, a.IsDevice, a.Devices, a.Operators " +
+                $"FROM `t_task_order_schedule` a " +
+                $"JOIN `t_task_order` b ON a.TaskOrderId = b.Id " +
+                $"JOIN (SELECT * FROM (SELECT ProcessTime, Batch FROM `t_task_order_schedule` ORDER BY Batch DESC, ProcessTime DESC) a GROUP BY a.ProcessTime) d ON a.ProcessTime = d.ProcessTime AND a.Batch = d.Batch " +
+                $"WHERE a.ProductId = @productId AND a.PId = @pId AND a.ProcessTime = @time " +
+                $"ORDER BY a.TaskOrderId;", new
+                {
+                    time,
+                    productId,
+                    pId
+                });
+            if (data.Any())
+            {
+                //设备型号数量
+                var deviceList = SmartDeviceHelper.Instance.GetAll<SmartDevice>();
+                //人员等级数量
+                var operatorList = SmartOperatorHelper.Instance.GetAllSmartOperators();
+                foreach (var x in data)
+                {
+                    x.Arranges = x.Device
+                        ? x.DeviceList.ToDictionary(y => y.Key,
+                            y => new Tuple<string, int>(deviceList.FirstOrDefault(z => z.Id == y.Key)?.Code ?? "",
+                                y.Value))
+                        : x.OperatorsList.ToDictionary(y => y.Key,
+                            y => new Tuple<string, int>(operatorList.FirstOrDefault(z => z.Id == y.Key)?.Name ?? "",
+                                y.Value));
+                }
+                result.datas.AddRange(data);
+            }
+            return result;
+        }
+
         // Post: api/SmartSchedule/Warehouse/Detail
         [HttpGet("Warehouse/Detail")]
         public object GetArrangedTaskOrderWarehouseDetail([FromQuery]DateTime time, int productId, int pId)
@@ -247,7 +321,7 @@ namespace ApiManagement.Controllers.SmartFactoryController.ScheduleFolder
             result.datas.AddRange(ServerConfig.ApiDb.Query<SmartTaskOrderDetailLevel>($"SELECT a.*, b.Product, c.Level FROM `t_task_order` a " +
                                                                                         $"JOIN `t_product` b ON a.ProductId = b.Id " +
                                                                                         $"JOIN `t_task_order_level` c ON a.LevelId = c.Id " +
-                                                                                        $"WHERE Arranged = 1 AND a.MarkedDelete = 0 ORDER BY FIELD(State,  {state}) LIMIT @page, @limit;", new
+                                                                                        $"WHERE Arranged = 1 AND a.MarkedDelete = 0 ORDER BY FIELD(State,  {state}), StartTime, EndTime, DeliveryTime LIMIT @page, @limit;", new
                                                                                         {
                                                                                             page,
                                                                                             limit
@@ -256,7 +330,7 @@ namespace ApiManagement.Controllers.SmartFactoryController.ScheduleFolder
             result.Count = ServerConfig.ApiDb.Query<int>($"SELECT COUNT(1) FROM `t_task_order` a " +
                                                                                       $"JOIN `t_product` b ON a.ProductId = b.Id " +
                                                                                       $"JOIN `t_task_order_level` c ON a.LevelId = c.Id " +
-                                                                                      $"WHERE Arranged = 1 AND a.MarkedDelete = 0 ORDER BY FIELD(State,  {state});").FirstOrDefault();
+                                                                                      $"WHERE Arranged = 1 AND a.MarkedDelete = 0;").FirstOrDefault();
             return result;
         }
 
@@ -267,7 +341,7 @@ namespace ApiManagement.Controllers.SmartFactoryController.ScheduleFolder
             var result = new SmartResult();
             result.datas.AddRange(ServerConfig.ApiDb.Query<SmartTaskOrderDetailProduct>($"SELECT a.*, b.Product FROM `t_task_order` a " +
                                                                                         $"JOIN `t_product` b ON a.ProductId = b.Id " +
-                                                                                        $"WHERE Arranged = 0 AND a.MarkedDelete = 0 LIMIT @page, @limit;", new
+                                                                                        $"WHERE Arranged = 0 AND a.MarkedDelete = 0 Order By StartTime, EndTime, DeliveryTime LIMIT @page, @limit;", new
                                                                                         {
                                                                                             page,
                                                                                             limit
@@ -467,7 +541,7 @@ namespace ApiManagement.Controllers.SmartFactoryController.ScheduleFolder
                 return result;
             }
 
-            ServerConfig.ApiDb.Execute("UPDATE `t_task_order` SET `MarkedDateTime` = @MarkedDateTime, `LevelId` = @LevelId, `StartTime` = IF(@StartTime = '0001-01-01 00:00:00', `StartTime`, @StartTime), `EndTime` = IF(@EndTime = '0001-01-01 00:00:00', `EndTime`, @EndTime) WHERE `Id` = @Id;", taskOrders);
+            SmartTaskOrderHelper.Instance.ArrangedUpdate(taskOrders);
             return Result.GenError<Result>(Error.Success);
         }
 

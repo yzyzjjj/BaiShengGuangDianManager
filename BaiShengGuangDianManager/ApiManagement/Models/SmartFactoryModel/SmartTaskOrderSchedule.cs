@@ -612,25 +612,38 @@ namespace ApiManagement.Models.SmartFactoryModel
         public int Order { get; set; }
     }
 
-    public class SmartTaskOrderScheduleInfoResult1 : SmartTaskOrderScheduleInfoResultBase
+    public class SmartTaskOrderScheduleInfoAllResult : SmartTaskOrderScheduleInfoResultBase
     {
         /// <summary>
-        /// 投入
+        /// 目标投入
         /// </summary>
         public int Put { get; set; }
         /// <summary>
-        /// 已投入
+        /// 实际投入
+        /// </summary>
+        public int HavePut { get; set; }
+        /// <summary>
+        /// 目标产量
+        /// </summary>
+        public int Target { get; set; }
+        /// <summary>
+        /// 实际产量
+        /// </summary>
+        public int DoneTarget { get; set; }
+    }
+
+    public class SmartTaskOrderScheduleInfoResult1 : SmartTaskOrderScheduleInfoResultBase
+    {
+        /// <summary>
+        /// 目标投入
+        /// </summary>
+        public int Put { get; set; }
+        /// <summary>
+        /// 实际投入
         /// </summary>
         public int HavePut { get; set; }
     }
 
-    public class SmartTaskOrderScheduleInfoResult1Detail : SmartTaskOrderScheduleInfoResult1
-    {
-        /// <summary>
-        /// 标准流程id
-        /// </summary>
-        public List<SmartTaskOrderScheduleInfoResult11> Tasks { get; set; } = new List<SmartTaskOrderScheduleInfoResult11>();
-    }
     /// <summary>
     /// 投料详情
     /// </summary>

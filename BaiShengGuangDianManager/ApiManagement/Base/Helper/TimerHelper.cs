@@ -37,7 +37,7 @@ namespace ApiManagement.Base.Helper
             _totalTimer = new Timer(DoSthTest, null, 5000, 1000 * 10 * 1);
             Console.WriteLine("TimerHelper 调试模式已开启");
 #else
-            _totalTimer = new Timer(DoSth, null, 5000, 1000 * 10 * 1);
+            _totalTimer = new Timer(DoSth, null, 5000, 1000 * 60 * 1);
             Console.WriteLine("TimerHelper 发布模式已开启");
 #endif
         }
@@ -515,6 +515,7 @@ namespace ApiManagement.Base.Helper
                         //MaterialPurchaseStateEnum.中止,
                         MaterialPurchaseStateEnum.审核完成,
                         MaterialPurchaseStateEnum.开始采购,
+                        MaterialPurchaseStateEnum.仓库到货,
                         //MaterialPurchaseStateEnum.订单完成,
                     };
                     var departments =
@@ -532,6 +533,7 @@ namespace ApiManagement.Base.Helper
                         {
                             {"type", "getPurchase"},
                             {"department", department.Department},
+                            //{"id", (926 - 1).ToString()},
                             {"id", (department.ErpId - 1).ToString()},
                         });
                         if (f == "fail")
@@ -598,8 +600,22 @@ namespace ApiManagement.Base.Helper
                                             continue;
                                         }
 
+                                        p.goods = p.goods.Where(x => !x.f_wlpc.IsNullOrEmpty()).ToArray();
                                         var existPurchaseItems =
                                             havePurchaseItems.Where(x => x.PurchaseId == purchase.Id);
+                                        if (existPurchaseItems.Any(x => x.Name.IsNullOrEmpty()))
+                                        {
+                                            //删除
+                                            updatePurchaseItems.AddRange(existPurchaseItems.Where(x => x.Name.IsNullOrEmpty()).Select(z =>
+                                            {
+                                                z.ModifyId = 611;
+                                                z.MarkedDateTime = now;
+                                                z.MarkedDelete = true;
+                                                return z;
+                                            }));
+                                            existPurchaseItems = existPurchaseItems.Where(x => !x.Name.IsNullOrEmpty());
+                                        }
+
                                         var existPurchaseItemsStock = existPurchaseItems.Where(y => y.Stock == 0);
                                         if (purchase.State == MaterialPurchaseStateEnum.撤销 &&
                                             existPurchase.State != MaterialPurchaseStateEnum.撤销)
@@ -608,7 +624,7 @@ namespace ApiManagement.Base.Helper
                                             updatePurchaseItems.AddRange(existPurchaseItemsStock.Select(z =>
                                             //updatePurchaseItems.AddRange(existPurchaseItems.Select(z =>
                                             {
-                                                z.ModifyId = 579;
+                                                z.ModifyId = 627;
                                                 z.MarkedDateTime = now;
                                                 z.MarkedDelete = true;
                                                 return z;
@@ -626,14 +642,14 @@ namespace ApiManagement.Base.Helper
                                                 if (erpPurchaseItems.Any())
                                                 {
                                                     var wlCode = erpPurchaseItems.GroupBy(x => x.Code)
-                                                        .Select(y => y.Key);
+                                                        .Select(y => y.Key).Where(z => !z.IsNullOrEmpty());
 
                                                     //删除不存在的code
                                                     l = existPurchaseItems
                                                         .Where(x => wlCode.All(y => y != x.Code) && x.Stock != 0)
                                                         .Select(z =>
                                                         {
-                                                            z.ModifyId = 601;
+                                                            z.ModifyId = 652;
                                                             z.MarkedDateTime = now;
                                                             z.MarkedDelete = true;
                                                             return z;
@@ -642,11 +658,10 @@ namespace ApiManagement.Base.Helper
                                                     {
                                                         updatePurchaseItems.AddRange(l.Select(x =>
                                                         {
-                                                            x.CreateUserId = _createUserId + "608";
+                                                            x.ModifyId = 661;
                                                             return x;
                                                         }));
                                                     }
-
                                                     foreach (var code in wlCode)
                                                     {
                                                         var erpCodes = erpPurchaseItems.Where(x => x.Code == code);
@@ -684,7 +699,7 @@ namespace ApiManagement.Base.Helper
                                                                     //{
                                                                     if (ClassExtension.HaveChange(erpCode, myCode))
                                                                     {
-                                                                        erpCode.CreateUserId = _createUserId + "647";
+                                                                        erpCode.ModifyId = 702;
                                                                         updatePurchaseItems.Add(erpCode);
                                                                     }
 
@@ -697,7 +712,7 @@ namespace ApiManagement.Base.Helper
                                                                 }
                                                                 else
                                                                 {
-                                                                    erpCode.CreateUserId = _createUserId + "659";
+                                                                    erpCode.ModifyId = 715;
                                                                     addPurchaseItems.Add(erpCode);
                                                                 }
                                                             }
@@ -709,7 +724,7 @@ namespace ApiManagement.Base.Helper
                                                                 erpCode.Id = myCode.Id;
                                                                 if (ClassExtension.HaveChange(erpCode, myCode))
                                                                 {
-                                                                    erpCode.CreateUserId = _createUserId + "671";
+                                                                    erpCode.ModifyId = 728;
                                                                     updatePurchaseItems.Add(erpCode);
                                                                 }
                                                             }
@@ -729,7 +744,7 @@ namespace ApiManagement.Base.Helper
                                                         {
                                                             updatePurchaseItems.AddRange(l.Select(x =>
                                                             {
-                                                                x.CreateUserId = _createUserId + "689";
+                                                                x.ModifyId = 747;
                                                                 return x;
                                                             }));
                                                         }
@@ -742,7 +757,7 @@ namespace ApiManagement.Base.Helper
                                                 l = existPurchaseItemsStock
                                                     .Where(x => p.goods.All(y => y.f_id != x.ErpId)).Select(z =>
                                                     {
-                                                        z.ModifyId = 704;
+                                                        z.ModifyId = 760;
                                                         z.MarkedDateTime = now;
                                                         z.MarkedDelete = true;
                                                         return z;
@@ -751,7 +766,7 @@ namespace ApiManagement.Base.Helper
                                                 {
                                                     updatePurchaseItems.AddRange(l.Select(x =>
                                                     {
-                                                        x.CreateUserId = _createUserId + "710";
+                                                        x.ModifyId = 769;
                                                         return x;
                                                     }));
                                                 }
@@ -774,14 +789,14 @@ namespace ApiManagement.Base.Helper
                                                 {
                                                     var s = idChange.Select(z =>
                                                     {
-                                                        z.ModifyId = 734;
+                                                        z.ModifyId = 792;
                                                         z.MarkedDateTime = now;
                                                         z.MarkedDelete = true;
                                                         return z;
                                                     });
                                                     updatePurchaseItems.AddRange(s.Select(x =>
                                                     {
-                                                        x.CreateUserId = _createUserId + "727";
+                                                        x.ModifyId = 799;
                                                         return x;
                                                     }));
                                                 }
@@ -793,6 +808,7 @@ namespace ApiManagement.Base.Helper
                                                 {
                                                     var g = new MaterialPurchaseItem(purchase.Id, good, _createUserId,
                                                         now, _urlFile);
+                                                    g.ModifyId = 811;
                                                     var existGood =
                                                         existPurchaseItems.FirstOrDefault(x => x.ErpId == good.f_id);
                                                     var change = idChange.FirstOrDefault(x => x.Code == good.f_wlbm);
@@ -802,7 +818,7 @@ namespace ApiManagement.Base.Helper
                                                         g.PurchaseId = existGood.PurchaseId;
                                                         if (ClassExtension.HaveChange(g, existGood))
                                                         {
-                                                            g.CreateUserId = _createUserId + "745";
+                                                            g.ModifyId = 820;
                                                             updatePurchaseItems.Add(g);
                                                         }
 
@@ -820,7 +836,7 @@ namespace ApiManagement.Base.Helper
                                                                 });
                                                             }
 
-                                                            g.CreateUserId = _createUserId + "761";
+                                                            g.ModifyId = 839;
                                                             updatePurchaseItems.Add(g);
                                                         }
                                                     }
@@ -829,8 +845,12 @@ namespace ApiManagement.Base.Helper
                                                 //新增
                                                 l = p.goods.Where(x => existPurchaseItems.All(y => y.ErpId != x.f_id))
                                                     .Select(z =>
-                                                        new MaterialPurchaseItem(purchase.Id, z, _createUserId, now,
-                                                            _urlFile));
+                                                    {
+                                                        var g = new MaterialPurchaseItem(purchase.Id, z, _createUserId,
+                                                            now, _urlFile)
+                                                        { ModifyId = 850 };
+                                                        return g;
+                                                    });
                                                 if (l.Any())
                                                 {
                                                     if (idChange.Any())
@@ -853,7 +873,7 @@ namespace ApiManagement.Base.Helper
                                                                 }
                                                             }
 
-                                                            ll.CreateUserId = _createUserId + "790";
+                                                            ll.ModifyId = 871;
                                                             addPurchaseItems.Add(ll);
                                                         }
                                                     }
@@ -861,7 +881,7 @@ namespace ApiManagement.Base.Helper
                                                     {
                                                         addPurchaseItems.AddRange(l.Select(x =>
                                                         {
-                                                            x.CreateUserId = _createUserId + "798";
+                                                            x.ModifyId = 879;
                                                             return x;
                                                         }));
                                                     }
@@ -927,13 +947,17 @@ namespace ApiManagement.Base.Helper
 
                                         //新增
                                         var l = p.goods.Select(good =>
-                                            new MaterialPurchaseItem(purchase.Id, good, _createUserId + "3", now,
-                                                _urlFile));
+                                        {
+                                            var x = new MaterialPurchaseItem(purchase.Id, good, _createUserId, now,
+                                                _urlFile)
+                                            { ModifyId = 948 };
+                                            return x;
+                                        });
                                         if (l.Any())
                                         {
                                             addPurchaseItems.AddRange(l.Select(x =>
                                             {
-                                                x.CreateUserId = _createUserId + "863";
+                                                x.ModifyId = 955;
                                                 return x;
                                             }));
                                         }
@@ -1186,6 +1210,7 @@ namespace ApiManagement.Base.Helper
         }
 
         private static bool _isGetDayBalance = false;
+        private static bool _getDayBalanceRuning = false;
         /// <summary>
         /// 获取每日库存结存
         /// </summary>
@@ -1199,10 +1224,17 @@ namespace ApiManagement.Base.Helper
                 ServerConfig.RedisHelper.Remove(redisLock);
             }
 
+            if (_getDayBalanceRuning)
+            {
+                //ServerConfig.RedisHelper.SetExpireAt(redisLock, DateTime.Now.AddMinutes(10));
+                return;
+            }
+
             if (ServerConfig.RedisHelper.SetIfNotExist(redisLock, DateTime.Now.ToStr()))
             {
                 try
                 {
+                    _getDayBalanceRuning = true;
                     ServerConfig.RedisHelper.SetExpireAt(redisLock, DateTime.Now.AddMinutes(5 * 12));
                     var now = DateTime.Now;
                     if (!ServerConfig.RedisHelper.Exists(timeKey))
@@ -1220,10 +1252,10 @@ namespace ApiManagement.Base.Helper
                             "a.`Unit`, a.`Stock`, IFNULL(c.Number, 0) TodayNumber, a.`Price` TodayPrice, IFNULL(c.Number, 0) * a.`Price` TodayAmount FROM `material_bill` a JOIN (SELECT a.*, b.CategoryId, " +
                             "b.Category, b.NameId, b.`Name`, b.Supplier FROM `material_specification` a JOIN (SELECT a.*, b.`Name`, b.CategoryId, b.Category FROM `material_supplier` a JOIN (SELECT a.*, " +
                             "b.Category FROM `material_name` a JOIN `material_category` b ON a.CategoryId = b.Id) b ON a.NameId = b.Id) b ON a.SupplierId = b.Id) b ON a.SpecificationId = b.Id LEFT JOIN " +
-                            "`material_management` c ON a.Id = c.BillId JOIN `material_site` d ON a.SiteId = d.Id WHERE a.`MarkedDelete` = 0 AND IFNULL(c.Number, 0) > 0 ORDER BY a.Id;")
+                            "`material_management` c ON a.Id = c.BillId JOIN `material_site` d ON a.SiteId = d.Id WHERE IFNULL(c.Number, 0) > 0 ORDER BY a.Id;")
                         .ToList();
                     //"`material_management` c ON a.Id = c.BillId JOIN `material_site` d ON a.SiteId = d.Id WHERE a.`MarkedDelete` = 0 ORDER BY a.Id;").ToList();
-
+                    var bills = ServerConfig.ApiDb.Query<MaterialBill>("SELECT * FROM material_bill WHERE MarkedDelete = 0;");
                     //昨日单价数量总价
                     //var yesterdayMaterialStatistics = ServerConfig.ApiDb.Query<MaterialStatistic>(
                     //    "SELECT BillId, TodayNumber, TodayPrice, TodayAmount FROM `material_balance` WHERE Time = @Time ORDER BY BillId;",
@@ -1321,7 +1353,7 @@ namespace ApiManagement.Base.Helper
 
                     var yesterdayMaterialStatistics = ServerConfig.ApiDb.Query<MaterialStatistic>(
                         "SELECT * FROM (SELECT BillId, TodayNumber, TodayPrice, TodayAmount FROM `material_balance` WHERE Time < @Time ORDER BY Time DESC) a GROUP BY a.BillId;",
-                        new { Time = calTime });
+                        new { Time = calTime }, 60);
 
                     foreach (var statistic in materialStatistics)
                     {
@@ -1363,27 +1395,60 @@ namespace ApiManagement.Base.Helper
                     //    "SELECT BillId FROM `material_balance` WHERE Time = @Time AND TodayNumber + LastNumber + Increase + Consume + Increase + Consume + CorrectIn + CorrectCon + Correct != 0;",
                     //    new { Time = calTime });
 
-                    var valid = materialStatistics.Where(x => x.Valid());
-                    ServerConfig.ApiDb.Execute(
-                        "INSERT INTO `material_balance` (`Time`, `Code`, `BillId`, `CategoryId`, `Category`, `NameId`, `Name`, `SupplierId`, `Supplier`, `SpecificationId`, " +
-                        "`Specification`, `SiteId`, `Site`, `Unit`, `Stock`, `LastNumber`, `LastPrice`, `LastAmount`, `TodayNumber`, `TodayPrice`, " +
-                        "`TodayAmount`, `Increase`, `IncreaseAmount`, `Consume`, `ConsumeAmount`, `CorrectIn`, `CorrectInAmount`, `CorrectCon`, `CorrectConAmount`, " +
-                        "`Correct`, `CorrectAmount`) " +
-                        "VALUES (@Time, @Code, @BillId, @CategoryId, @Category, @NameId, @Name, @SupplierId, @Supplier, @SpecificationId, @Specification, " +
-                        "@SiteId, @Site, @Unit, @Stock, @LastNumber, @LastPrice, @LastAmount, @TodayNumber, @TodayPrice, " +
-                        "@TodayAmount, @Increase, @IncreaseAmount, @Consume, @ConsumeAmount, @CorrectIn, @CorrectInAmount, @CorrectCon, @CorrectConAmount, " +
-                        "@Correct, @CorrectAmount) " +
-                        "ON DUPLICATE KEY UPDATE " +
-                        "`Code` = @Code, `CategoryId` = @CategoryId, `Category` = @Category, `NameId` = @NameId, `Name` = @Name, `SupplierId` = @SupplierId, " +
-                        "`Supplier` = @Supplier, `SpecificationId` = @SpecificationId, `Specification` = @Specification, `SiteId` = @SiteId, `Site` = @Site, `Unit` = @Unit, " +
-                        "`Stock` = @Stock, `LastNumber` = @LastNumber, `LastPrice` = @LastPrice, `LastAmount` = @LastAmount, `TodayNumber` = @TodayNumber, " +
-                        "`TodayPrice` = @TodayPrice, `TodayAmount` = @TodayAmount, `Increase` = @Increase, `IncreaseAmount` = @IncreaseAmount, `Consume` = @Consume, " +
-                        "`ConsumeAmount` = @ConsumeAmount, `CorrectIn` = @CorrectIn, `CorrectInAmount` = @CorrectInAmount, `CorrectCon` = @CorrectCon, `CorrectConAmount` = @CorrectConAmount, " +
-                        "`Correct` = @Correct, `CorrectAmount` = @CorrectAmount", valid.Select(x =>
-                        {
-                            x.Time = calTime;
-                            return x;
-                        }));
+                    var valid = materialStatistics.Where(x => x.Valid() && bills.Any(y => y.Id == x.BillId)).Select(z =>
+                       {
+                           z.Time = calTime;
+                           return z;
+                       });
+                    var exist = ServerConfig.ApiDb.Query<MaterialStatistic>(
+                        "SELECT * FROM material_balance WHERE Time = @Time;", new { Time = calTime });
+                    var delete = exist.Where(x => valid.All(y => y.BillId != x.BillId));
+                    if (delete.Any())
+                    {
+                        ServerConfig.ApiDb.Execute("DELETE FROM material_balance WHERE Time = @Time AND BillId = @BillId;", delete);
+                    }
+                    var add = valid.Where(x => exist.All(y => y.BillId != x.BillId));
+                    if (add.Any())
+                    {
+                        ServerConfig.ApiDb.Execute(
+                            "INSERT INTO `material_balance` (`Time`, `Code`, `BillId`, `CategoryId`, `Category`, `NameId`, `Name`, `SupplierId`, `Supplier`, `SpecificationId`, " +
+                            "`Specification`, `SiteId`, `Site`, `Unit`, `Stock`, `LastNumber`, `LastPrice`, `LastAmount`, `TodayNumber`, `TodayPrice`, " +
+                            "`TodayAmount`, `Increase`, `IncreaseAmount`, `Consume`, `ConsumeAmount`, `CorrectIn`, `CorrectInAmount`, `CorrectCon`, `CorrectConAmount`, " +
+                            "`Correct`, `CorrectAmount`) " +
+                            "VALUES (@Time, @Code, @BillId, @CategoryId, @Category, @NameId, @Name, @SupplierId, @Supplier, @SpecificationId, @Specification, " +
+                            "@SiteId, @Site, @Unit, @Stock, @LastNumber, @LastPrice, @LastAmount, @TodayNumber, @TodayPrice, " +
+                            "@TodayAmount, @Increase, @IncreaseAmount, @Consume, @ConsumeAmount, @CorrectIn, @CorrectInAmount, @CorrectCon, @CorrectConAmount, " +
+                            "@Correct, @CorrectAmount);", add);
+                    }
+
+                    var update = valid.Where(x => exist.Any(y => y.BillId == x.BillId && ClassExtension.HaveChange(x, y)));
+                    if (update.Any())
+                    {
+                        ServerConfig.ApiDb.Execute(
+                            "UPDATE `material_balance` SET `Code` = @Code, `CategoryId` = @CategoryId, `Category` = @Category, `NameId` = @NameId, `Name` = @Name, " +
+                            "`SupplierId` = @SupplierId, `Supplier` = @Supplier, `SpecificationId` = @SpecificationId, `Specification` = @Specification, `SiteId` = @SiteId, " +
+                            "`Site` = @Site, `Unit` = @Unit, `Stock` = @Stock, `LastNumber` = @LastNumber, `LastPrice` = @LastPrice, `LastAmount` = @LastAmount, " +
+                            "`TodayNumber` = @TodayNumber, `TodayPrice` = @TodayPrice, `TodayAmount` = @TodayAmount, `Increase` = @Increase, `IncreaseAmount` = @IncreaseAmount, " +
+                            "`Consume` = @Consume, `ConsumeAmount` = @ConsumeAmount, `CorrectIn` = @CorrectIn, `CorrectInAmount` = @CorrectInAmount, `CorrectCon` = @CorrectCon, " +
+                            "`CorrectConAmount` = @CorrectConAmount, `Correct` = @Correct, `CorrectAmount` = @CorrectAmount WHERE `Time` = @Time AND `BillId` = @BillId;;", update);
+                    }
+
+                    //ServerConfig.ApiDb.Execute(
+                    //    "INSERT INTO `material_balance` (`Time`, `Code`, `BillId`, `CategoryId`, `Category`, `NameId`, `Name`, `SupplierId`, `Supplier`, `SpecificationId`, " +
+                    //    "`Specification`, `SiteId`, `Site`, `Unit`, `Stock`, `LastNumber`, `LastPrice`, `LastAmount`, `TodayNumber`, `TodayPrice`, " +
+                    //    "`TodayAmount`, `Increase`, `IncreaseAmount`, `Consume`, `ConsumeAmount`, `CorrectIn`, `CorrectInAmount`, `CorrectCon`, `CorrectConAmount`, " +
+                    //    "`Correct`, `CorrectAmount`) " +
+                    //    "VALUES (@Time, @Code, @BillId, @CategoryId, @Category, @NameId, @Name, @SupplierId, @Supplier, @SpecificationId, @Specification, " +
+                    //    "@SiteId, @Site, @Unit, @Stock, @LastNumber, @LastPrice, @LastAmount, @TodayNumber, @TodayPrice, " +
+                    //    "@TodayAmount, @Increase, @IncreaseAmount, @Consume, @ConsumeAmount, @CorrectIn, @CorrectInAmount, @CorrectCon, @CorrectConAmount, " +
+                    //    "@Correct, @CorrectAmount) " +
+                    //    "ON DUPLICATE KEY UPDATE " +
+                    //    "`Code` = @Code, `CategoryId` = @CategoryId, `Category` = @Category, `NameId` = @NameId, `Name` = @Name, `SupplierId` = @SupplierId, " +
+                    //    "`Supplier` = @Supplier, `SpecificationId` = @SpecificationId, `Specification` = @Specification, `SiteId` = @SiteId, `Site` = @Site, `Unit` = @Unit, " +
+                    //    "`Stock` = @Stock, `LastNumber` = @LastNumber, `LastPrice` = @LastPrice, `LastAmount` = @LastAmount, `TodayNumber` = @TodayNumber, " +
+                    //    "`TodayPrice` = @TodayPrice, `TodayAmount` = @TodayAmount, `Increase` = @Increase, `IncreaseAmount` = @IncreaseAmount, `Consume` = @Consume, " +
+                    //    "`ConsumeAmount` = @ConsumeAmount, `CorrectIn` = @CorrectIn, `CorrectInAmount` = @CorrectInAmount, `CorrectCon` = @CorrectCon, `CorrectConAmount` = @CorrectConAmount, " +
+                    //    "`Correct` = @Correct, `CorrectAmount` = @CorrectAmount", valid);
 
                     //ServerConfig.ApiDb.Execute(
                     //    "UPDATE `material_balance` SET `LastNumber` = @TodayNumber, `LastPrice` = @TodayPrice, `LastAmount` = @TodayAmount WHERE `Time` = @Time AND `BillId` = @BillId;",
@@ -1408,6 +1473,7 @@ namespace ApiManagement.Base.Helper
 
                 ServerConfig.RedisHelper.Remove(redisLock);
                 _isGetDayBalance = true;
+                _getDayBalanceRuning = false;
             }
         }
 
@@ -1435,7 +1501,7 @@ namespace ApiManagement.Base.Helper
             }
         }
 
-        private static bool _runing = false;
+        private static bool _dayBalanceRecoveryRuning = false;
 
         /// <summary>
         /// 日库存结存老数据恢复
@@ -1448,34 +1514,34 @@ namespace ApiManagement.Base.Helper
 
             var _pre1 = "GetDayBalance";
             var timeKey = $"{_pre1}:Time";
-            if (first)
-            {
-                ServerConfig.RedisHelper.Remove(redisLock);
-            }
+            //if (first)
+            //{
+            //    ServerConfig.RedisHelper.Remove(redisLock);
+            //}
 
             if (!_isGetDayBalance)
             {
                 return;
             }
+            if (_dayBalanceRecoveryRuning)
+            {
+                //ServerConfig.RedisHelper.SetExpireAt(redisLock, DateTime.Now.AddMinutes(10));
+                return;
+            }
+
             if (ServerConfig.RedisHelper.SetIfNotExist(redisLock, DateTime.Now.ToStr()))
             {
                 try
                 {
-                    if (_runing)
-                    {
-                        ServerConfig.RedisHelper.SetExpireAt(redisLock, DateTime.Now.AddMinutes(10));
-                        return;
-                    }
-
-                    _runing = true;
-                    ServerConfig.RedisHelper.SetExpireAt(redisLock, DateTime.Now.AddMinutes(5 * 12));
+                    _dayBalanceRecoveryRuning = true;
+                    //ServerConfig.RedisHelper.SetExpireAt(redisLock, DateTime.Now.AddMinutes(5 * 12));
 
                     var minLogDay = ServerConfig.ApiDb.Query<DateTime>("SELECT MIN(Time) FROM `material_log`;")
                         .FirstOrDefault();
                     if (minLogDay == default(DateTime))
                     {
                         ServerConfig.RedisHelper.Remove(redisLock);
-                        _runing = false;
+                        _dayBalanceRecoveryRuning = false;
                         return;
                     }
 
@@ -1484,7 +1550,7 @@ namespace ApiManagement.Base.Helper
                     if (!balanceDays.Any())
                     {
                         ServerConfig.RedisHelper.Remove(redisLock);
-                        _runing = false;
+                        _dayBalanceRecoveryRuning = false;
                         return;
                     }
                     var maxBalanceDay = balanceDays.LastOrDefault().Date;
@@ -1521,6 +1587,7 @@ namespace ApiManagement.Base.Helper
                         }
                         timeDic = timeDic.Where(x => x.Key <= rTime).ToDictionary(y => y.Key, y => y.Key == rTime ? 1 : 0);
                     }
+                    var bills = ServerConfig.ApiDb.Query<MaterialBill>("SELECT * FROM material_bill WHERE MarkedDelete = 0;");
                     var materialStatistics = new List<MaterialStatistic>();
                     for (var i = 0; i < timeDic.Count; i++)
                     {
@@ -1671,14 +1738,18 @@ namespace ApiManagement.Base.Helper
                             //    statistic.LastAmount =
                             //        statistic.TodayAmount - statistic.IncreaseAmount + statistic.ConsumeAmount;
                             //}
-                            var valid = materialStatistics.Where(x => x.Valid());
+
+                            var valid = materialStatistics.Where(x => x.Valid() && bills.Any(y => y.Id == x.BillId)).Select(z =>
+                            {
+                                z.Time = t;
+                                return z;
+                            });
                             var exist = ServerConfig.ApiDb.Query<MaterialStatistic>(
                                 "SELECT * FROM material_balance WHERE Time = @Time;", new { Time = t });
                             var delete = exist.Where(x => valid.All(y => y.BillId != x.BillId));
                             if (delete.Any())
                             {
-                                ServerConfig.ApiDb.Execute("DELETE FROM material_balance WHERE Time = @Time AND BillId = @BillId;",
-                                    delete.Select(x => new { Time = t, x.BillId }));
+                                ServerConfig.ApiDb.Execute("DELETE FROM material_balance WHERE Time = @Time AND BillId = @BillId;", delete);
                             }
                             var add = valid.Where(x => exist.All(y => y.BillId != x.BillId));
                             if (add.Any())
@@ -1724,9 +1795,10 @@ namespace ApiManagement.Base.Helper
                 {
                     Log.Error(e);
                 }
-                ServerConfig.RedisHelper.Remove(redisLock);
+                //ServerConfig.RedisHelper.Remove(redisLock);
                 ServerConfig.RedisHelper.SetExpireAt(recoveryTime, DateTime.Now.AddMinutes(5));
-                _runing = false;
+                ServerConfig.RedisHelper.SetForever(redisLock, $"{ DateTime.Now.ToStr()} Done");
+                _dayBalanceRecoveryRuning = false;
             }
         }
 
@@ -1737,6 +1809,10 @@ namespace ApiManagement.Base.Helper
         {
             var _pre = "MaterialRecovery";
             var redisLock = $"{_pre}:Lock";
+            if (first)
+            {
+                ServerConfig.RedisHelper.Remove(redisLock);
+            }
             if (ServerConfig.RedisHelper.SetIfNotExist(redisLock, DateTime.Now.ToStr()))
             {
                 try
@@ -1747,7 +1823,11 @@ namespace ApiManagement.Base.Helper
                         return;
                     }
 
-                    var oldLogs = ServerConfig.ApiDb.Query<MaterialLog>("SELECT * FROM `material_log` ORDER BY Time;");
+                    var oldLogs = logs.Select(x =>
+                    {
+                        var log = x.ToJSON();
+                        return JsonConvert.DeserializeObject<MaterialLog>(log);
+                    });
                     var oldMaterial = ServerConfig.ApiDb.Query<MaterialManagement>("SELECT * FROM `material_management`;");
                     var newMaterial = oldMaterial.ToDictionary(x => x.BillId, x => new MaterialManagement
                     {
@@ -1814,7 +1894,7 @@ namespace ApiManagement.Base.Helper
                 {
                     Log.Error(e);
                 }
-                ServerConfig.RedisHelper.Remove(redisLock);
+                ServerConfig.RedisHelper.SetExpireAt(redisLock, DateTime.Now.AddMinutes(60));
             }
         }
 

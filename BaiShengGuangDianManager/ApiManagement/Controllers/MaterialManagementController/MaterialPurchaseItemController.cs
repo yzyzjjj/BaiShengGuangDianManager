@@ -201,8 +201,15 @@ namespace ApiManagement.Controllers.MaterialManagementController
                 Purpose = $"Erp采购-{purchases.FirstOrDefault(y => y.Id == x.PurchaseId)?.ErpId.ToString() ?? ""}",
             }).ToList();
 
+            if (erpBill.Any(x => x.Code.IsNullOrEmpty()))
+            {
+                return Result.GenError<Result>(Error.MaterialPurchaseItemCodeNotEmpty);
+            }
             var allBill = ServerConfig.ApiDb.Query<MaterialManagementErp>(
-                "SELECT a.*, IFNULL(b.Number, 0) Number, IF(ISNULL(b.Number), 0, 1) Exist, b.Id MId, b.BillId FROM `material_bill` a LEFT JOIN `material_management` b ON a.Id = b.BillId WHERE a.MarkedDelete = 0;");
+                "SELECT a.*, b.CategoryId, b.Category, b.NameId, b.`Name`, b.SupplierId, b.Supplier, b.Specification, IFNULL(c.Number, 0) Number, IF (ISNULL(c.Number), 0, 1) Exist,  c.Id MId,  " +
+                "c.BillId FROM `material_bill` a JOIN (SELECT a.*, b.CategoryId, b.Category, b.NameId, b.`Name`, b.Supplier FROM `material_specification` a JOIN (SELECT a.*, b.`Name`, " +
+                "b.CategoryId, b.Category FROM `material_supplier` a JOIN (SELECT a.*, b.Category FROM `material_name` a JOIN `material_category` b ON a.CategoryId = b.Id) b ON a.NameId = b.Id) " +
+                "b ON a.SupplierId = b.Id) b ON a.SpecificationId = b.Id LEFT JOIN `material_management` c ON a.Id = c.BillId WHERE a.`MarkedDelete` = 0;");
 
             foreach (var bill in erpBill)
             {
@@ -215,6 +222,11 @@ namespace ApiManagement.Controllers.MaterialManagementController
                 if (b != null)
                 {
                     bill.BillId = b.BillId;
+                    bill.SiteId = b.SiteId;
+                    bill.SpecificationId = b.SpecificationId;
+                    bill.SupplierId = b.SupplierId;
+                    bill.NameId = b.NameId;
+                    bill.CategoryId = b.CategoryId;
                 }
             }
 
@@ -240,34 +252,6 @@ namespace ApiManagement.Controllers.MaterialManagementController
                                 {
                                     bill.SiteId = same.Id;
                                 }
-                                //for (var i = 0; i < erpBill.Count(); i++)
-                                //foreach (var bill in materialBills.Where(x => x.Site == same.Site))
-                                //{
-                                //    var bill = erpBill[i];
-                                //    if (bill.Site == same.Site)
-                                //    {
-                                //        bill.SiteId = same.Id;
-                                //        erpBill[i].SiteId = same.Id;
-                                //    }
-                                //}
-
-
-                                //var list = erpBill.Where(x => x.Site == same.Site);
-                                ////foreach (var bill in materialBills.Where(x => x.Site == same.Site))
-                                //for (var i = 0; i < erpBill.Count(); i++)
-                                ////foreach (var bill in list)
-                                //{
-                                //    list.ElementAt(i).SiteId = same.Id;
-                                //}
-                                //for (var i = 0; i < erpBill.Count(); i++)
-                                //    //foreach (var bill in materialBills.Where(x => x.Site == same.Site))
-                                //{
-                                //    var bill = materialBills.ElementAt(i);
-                                //    if (bill.Site == same.Site)
-                                //    {
-                                //        bill.SiteId = same.Id;
-                                //    }
-                                //}
                             }
                         }
                         if (allNewSite.Any())
@@ -476,24 +460,6 @@ namespace ApiManagement.Controllers.MaterialManagementController
 
                     #endregion
 
-                    foreach (var bill in materialBills)
-                    {
-                        var eBill = allBill.FirstOrDefault(x => x.SpecificationId == bill.SpecificationId && x.SiteId == bill.SiteId && x.Price == bill.Price);
-                        if (eBill != null)
-                        {
-                            bill.Code = eBill.Code;
-                            bill.BillId = eBill.Id;
-                        }
-                    }
-                    foreach (var bill in materialBills.Where(x => x.BillId == 0))
-                    {
-                        var eBill = allBill.FirstOrDefault(x => x.SpecificationId == bill.SpecificationId && x.SiteId == bill.SiteId && x.Price == bill.Price && x.Code == bill.Code);
-                        if (eBill != null)
-                        {
-                            bill.BillId = eBill.Id;
-                        }
-                    }
-
                     #region 新编号
                     var notExistCodes = materialBills.GroupBy(x => new { x.SpecificationId, x.Price, x.SiteId });
                     var newCodes = new List<string>();
@@ -522,28 +488,27 @@ namespace ApiManagement.Controllers.MaterialManagementController
                         }
                     }
                     #endregion
-                }
-
-                materialBills = erpBill.Where(x => x.BillId == 0);
-                if (materialBills.Any())
-                {
-                    foreach (var materialBill in materialBills)
+                    //if (materialBills.Any(x => x.BillId == 0))
                     {
-                        materialBill.CreateUserId = createUserId;
-                        materialBill.Remark = materialBill.Remark ?? "";
-                        materialBill.Images = materialBill.Images ?? "[]";
+                        foreach (var materialBill in materialBills)
+                        {
+                            materialBill.CreateUserId = createUserId;
+                            materialBill.Remark = materialBill.Remark ?? "";
+                            materialBill.Images = materialBill.Images ?? "[]";
+                        }
+                        ServerConfig.ApiDb.Execute(
+                            "INSERT INTO material_bill (`CreateUserId`, `SpecificationId`, `SiteId`, `Code`, `Unit`, `Price`, `Stock`, `Images`, `Remark`) " +
+                            "VALUES (@CreateUserId, @SpecificationId, @SiteId, @Code, @Unit, @Price, @Stock, @Images, @Remark);",
+                            materialBills);
                     }
-                    ServerConfig.ApiDb.Execute(
-                        "INSERT INTO material_bill (`CreateUserId`, `SpecificationId`, `SiteId`, `Code`, `Unit`, `Price`, `Stock`, `Images`, `Remark`) " +
-                        "VALUES (@CreateUserId, @SpecificationId, @SiteId, @Code, @Unit, @Price, @Stock, @Images, @Remark);",
-                        materialBills);
                 }
 
                 var billId_0 = erpBill.Where(x => x.BillId == 0);
                 if (billId_0.Any())
                 {
                     allBill = ServerConfig.ApiDb.Query<MaterialManagementErp>(
-                        "SELECT a.*, IFNULL(b.Number, 0) Number, IF(ISNULL(b.Number), 0, 1) Exist FROM `material_bill` a LEFT JOIN `material_management` b ON a.Id = b.BillId WHERE a.`Code` IN @Code AND a.MarkedDelete = 0;",
+                        "SELECT a.*, IFNULL(b.Number, 0) Number, IF (ISNULL(b.Number), 0, 1) Exist,  b.Id MId, b.BillId FROM `material_bill` a " +
+                        "LEFT JOIN `material_management` b ON a.Id = b.BillId WHERE a.`Code` IN @Code AND a.MarkedDelete = 0;",
                             new { Code = erpBill.Select(x => x.Code) });
                     foreach (var bill in billId_0)
                     {
@@ -565,7 +530,7 @@ namespace ApiManagement.Controllers.MaterialManagementController
                 foreach (var bill in existBill)
                 {
                     bill.OldNumber = bill.Number;
-                    bill.Number += erpBill.Where(x => x.BillId == bill.BillId).Sum(y => y.Number);
+                    bill.Number += erpBill.Where(x => x.BillId == bill.Id).Sum(y => y.Number);
                     bill.InTime = markedDateTime;
                 }
                 ServerConfig.ApiDb.Execute("UPDATE material_management SET `InTime` = @InTime, `Number` = @Number WHERE `Id` = @MId;", existBill);
@@ -604,6 +569,7 @@ namespace ApiManagement.Controllers.MaterialManagementController
                 if (oldMaterialPurchaseItem != null)
                 {
                     oldMaterialPurchaseItem.BillId = eBill.BillId;
+                    oldMaterialPurchaseItem.ThisCode = eBill.Code;
                 }
             }
             logs.AddRange(erpBill.Select(x => new MaterialLog
@@ -643,7 +609,7 @@ namespace ApiManagement.Controllers.MaterialManagementController
             #endregion
 
             ServerConfig.ApiDb.Execute(
-                "UPDATE `material_purchase_item` SET `MarkedDateTime` = @MarkedDateTime, `Stock` = @Stock, `BillId` = @BillId WHERE `Id` = @Id;", oldMaterialPurchaseItems);
+                "UPDATE `material_purchase_item` SET `MarkedDateTime` = @MarkedDateTime, `Stock` = @Stock, `BillId` = @BillId, `ThisCode` = @ThisCode WHERE `Id` = @Id;", oldMaterialPurchaseItems);
             return Result.GenError<Result>(Error.Success);
         }
 

@@ -16,6 +16,7 @@ namespace ApiManagement.Models.MaterialManagementModel
         仓库到货,
         订单完成,
         撤销,
+        已入库,
     }
     public enum MaterialPurchasePriorityEnum
     {
@@ -275,6 +276,10 @@ namespace ApiManagement.Models.MaterialManagementModel
         /// </summary>
         [IgnoreChange]
         public int BillId { get; set; }
+        /// <summary>
+        /// 入库编码
+        /// </summary>
+        public string ThisCode { get; set; }
         public bool IsSame(MaterialPurchaseItem materialPurchase)
         {
             return Code == materialPurchase.Code

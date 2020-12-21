@@ -38,6 +38,14 @@ namespace ApiManagement.Models.SmartFactoryModel
         #endregion
 
         #region Update
+
+        public void ArrangedUpdate(IEnumerable<SmartTaskOrder> taskOrders)
+        {
+            ServerConfig.ApiDb.Execute("UPDATE `t_task_order` SET `MarkedDateTime` = @MarkedDateTime, `LevelId` = @LevelId, " +
+                                       "`StartTime` = IF(@StartTime = '0001-01-01 00:00:00', `StartTime`, @StartTime), " +
+                                       "`EndTime` = IF(@EndTime = '0001-01-01 00:00:00', `EndTime`, @EndTime) WHERE `Id` = @Id;", taskOrders);
+
+        }
         public void Arrange(IEnumerable<SmartTaskOrder> taskOrders)
         {
             ServerConfig.ApiDb.Execute("UPDATE `t_task_order` SET `MarkedDateTime` = @MarkedDateTime, Arranged = 1, LevelId = 1" +
