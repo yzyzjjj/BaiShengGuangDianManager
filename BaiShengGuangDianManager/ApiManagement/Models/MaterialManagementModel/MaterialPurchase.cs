@@ -279,6 +279,7 @@ namespace ApiManagement.Models.MaterialManagementModel
         /// <summary>
         /// 入库编码
         /// </summary>
+        [IgnoreChange]
         public string ThisCode { get; set; }
         public bool IsSame(MaterialPurchaseItem materialPurchase)
         {
