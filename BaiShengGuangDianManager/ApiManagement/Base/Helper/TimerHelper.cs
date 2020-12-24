@@ -15,6 +15,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading;
+using System.Threading.Tasks;
 using System.Web;
 
 namespace ApiManagement.Base.Helper
@@ -26,20 +27,50 @@ namespace ApiManagement.Base.Helper
         private static string _urlFile = "http://192.168.1.100/lc/uploads/";
         private static string _createUserId = "ErpSystem";
         private static Timer _totalTimer;
-
+        private static CancellationTokenSource cts = new CancellationTokenSource();
         public static void Init()
         {
             if (!ServerConfig.RedisHelper.Exists(Debug))
             {
                 ServerConfig.RedisHelper.SetForever(Debug, 0);
             }
+
+            Task.Run(async () =>
+            {
+                while (true)
+                {
+                    if (cts.IsCancellationRequested)
+                    {
+                        break;
+                    }
+                    try
+                    {
 #if DEBUG
-            _totalTimer = new Timer(DoSthTest, null, 5000, 1000 * 10 * 1);
-            Console.WriteLine("TimerHelper 调试模式已开启");
+                        Console.WriteLine($"{DateTime.Now.ToStr()}:TimerHelper 调试模式已开启");
+                        await Task.Delay(1000 * 5, cts.Token);
+                        DoSthTest(cts);
+                        //需要.net4.5的支持
+                        await Task.Delay(1000 * 10, cts.Token);
 #else
-            _totalTimer = new Timer(DoSth, null, 5000, 1000 * 60 * 1);
-            Console.WriteLine("TimerHelper 发布模式已开启");
+                        Console.WriteLine($"{DateTime.Now.ToStr()}:TimerHelper 发布模式已开启");
+                        await Task.Delay(1000 * 5, cts.Token);
+                        DoSth(cts);
+                        await Task.Delay(1000 * 60, cts.Token);
 #endif
+                    }
+                    catch (TaskCanceledException ex)
+                    {
+                        Log.Error(ex);
+                    }
+                }
+            });
+//#if DEBUG
+//            _totalTimer = new Timer(DoSthTest, null, 5000, 1000 * 10 * 1);
+//            Console.WriteLine("TimerHelper 调试模式已开启");
+//#else
+//            _totalTimer = new Timer(DoSth, null, 5000, 1000 * 60 * 1);
+//            Console.WriteLine("TimerHelper 发布模式已开启");
+//#endif
         }
 
         private static void DoSth(object state)
@@ -51,7 +82,7 @@ namespace ApiManagement.Base.Helper
                 return;
             }
 #endif
-            Log.Debug("GetErpDepartment 发布模式已开启");
+            //Log.Debug("GetErpDepartment 发布模式已开启");
             GetErpDepartment();
             //Log.Debug("GetErpPurchase 发布模式已开启");
             GetErpPurchase();
@@ -86,23 +117,23 @@ namespace ApiManagement.Base.Helper
                 return;
             }
 #endif
-            //Log.Debug("GetErpDepartment 调试模式已开启");
+            //Console.WriteLine("GetErpDepartment 调试模式已开启");
             GetErpDepartment();
-            //Log.Debug("GetErpPurchase 调试模式已开启");
+            //Console.WriteLine("GetErpPurchase 调试模式已开启");
             GetErpPurchase();
-            //Log.Debug("GetErpValuer 调试模式已开启");
+            //Console.WriteLine("GetErpValuer 调试模式已开启");
             GetErpValuer();
-            //Log.Debug("CheckSpotCheckDevice 调试模式已开启");
+            //Console.WriteLine("CheckSpotCheckDevice 调试模式已开启");
             CheckSpotCheckDevice();
-            //Log.Debug("CheckManufacturePlan 调试模式已开启");
+            //Console.WriteLine("CheckManufacturePlan 调试模式已开启");
             CheckManufacturePlan();
-            //Log.Debug("Check_6sItem 调试模式已开启");
+            //Console.WriteLine("Check_6sItem 调试模式已开启");
             Check_6sItem();
-            //Log.Debug("DayBalanceRecovery 调试模式已开启");
+            //Console.WriteLine("DayBalanceRecovery 调试模式已开启");
             DayBalanceRecovery();
-            //Log.Debug("GetDayBalance 调试模式已开启");
+            //Console.WriteLine("GetDayBalance 调试模式已开启");
             GetDayBalance();
-            //Log.Debug("MaterialRecovery 调试模式已开启");
+            //Console.WriteLine("MaterialRecovery 调试模式已开启");
             MaterialRecovery();
             AccountHelper.CheckAccount();
             MaintainerSchedule();
@@ -1015,7 +1046,7 @@ namespace ApiManagement.Base.Helper
                             "VALUES (@CreateUserId, @MarkedDateTime, @Time, @IsErp, @ErpId, @PurchaseId, @Code, @Class, @Category, @Name, @Supplier, @SupplierFull, @Specification, @Number, @Unit, @Remark, @Purchaser, @PurchasingCompany, @Order, @EstimatedTime, @ArrivalTime, @File, @FileUrl, @IsInspection, @Currency, @Payment, @Transaction, @Invoice, @TaxPrice, @TaxAmount, @Price, @Stock, @BillId);",
                             addPurchaseItems);
                     }
-                    Console.WriteLine($"GetErpPurchase: {DateTime.Now.ToDateStr()}, updateBill: {updateMaterialBill.Count()},  updateItem: {updatePurchaseItems.Count()},  add: {addPurchaseItems.Count()}");
+                    Console.WriteLine($"采购管理: updateBill: {updateMaterialBill.Count()},  updateItem: {updatePurchaseItems.Count()},  add: {addPurchaseItems.Count()}");
                 }
                 catch (Exception e)
                 {
@@ -1392,15 +1423,17 @@ namespace ApiManagement.Base.Helper
                        {
                            z.Time = calTime;
                            return z;
-                       });
+                       }).ToList();
                     var exist = ServerConfig.ApiDb.Query<MaterialStatistic>(
                         "SELECT * FROM material_balance WHERE Time = @Time;", new { Time = calTime });
                     var delete = exist.Where(x => valid.All(y => y.BillId != x.BillId));
+                    var add = valid.Where(x => exist.All(y => y.BillId != x.BillId));
+                    var update = valid.Where(x => exist.Any(y => y.BillId == x.BillId && ClassExtension.HaveChange(x, y)));
+                    Console.WriteLine($"更新物料报表:  all: {valid.Count},  delete: {delete.Count()},  add: {add.Count()},  update: {update.Count()}");
                     if (delete.Any())
                     {
                         ServerConfig.ApiDb.Execute("DELETE FROM material_balance WHERE Time = @Time AND BillId = @BillId;", delete);
                     }
-                    var add = valid.Where(x => exist.All(y => y.BillId != x.BillId));
                     if (add.Any())
                     {
                         ServerConfig.ApiDb.Execute(
@@ -1414,7 +1447,6 @@ namespace ApiManagement.Base.Helper
                             "@Correct, @CorrectAmount);", add);
                     }
 
-                    var update = valid.Where(x => exist.Any(y => y.BillId == x.BillId && ClassExtension.HaveChange(x, y)));
                     if (update.Any())
                     {
                         ServerConfig.ApiDb.Execute(
@@ -1425,14 +1457,13 @@ namespace ApiManagement.Base.Helper
                             "`Consume` = @Consume, `ConsumeAmount` = @ConsumeAmount, `CorrectIn` = @CorrectIn, `CorrectInAmount` = @CorrectInAmount, `CorrectCon` = @CorrectCon, " +
                             "`CorrectConAmount` = @CorrectConAmount, `Correct` = @Correct, `CorrectAmount` = @CorrectAmount WHERE `Time` = @Time AND `BillId` = @BillId;;", update);
                     }
-                    Console.WriteLine($"{calTime.ToDateStr()},  all: {valid.Count()},  delete: {delete.Count()},  add: {add.Count()},  update: {update.Count()}");
 
                     if (!now.InSameDay(calTime))
                     {
                         calTime = now.Date;
                     }
 
-                    ServerConfig.RedisHelper.SetForever(timeKey, now.ToStr());
+                    ServerConfig.RedisHelper.SetForever(timeKey, calTime.ToStr());
                 }
                 catch (Exception e)
                 {
@@ -1560,9 +1591,6 @@ namespace ApiManagement.Base.Helper
                     for (var i = 0; i < timeDic.Count; i++)
                     {
                         var time = timeDic.ElementAt(i);
-                        //}
-                        //foreach (var time in timeDic)
-                        //{
                         if (time.Value == 0)
                         {
                             var t = time.Key;
@@ -1572,8 +1600,6 @@ namespace ApiManagement.Base.Helper
                                 continue;
                             }
                             materialStatistics.Clear();
-                            //var tomorrowStatistics = ServerConfig.ApiDb.Query<MaterialStatistic>(
-                            //    "SELECT * FROM `material_balance` WHERE Time = @tomorrow", new { tomorrow }).ToList();
 
                             var tomorrowStatistics = ServerConfig.ApiDb.Query<MaterialStatistic>(
                                 "SELECT * FROM (SELECT * FROM `material_balance` WHERE Time > @Time ORDER BY Time) a GROUP BY a.BillId;",
@@ -1600,7 +1626,6 @@ namespace ApiManagement.Base.Helper
                                    Time1 = t.DayBeginTime(),
                                    Time2 = t.DayEndTime(),
                                });
-                            //"SELECT a.BillId, SUM(IF(a.Type = 1, a.Number, 0)) Increase,  SUM(IF(a.Type = 1, a.Number, 0)) * b.Price IncreaseAmount,  SUM(IF(a.Type = 2, a.Number, 0)) Consume, SUM(IF(a.Type = 2, a.Number, 0)) * b.Price ConsumeAmount, SUM(IF(a.Type = 3 AND `Mode` = 0, a.Number, 0)) CorrectIn,  SUM(IF(a.Type = 3 AND `Mode` = 0, a.Number, 0)) * b.Price CorrectInAmount, SUM(IF(a.Type = 3 AND `Mode` = 1, a.Number, 0)) CorrectCon,  SUM(IF(a.Type = 3 AND `Mode` = 1, a.Number, 0)) * b.Price CorrectConAmount, SUM(IF(a.Type = 3, a.Number, 0)) Correct,  SUM(IF(a.Type = 3, a.Number, 0)) * b.Price CorrectAmount FROM material_log a JOIN material_bill b ON a.BillId = b.Id WHERE DATE(Time) = @Time GROUP BY a.BillId;", new { Time = lastDay });
                             notExist = todayMaterialStatistics.Where(x => materialStatistics.All(y => y.BillId != x.BillId)).Select(z => z.BillId);
                             if (notExist.Any())
                             {
@@ -1632,12 +1657,7 @@ namespace ApiManagement.Base.Helper
                                         bill.CorrectAmount = ne.Correct * bill.TodayPrice;
                                     }
                                 }
-
-                                //var tomorrowMaterialStatistics = ServerConfig.ApiDb.Query<MaterialStatistic>(
-                                //    "SELECT * FROM (SELECT BillId, TodayNumber, TodayPrice, TodayAmount FROM `material_balance` WHERE Time > @Time ORDER BY Time) a GROUP BY a.BillId;",
-                                //    new { Time = t });
                             }
-
 
                             foreach (var statistic in materialStatistics)
                             {
@@ -1649,7 +1669,6 @@ namespace ApiManagement.Base.Helper
                             {
                                 Time1 = t.DayBeginTime(),
                                 Time2 = t.DayEndTime(),
-                                //Time2 = tomorrow.InSameDay(calTime) && tomorrow.DayEndTime() > calTime ? calTime : tomorrow.DayEndTime(),
                             });
 
                             notExist = todayLogs.Where(x => materialStatistics.All(y => y.BillId != x.BillId)).Select(z => z.BillId);
@@ -1698,28 +1717,22 @@ namespace ApiManagement.Base.Helper
                                 }
                             }
 
-                            //foreach (var statistic in materialStatistics)
-                            //{
-                            //    statistic.LastNumber =
-                            //        statistic.TodayNumber - statistic.Increase + statistic.Consume;
-                            //    statistic.LastPrice = statistic.TodayPrice;
-                            //    statistic.LastAmount =
-                            //        statistic.TodayAmount - statistic.IncreaseAmount + statistic.ConsumeAmount;
-                            //}
-
                             var valid = materialStatistics.Where(x => x.Valid() && bills.Any(y => y.Id == x.BillId)).Select(z =>
                             {
                                 z.Time = t;
                                 return z;
-                            });
+                            }).ToList();
                             var exist = ServerConfig.ApiDb.Query<MaterialStatistic>(
                                 "SELECT * FROM material_balance WHERE Time = @Time;", new { Time = t });
                             var delete = exist.Where(x => valid.All(y => y.BillId != x.BillId));
+                            var add = valid.Where(x => exist.All(y => y.BillId != x.BillId));
+                            var update = valid.Where(x => exist.Any(y => y.BillId == x.BillId && ClassExtension.HaveChange(x, y)));
+                            Console.WriteLine($"日库存结存老数据恢复: time: {t.ToDateStr()},  all: {valid.Count()},  delete: {delete.Count()},  add: {add.Count()},  update: {update.Count()}");
+
                             if (delete.Any())
                             {
                                 ServerConfig.ApiDb.Execute("DELETE FROM material_balance WHERE Time = @Time AND BillId = @BillId;", delete);
                             }
-                            var add = valid.Where(x => exist.All(y => y.BillId != x.BillId));
                             if (add.Any())
                             {
                                 ServerConfig.ApiDb.Execute(
@@ -1733,7 +1746,6 @@ namespace ApiManagement.Base.Helper
                                     "@Correct, @CorrectAmount);", add);
                             }
 
-                            var update = valid.Where(x => exist.Any(y => y.BillId == x.BillId && ClassExtension.HaveChange(x, y)));
                             if (update.Any())
                             {
                                 ServerConfig.ApiDb.Execute(
@@ -1744,20 +1756,10 @@ namespace ApiManagement.Base.Helper
                                     "`Consume` = @Consume, `ConsumeAmount` = @ConsumeAmount, `CorrectIn` = @CorrectIn, `CorrectInAmount` = @CorrectInAmount, `CorrectCon` = @CorrectCon, " +
                                     "`CorrectConAmount` = @CorrectConAmount, `Correct` = @Correct, `CorrectAmount` = @CorrectAmount WHERE `Time` = @Time AND `BillId` = @BillId;;", update);
                             }
-                            Console.WriteLine($"{t.ToDateStr()},  all: {valid.Count()},  delete: {delete.Count()},  add: {add.Count()},  update: {update.Count()}");
-
-                            //ServerConfig.ApiDb.Execute(
-                            //    "UPDATE `material_balance` SET `LastNumber` = @TodayNumber, `LastPrice` = @TodayPrice, `LastAmount` = @TodayAmount WHERE `Time` = @Time AND `BillId` = @BillId;",
-                            //    materialStatistics.Select(x =>
-                            //    {
-                            //        x.Time = tomorrow;
-                            //        return x;
-                            //    }));
                             timeDic[t] = 1;
                         }
                         ServerConfig.RedisHelper.SetForever(recoveryTime, time.Key.ToDateStr());
                     }
-                    //ServerConfig.ApiDb.Execute("DELETE FROM `material_balance` WHERE TodayNumber + LastNumber + Increase + Consume + Increase + Consume + CorrectIn + CorrectCon + Correct = 0;");
                 }
                 catch (Exception e)
                 {
@@ -1777,10 +1779,10 @@ namespace ApiManagement.Base.Helper
         {
             var _pre = "MaterialRecovery";
             var redisLock = $"{_pre}:Lock";
-            if (_first)
-            {
-                ServerConfig.RedisHelper.Remove(redisLock);
-            }
+            //if (_first)
+            //{
+            //    ServerConfig.RedisHelper.Remove(redisLock);
+            //}
             if (ServerConfig.RedisHelper.SetIfNotExist(redisLock, DateTime.Now.ToStr()))
             {
                 try
