@@ -11,15 +11,18 @@ namespace ApiManagement.Models.SmartFactoryModel
             Table = "t_capacity_list";
             InsertSql =
                 "INSERT INTO `t_capacity_list` (`CreateUserId`, `MarkedDateTime`, `CapacityId`, `ProcessId`, " +
-                "`DeviceModel`, `DeviceSingle`, `DeviceSingleCount`, `DeviceNumber`, " +
-                "`OperatorLevel`, `OperatorSingle`, `OperatorSingleCount`, `OperatorNumber`) " +
+                "`DeviceModel`, `DeviceSingle`, `DeviceRate`, `DeviceWorkTime`, `DeviceProductTime`, `DeviceSingleCount`, `DeviceNumber`, " +
+                "`OperatorLevel`, `OperatorSingle`, `OperatorRate`, `OperatorWorkTime`, `OperatorProductTime`, `OperatorSingleCount`, `OperatorNumber`) " +
                 "VALUES (@CreateUserId, @MarkedDateTime, @CapacityId, @ProcessId, " +
-                "@DeviceModel, @DeviceSingle, @DeviceSingleCount, @DeviceNumber, " +
-                "@OperatorLevel, @OperatorSingle, @OperatorSingleCount, @OperatorNumber);";
+                "@DeviceModel, @DeviceSingle, @DeviceRate, @DeviceWorkTime, @DeviceProductTime, @DeviceSingleCount, @DeviceNumber, " +
+                "@OperatorLevel, @OperatorSingle, @OperatorRate, @OperatorWorkTime, @OperatorProductTime, @OperatorSingleCount, @OperatorNumber);";
             UpdateSql =
                 "UPDATE `t_capacity_list` SET `MarkedDateTime` = @MarkedDateTime, `CapacityId` = @CapacityId, `ProcessId` = @ProcessId, " +
-                "`DeviceModel` = @DeviceModel, `DeviceSingle` = @DeviceSingle, `DeviceSingleCount` = @DeviceSingleCount, `DeviceNumber` = @DeviceNumber, " +
-                "`OperatorLevel` = @OperatorLevel, `OperatorSingle` = @OperatorSingle, `OperatorSingleCount` = @OperatorSingleCount, `OperatorNumber` = @OperatorNumber WHERE `Id` = @Id;";
+                "`DeviceModel` = @DeviceModel, `DeviceSingle` = @DeviceSingle, `DeviceRate` = @DeviceRate, `DeviceWorkTime` = @DeviceWorkTime, " +
+                "`DeviceProductTime` = @DeviceProductTime, `DeviceSingleCount` = @DeviceSingleCount, `DeviceNumber` = @DeviceNumber, " +
+                "`OperatorLevel` = @OperatorLevel, `OperatorSingle` = @OperatorSingle, `OperatorRate` = @OperatorRate, `OperatorWorkTime` = @OperatorWorkTime, " +
+                "`OperatorProductTime` = @OperatorProductTime, `OperatorSingleCount` = @OperatorSingleCount, `OperatorNumber` = @OperatorNumber " +
+                "WHERE `Id` = @Id;";
         }
         public static readonly SmartCapacityListHelper Instance = new SmartCapacityListHelper();
         #region Get

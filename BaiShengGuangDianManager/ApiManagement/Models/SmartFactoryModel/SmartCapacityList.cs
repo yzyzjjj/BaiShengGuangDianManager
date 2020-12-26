@@ -1,4 +1,5 @@
-﻿using ApiManagement.Models.BaseModel;
+﻿using System;
+using ApiManagement.Models.BaseModel;
 using ServiceStack;
 using System.Collections.Generic;
 using System.Linq;
@@ -20,17 +21,29 @@ namespace ApiManagement.Models.SmartFactoryModel
         /// </summary>
         public string DeviceModel { get; set; }
         /// <summary>
-        /// 设备产能
-        /// </summary>
-        public string DeviceNumber { get; set; }
-        /// <summary>
         /// 设备单次加工数量
         /// </summary>
         public string DeviceSingle { get; set; }
         /// <summary>
+        /// 单设备合格率
+        /// </summary>
+        public string DeviceRate { get; set; }
+        /// <summary>
+        /// 单设备总工时(秒)
+        /// </summary>
+        public string DeviceWorkTime { get; set; }
+        /// <summary>
+        /// 单设备单次工时(秒)
+        /// </summary>
+        public string DeviceProductTime { get; set; }
+        /// <summary>
         /// 单设备日加工次数
         /// </summary>
         public string DeviceSingleCount { get; set; }
+        /// <summary>
+        /// 设备产能
+        /// </summary>
+        public string DeviceNumber { get; set; }
         /// <summary>
         /// 设备产能
         /// </summary>
@@ -40,9 +53,12 @@ namespace ApiManagement.Models.SmartFactoryModel
             {
                 var capacities = new List<SmartDeviceCapacity>();
                 var deviceModels = DeviceModel.IsNullOrEmpty() ? new List<int>() : DeviceModel.Split(",").Select(int.Parse);
-                var deviceNumbers = DeviceNumber.IsNullOrEmpty() ? new List<int>() : DeviceNumber.Split(",").Select(int.Parse);
                 var deviceSingles = DeviceSingle.IsNullOrEmpty() ? new List<int>() : DeviceSingle.Split(",").Select(int.Parse);
+                var deviceRates = DeviceRate.IsNullOrEmpty() ? new List<decimal>() : DeviceRate.Split(",").Select(decimal.Parse);
+                var deviceWorkTimes = DeviceWorkTime.IsNullOrEmpty() ? new List<int>() : DeviceWorkTime.Split(",").Select(int.Parse);
+                var deviceProductTimes = DeviceProductTime.IsNullOrEmpty() ? new List<int>() : DeviceProductTime.Split(",").Select(int.Parse);
                 var deviceSingleCounts = DeviceSingleCount.IsNullOrEmpty() ? new List<int>() : DeviceSingleCount.Split(",").Select(int.Parse);
+                var deviceNumbers = DeviceNumber.IsNullOrEmpty() ? new List<int>() : DeviceNumber.Split(",").Select(int.Parse);
                 for (var i = 0; i < deviceModels.Count(); i++)
                 {
                     var ModelId = deviceModels.ElementAt(i);
@@ -56,6 +72,21 @@ namespace ApiManagement.Models.SmartFactoryModel
                     {
                         single = deviceSingles.ElementAt(i);
                     }
+                    decimal rate = 0;
+                    if (deviceRates.Count() > i)
+                    {
+                        rate = deviceRates.ElementAt(i);
+                    }
+                    var wTime = 0;
+                    if (deviceWorkTimes.Count() > i)
+                    {
+                        wTime = deviceWorkTimes.ElementAt(i);
+                    }
+                    var pTime = 0;
+                    if (deviceProductTimes.Count() > i)
+                    {
+                        pTime = deviceProductTimes.ElementAt(i);
+                    }
                     var singleCount = 0;
                     if (deviceSingleCounts.Count() > i)
                     {
@@ -66,6 +97,9 @@ namespace ApiManagement.Models.SmartFactoryModel
                         ModelId = ModelId,
                         Number = number,
                         Single = single,
+                        Rate = rate,
+                        WorkTime = wTime,
+                        ProductTime = pTime,
                         SingleCount = singleCount
                     });
                 }
@@ -77,17 +111,29 @@ namespace ApiManagement.Models.SmartFactoryModel
         /// </summary>
         public string OperatorLevel { get; set; }
         /// <summary>
-        /// 人员产能
-        /// </summary>
-        public string OperatorNumber { get; set; }
-        /// <summary>
-        /// 单人员每日加工次数
+        /// 人员单次加工数量
         /// </summary>
         public string OperatorSingle { get; set; }
+        /// <summary>
+        /// 单人员合格率
+        /// </summary>
+        public string OperatorRate { get; set; }
+        /// <summary>
+        /// 单人员总工时(秒)
+        /// </summary>
+        public string OperatorWorkTime { get; set; }
+        /// <summary>
+        /// 单人员单次工时(秒)
+        /// </summary>
+        public string OperatorProductTime { get; set; }
         /// <summary>
         /// 人员单次加工次数
         /// </summary>
         public string OperatorSingleCount { get; set; }
+        /// <summary>
+        /// 人员产能
+        /// </summary>
+        public string OperatorNumber { get; set; }
         /// <summary>
         /// 人员产能
         /// </summary>
@@ -99,6 +145,9 @@ namespace ApiManagement.Models.SmartFactoryModel
                 var operatorLevels = OperatorLevel.IsNullOrEmpty() ? new List<int>() : OperatorLevel.Split(",").Select(int.Parse);
                 var operatorNumbers = OperatorNumber.IsNullOrEmpty() ? new List<int>() : OperatorNumber.Split(",").Select(int.Parse);
                 var operatorSingles = OperatorSingle.IsNullOrEmpty() ? new List<int>() : OperatorSingle.Split(",").Select(int.Parse);
+                var operatorRates = OperatorRate.IsNullOrEmpty() ? new List<decimal>() : OperatorRate.Split(",").Select(decimal.Parse);
+                var operatorWorkTimes = OperatorWorkTime.IsNullOrEmpty() ? new List<int>() : OperatorWorkTime.Split(",").Select(int.Parse);
+                var operatorProductTimes = OperatorProductTime.IsNullOrEmpty() ? new List<int>() : OperatorProductTime.Split(",").Select(int.Parse);
                 var operatorSingleCounts = OperatorSingleCount.IsNullOrEmpty() ? new List<int>() : OperatorSingleCount.Split(",").Select(int.Parse);
                 for (var i = 0; i < operatorLevels.Count(); i++)
                 {
@@ -113,6 +162,21 @@ namespace ApiManagement.Models.SmartFactoryModel
                     {
                         single = operatorSingles.ElementAt(i);
                     }
+                    decimal rate = 0;
+                    if (operatorRates.Count() > i)
+                    {
+                        rate = operatorRates.ElementAt(i);
+                    }
+                    var wTime = 0;
+                    if (operatorWorkTimes.Count() > i)
+                    {
+                        wTime = operatorWorkTimes.ElementAt(i);
+                    }
+                    var pTime = 0;
+                    if (operatorProductTimes.Count() > i)
+                    {
+                        pTime = operatorProductTimes.ElementAt(i);
+                    }
                     var singleCount = 0;
                     if (operatorSingleCounts.Count() > i)
                     {
@@ -123,6 +187,9 @@ namespace ApiManagement.Models.SmartFactoryModel
                         LevelId = levelId,
                         Number = number,
                         Single = single,
+                        Rate = rate,
+                        WorkTime = wTime,
+                        ProductTime = pTime,
                         SingleCount = singleCount
                     });
                 }
@@ -135,8 +202,20 @@ namespace ApiManagement.Models.SmartFactoryModel
         /// <returns></returns>
         public bool IsSet()
         {
-            return (!DeviceModel.IsNullOrEmpty() && !DeviceNumber.IsNullOrEmpty() && !DeviceSingle.IsNullOrEmpty() && !DeviceSingleCount.IsNullOrEmpty())
-                   || (!OperatorLevel.IsNullOrEmpty() && !OperatorNumber.IsNullOrEmpty() && !OperatorSingle.IsNullOrEmpty() && !OperatorSingleCount.IsNullOrEmpty());
+            return (!DeviceModel.IsNullOrEmpty()
+                    && !DeviceNumber.IsNullOrEmpty()
+                    && !DeviceSingle.IsNullOrEmpty()
+                    && !DeviceRate.IsNullOrEmpty()
+                    && !DeviceWorkTime.IsNullOrEmpty()
+                    && !DeviceProductTime.IsNullOrEmpty()
+                    && !DeviceSingleCount.IsNullOrEmpty())
+                   || (!OperatorLevel.IsNullOrEmpty()
+                       && !OperatorNumber.IsNullOrEmpty()
+                       && !OperatorSingle.IsNullOrEmpty()
+                       && !OperatorRate.IsNullOrEmpty()
+                       && !OperatorWorkTime.IsNullOrEmpty()
+                       && !OperatorProductTime.IsNullOrEmpty()
+                       && !OperatorSingleCount.IsNullOrEmpty());
         }
     }
 
@@ -153,7 +232,7 @@ namespace ApiManagement.Models.SmartFactoryModel
         /// <summary>
         /// 标准流程
         /// </summary>
-        public string Process { get; set; }
+        public string Process { get; set; } = string.Empty;
         /// <summary>
         /// 设备类型id
         /// </summary>
@@ -161,40 +240,64 @@ namespace ApiManagement.Models.SmartFactoryModel
         /// <summary>
         /// 设备类型
         /// </summary>
-        public string Category { get; set; }
+        public string Category { get; set; } = string.Empty;
         /// <summary>
         /// 设备型号
         /// </summary>
-        public string DeviceModel { get; set; }
+        public string DeviceModel { get; set; } = string.Empty;
         /// <summary>
         /// 设备产能
         /// </summary>
-        public string DeviceNumber { get; set; }
+        public string DeviceNumber { get; set; } = string.Empty;
         /// <summary>
         /// 设备单次加工数量
         /// </summary>
-        public string DeviceSingle { get; set; }
+        public string DeviceSingle { get; set; } = string.Empty;
+        /// <summary>
+        /// 单设备合格率
+        /// </summary>
+        public string DeviceRate { get; set; } = string.Empty;
+        /// <summary>
+        /// 单设备总工时(秒)
+        /// </summary>
+        public string DeviceWorkTime { get; set; } = string.Empty;
+        /// <summary>
+        /// 单设备单次工时(秒)
+        /// </summary>
+        public string DeviceProductTime { get; set; } = string.Empty;
         /// <summary>
         /// 单设备日加工次数
         /// </summary>
-        public string DeviceSingleCount { get; set; }
+        public string DeviceSingleCount { get; set; } = string.Empty;
 
         /// <summary>
         /// 人员等级
         /// </summary>
-        public string OperatorLevel { get; set; }
+        public string OperatorLevel { get; set; } = string.Empty;
         /// <summary>
         /// 人员产能
         /// </summary>
-        public string OperatorNumber { get; set; }
+        public string OperatorNumber { get; set; } = string.Empty;
         /// <summary>
         /// 人员单次加工数量
         /// </summary>
-        public string OperatorSingle { get; set; }
+        public string OperatorSingle { get; set; } = string.Empty;
+        /// <summary>
+        /// 单人员合格率
+        /// </summary>
+        public string OperatorRate { get; set; } = string.Empty;
+        /// <summary>
+        /// 单人员总工时(秒)
+        /// </summary>
+        public string OperatorWorkTime { get; set; } = string.Empty;
+        /// <summary>
+        /// 单人员单次工时(秒)
+        /// </summary>
+        public string OperatorProductTime { get; set; } = string.Empty;
         /// <summary>
         /// 单人员每日加工次数
         /// </summary>
-        public string OperatorSingleCount { get; set; }
+        public string OperatorSingleCount { get; set; } = string.Empty;
     }
 
     public class SmartCapacityListDetail : SmartCapacityList
@@ -244,6 +347,18 @@ namespace ApiManagement.Models.SmartFactoryModel
         /// 单次数量
         /// </summary>
         public int Single { get; set; } = 0;
+        /// <summary>
+        /// 合格率
+        /// </summary>
+        public decimal Rate { get; set; } = 0;
+        /// <summary>
+        /// 总工时(秒)
+        /// </summary>
+        public int WorkTime { get; set; } = 0;
+        /// <summary>
+        /// 单次工时(秒)
+        /// </summary>
+        public int ProductTime { get; set; } = 0;
         /// <summary>
         /// 单日加工次数
         /// </summary>
