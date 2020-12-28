@@ -64,13 +64,13 @@ namespace ApiManagement.Base.Helper
                     }
                 }
             });
-//#if DEBUG
-//            _totalTimer = new Timer(DoSthTest, null, 5000, 1000 * 10 * 1);
-//            Console.WriteLine("TimerHelper 调试模式已开启");
-//#else
-//            _totalTimer = new Timer(DoSth, null, 5000, 1000 * 60 * 1);
-//            Console.WriteLine("TimerHelper 发布模式已开启");
-//#endif
+            //#if DEBUG
+            //            _totalTimer = new Timer(DoSthTest, null, 5000, 1000 * 10 * 1);
+            //            Console.WriteLine("TimerHelper 调试模式已开启");
+            //#else
+            //            _totalTimer = new Timer(DoSth, null, 5000, 1000 * 60 * 1);
+            //            Console.WriteLine("TimerHelper 发布模式已开启");
+            //#endif
         }
 
         private static void DoSth(object state)
@@ -82,28 +82,27 @@ namespace ApiManagement.Base.Helper
                 return;
             }
 #endif
-            //Log.Debug("GetErpDepartment 发布模式已开启");
+            Console.WriteLine("GetErpDepartment 发布模式已开启");
             GetErpDepartment();
-            //Log.Debug("GetErpPurchase 发布模式已开启");
+            Console.WriteLine("GetErpPurchase 发布模式已开启");
             GetErpPurchase();
-            //Log.Debug("GetErpValuer 发布模式已开启");
+            Console.WriteLine("GetErpValuer 发布模式已开启");
             GetErpValuer();
-            //Log.Debug("CheckSpotCheckDevice 发布模式已开启");
+            Console.WriteLine("CheckSpotCheckDevice 发布模式已开启");
             CheckSpotCheckDevice();
-            //Log.Debug("CheckManufacturePlan 发布模式已开启");
+            Console.WriteLine("CheckManufacturePlan 发布模式已开启");
             CheckManufacturePlan();
-            //Log.Debug("Check_6sItem 发布模式已开启");
+            Console.WriteLine("Check_6sItem 发布模式已开启");
             Check_6sItem();
-            //Log.Debug("DayBalanceRecovery 发布模式已开启");
-            DayBalanceRecovery();
-            //Log.Debug("GetDayBalance 发布模式已开启");
-            GetDayBalance();
-            //Log.Debug("MaterialRecovery 发布模式已开启");
+            Console.WriteLine("MaterialRecovery 发布模式已开启");
             MaterialRecovery();
+            Console.WriteLine("DayBalanceRecovery 发布模式已开启");
+            DayBalanceRecovery();
+            Console.WriteLine("GetDayBalance 发布模式已开启");
+            GetDayBalance();
             AccountHelper.CheckAccount();
             MaintainerSchedule();
             _first = false;
-
         }
 
         private static bool _first = true;
@@ -117,6 +116,7 @@ namespace ApiManagement.Base.Helper
                 return;
             }
 #endif
+            //WorkFlowHelper.Instance.OnBillNeedUpdate();
             //Console.WriteLine("GetErpDepartment 调试模式已开启");
             GetErpDepartment();
             //Console.WriteLine("GetErpPurchase 调试模式已开启");
@@ -129,12 +129,12 @@ namespace ApiManagement.Base.Helper
             CheckManufacturePlan();
             //Console.WriteLine("Check_6sItem 调试模式已开启");
             Check_6sItem();
+            //Console.WriteLine("MaterialRecovery 调试模式已开启");
+            MaterialRecovery();
             //Console.WriteLine("DayBalanceRecovery 调试模式已开启");
             DayBalanceRecovery();
             //Console.WriteLine("GetDayBalance 调试模式已开启");
             GetDayBalance();
-            //Console.WriteLine("MaterialRecovery 调试模式已开启");
-            MaterialRecovery();
             AccountHelper.CheckAccount();
             MaintainerSchedule();
             _first = false;
@@ -564,6 +564,7 @@ namespace ApiManagement.Base.Helper
                     var updatePurchaseItems = new List<MaterialPurchaseItem>();
                     var addPurchaseItems = new List<MaterialPurchaseItem>();
                     var updateMaterialBill = new List<MaterialBill>();
+                    var onBillNeedUpdate = false;
                     foreach (var department in departments)
                     {
                         var f = HttpServer.Get(_url, new Dictionary<string, string>
@@ -888,6 +889,7 @@ namespace ApiManagement.Base.Helper
                                                                     MarkedDateTime = now,
                                                                     Price = g.Price
                                                                 });
+                                                                onBillNeedUpdate = true;
                                                             }
 
                                                             g.ModifyId = 839;
@@ -924,6 +926,7 @@ namespace ApiManagement.Base.Helper
                                                                         MarkedDateTime = now,
                                                                         Price = ll.Price
                                                                     });
+                                                                    onBillNeedUpdate = true;
                                                                 }
                                                             }
 
@@ -1020,6 +1023,7 @@ namespace ApiManagement.Base.Helper
                             }
                         }
                     }
+                    Console.WriteLine($"采购管理: updateBill: {updateMaterialBill.Count()},  updateItem: {updatePurchaseItems.Count()},  add: {addPurchaseItems.Count()}, {onBillNeedUpdate}");
 
                     if (updateMaterialBill.Any())
                     {
@@ -1046,7 +1050,10 @@ namespace ApiManagement.Base.Helper
                             "VALUES (@CreateUserId, @MarkedDateTime, @Time, @IsErp, @ErpId, @PurchaseId, @Code, @Class, @Category, @Name, @Supplier, @SupplierFull, @Specification, @Number, @Unit, @Remark, @Purchaser, @PurchasingCompany, @Order, @EstimatedTime, @ArrivalTime, @File, @FileUrl, @IsInspection, @Currency, @Payment, @Transaction, @Invoice, @TaxPrice, @TaxAmount, @Price, @Stock, @BillId);",
                             addPurchaseItems);
                     }
-                    Console.WriteLine($"采购管理: updateBill: {updateMaterialBill.Count()},  updateItem: {updatePurchaseItems.Count()},  add: {addPurchaseItems.Count()}");
+                    if (onBillNeedUpdate)
+                    {
+                        WorkFlowHelper.Instance.OnBillNeedUpdate();
+                    }
                 }
                 catch (Exception e)
                 {
@@ -1426,10 +1433,10 @@ namespace ApiManagement.Base.Helper
                        }).ToList();
                     var exist = ServerConfig.ApiDb.Query<MaterialStatistic>(
                         "SELECT * FROM material_balance WHERE Time = @Time;", new { Time = calTime });
-                    var delete = exist.Where(x => valid.All(y => y.BillId != x.BillId));
-                    var add = valid.Where(x => exist.All(y => y.BillId != x.BillId));
-                    var update = valid.Where(x => exist.Any(y => y.BillId == x.BillId && ClassExtension.HaveChange(x, y)));
-                    Console.WriteLine($"更新物料报表:  all: {valid.Count},  delete: {delete.Count()},  add: {add.Count()},  update: {update.Count()}");
+                    var delete = exist.Where(x => valid.All(y => y.BillId != x.BillId)).ToList();
+                    var add = valid.Where(x => exist.All(y => y.BillId != x.BillId)).ToList();
+                    var update = valid.Where(x => exist.Any(y => y.BillId == x.BillId && ClassExtension.HaveChange(x, y))).ToList();
+                    Console.WriteLine($"更新每日物料报表:  all: {valid.Count},  delete: {delete.Count},  add: {add.Count},  update: {update.Count}");
                     if (delete.Any())
                     {
                         ServerConfig.ApiDb.Execute("DELETE FROM material_balance WHERE Time = @Time AND BillId = @BillId;", delete);
@@ -1779,15 +1786,15 @@ namespace ApiManagement.Base.Helper
         {
             var _pre = "MaterialRecovery";
             var redisLock = $"{_pre}:Lock";
-            //if (_first)
-            //{
-            //    ServerConfig.RedisHelper.Remove(redisLock);
-            //}
+            if (_first)
+            {
+                ServerConfig.RedisHelper.Remove(redisLock);
+            }
             if (ServerConfig.RedisHelper.SetIfNotExist(redisLock, DateTime.Now.ToStr()))
             {
                 try
                 {
-                    var logs = ServerConfig.ApiDb.Query<MaterialLog>("SELECT * FROM `material_log` ORDER BY Time;");
+                    var logs = ServerConfig.ApiDb.Query<MaterialLog>("SELECT * FROM `material_log`;").OrderBy(x => x.BillId).ThenBy(x => x.Time);
                     if (!logs.Any())
                     {
                         return;
@@ -1797,7 +1804,7 @@ namespace ApiManagement.Base.Helper
                     {
                         var log = x.ToJSON();
                         return JsonConvert.DeserializeObject<MaterialLog>(log);
-                    });
+                    }).ToList();
                     var oldMaterial = ServerConfig.ApiDb.Query<MaterialManagement>("SELECT * FROM `material_management`;");
                     var newMaterial = oldMaterial.ToDictionary(x => x.BillId, x => new MaterialManagement
                     {
@@ -1841,8 +1848,11 @@ namespace ApiManagement.Base.Helper
                     }
 
                     var changes = oldMaterial.Where(x =>
-                        newMaterial.ContainsKey(x.BillId) && x.Number != newMaterial[x.BillId].Number).ToDictionary(z => z.BillId);
-                    var s = newMaterial.Where(x => changes.ContainsKey(x.Key)).Select(y => y.Value);
+                        newMaterial.ContainsKey(x.BillId) && ClassExtension.HaveChange(x, newMaterial[x.BillId])).ToDictionary(z => z.BillId);
+                    var s = newMaterial.Where(x => changes.ContainsKey(x.Key)).Select(y => y.Value).ToList();
+                    var changeLogs = logs.Where(x =>
+                        oldLogs.Any(y => y.Id == x.Id) && oldLogs.First(y => y.Id == x.Id).OldNumber != x.OldNumber).ToList();
+                    Console.WriteLine($"库存、日志数据修复: time: {DateTime.Now.ToDateStr()},  库存: {s.Count()},  日志: {changeLogs.Count()}");
                     if (s.Any())
                     {
                         ServerConfig.ApiDb.Execute(
@@ -1853,18 +1863,16 @@ namespace ApiManagement.Base.Helper
                             s);
                     }
 
-                    var changeLogs = logs.Where(x =>
-                        oldLogs.Any(y => y.Id == x.Id) && oldLogs.First(y => y.Id == x.Id).OldNumber != x.OldNumber);
                     if (changeLogs.Any())
                     {
-                        ServerConfig.ApiDb.Execute("UPDATE `material_log` SET `OldNumber` = @OldNumber WHERE `Id` = @Id;", logs);
+                        ServerConfig.ApiDb.Execute("UPDATE `material_log` SET `OldNumber` = @OldNumber WHERE `Id` = @Id;", changeLogs);
                     }
                 }
                 catch (Exception e)
                 {
                     Log.Error(e);
                 }
-                ServerConfig.RedisHelper.SetExpireAt(redisLock, DateTime.Now.AddMinutes(60));
+                ServerConfig.RedisHelper.Set(redisLock, $"{ DateTime.Now.ToStr()} Done", DateTime.Now.AddMinutes(60));
             }
         }
 

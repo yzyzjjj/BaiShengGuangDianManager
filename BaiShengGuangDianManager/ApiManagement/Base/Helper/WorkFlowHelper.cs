@@ -1,5 +1,8 @@
 ﻿using ApiManagement.Base.Server;
+using ApiManagement.Models.MaterialManagementModel;
+using ApiManagement.Models.PlanManagementModel;
 using ApiManagement.Models.SmartFactoryModel;
+using ModelBase.Base.Logger;
 using ModelBase.Base.Utils;
 using System;
 using System.Collections.Generic;
@@ -166,10 +169,77 @@ namespace ApiManagement.Base.Helper
         {
             SmartProductCapacityNeedUpdate?.Invoke(this, smartProducts);
         }
+        /// <summary>
+        /// 检查物料 需更新
+        /// </summary>
+        public event EventHandler BillNeedUpdate;
+        public void OnBillNeedUpdate()
+        {
+            BillNeedUpdate?.Invoke(this, null);
+        }
         #endregion
-
+        
         public void Init()
         {
+            BillNeedUpdate += (o, args) =>
+            {
+                var duplicateCodes = ServerConfig.ApiDb.Query<dynamic>(
+                    "SELECT Id, `Code`, GROUP_CONCAT(`Id`) Ids, SiteId, SpecificationId, Price, COUNT(1) c FROM `material_bill` WHERE MarkedDelete = 0 GROUP BY SiteId, SpecificationId, Price HAVING c > 1");
+                if (duplicateCodes.Any())
+                {
+                    var updateBill = new List<MaterialBill>();
+                    var updateLog = new List<BillChange>();
+                    foreach (var duplicateCode in duplicateCodes)
+                    {
+                        try
+                        {
+                            var id = (int)duplicateCode.Id;
+                            var ids = ((string)duplicateCode.Ids).Split(",").Select(int.Parse);
+                            updateBill.AddRange(ids.Where(x => x != id).Select(y => new MaterialBill
+                            {
+                                Id = y,
+                                MarkedDelete = true
+                            }));
+                            updateLog.AddRange(ids.Where(x => x != id).Select(y => new BillChange
+                            {
+                                BillId = y,
+                                NewBillId = id,
+                                NewCode = (string)duplicateCode.Code,
+                            }));
+                        }
+                        catch (Exception e)
+                        {
+                            Log.Error($"{duplicateCode},{e}");
+                        }
+                    }
+                    Console.WriteLine($"物料编码去重: updateBill: {updateBill.Count()},  log: {updateLog.Count()}");
+                    Log.Debug($"物料编码去重: updateBill: {updateBill.Count()},  log: {updateLog.Count()}");
+
+                    if (updateBill.Any())
+                    {
+                        ServerConfig.ApiDb.Execute(
+                            "UPDATE `material_bill` SET MarkedDelete = @MarkedDelete WHERE Id = @Id AND MarkedDelete = 0;",
+                            updateBill);
+                    }
+                    if (updateLog.Any())
+                    {
+                        ServerConfig.ApiDb.Execute(
+                            "UPDATE `material_log` SET BillId = @NewBillId, `Code` = @NewCode WHERE BillId = @BillId;",
+                            updateLog);
+                        ServerConfig.ApiDb.Execute(
+                            "UPDATE `material_purchase_item` SET BillId = @NewBillId, `ThisCode` = @NewCode WHERE BillId = @BillId AND MarkedDelete = 0;",
+                            updateLog);
+                        ServerConfig.ApiDb.Execute(
+                            "UPDATE `production_plan_bill` SET BillId = @NewBillId WHERE BillId = @BillId AND MarkedDelete = 0;",
+                            updateLog);
+                        ServerConfig.ApiDb.Execute(
+                            "UPDATE production_plan_bill a JOIN (SELECT * FROM (SELECT a.PlanId, a.BillId, b.Time FROM `production_plan_bill` a " +
+                            "JOIN `material_log` b ON a.PlanId = b.PlanId AND a.BillId = b.BillId WHERE b.PlanId != 0 ORDER BY b.Time DESC) a GROUP BY a.PlanId, a.BillId) " +
+                            "b ON a.PlanId = b.PlanId AND a.BillId = b.BillId SET a.MarkedDateTime = b.Time WHERE a.MarkedDateTime != b.Time;");
+                    }
+                }
+            };
+
             SmartFlowCardProcessChanged += (o, smartFlowCardProcesses) =>
             {
                 if (smartFlowCardProcesses == null || !smartFlowCardProcesses.Any())
@@ -637,7 +707,7 @@ namespace ApiManagement.Base.Helper
 
                 var modelIds = capacities.SelectMany(x => x.DeviceList).Select(y => y.ModelId).Distinct();
                 var modelCount = SmartDeviceModelHelper.Instance.GetNormalModelCount(modelIds);
-                    
+
                 var processIds = capacities.Select(x => x.ProcessId).Distinct();
                 var operatorCount = SmartOperatorHelper.Instance.GetNormalOperatorCount(processIds);
 
@@ -746,7 +816,12 @@ namespace ApiManagement.Base.Helper
             };
         }
     }
-
+    public class BillChange
+    {
+        public int BillId { get; set; }
+        public int NewBillId { get; set; }
+        public string NewCode { get; set; }
+    }
     public class TaskOrderIdProcessCodeId
     {
         public int TaskOrderId { get; set; }
