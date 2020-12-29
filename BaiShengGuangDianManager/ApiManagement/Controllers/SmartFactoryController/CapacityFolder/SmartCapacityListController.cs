@@ -34,9 +34,10 @@ namespace ApiManagement.Controllers.SmartFactoryController.CapacityFolder
             if (capacityId != 0 && categoryId != 0)
             {
                 sql =
-                    "SELECT IFNULL(c.Id, 0) Id, a.Id ProcessId, b.Process, b.DeviceCategoryId, b.Category, " +
-                    "IFNULL(c.DeviceModel, '') DeviceModel, IFNULL(c.DeviceNumber, '') DeviceNumber, IFNULL(c.DeviceSingle, '') DeviceSingle, IFNULL(c.DeviceSingleCount, '') DeviceSingleCount, " +
-                    "IFNULL(c.OperatorLevel, '') OperatorLevel, IFNULL(c.OperatorNumber, '') OperatorNumber, IFNULL(c.OperatorSingle, '') OperatorSingle, IFNULL(c.OperatorSingleCount, '') OperatorSingleCount " +
+                    "SELECT c.*, IFNULL(c.Id, 0) Id, a.Id ProcessId, b.Process, b.DeviceCategoryId, b.Category" +
+                    " " +
+                    //"IFNULL(c.DeviceModel, '') DeviceModel, IFNULL(c.DeviceNumber, '') DeviceNumber, IFNULL(c.DeviceSingle, '') DeviceSingle, IFNULL(c.DeviceSingleCount, '') DeviceSingleCount, " +
+                    //"IFNULL(c.OperatorLevel, '') OperatorLevel, IFNULL(c.OperatorNumber, '') OperatorNumber, IFNULL(c.OperatorSingle, '') OperatorSingle, IFNULL(c.OperatorSingleCount, '') OperatorSingleCount " +
                     "FROM `t_process_code_category_process` a " +
                     "JOIN (SELECT a.*, IFNULL(b.Category, '') Category FROM `t_process` a " +
                     "LEFT JOIN `t_device_category` b ON a.DeviceCategoryId = b.Id) b ON a.ProcessId = b.Id " +
@@ -53,9 +54,10 @@ namespace ApiManagement.Controllers.SmartFactoryController.CapacityFolder
 
                 categoryId = capacity.CategoryId;
                 sql =
-                    "SELECT IFNULL(c.Id, 0) Id, a.Id ProcessId, b.Process, b.DeviceCategoryId, b.Category, " +
-                    "IFNULL(c.DeviceModel, '') DeviceModel, IFNULL(c.DeviceNumber, '') DeviceNumber, IFNULL(c.DeviceSingle, '') DeviceSingle, IFNULL(c.DeviceSingleCount, '') DeviceSingleCount, " +
-                    "IFNULL(c.OperatorLevel, '') OperatorLevel, IFNULL(c.OperatorNumber, '') OperatorNumber, IFNULL(c.OperatorSingle, '') OperatorSingle, IFNULL(c.OperatorSingleCount, '') OperatorSingleCount " +
+                    "SELECT c.*, IFNULL(c.Id, 0) Id, a.Id ProcessId, b.Process, b.DeviceCategoryId, b.Category" +
+                    " " +
+                    //"IFNULL(c.DeviceModel, '') DeviceModel, IFNULL(c.DeviceNumber, '') DeviceNumber, IFNULL(c.DeviceSingle, '') DeviceSingle, IFNULL(c.DeviceSingleCount, '') DeviceSingleCount, " +
+                    //"IFNULL(c.OperatorLevel, '') OperatorLevel, IFNULL(c.OperatorNumber, '') OperatorNumber, IFNULL(c.OperatorSingle, '') OperatorSingle, IFNULL(c.OperatorSingleCount, '') OperatorSingleCount " +
                     "FROM `t_process_code_category_process` a " +
                     "JOIN (SELECT a.*, IFNULL(b.Category, '') Category FROM `t_process` a " +
                     "LEFT JOIN `t_device_category` b ON a.DeviceCategoryId = b.Id) b ON a.ProcessId = b.Id " +
