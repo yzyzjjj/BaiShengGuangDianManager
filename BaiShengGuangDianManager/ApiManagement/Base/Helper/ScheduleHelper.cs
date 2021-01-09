@@ -96,7 +96,7 @@ namespace ApiManagement.Base.Helper
                 {
                     var tasks = new List<SmartTaskOrderConfirm>();
                     var schedule = new List<SmartTaskOrderScheduleDetail>();
-                    ArrangeSchedule(tasks, ref schedule, true);
+                    //ArrangeSchedule(ref tasks, ref schedule, true);
                     ServerConfig.RedisHelper.SetForever(DateKey, now);
                 }
             }
@@ -945,6 +945,7 @@ namespace ApiManagement.Base.Helper
         /// </summary>
         /// <param name="tasks">所有待排程任务</param>
         /// <param name="schedule">最终安排结果</param>
+        /// <param name="indexes">指数</param>
         /// <param name="isArrange">是否安排 入库</param>
         /// <param name="arrangeId">是否安排过</param>
         /// <param name="createUserId">安排人</param>
@@ -952,8 +953,9 @@ namespace ApiManagement.Base.Helper
         /// <param name="type">排程方法 （1）最短工期（2）最早交货期（3）按照工期和交货期之间的距离（4）CR值</param>
         /// https://blog.csdn.net/console11/article/details/96288314
         public static List<SmartTaskOrderScheduleCostDays> ArrangeSchedule(
-            IEnumerable<SmartTaskOrderConfirm> tasks,
+            ref IEnumerable<SmartTaskOrderConfirm> tasks,
             ref List<SmartTaskOrderScheduleDetail> schedule,
+            out IEnumerable<SmartTaskOrderScheduleIndex> indexes,
             bool isArrange = false,
             string createUserId = "",
             DateTime markedDateTime = default(DateTime),
@@ -964,399 +966,514 @@ namespace ApiManagement.Base.Helper
 
             //}
             var costDays = new List<SmartTaskOrderScheduleCostDays>();
-            if (arrangeId == "")
+            var today = DateTime.Today;
+            var taskIds = tasks.Select(x => x.Id);
+            var theseTasks = SmartTaskOrderHelper.Instance.GetWillArrangedSmartTaskOrders(taskIds);
+            var needs = new List<SmartTaskOrderNeedDetail>();
+            if (theseTasks.Any())
             {
-                var today = DateTime.Today;
-                var waitTasks = new List<SmartTaskOrderConfirm>();
-                var allTasks = SmartTaskOrderHelper.Instance.GetArrangedButNotDoneSmartTaskOrders();
-                tasks = tasks.Where(x => allTasks.All(y => y.Id != x.Id));
-                var arrangeTasks = allTasks.Where(x => tasks.All(y => y.Id != x.Id))
-                    .Select(ClassExtension.ParentCopyToChild<SmartTaskOrder, SmartTaskOrderConfirm>);
-                if (arrangeTasks.Any())
+                needs.AddRange(SmartTaskOrderNeedHelper.Instance.GetSmartTaskOrderNeedsByTaskOrderIds(
+                    theseTasks.Select(x => x.Id)));
+            }
+
+            foreach (var task in tasks)
+            {
+                var aTask = theseTasks.FirstOrDefault(x => x.Id == task.Id);
+                if (aTask != null)
                 {
-                    var needs =
-                        SmartTaskOrderNeedHelper.Instance.GetSmartTaskOrderNeedsByTaskOrderIds(
-                            arrangeTasks.Select(x => x.Id));
-                    foreach (var task in arrangeTasks)
+                    task.DeliveryTime = aTask.DeliveryTime;
+                    task.ArrangedTime = aTask.ArrangedTime;
+                    //task.Init();
+                    task.Arranged = aTask.Arranged;
+                    task.ProductId = aTask.ProductId;
+                    task.Target = aTask.Target;
+                    task.LevelId = aTask.LevelId;
+                    task.TaskOrder = aTask.TaskOrder;
+                    var tNeeds = needs.Where(x => x.TaskOrderId == task.Id);
+                    if (task.Arranged && tNeeds.Any())
                     {
-                        task.SetEndTime = task.EndTime;
-                        var tNeeds = needs.Where(x => x.TaskOrderId == task.Id);
-                        if (tNeeds.Any())
+                        task.Needs = task.Needs.Select(x =>
                         {
-                            var tBatch = tNeeds.Max(x => x.Batch);
-                            if (tBatch != 0)
+                            var need = needs.FirstOrDefault(y => y.TaskOrderId == x.TaskOrderId && y.PId == x.PId);
+                            if (need != null)
                             {
-                                task.Needs.AddRange(tNeeds.Where(x => x.Batch == tBatch).Select(ClassExtension.ParentCopyToChild<SmartTaskOrderNeed, SmartTaskOrderSchedule>).Select(y => (SmartTaskOrderSchedule)y.Clone()));
-                                waitTasks.Add(task);
+                                x.DoneTarget = need.DoneTarget;
+                                x.HavePut = need.HavePut;
                             }
-                        }
-                    }
-                }
-                var taskIds = tasks.Select(x => x.Id);
-                if (taskIds.Any())
-                {
-                    var theseTasks = SmartTaskOrderHelper.Instance.GetByIds<SmartTaskOrder>(taskIds);
-                    foreach (var task in tasks)
-                    {
-                        var tTask = theseTasks.FirstOrDefault(x => x.Id == task.Id);
-                        if (tTask != null)
-                        {
-                            task.Arranged = tTask.Arranged;
-                            task.ProductId = tTask.ProductId;
-                            task.Target = tTask.Target;
-                            task.StartTime = task.StartTime;
-                            task.EndTime = task.EndTime;
-                            task.SetEndTime = task.EndTime;
-                            task.LevelId = tTask.LevelId;
-                            task.TaskOrder = tTask.TaskOrder;
-                        }
-                    }
-                    waitTasks.AddRange(tasks);
-                }
-
-                if (!waitTasks.Any())
-                {
-                    return costDays;
-                }
-                //所有工序
-                var processes = SmartProcessHelper.Instance.GetAll<SmartProcess>();
-                var productIds = waitTasks.Select(x => x.ProductId);
-                // 任务单计划号
-                var products = SmartProductHelper.Instance.GetByIds<SmartProduct>(productIds);
-                // 计划号产能
-                var productCapacities = SmartProductCapacityHelper.Instance.GetAllSmartProductCapacities(productIds);
-                var capacityIds = products.Select(x => x.CapacityId);
-                // 产能设置
-                var smartCapacityLists = SmartCapacityListHelper.Instance.GetAllSmartCapacityListsWithOrder(capacityIds);
-                //设备型号数量
-                var deviceList = SmartDeviceHelper.Instance.GetNormalSmartDevices();
-                var modelCount = deviceList.GroupBy(x => x.ModelId).Select(y => new SmartDeviceModelCount
-                {
-                    ModelId = y.Key,
-                    Count = y.Count()
-                });
-                //人员等级数量
-                var operatorList = SmartOperatorHelper.Instance.GetNormalSmartOperators();
-                var operatorCount = operatorList.GroupBy(x => new { x.ProcessId, x.LevelId }).Select(y => new SmartOperatorCount
-                {
-                    ProcessId = y.Key.ProcessId,
-                    LevelId = y.Key.LevelId,
-                    Count = y.Count()
-                });
-                var batch = SmartTaskOrderScheduleHelper.Instance.GetSmartTaskOrderScheduleBatch();
-                taskIds = waitTasks.Select(x => x.Id);
-                //工序已安排数量
-                var schedules = SmartTaskOrderScheduleHelper.Instance.GetSmartTaskOrderScheduleByTaskOrderIds(taskIds);
-
-                //设备 0  人员 1
-                var way = 2;
-                var total = 4;
-                var cnScore = new int[way][];
-                var cnWaitTasks = new List<SmartTaskOrderConfirm>[way][];
-                var cnSchedules = new Dictionary<DateTime, SmartTaskOrderScheduleDay>[way][];
-                var cnCostList = new List<SmartTaskOrderScheduleCostDays>[way][];
-                for (var i = 0; i < way; i++)
-                {
-                    cnScore[i] = new int[total];
-                    cnWaitTasks[i] = new List<SmartTaskOrderConfirm>[total];
-                    cnSchedules[i] = new Dictionary<DateTime, SmartTaskOrderScheduleDay>[total];
-                    cnCostList[i] = new List<SmartTaskOrderScheduleCostDays>[total];
-                    for (var j = 0; j < total; j++)
-                    {
-                        cnScore[i][j] = 0;
-                        cnWaitTasks[i][j] = new List<SmartTaskOrderConfirm>();
-                        cnSchedules[i][j] = new Dictionary<DateTime, SmartTaskOrderScheduleDay>();
-                        cnCostList[i][j] = new List<SmartTaskOrderScheduleCostDays>();
-                    }
-                }
-
-                foreach (var task in waitTasks)
-                {
-                    task.MarkedDateTime = markedDateTime;
-                    task.Arranged = true;
-                    var product = products.FirstOrDefault(x => x.Id == task.ProductId);
-                    task.Product = product.Product;
-                    task.CapacityId = product.CapacityId;
-                    task.CapacityCostDay = product.Number != 0 ? (int)Math.Ceiling((decimal)task.Left / product.Number) : 0;
-                    var preProcessId = 0;
-                    var i = 0;
-                    foreach (var need in task.Needs)
-                    {
-                        if (i++ == 0)
-                        {
-                            //首次加工原料数量
-                            need.Have = need.Put;
-                        }
-                        var processId = need.ProcessId;
-                        need.PreProcessId = preProcessId;
-                        var process = processes.FirstOrDefault(x => x.Id == need.PId);
-                        if (process != null)
-                        {
-                            need.Process = process.Process ?? "";
-                            need.Order = process.Order;
-                        }
-                        var pre = task.Needs.FirstOrDefault(x => x.ProcessId == preProcessId);
-                        if (pre != null)
-                        {
-                            need.Have = pre.Stock;
-                            pre.NextProcessId = processId;
-                        }
-                        preProcessId = processId;
-                    }
-
-                    var s = task.ToJSON();
-
-
-                    for (var j = 0; j < total; j++)
-                    {
-                        for (var k = 0; k < way; k++)
-                        {
-                            cnWaitTasks[k][j].Add(JsonConvert.DeserializeObject<SmartTaskOrderConfirm>(s));
-                        }
-                    }
-                }
-
-                for (var i = 0; i < total; i++)
-                {
-                    var f = true;
-                    for (var j = 0; j < way; j++)
-                    {
-                        var sc = new Dictionary<DateTime, SmartTaskOrderScheduleDay>();
-                        switch (i)
-                        {
-                            //最短工期
-                            case 0:
-                                sc = MinimumWorkingPeriod(tasks, ref cnWaitTasks[j][i], schedules, productCapacities,
-                                    smartCapacityLists, deviceList, modelCount, operatorList, operatorCount, today, j == 0);
-                                break;
-                            //最早交货期
-                            case 1:
-                                sc = EarliestDeliveryDate(tasks, ref cnWaitTasks[j][i], schedules, productCapacities,
-                                    smartCapacityLists, deviceList, modelCount, operatorList, operatorCount, today, j == 0);
-                                break;
-                            //按照工期和交货期之间的距离
-                            case 2:
-                                sc = WorkingPeriodAndDeliveryDate(tasks, ref cnWaitTasks[j][i], schedules, productCapacities,
-                                    smartCapacityLists, deviceList, modelCount, operatorList, operatorCount, today, j == 0);
-                                break;
-                            //CR值
-                            case 3:
-                                sc = CR(tasks, ref cnWaitTasks[j][i], schedules, productCapacities,
-                                    smartCapacityLists, deviceList, modelCount, operatorList, operatorCount, today, j == 0);
-                                break;
-                            default:
-                                f = false;
-                                break;
-                        }
-
-                        var t = today;
-                        var last = sc.Values.LastOrDefault(x => x.HaveArranged());
-                        if (last != null)
-                        {
-                            t = last.ProcessTime.AddDays(1);
-                        }
-                        cnSchedules[j][i] = sc.Where(x => x.Key < t).ToDictionary(y => y.Key, y => y.Value);
-                    }
-
-                    if (!f)
-                    {
-                        continue;
-                    }
-                    //回复耗时
-                    //var d = waitTasks1_d.Where(x => tasks.Any(y => y.Id == x.Id));
-                    //var o = waitTasks1_o.Where(x => tasks.Any(y => y.Id == x.Id));
-                    var d = cnWaitTasks[0][i];
-                    var o = cnWaitTasks[1][i];
-
-                    foreach (var task in waitTasks)
-                    {
-                        var dCost = d.FirstOrDefault(x => x.Id == task.Id);
-                        var oCost = o.FirstOrDefault(x => x.Id == task.Id);
-                        var dEstimatedStartTime = default(DateTime);
-                        var dEstimatedCompleteTime = default(DateTime);
-                        var oEstimatedStartTime = default(DateTime);
-                        var oEstimatedCompleteTime = default(DateTime);
-                        var dC = new SmartTaskOrderScheduleCostDays
-                        {
-                            Id = task.Id,
-                            TaskOrder = task.TaskOrder,
-                            ProductId = task.ProductId,
-                            Product = task.Product,
-                            MustCompleteTime = task.SetEndTime,
-                        };
-                        var oC = new SmartTaskOrderScheduleCostDays
-                        {
-                            Id = task.Id,
-                            TaskOrder = task.TaskOrder,
-                            ProductId = task.ProductId,
-                            Product = task.Product,
-                            MustCompleteTime = task.EndTime,
-                        };
-                        if (dCost == null || !dCost.Needs.Any() || oCost == null || !oCost.Needs.Any())
-                        {
-                            continue;
-                        }
-                        foreach (var need in task.Needs)
-                        {
-                            var day = new SmartTaskOrderScheduleCostDay
-                            {
-                                ProcessId = need.ProcessId,
-                                PId = need.PId,
-                                Process = need.Process,
-                                Order = need.Order,
-                                DeviceDay = dCost.Needs.FirstOrDefault(x => x.ProcessId == need.ProcessId)?.CostDay ?? 0,
-                                OperatorDay = oCost.Needs.FirstOrDefault(x => x.ProcessId == need.ProcessId)?.CostDay ?? 0
-                            };
-                            //设备开始时间
-                            var estimatedStartTime =
-                                dCost.Needs.FirstOrDefault(x => x.ProcessId == need.ProcessId)?.EstimatedStartTime ??
-                                DateTime.Today;
-                            if (estimatedStartTime != default(DateTime))
-                            {
-                                dEstimatedStartTime = dEstimatedStartTime == default(DateTime) ? estimatedStartTime :
-                                    (estimatedStartTime < dEstimatedStartTime ? estimatedStartTime : dEstimatedStartTime);
-                            }
-
-                            //设备结束时间
-                            var estimatedCompleteTime =
-                                dCost.Needs.FirstOrDefault(x => x.ProcessId == need.ProcessId)?.EstimatedCompleteTime ??
-                                DateTime.Today;
-
-                            if (estimatedCompleteTime != default(DateTime))
-                            {
-                                dEstimatedCompleteTime = dEstimatedCompleteTime == default(DateTime) ? estimatedCompleteTime :
-                                    (estimatedCompleteTime < dEstimatedCompleteTime ? estimatedCompleteTime : dEstimatedCompleteTime);
-                            }
-
-                            //人员开始时间
-                            estimatedStartTime =
-                                oCost.Needs.FirstOrDefault(x => x.ProcessId == need.ProcessId)?.EstimatedStartTime ??
-                                DateTime.Today;
-                            if (estimatedStartTime != default(DateTime))
-                            {
-                                oEstimatedStartTime = oEstimatedStartTime == default(DateTime) ? estimatedStartTime :
-                                    (estimatedStartTime < oEstimatedStartTime ? estimatedStartTime : oEstimatedStartTime);
-                            }
-
-                            //人员结束时间
-                            estimatedCompleteTime =
-                                oCost.Needs.FirstOrDefault(x => x.ProcessId == need.ProcessId)?.EstimatedCompleteTime ??
-                               DateTime.Today;
-
-                            if (estimatedCompleteTime != default(DateTime))
-                            {
-                                oEstimatedCompleteTime = oEstimatedCompleteTime == default(DateTime) ? estimatedCompleteTime :
-                                    (estimatedCompleteTime < oEstimatedCompleteTime ? estimatedCompleteTime : oEstimatedCompleteTime);
-                            }
-
-                            dC.CostDays.Add(day);
-                            oC.CostDays.Add(day);
-                        }
-
-                        dC.EstimatedStartTime = dEstimatedStartTime;
-                        dC.EstimatedCompleteTime = dEstimatedCompleteTime;
-                        cnCostList[0][i].Add(dC);
-
-                        oC.EstimatedStartTime = oEstimatedStartTime;
-                        oC.EstimatedCompleteTime = oEstimatedCompleteTime;
-                        cnCostList[1][i].Add(oC);
-                        var dCostDay = (int)(dEstimatedCompleteTime - dEstimatedStartTime).TotalDays + 1;
-                        var oCostDay = (int)(oEstimatedCompleteTime - oEstimatedStartTime).TotalDays + 1;
-                        if (dCostDay < oCostDay)
-                        {
-                            cnScore[0][i]++;
-                        }
-                        else
-                        {
-                            cnScore[1][i]++;
-                        }
-                    }
-
-                    cnCostList[0][i] = cnCostList[0][i].OrderBy(x => x.EstimatedStartTime)
-                        .ThenBy(x => x.EstimatedCompleteTime).ToList();
-                    cnCostList[1][i] = cnCostList[0][i].OrderBy(x => x.EstimatedStartTime)
-                        .ThenBy(x => x.EstimatedCompleteTime).ToList();
-                }
-
-                BestArrange(way, total, cnScore, waitTasks, cnCostList, cnSchedules, out costDays, out var best, out var jj, out var ii);
-                foreach (var task in waitTasks)
-                {
-                    var arrangeTask = cnWaitTasks[ii][jj].FirstOrDefault(x => x.Id == task.Id);
-                    if (arrangeTask != null)
-                    {
-                        task.StartTime = arrangeTask.Needs.Min(x => x.EstimatedStartTime);
-                        task.EndTime = arrangeTask.Needs.Max(x => x.EstimatedCompleteTime);
-                    }
-                }
-
-                schedule.AddRange(best.Values.OrderBy(x => x.ProcessTime).SelectMany(y => y.Needs).SelectMany(z => z.Value));
-                //schedule.AddRange(best.Values.Where(v => v.ProcessTime >= today).OrderBy(x => x.ProcessTime).SelectMany(y => y.Needs).SelectMany(z => z.Value));
-                if (jj != -1)
-                {
-                    if (isArrange)
-                    {
-                        taskIds = waitTasks.Select(x => x.Id);
-                        var oldNeeds = SmartTaskOrderNeedHelper.Instance.GetSmartTaskOrderNeedsByTaskOrderIds(taskIds);
-                        var newNeeds = cnWaitTasks[ii][jj].SelectMany(x => x.Needs);
-                        foreach (var need in newNeeds)
-                        {
-                            var old = oldNeeds.FirstOrDefault(x =>
-                                x.Batch == batch && x.TaskOrderId == need.TaskOrderId && x.PId == need.PId);
-                            if (old != null)
-                            {
-                                need.Stock = old.Stock;
-                                need.DoneTarget = old.DoneTarget;
-                                need.HavePut = old.HavePut;
-                                need.Done = old.Done;
-                                need.DoingCount = old.DoingCount;
-                                need.Doing = old.Doing;
-                                need.IssueCount = old.IssueCount;
-                                need.Issue = old.Issue;
-                            }
-
-                            need.Batch = batch + 1;
-                            need.CreateUserId = createUserId;
-                            need.MarkedDateTime = markedDateTime;
-                        }
-
-                        SmartTaskOrderScheduleHelper.Instance.Add(schedule.Select(x =>
-                        {
-                            x.Batch = batch + 1;
-                            x.CreateUserId = createUserId;
-                            x.MarkedDateTime = markedDateTime;
                             return x;
-                        }));
-                        SmartTaskOrderNeedHelper.Instance.Add(newNeeds);
-                        var indexes = best.Values.OrderBy(x => x.ProcessTime).SelectMany(y => y.CapacityIndexList.Select(z =>
-                        {
-                            z.Batch = batch + 1;
-                            return z;
-                        }));
-                        SmartTaskOrderScheduleIndexHelper.Instance.Add(indexes.Select(x =>
-                        {
-                            x.Batch = batch + 1;
-                            x.CreateUserId = createUserId;
-                            x.MarkedDateTime = markedDateTime;
-                            return x;
-                        }));
-                        SmartTaskOrderHelper.Instance.Arrange(waitTasks.Select(x =>
-                        {
-                            x.MarkedDateTime = markedDateTime;
-                            return x;
-                        }));
-                        //排程是否改变
-                        var haveChange = false;
-                        var arrange = new List<int>();
-
-
-                        if (haveChange)
-                        {
-                            WorkFlowHelper.Instance.OnTaskOrderArrangeChanged(arrange);
-                        }
+                        }).ToList();
                     }
                 }
             }
+            if (!tasks.Any())
+            {
+                indexes = null;
+                return costDays;
+            }
+            //所有工序
+            var processes = SmartProcessHelper.Instance.GetAll<SmartProcess>();
+            var productIds = tasks.Select(x => x.ProductId);
+            // 任务单计划号
+            var products = SmartProductHelper.Instance.GetByIds<SmartProduct>(productIds);
+            // 计划号产能
+            var productCapacities = SmartProductCapacityHelper.Instance.GetAllSmartProductCapacities(productIds);
+            var capacityIds = products.Select(x => x.CapacityId);
+            // 产能设置
+            var smartCapacityLists = SmartCapacityListHelper.Instance.GetAllSmartCapacityListsWithOrder(capacityIds);
+            //设备型号数量
+            var deviceList = SmartDeviceHelper.Instance.GetNormalSmartDevices();
+            var modelCount = deviceList.GroupBy(x => x.ModelId).Select(y => new SmartDeviceModelCount
+            {
+                ModelId = y.Key,
+                Count = y.Count()
+            });
+            //人员等级数量
+            var operatorList = SmartOperatorHelper.Instance.GetNormalSmartOperators();
+            var operatorCount = operatorList.GroupBy(x => new { x.ProcessId, x.LevelId }).Select(y => new SmartOperatorCount
+            {
+                ProcessId = y.Key.ProcessId,
+                LevelId = y.Key.LevelId,
+                Count = y.Count()
+            });
+            //工序已安排数量
+            var schedules = SmartTaskOrderScheduleHelper.Instance.GetSmartTaskOrderSchedule(taskIds);
+
+            //设备 0  人员 1
+            var way = 2;
+            var total = 4;
+            var cnScore = new int[way][];
+            var cnWaitTasks = new List<SmartTaskOrderConfirm>[way][];
+            var cnSchedules = new Dictionary<DateTime, SmartTaskOrderScheduleDay>[way][];
+            var cnCostList = new List<SmartTaskOrderScheduleCostDays>[way][];
+            for (var i = 0; i < way; i++)
+            {
+                cnScore[i] = new int[total];
+                cnWaitTasks[i] = new List<SmartTaskOrderConfirm>[total];
+                cnSchedules[i] = new Dictionary<DateTime, SmartTaskOrderScheduleDay>[total];
+                cnCostList[i] = new List<SmartTaskOrderScheduleCostDays>[total];
+                for (var j = 0; j < total; j++)
+                {
+                    cnScore[i][j] = 0;
+                    cnWaitTasks[i][j] = new List<SmartTaskOrderConfirm>();
+                    cnSchedules[i][j] = new Dictionary<DateTime, SmartTaskOrderScheduleDay>();
+                    cnCostList[i][j] = new List<SmartTaskOrderScheduleCostDays>();
+                }
+            }
+
+            foreach (var task in tasks)
+            {
+                //if (task.StartTime == default(DateTime))
+                //{
+                //    task.StartTime = today;
+                //}
+
+                var product = products.FirstOrDefault(x => x.Id == task.ProductId);
+                task.Product = product.Product;
+                task.CapacityId = product.CapacityId;
+                task.CapacityCostDay = product.Number != 0 ? (int)Math.Ceiling((decimal)task.Left / product.Number) : 0;
+                var preProcessId = 0;
+                var i = 0;
+                foreach (var need in task.Needs)
+                {
+                    if (i++ == 0)
+                    {
+                        //首次加工原料数量
+                        need.Have = need.Put;
+                    }
+                    var processId = need.ProcessId;
+                    need.PreProcessId = preProcessId;
+                    var process = processes.FirstOrDefault(x => x.Id == need.PId);
+                    if (process != null)
+                    {
+                        need.Process = process.Process ?? "";
+                        need.Order = process.Order;
+                    }
+                    var pre = task.Needs.FirstOrDefault(x => x.ProcessId == preProcessId);
+                    if (pre != null)
+                    {
+                        need.Have = pre.Stock;
+                        pre.NextProcessId = processId;
+                    }
+                    preProcessId = processId;
+                }
+
+                var s = task.ToJSON();
+                for (var j = 0; j < total; j++)
+                {
+                    for (var k = 0; k < way; k++)
+                    {
+                        cnWaitTasks[k][j].Add(JsonConvert.DeserializeObject<SmartTaskOrderConfirm>(s));
+                    }
+                }
+            }
+
+            for (var i = 0; i < total; i++)
+            {
+                //var f = true;
+                for (var j = 0; j < way; j++)
+                {
+                    var sc = CalSchedule(ref cnWaitTasks[j][i], schedules, productCapacities,
+                        smartCapacityLists, deviceList, modelCount, operatorList, operatorCount, today, j, i);
+                    //var t = today;
+                    //var last = sc.Values.LastOrDefault(x => x.HaveArranged());
+                    //if (last != null)
+                    //{
+                    //    t = last.ProcessTime.AddDays(1);
+                    //}
+                    //cnSchedules[j][i] = sc.Where(x => x.Key < t).ToDictionary(y => y.Key, y => y.Value);
+                    cnSchedules[j][i] = sc;
+                }
+
+                //if (!f)
+                //{
+                //    continue;
+                //}
+                //回复耗时
+                //var d = waitTasks1_d.Where(x => tasks.Any(y => y.Id == x.Id));
+                //var o = waitTasks1_o.Where(x => tasks.Any(y => y.Id == x.Id));
+                var d = cnWaitTasks[0][i];
+                var o = cnWaitTasks[1][i];
+
+                foreach (var task in tasks)
+                {
+                    var dCost = d.FirstOrDefault(x => x.Id == task.Id);
+                    var oCost = o.FirstOrDefault(x => x.Id == task.Id);
+                    var dEstimatedStartTime = default(DateTime);
+                    var dEstimatedEndTime = default(DateTime);
+                    var oEstimatedStartTime = default(DateTime);
+                    var oEstimatedEndTime = default(DateTime);
+                    var dC = new SmartTaskOrderScheduleCostDays
+                    {
+                        Id = task.Id,
+                        TaskOrder = task.TaskOrder,
+                        ProductId = task.ProductId,
+                        Product = task.Product,
+                        StartTime = task.StartTime,
+                        EndTime = task.EndTime,
+                    };
+                    var oC = new SmartTaskOrderScheduleCostDays
+                    {
+                        Id = task.Id,
+                        TaskOrder = task.TaskOrder,
+                        ProductId = task.ProductId,
+                        Product = task.Product,
+                        StartTime = task.StartTime,
+                        EndTime = task.EndTime,
+                    };
+                    if (dCost == null || !dCost.Needs.Any() || oCost == null || !oCost.Needs.Any())
+                    {
+                        continue;
+                    }
+                    foreach (var need in task.Needs)
+                    {
+                        var day = new SmartTaskOrderScheduleCostDay
+                        {
+                            ProcessId = need.ProcessId,
+                            PId = need.PId,
+                            Process = need.Process,
+                            Order = need.Order,
+                            DeviceDay = dCost.Needs.FirstOrDefault(x => x.ProcessId == need.ProcessId)?.CostDay ?? 0,
+                            OperatorDay = oCost.Needs.FirstOrDefault(x => x.ProcessId == need.ProcessId)?.CostDay ?? 0
+                        };
+                        var tNeed = dCost.Needs.FirstOrDefault(x => x.ProcessId == need.ProcessId);
+                        //设备开始时间
+                        var estimatedStartTime = tNeed?.EstimatedStartTime ?? DateTime.Today;
+                        if (estimatedStartTime != default(DateTime))
+                        {
+                            dEstimatedStartTime = dEstimatedStartTime == default(DateTime) ? estimatedStartTime :
+                                (estimatedStartTime < dEstimatedStartTime ? estimatedStartTime : dEstimatedStartTime);
+                        }
+
+                        //设备结束时间
+                        var estimatedCompleteTime = tNeed?.EstimatedEndTime ?? DateTime.Today;
+                        if (estimatedCompleteTime != default(DateTime))
+                        {
+                            dEstimatedEndTime = dEstimatedEndTime == default(DateTime) ? estimatedCompleteTime :
+                                (estimatedCompleteTime > dEstimatedEndTime ? estimatedCompleteTime : dEstimatedEndTime);
+                        }
+
+                        tNeed = oCost.Needs.FirstOrDefault(x => x.ProcessId == need.ProcessId);
+                        //人员开始时间
+                        estimatedStartTime = tNeed?.EstimatedStartTime ?? DateTime.Today;
+                        if (estimatedStartTime != default(DateTime))
+                        {
+                            oEstimatedStartTime = oEstimatedStartTime == default(DateTime) ? estimatedStartTime :
+                                (estimatedStartTime < oEstimatedStartTime ? estimatedStartTime : oEstimatedStartTime);
+                        }
+
+                        //人员结束时间
+                        estimatedCompleteTime = tNeed?.EstimatedEndTime ?? DateTime.Today;
+                        if (estimatedCompleteTime != default(DateTime))
+                        {
+                            oEstimatedEndTime = oEstimatedEndTime == default(DateTime) ? estimatedCompleteTime :
+                                (estimatedCompleteTime > oEstimatedEndTime ? estimatedCompleteTime : oEstimatedEndTime);
+                        }
+
+                        dC.CostDays.Add(day);
+                        oC.CostDays.Add(day);
+                    }
+
+                    dC.EstimatedStartTime = dEstimatedStartTime;
+                    dC.EstimatedEndTime = dEstimatedEndTime;
+                    cnCostList[0][i].Add(dC);
+
+                    oC.EstimatedStartTime = oEstimatedStartTime;
+                    oC.EstimatedEndTime = oEstimatedEndTime;
+                    cnCostList[1][i].Add(oC);
+                    var dCostDay = (int)(dEstimatedEndTime - dEstimatedStartTime).TotalDays + 1;
+                    var oCostDay = (int)(oEstimatedEndTime - oEstimatedStartTime).TotalDays + 1;
+                    if (dCostDay < oCostDay)
+                    {
+                        cnScore[0][i]++;
+                    }
+                    else
+                    {
+                        cnScore[1][i]++;
+                    }
+                }
+
+                cnCostList[0][i] = cnCostList[0][i].OrderBy(x => x.EstimatedStartTime)
+                    .ThenBy(x => x.EstimatedEndTime).ToList();
+                cnCostList[1][i] = cnCostList[1][i].OrderBy(x => x.EstimatedStartTime)
+                    .ThenBy(x => x.EstimatedEndTime).ToList();
+            }
+            BestArrange(way, total, cnScore, cnCostList, cnSchedules, out var jj, out var ii);
+            if (jj == -1)
+            {
+                indexes = null;
+                return costDays;
+            }
+            costDays.AddRange(cnCostList[ii][jj]);
+            //foreach (var task in tasks)
+            //{
+            //    var arrangeTask = cnWaitTasks[ii][jj].FirstOrDefault(x => x.Id == task.Id);
+            //    if (arrangeTask != null)
+            //    {
+            //        task.StartTime = task.StartTime == default(DateTime) ? arrangeTask.Needs.Min(x => x.FirstArrangedTime) : task.StartTime;
+            //        task.EndTime = arrangeTask.Needs.Max(x => x.EstimatedEndTime);
+            //    }
+            //}
+            var t = costDays.Any() ? costDays.Max(x => x.EstimatedEndTime) : today;
+            if (t == default(DateTime))
+            {
+                t = today;
+            }
+            var best = cnSchedules[ii][jj].Where(x => x.Key <= t).ToDictionary(y => y.Key, y => y.Value);
+            schedule.AddRange(best.Values.SelectMany(y => y.Needs.SelectMany(z => z.Value).OrderBy(x => x.Order).ThenBy(x => x.ArrangeOrder)));
+            indexes = best.Values.OrderBy(x => x.ProcessTime).SelectMany(y => y.CapacityIndexList.OrderBy(x => x.Order));
+            //var ss =best.Values.SelectMany(y => y.Needs).SelectMany(z => z.Value);
+            //schedule.AddRange(best.Values.Where(v => v.ProcessTime >= today).OrderBy(x => x.ProcessTime).SelectMany(y => y.Needs).SelectMany(z => z.Value));
+
+            if (isArrange)
+            {
+                var batch = SmartTaskOrderHelper.Instance.AddSmartTaskOrderBatch(createUserId);
+                var oldNeeds = SmartTaskOrderNeedHelper.Instance.GetSmartTaskOrderNeedsByTaskOrderIds(taskIds);
+                var calNeeds = cnWaitTasks[ii][jj].SelectMany(x => x.Needs);
+                var newNeeds = tasks.SelectMany(x => x.Needs);
+                foreach (var need in newNeeds)
+                {
+                    var old = oldNeeds.FirstOrDefault(x => x.TaskOrderId == need.TaskOrderId && x.PId == need.PId);
+                    if (old != null)
+                    {
+                        need.Stock = old.Stock;
+                        need.DoneTarget = old.DoneTarget;
+                        need.HavePut = old.HavePut;
+                        need.Done = old.Done;
+                        need.DoingCount = old.DoingCount;
+                        need.Doing = old.Doing;
+                        need.IssueCount = old.IssueCount;
+                        need.Issue = old.Issue;
+                    }
+                    var cal = calNeeds.FirstOrDefault(x => x.TaskOrderId == need.TaskOrderId && x.PId == need.PId);
+                    if (cal != null)
+                    {
+                        need.EstimatedStartTime = cal.EstimatedStartTime;
+                        need.EstimatedEndTime = cal.EstimatedEndTime;
+                        need.FirstArrangedTime = cal.FirstArrangedTime;
+                    }
+                    need.Batch = batch;
+                    need.CreateUserId = createUserId;
+                    need.MarkedDateTime = markedDateTime;
+                }
+
+                SmartTaskOrderScheduleHelper.Instance.Add(schedule.Select(x =>
+                {
+                    x.Batch = batch;
+                    x.CreateUserId = createUserId;
+                    x.MarkedDateTime = markedDateTime;
+                    return x;
+                }));
+                SmartTaskOrderNeedHelper.Instance.Add(newNeeds);
+                SmartTaskOrderScheduleIndexHelper.Instance.Add(indexes.Select(x =>
+                {
+                    x.Batch = batch;
+                    x.CreateUserId = createUserId;
+                    x.MarkedDateTime = markedDateTime;
+                    return x;
+                }));
+                SmartTaskOrderHelper.Instance.Arrange(tasks.Select(x =>
+                {
+                    x.ArrangedTime = markedDateTime;
+                    x.MarkedDateTime = markedDateTime;
+                    return x;
+                }));
+                //排程是否改变
+                var haveChange = false;
+                var arrange = new List<int>();
+
+
+                if (haveChange)
+                {
+                    WorkFlowHelper.Instance.OnTaskOrderArrangeChanged(arrange);
+                }
+            }
             return costDays;
+        }
+
+        /// <summary>
+        /// 计算方法
+        /// </summary>
+        /// <param name="allTasks"></param>
+        /// <param name="schedules"></param>
+        /// <param name="productCapacities"></param>
+        /// <param name="smartCapacityLists"></param>
+        /// <param name="deviceList"></param>
+        /// <param name="modelCounts"></param>
+        /// <param name="operatorList"></param>
+        /// <param name="operatorCounts"></param>
+        /// <param name="time"></param>
+        /// <param name="productType"></param>
+        /// <param name="type"></param>
+        /// <returns></returns>
+        private static Dictionary<DateTime, SmartTaskOrderScheduleDay> CalSchedule(
+            ref List<SmartTaskOrderConfirm> allTasks,
+            IEnumerable<SmartTaskOrderScheduleDetail> schedules,
+            IEnumerable<SmartProductCapacityDetail> productCapacities,
+            IEnumerable<SmartCapacityListDetail> smartCapacityLists,
+            IEnumerable<SmartDevice> deviceList,
+            IEnumerable<SmartDeviceModelCount> modelCounts,
+            IEnumerable<SmartOperatorDetail> operatorList,
+            IEnumerable<SmartOperatorCount> operatorCounts,
+            DateTime time,
+            int productType,
+            int type)
+        {
+            var newSchedules = new Dictionary<DateTime, SmartTaskOrderScheduleDay>();
+            var minTime = time;
+            var maxTime = time.AddDays(Day);
+            var setEndTime = allTasks.Where(x => x.EndTime != default(DateTime));
+            //最小时间
+            minTime = !setEndTime.Any() ? minTime : setEndTime.Min(x => x.StartTime) < minTime ? setEndTime.Min(x => x.EndTime) : minTime;
+            minTime = !schedules.Any() ? minTime : schedules.Min(x => x.ProcessTime) < minTime ? schedules.Min(x => x.ProcessTime) : minTime;
+            //最大时间
+            maxTime = !setEndTime.Any() ? maxTime : setEndTime.Max(x => x.EndTime) > maxTime ? setEndTime.Max(x => x.EndTime) : maxTime;
+            maxTime = !schedules.Any() ? maxTime : schedules.Max(x => x.ProcessTime) > maxTime ? schedules.Max(x => x.ProcessTime) : maxTime;
+
+            AddDay(ref newSchedules, minTime, maxTime, deviceList, operatorList);
+            InitData(ref newSchedules, allTasks, schedules, productCapacities, smartCapacityLists, deviceList, operatorList);
+            IOrderedEnumerable<SmartTaskOrderConfirm> normalTasks;
+            IOrderedEnumerable<SmartTaskOrderConfirm> superTasks;
+            List<SmartTaskOrderConfirm> normalNotTimeLimitTasks;
+            List<SmartTaskOrderConfirm> normalTimeLimitTasks;
+            List<SmartTaskOrderConfirm> superNotTimeLimitTasks;
+            List<SmartTaskOrderConfirm> superTimeLimitTasks;
+            switch (type)
+            {
+                case 0:
+                    #region 最短工期
+                    //S级任务  排产优先
+                    superTasks = allTasks.Where(x => x.LevelId == 1).OrderBy(x => x.EndTime).ThenBy(x => x.Id);
+                    //有时间要求的任务 先按生产天数从小到大排，再按截止时间从小到大排
+                    superTimeLimitTasks = superTasks.Where(x => x.EndTime != default(DateTime)).OrderBy(t => t.Order).ThenBy(y => y.CapacityCostDay).ThenBy(y => y.EndTime).ThenBy(y => y.StartTime).ToList();
+                    //没有时间要求的任务 先按生产天数从小到大排，再按目标量从小到大排
+                    superNotTimeLimitTasks = superTasks.Where(x => x.EndTime == default(DateTime)).OrderBy(t => t.Order).ThenBy(y => y.CapacityCostDay).ThenBy(y => y.StartTime).ThenBy(y => y.Target).ToList();
+
+                    //非S级任务  排产可修改
+                    normalTasks = allTasks.Where(x => x.LevelId != 1).OrderBy(y => y.Order);
+                    //有时间要求的任务 先按生产天数从小到大排，再按截止时间从小到大排
+                    normalTimeLimitTasks = normalTasks.Where(x => x.EndTime != default(DateTime)).OrderBy(t => t.Order).ThenBy(y => y.CapacityCostDay).ThenBy(y => y.EndTime).ThenBy(y => y.StartTime).ToList();
+                    //没有时间要求的任务 先按生产天数从小到大排，再按目标量从小到大排
+                    normalNotTimeLimitTasks = normalTasks.Where(x => x.EndTime == default(DateTime)).OrderBy(t => t.Order).ThenBy(y => y.CapacityCostDay).ThenBy(y => y.StartTime).ThenBy(y => y.Target).ToList();
+                    #endregion
+                    break;
+                case 1:
+                    #region 最早交货期  截止日期
+                    //S级任务  排产优先
+                    superTasks = allTasks.Where(x => x.LevelId == 1).OrderBy(x => x.EndTime).ThenBy(x => x.Id);
+                    //有时间要求的任务 按交货期/截止时间从早到晚排
+                    superTimeLimitTasks = superTasks.Where(x => x.EndTime != default(DateTime)).OrderBy(t => t.Order).ThenBy(y => y.EndTime).ThenBy(y => y.StartTime).ToList();
+                    //没有时间要求的任务 按目标量从小到大排
+                    superNotTimeLimitTasks = superTasks.Where(x => x.EndTime == default(DateTime)).OrderBy(t => t.Order).ThenBy(y => y.StartTime).ThenBy(y => y.Target).ToList();
+
+                    //非S级任务  排产可修改
+                    normalTasks = allTasks.Where(x => x.LevelId != 1).OrderBy(y => y.Order);
+                    //有时间要求的任务 按交货期/截止时间从早到晚排
+                    normalTimeLimitTasks = normalTasks.Where(x => x.EndTime != default(DateTime)).OrderBy(t => t.Order).ThenBy(y => y.EndTime).ThenBy(y => y.StartTime).ToList();
+                    //没有时间要求的任务 按目标量从小到大排
+                    normalNotTimeLimitTasks = normalTasks.Where(x => x.EndTime == default(DateTime)).OrderBy(t => t.Order).ThenBy(y => y.StartTime).ThenBy(y => y.Target).ToList();
+                    #endregion
+                    break;
+                case 2:
+                    #region 工期和交货期之间的距离
+                    //S级任务  排产优先
+                    superTasks = allTasks.Where(x => x.LevelId == 1).OrderBy(x => x.EndTime).ThenBy(x => x.Id);
+                    //有时间要求的任务 先按期和交货期之间的距离从小到大排，再按截止时间从小到大排
+                    superTimeLimitTasks = superTasks.Where(x => x.EndTime != default(DateTime)).OrderBy(t => t.Order).ThenBy(y => y.DistanceDay).ThenBy(y => y.EndTime).ThenBy(y => y.StartTime).ToList();
+                    //没有时间要求的任务 按目标量从小到大排
+                    superNotTimeLimitTasks = superTasks.Where(x => x.EndTime == default(DateTime)).OrderBy(t => t.Order).ThenBy(y => y.StartTime).ThenBy(y => y.Target).ToList();
+
+                    //非S级任务  排产可修改
+                    normalTasks = allTasks.Where(x => x.LevelId != 1).OrderBy(y => y.Order);
+                    //有时间要求的任务 先按期和交货期之间的距离从小到大排，再按截止时间从小到大排
+                    normalTimeLimitTasks = normalTasks.Where(x => x.EndTime != default(DateTime)).OrderBy(t => t.Order).ThenBy(y => y.DistanceDay).ThenBy(y => y.EndTime).ThenBy(y => y.StartTime).ToList();
+                    //没有时间要求的任务 按目标量从小到大排
+                    normalNotTimeLimitTasks = normalTasks.Where(x => x.EndTime == default(DateTime)).OrderBy(t => t.Order).ThenBy(y => y.StartTime).ToList();
+                    ////S级任务  排产优先
+                    //superTasks = allTasks.Where(x => x.LevelId == 1).OrderBy(x => x.EndTime).ThenBy(x => x.Id);
+                    ////有时间要求的任务 先按期和交货期之间的距离从小到大排，再按截止时间从小到大排
+                    //superTimeLimitTasks = superTasks.Where(x => x.EndTime != default(DateTime)).OrderBy(t => t.Order).ThenBy(y => y.DistanceDay).ThenBy(y => y.EndTime).ThenBy(y => y.StartTime).ToList();
+                    ////没有时间要求的任务 按目标量从小到大排
+                    //superNotTimeLimitTasks = superTasks.Where(x => x.EndTime == default(DateTime)).OrderBy(t => t.Order).ThenBy(y => y.StartTime).ThenBy(y => y.Target).ToList();
+
+                    ////非S级任务  排产可修改
+                    //normalTasks = allTasks.Where(x => x.LevelId != 1).OrderBy(y => y.Order);
+                    ////有时间要求的任务 先按期和交货期之间的距离从小到大排，再按截止时间从小到大排
+                    //normalTimeLimitTasks = normalTasks.Where(x => x.EndTime != default(DateTime)).OrderBy(t => t.Order).ThenBy(y => y.DistanceDay).ThenBy(y => y.EndTime).ThenBy(y => y.StartTime).ToList();
+                    ////没有时间要求的任务 按目标量从小到大排
+                    //normalNotTimeLimitTasks = normalTasks.Where(x => x.EndTime == default(DateTime)).OrderBy(t => t.Order).ThenBy(y => y.StartTime).ThenBy(y => y.Target).ToList();
+                    #endregion
+                    break;
+                case 3:
+                    #region CR值
+                    //Critical Ratio, 可以翻译为重要比率。它的计算方法：交期减去目前日期之差额,再除以工期，数值越小表示紧急程度越高，排程优先级高。
+                    //S级任务  排产优先
+                    superTasks = allTasks.Where(x => x.LevelId == 1).OrderBy(x => x.EndTime).ThenBy(x => x.Id);
+                    //有时间要求的任务 先按生产天数从小到大排，再按截止时间从小到大排
+                    superTimeLimitTasks = superTasks.Where(x => x.EndTime != default(DateTime)).OrderBy(t => t.Order).ThenBy(y => y.CR).ThenBy(y => y.EndTime).ThenBy(y => y.StartTime).ToList();
+                    //没有时间要求的任务 先按生产天数从小到大排，再按目标量从小到大排
+                    superNotTimeLimitTasks = superTasks.Where(x => x.EndTime == default(DateTime)).OrderBy(t => t.Order).ThenBy(y => y.StartTime).ThenBy(y => y.Target).ToList();
+
+                    //非S级任务  排产可修改
+                    normalTasks = allTasks.Where(x => x.LevelId != 1).OrderBy(y => y.Order);
+                    //有时间要求的任务 先按生产天数从小到大排，再按截止时间从小到大排
+                    normalTimeLimitTasks = normalTasks.Where(x => x.EndTime != default(DateTime)).OrderBy(t => t.Order).ThenBy(y => y.CR).ThenBy(y => y.EndTime).ThenBy(y => y.StartTime).ToList();
+                    //没有时间要求的任务 先按生产天数从小到大排，再按目标量从小到大排
+                    normalNotTimeLimitTasks = normalTasks.Where(x => x.EndTime == default(DateTime)).OrderBy(t => t.Order).ThenBy(y => y.StartTime).ThenBy(y => y.Target).ToList();
+                    #endregion
+                    break;
+                default:
+                    return newSchedules;
+            }
+
+            ScheduleArrangeCal(ref superTimeLimitTasks, ref newSchedules, productCapacities, smartCapacityLists,
+                deviceList, modelCounts, operatorList, operatorCounts, time, productType);
+            ScheduleArrangeCal(ref superNotTimeLimitTasks, ref newSchedules, productCapacities, smartCapacityLists,
+                deviceList, modelCounts, operatorList, operatorCounts, time, productType);
+            ScheduleArrangeCal(ref normalTimeLimitTasks, ref newSchedules, productCapacities, smartCapacityLists,
+                deviceList, modelCounts, operatorList, operatorCounts, time, productType);
+            ScheduleArrangeCal(ref normalNotTimeLimitTasks, ref newSchedules, productCapacities, smartCapacityLists,
+                deviceList, modelCounts, operatorList, operatorCounts, time, productType);
+            return newSchedules;
         }
 
         /// <summary>
@@ -1365,23 +1482,17 @@ namespace ApiManagement.Base.Helper
         /// <param name="way"></param>
         /// <param name="total"></param>
         /// <param name="cnScore"></param>
-        /// <param name="waitTasks"></param>
         /// <param name="cnCostList"></param>
         /// <param name="cnSchedules"></param>
-        /// <param name="list"></param>
-        /// <param name="schedules"></param>
+        /// <param name="jj"></param>
+        /// <param name="ii"></param>
         private static void BestArrange(int way, int total,
             int[][] cnScore,
-            List<SmartTaskOrderConfirm> waitTasks,
             List<SmartTaskOrderScheduleCostDays>[][] cnCostList,
             Dictionary<DateTime, SmartTaskOrderScheduleDay>[][] cnSchedules,
-            out List<SmartTaskOrderScheduleCostDays> list,
-            out Dictionary<DateTime, SmartTaskOrderScheduleDay> schedules,
             out int jj,
             out int ii)
         {
-            list = new List<SmartTaskOrderScheduleCostDays>();
-            schedules = new Dictionary<DateTime, SmartTaskOrderScheduleDay>();
             jj = -1;
             ii = -1;
             if (way != cnScore.Length)
@@ -1398,7 +1509,7 @@ namespace ApiManagement.Base.Helper
             {
                 var dScore = cnScore[0];
                 var oScore = cnScore[1];
-                b = dScore[i] <= oScore[i] ? 0 : 1;
+                b = dScore[i] >= oScore[i] ? 0 : 1;
                 l = cnCostList[b][i];
                 if (!l.Any())
                 {
@@ -1406,8 +1517,6 @@ namespace ApiManagement.Base.Helper
                     {
                         jj = j1;
                         ii = b1;
-                        list = cnCostList[b1][j1];
-                        schedules = cnSchedules[b1][j1];
                     }
                     else
                     {
@@ -1421,15 +1530,11 @@ namespace ApiManagement.Base.Helper
                     {
                         jj = i;
                         ii = b;
-                        list = cnCostList[b][i];
-                        schedules = cnSchedules[b][i];
                     }
                     else
                     {
                         jj = j1;
                         ii = b1;
-                        list = cnCostList[b1][j1];
-                        schedules = cnSchedules[b1][j1];
                     }
                 }
 
@@ -1437,239 +1542,6 @@ namespace ApiManagement.Base.Helper
                 b1 = dScore[i] <= oScore[i] ? 0 : 1;
                 l1 = cnCostList[b1][j1];
             }
-        }
-
-        /// <summary>
-        /// 最短工期
-        /// </summary>
-        /// <param name="arrangeTasks">本次安排任务</param>
-        /// <param name="allTasks">本次安排 + 已安排未完成任务</param>
-        /// <param name="schedules">已排生产</param>
-        /// <param name="productCapacities"></param>
-        /// <param name="smartCapacityLists"></param>
-        /// <param name="deviceList"></param>
-        /// <param name="modelCounts"></param>
-        /// <param name="operatorList"></param>
-        /// <param name="operatorCounts"></param>
-        /// <param name="time"></param>
-        /// <param name="arrangeDevice">按设备产能计算</param>
-        /// <returns></returns>
-        private static Dictionary<DateTime, SmartTaskOrderScheduleDay> MinimumWorkingPeriod(
-            IEnumerable<SmartTaskOrderConfirm> arrangeTasks,
-            ref List<SmartTaskOrderConfirm> allTasks,
-            IEnumerable<SmartTaskOrderScheduleDetail> schedules,
-            IEnumerable<SmartProductCapacityDetail> productCapacities,
-            IEnumerable<SmartCapacityListDetail> smartCapacityLists,
-            IEnumerable<SmartDevice> deviceList,
-            IEnumerable<SmartDeviceModelCount> modelCounts,
-            IEnumerable<SmartOperatorDetail> operatorList,
-            IEnumerable<SmartOperatorCount> operatorCounts,
-            DateTime time,
-            bool arrangeDevice)
-        {
-            //S级任务  排产不可修改
-            var superTasks = allTasks.Where(x => x.LevelId == 1).OrderBy(x => x.EndTime).ThenBy(x => x.Id);
-            //非S级任务  排产可修改
-            var normalTasks = allTasks.Where(x => x.LevelId != 1).OrderBy(y => y.Order);
-            //有时间要求的任务 先按生产天数从小到大排，再按截止时间从小到大排
-            var timeLimitTasks = normalTasks.Where(x => x.EndTime != default(DateTime)).OrderBy(t => t.Order).ThenBy(y => y.CapacityCostDay).ThenBy(y => y.EndTime).ThenBy(y => y.StartTime).ToList();
-            //没有时间要求的任务 先按生产天数从小到大排，再按目标量从小到大排
-            var notTimeLimitTasks = normalTasks.Where(x => x.EndTime == default(DateTime)).OrderBy(t => t.Order).ThenBy(y => y.CapacityCostDay).ThenBy(y => y.StartTime).ThenBy(y => y.Target).ToList();
-            var newSchedules = new Dictionary<DateTime, SmartTaskOrderScheduleDay>();
-            var minTime = time;
-            var maxTime = time.AddDays(Day);
-            var setEndTime = timeLimitTasks.Where(x => x.EndTime != default(DateTime));
-            //最小时间
-            minTime = !setEndTime.Any() ? minTime : setEndTime.Min(x => x.StartTime) < minTime ? setEndTime.Min(x => x.EndTime) : minTime;
-            minTime = !schedules.Any() ? minTime : schedules.Min(x => x.ProcessTime) < minTime ? schedules.Min(x => x.ProcessTime) : minTime;
-            //最大时间
-            maxTime = !setEndTime.Any() ? maxTime : setEndTime.Max(x => x.EndTime) > maxTime ? setEndTime.Max(x => x.EndTime) : maxTime;
-            maxTime = !schedules.Any() ? maxTime : schedules.Max(x => x.ProcessTime) > maxTime ? schedules.Max(x => x.ProcessTime) : maxTime;
-
-            AddDay(ref newSchedules, minTime, maxTime, deviceList, operatorList);
-            InitData(ref newSchedules, superTasks, schedules, productCapacities, smartCapacityLists, deviceList, operatorList);
-
-            ScheduleArrangeCal(ref timeLimitTasks, ref newSchedules, productCapacities, smartCapacityLists,
-                deviceList, modelCounts, operatorList, operatorCounts, time, arrangeDevice);
-            ScheduleArrangeCal(ref notTimeLimitTasks, ref newSchedules, productCapacities, smartCapacityLists,
-                deviceList, modelCounts, operatorList, operatorCounts, time, arrangeDevice);
-
-            return newSchedules;
-        }
-
-        /// <summary>
-        /// 最早交货期  截止日期
-        /// </summary>
-        /// <param name="arrangeTasks">本次安排任务</param>
-        /// <param name="allTasks">本次安排 + 已安排未完成任务</param>
-        /// <param name="schedules">已排生产</param>
-        /// <param name="productCapacities"></param>
-        /// <param name="smartCapacityLists"></param>
-        /// <param name="deviceList"></param>
-        /// <param name="modelCounts"></param>
-        /// <param name="operatorList"></param>
-        /// <param name="operatorCounts"></param>
-        /// <param name="time"></param>
-        /// <param name="arrangeDevice">按设备产能计算</param>
-        /// <returns></returns>
-        private static Dictionary<DateTime, SmartTaskOrderScheduleDay> EarliestDeliveryDate(
-            IEnumerable<SmartTaskOrderConfirm> arrangeTasks,
-            ref List<SmartTaskOrderConfirm> allTasks,
-            IEnumerable<SmartTaskOrderScheduleDetail> schedules,
-            IEnumerable<SmartProductCapacityDetail> productCapacities,
-            IEnumerable<SmartCapacityListDetail> smartCapacityLists,
-            IEnumerable<SmartDevice> deviceList,
-            IEnumerable<SmartDeviceModelCount> modelCounts,
-            IEnumerable<SmartOperatorDetail> operatorList,
-            IEnumerable<SmartOperatorCount> operatorCounts,
-            DateTime time,
-            bool arrangeDevice = false)
-        {
-            //S级任务  排产不可修改
-            var superTasks = allTasks.Where(x => x.LevelId == 1).OrderBy(x => x.EndTime).ThenBy(x => x.Id);
-            //非S级任务  排产可修改
-            var normalTasks = allTasks.Where(x => x.LevelId != 1).OrderBy(y => y.Order);
-            //有时间要求的任务 按交货期/截止时间从早到晚排
-            var timeLimitTasks = normalTasks.Where(x => x.EndTime != default(DateTime)).OrderBy(t => t.Order).ThenBy(y => y.EndTime).ThenBy(y => y.StartTime).ToList();
-            //没有时间要求的任务 按目标量从小到大排
-            var notTimeLimitTasks = normalTasks.Where(x => x.EndTime == default(DateTime)).OrderBy(t => t.Order).ThenBy(y => y.StartTime).ThenBy(y => y.Target).ToList();
-            var newSchedules = new Dictionary<DateTime, SmartTaskOrderScheduleDay>();
-            var minTime = time;
-            var maxTime = time.AddDays(Day);
-            var setEndTime = timeLimitTasks.Where(x => x.EndTime != default(DateTime));
-            //最小时间
-            minTime = !setEndTime.Any() ? minTime : setEndTime.Min(x => x.StartTime) < minTime ? setEndTime.Min(x => x.EndTime) : minTime;
-            minTime = !schedules.Any() ? minTime : schedules.Min(x => x.ProcessTime) < minTime ? schedules.Min(x => x.ProcessTime) : minTime;
-            //最大时间
-            maxTime = !setEndTime.Any() ? maxTime : setEndTime.Max(x => x.EndTime) > maxTime ? setEndTime.Max(x => x.EndTime) : maxTime;
-            maxTime = !schedules.Any() ? maxTime : schedules.Max(x => x.ProcessTime) > maxTime ? schedules.Max(x => x.ProcessTime) : maxTime;
-
-            AddDay(ref newSchedules, minTime, maxTime, deviceList, operatorList);
-            InitData(ref newSchedules, superTasks, schedules, productCapacities, smartCapacityLists, deviceList, operatorList);
-
-            ScheduleArrangeCal(ref timeLimitTasks, ref newSchedules, productCapacities, smartCapacityLists,
-                deviceList, modelCounts, operatorList, operatorCounts, time, arrangeDevice);
-            ScheduleArrangeCal(ref notTimeLimitTasks, ref newSchedules, productCapacities, smartCapacityLists,
-                deviceList, modelCounts, operatorList, operatorCounts, time, arrangeDevice);
-
-            return newSchedules;
-        }
-
-        /// <summary>
-        /// 工期和交货期之间的距离
-        /// </summary>
-        /// <param name="arrangeTasks">本次安排任务</param>
-        /// <param name="allTasks">本次安排 + 已安排未完成任务</param>
-        /// <param name="schedules">已排生产</param>
-        /// <param name="productCapacities"></param>
-        /// <param name="smartCapacityLists"></param>
-        /// <param name="deviceList"></param>
-        /// <param name="modelCounts"></param>
-        /// <param name="operatorList"></param>
-        /// <param name="operatorCounts"></param>
-        /// <param name="time"></param>
-        /// <param name="arrangeDevice">按设备产能计算</param>
-        /// <returns></returns>
-        private static Dictionary<DateTime, SmartTaskOrderScheduleDay> WorkingPeriodAndDeliveryDate(
-            IEnumerable<SmartTaskOrderConfirm> arrangeTasks,
-            ref List<SmartTaskOrderConfirm> allTasks,
-            IEnumerable<SmartTaskOrderScheduleDetail> schedules,
-            IEnumerable<SmartProductCapacityDetail> productCapacities,
-            IEnumerable<SmartCapacityListDetail> smartCapacityLists,
-            IEnumerable<SmartDevice> deviceList,
-            IEnumerable<SmartDeviceModelCount> modelCounts,
-            IEnumerable<SmartOperatorDetail> operatorList,
-            IEnumerable<SmartOperatorCount> operatorCounts,
-            DateTime time,
-            bool arrangeDevice = false)
-        {
-            //S级任务  排产不可修改
-            var superTasks = allTasks.Where(x => x.LevelId == 1).OrderBy(x => x.EndTime).ThenBy(x => x.Id);
-            //非S级任务  排产可修改
-            var normalTasks = allTasks.Where(x => x.LevelId != 1).OrderBy(y => y.Order);
-            //有时间要求的任务 先按期和交货期之间的距离从小到大排，再按截止时间从小到大排
-            var timeLimitTasks = normalTasks.Where(x => x.EndTime != default(DateTime)).OrderBy(t => t.Order).ThenBy(y => y.DistanceDay).ThenBy(y => y.EndTime).ThenBy(y => y.StartTime).ToList();
-            //没有时间要求的任务 按目标量从小到大排
-            var notTimeLimitTasks = normalTasks.Where(x => x.EndTime == default(DateTime)).OrderBy(t => t.Order).ThenBy(y => y.StartTime).ThenBy(y => y.Target).ToList();
-            var newSchedules = new Dictionary<DateTime, SmartTaskOrderScheduleDay>();
-            var minTime = time;
-            var maxTime = time.AddDays(Day);
-            var setEndTime = timeLimitTasks.Where(x => x.EndTime != default(DateTime));
-            //最小时间
-            minTime = !setEndTime.Any() ? minTime : setEndTime.Min(x => x.StartTime) < minTime ? setEndTime.Min(x => x.EndTime) : minTime;
-            minTime = !schedules.Any() ? minTime : schedules.Min(x => x.ProcessTime) < minTime ? schedules.Min(x => x.ProcessTime) : minTime;
-            //最大时间
-            maxTime = !setEndTime.Any() ? maxTime : setEndTime.Max(x => x.EndTime) > maxTime ? setEndTime.Max(x => x.EndTime) : maxTime;
-            maxTime = !schedules.Any() ? maxTime : schedules.Max(x => x.ProcessTime) > maxTime ? schedules.Max(x => x.ProcessTime) : maxTime;
-
-            AddDay(ref newSchedules, minTime, maxTime, deviceList, operatorList);
-            InitData(ref newSchedules, superTasks, schedules, productCapacities, smartCapacityLists, deviceList, operatorList);
-
-            ScheduleArrangeCal(ref timeLimitTasks, ref newSchedules, productCapacities, smartCapacityLists,
-                deviceList, modelCounts, operatorList, operatorCounts, time, arrangeDevice);
-            ScheduleArrangeCal(ref notTimeLimitTasks, ref newSchedules, productCapacities, smartCapacityLists,
-                deviceList, modelCounts, operatorList, operatorCounts, time, arrangeDevice);
-
-            return newSchedules;
-        }
-
-        /// <summary>
-        /// CR值
-        /// CR是英文critical ratio的缩写，可以翻译为重要比率。它的计算方法：交期减去目前日期之差额,再除以工期，数值越小表示紧急程度越高，排程优先级高。
-        /// </summary>
-        /// <param name="arrangeTasks">本次安排任务</param>
-        /// <param name="allTasks">本次安排 + 已安排未完成任务</param>
-        /// <param name="schedules">已排生产</param>
-        /// <param name="productCapacities"></param>
-        /// <param name="smartCapacityLists"></param>
-        /// <param name="deviceList"></param>
-        /// <param name="modelCounts"></param>
-        /// <param name="operatorList"></param>
-        /// <param name="operatorCounts"></param>
-        /// <param name="time"></param>
-        /// <param name="arrangeDevice">按设备产能计算</param>
-        /// <returns></returns>
-        private static Dictionary<DateTime, SmartTaskOrderScheduleDay> CR(
-            IEnumerable<SmartTaskOrderConfirm> arrangeTasks,
-            ref List<SmartTaskOrderConfirm> allTasks,
-            IEnumerable<SmartTaskOrderScheduleDetail> schedules,
-            IEnumerable<SmartProductCapacityDetail> productCapacities,
-            IEnumerable<SmartCapacityListDetail> smartCapacityLists,
-            IEnumerable<SmartDevice> deviceList,
-            IEnumerable<SmartDeviceModelCount> modelCounts,
-            IEnumerable<SmartOperatorDetail> operatorList,
-            IEnumerable<SmartOperatorCount> operatorCounts,
-            DateTime time,
-            bool arrangeDevice = false)
-        {
-            //S级任务  排产不可修改
-            var superTasks = allTasks.Where(x => x.LevelId == 1).OrderBy(x => x.EndTime).ThenBy(x => x.Id);
-            //非S级任务  排产可修改
-            var normalTasks = allTasks.Where(x => x.LevelId != 1).OrderBy(y => y.Order);
-            //有时间要求的任务 先按生产天数从小到大排，再按截止时间从小到大排
-            var timeLimitTasks = normalTasks.Where(x => x.EndTime != default(DateTime)).OrderBy(t => t.Order).ThenBy(y => y.CR).ThenBy(y => y.EndTime).ThenBy(y => y.StartTime).ToList();
-            //没有时间要求的任务 先按生产天数从小到大排，再按目标量从小到大排
-            var notTimeLimitTasks = normalTasks.Where(x => x.EndTime == default(DateTime)).OrderBy(t => t.Order).ThenBy(y => y.StartTime).ThenBy(y => y.Target).ToList();
-            var newSchedules = new Dictionary<DateTime, SmartTaskOrderScheduleDay>();
-            var minTime = time;
-            var maxTime = time.AddDays(Day);
-            var setEndTime = timeLimitTasks.Where(x => x.EndTime != default(DateTime));
-            //最小时间
-            minTime = !setEndTime.Any() ? minTime : setEndTime.Min(x => x.StartTime) < minTime ? setEndTime.Min(x => x.EndTime) : minTime;
-            minTime = !schedules.Any() ? minTime : schedules.Min(x => x.ProcessTime) < minTime ? schedules.Min(x => x.ProcessTime) : minTime;
-            //最大时间
-            maxTime = !setEndTime.Any() ? maxTime : setEndTime.Max(x => x.EndTime) > maxTime ? setEndTime.Max(x => x.EndTime) : maxTime;
-            maxTime = !schedules.Any() ? maxTime : schedules.Max(x => x.ProcessTime) > maxTime ? schedules.Max(x => x.ProcessTime) : maxTime;
-
-            AddDay(ref newSchedules, minTime, maxTime, deviceList, operatorList);
-            InitData(ref newSchedules, superTasks, schedules, productCapacities, smartCapacityLists, deviceList, operatorList);
-
-            ScheduleArrangeCal(ref timeLimitTasks, ref newSchedules, productCapacities, smartCapacityLists,
-                deviceList, modelCounts, operatorList, operatorCounts, time, arrangeDevice);
-            ScheduleArrangeCal(ref notTimeLimitTasks, ref newSchedules, productCapacities, smartCapacityLists,
-                deviceList, modelCounts, operatorList, operatorCounts, time, arrangeDevice);
-
-            return newSchedules;
         }
 
         /// <summary>
@@ -1684,7 +1556,7 @@ namespace ApiManagement.Base.Helper
         /// <param name="operatorList"></param>
         /// <param name="operatorCounts"></param>
         /// <param name="time"></param>
-        /// <param name="arrangeDevice"></param>
+        /// <param name="productType"></param>
         /// <param name="critical">是否紧急</param>
         private static void ScheduleArrangeCal(
             ref List<SmartTaskOrderConfirm> tasks,
@@ -1696,7 +1568,7 @@ namespace ApiManagement.Base.Helper
             IEnumerable<SmartOperatorDetail> operatorList,
             IEnumerable<SmartOperatorCount> operatorCounts,
             DateTime time,
-            bool arrangeDevice,
+            int productType,
             bool critical = false)
         {
             var count = tasks.Count;
@@ -1706,15 +1578,6 @@ namespace ApiManagement.Base.Helper
             {
                 foreach (var task in tasks)
                 {
-                    if (task.StartTime != default(DateTime) && task.StartTime > t)
-                    {
-                        continue;
-                    }
-
-                    if (task.Left == 0)
-                    {
-                        continue;
-                    }
                     var productId = task.ProductId;
                     var capacityId = task.CapacityId;
                     //产能配置
@@ -1723,6 +1586,7 @@ namespace ApiManagement.Base.Helper
                     var pCapacities = productCapacities.Where(x => x.ProductId == productId);
                     if (pCapacities.Any(x => x.DeviceNumber == 0 || x.OperatorNumber == 0))
                     {
+                        task.CanArrange = false;
                         continue;
                     }
 
@@ -1730,21 +1594,6 @@ namespace ApiManagement.Base.Helper
                     for (var i = 0; i < task.Needs.Count; i++)
                     {
                         var need = task.Needs.ElementAt(i);
-                        if (need.Have == 0 && need.LeftPut == 0)
-                        {
-                            continue;
-                        }
-
-                        if (need.LeftPut < 0)
-                        {
-                            continue;
-                        }
-
-                        if (need.Have <= 0)
-                        {
-                            //当前没东西可加工
-                            continue;
-                        }
                         var processId = need.ProcessId;
                         //工序单日产能配置
                         var cList = capacityList.FirstOrDefault(x => x.ProcessId == processId);
@@ -1754,64 +1603,111 @@ namespace ApiManagement.Base.Helper
                         var pCapacity = pCapacities.FirstOrDefault(x => x.ProcessId == processId);
                         //安排设备或人员列表
                         var arrangeList = new List<ArrangeInfo>();
-                        var tArrangeDevice = arrangeDevice;
                         //用设备产能计算但是不支持设备加工
-                        if (arrangeDevice && cList.CategoryId == 0)
+                        if (productType == 0 && cList.CategoryId == 0)
                         {
-                            tArrangeDevice = false;
+                            productType = 1;
                         }
-                        //根据arrangeDevice判断用设备产能计算还是人员产能计算， 以安排的前道工序同时生产一次产能总和来排产，等待中的产能损耗额外安排
+                        SmartTaskOrderScheduleDetail sc;
+                        if (task.StartTime != default(DateTime) && task.StartTime > t)
+                        {
+                            //当前没东西可加工
+                            sc = new SmartTaskOrderScheduleDetail(t, task, cList, pCapacity)
+                            {
+                                MarkedDateTime = time,
+                                Process = need.Process,
+                                Stock = 0,
+                                Target = 0,
+                                Put = 0,
+                                //Target = (int)(put * pCapacity.Rate / 100).ToRound(0),
+                                CapacityIndex = 0
+                            };
+                            newSchedules[t].AddTaskOrderSchedule(sc, arrangeList);
+                            continue;
+                        }
+
+                        if (need.Have <= 0)
+                        {
+                            //当前没东西可加工
+                            sc = new SmartTaskOrderScheduleDetail(t, task, cList, pCapacity)
+                            {
+                                MarkedDateTime = time,
+                                Process = need.Process,
+                                Stock = 0,
+                                Target = 0,
+                                Put = 0,
+                                //Target = (int)(put * pCapacity.Rate / 100).ToRound(0),
+                                CapacityIndex = 0
+                            };
+                            newSchedules[t].AddTaskOrderSchedule(sc, arrangeList);
+                            continue;
+                        }
+
+                        //根据productType判断用设备产能计算还是人员产能计算， 以安排的前道工序同时生产一次产能总和来排产，等待中的产能损耗额外安排
                         ArrangeDeviceOrOperator(task, t, need.Have, out var capacity, ref waitIndex, ref arrangeList, ref newSchedules,
-                            cList, pCapacity, deviceList, modelCounts, operatorList, operatorCounts, tArrangeDevice);
+                            cList, pCapacity, deviceList, modelCounts, operatorList, operatorCounts, productType);
                         //本次剩余产能
                         if (capacity == 0)
                         {
                             //没产能
+                            sc = new SmartTaskOrderScheduleDetail(t, task, cList, pCapacity)
+                            {
+                                MarkedDateTime = time,
+                                Process = need.Process,
+                                Stock = 0,
+                                Target = 0,
+                                Put = 0,
+                                //Target = (int)(put * pCapacity.Rate / 100).ToRound(0),
+                                CapacityIndex = 0
+                            };
+                            newSchedules[t].AddTaskOrderSchedule(sc, arrangeList);
                             continue;
                         }
-
-                        if (need.DoneTarget == 0 && need.EstimatedStartTime == default(DateTime))
+                        if (need.FirstArrangedTime == default(DateTime))
+                        {
+                            need.FirstArrangedTime = t;
+                        }
+                        if (need.EstimatedStartTime == default(DateTime))
                         {
                             need.EstimatedStartTime = t;
-                            if (task.StartTime == default(DateTime))
-                            {
-                                task.StartTime = t;
-                            }
                         }
+
                         //已有可加工数量 与 产能
                         var put = need.Have < capacity ? need.Have : capacity;
                         need.HavePut += put;
                         need.Have -= put;
-                        var sc = new SmartTaskOrderScheduleDetail(t, task, cList, pCapacity)
+                        sc = new SmartTaskOrderScheduleDetail(t, task, cList, pCapacity)
                         {
-                            IsDevice = tArrangeDevice ? 0 : 1,
                             MarkedDateTime = time,
-                            Put = put,
+                            ProductType = productType,
                             Process = need.Process,
-                            //Target = (int)Math.Floor(put * pCapacity.Rate / 100),
-                            Target = (int)(put * pCapacity.Rate / 100).ToRound(0),
+                            Stock = need.Stock,
+                            Target = (int)Math.Floor(put * pCapacity.Rate / 100),
+                            Put = put,
+                            //Target = (int)(put * pCapacity.Rate / 100).ToRound(0),
                             CapacityIndex = ((decimal)put / capacity).ToRound(4)
                         };
-                        need.DoneTarget = sc.Target;
-                        newSchedules[t].AddTaskOrderSchedule(sc, arrangeList);
+                        var old = newSchedules[t].AddTaskOrderSchedule(sc, arrangeList);
+                        if (old != null)
+                        {
+                            sc = old;
+                        }
+
+                        need.ProductType = productType;
+                        need.DoneTarget += sc.Target;
                         var next = task.Needs.ElementAtOrDefault(i + 1);
                         if (next != null)
                         {
-                            next.Have = sc.Target;
-                            //next.Put = sc.Target;
+                            next.Have += sc.Target;
                         }
                         else
                         {
                             task.DoneTarget += sc.Target;
-                            task.EndTime = t;
                         }
-                        //if (need.DoneTarget == need.Target)
-                        //{
-                        //    need.EstimatedCompleteTime = t;
-                        //}
+
                         if (task.AllDone(need))
                         {
-                            need.EstimatedCompleteTime = t;
+                            need.EstimatedEndTime = t;
                         }
                     }
                 }
@@ -1864,7 +1760,7 @@ namespace ApiManagement.Base.Helper
         /// 数据初始化
         /// </summary>
         /// <param name="newSchedules"></param>
-        /// <param name="superTasks"></param>
+        /// <param name="tasks"></param>
         /// <param name="schedules"></param>
         /// <param name="productCapacities"></param>
         /// <param name="smartCapacityLists"></param>
@@ -1872,7 +1768,7 @@ namespace ApiManagement.Base.Helper
         /// <param name="operatorList"></param>
         private static void InitData(
             ref Dictionary<DateTime, SmartTaskOrderScheduleDay> newSchedules,
-            IEnumerable<SmartTaskOrderConfirm> superTasks,
+            IEnumerable<SmartTaskOrderConfirm> tasks,
             IEnumerable<SmartTaskOrderScheduleDetail> schedules,
             IEnumerable<SmartProductCapacityDetail> productCapacities,
             IEnumerable<SmartCapacityListDetail> smartCapacityLists,
@@ -1885,13 +1781,15 @@ namespace ApiManagement.Base.Helper
                 var taskOrderId = schedule.TaskOrderId;
                 var processId = schedule.ProcessId;
                 var productId = schedule.ProductId;
-                var capacityId = productCapacities.FirstOrDefault(x => x.ProductId == productId && x.ProcessId == processId)?.CapacityId ?? 0;
+                //计划号工序单日产能
+                var pCapacity = productCapacities.FirstOrDefault(x => x.ProductId == productId && x.ProcessId == processId);
+                var capacityId = pCapacity?.CapacityId ?? 0;
                 var capacityList = smartCapacityLists.FirstOrDefault(x => x.CapacityId == capacityId && x.ProcessId == processId);
                 var pId = schedule.PId;
                 schedule.CategoryId = capacityList.CategoryId;
                 schedule.Order = capacityList.Order;
-                //S级任务且已排产
-                var task = superTasks.FirstOrDefault(x => x.Id == schedule.TaskOrderId);
+                //任务已排产
+                var task = tasks.FirstOrDefault(x => x.Id == schedule.TaskOrderId);
                 if (task != null && task.Arranged)
                 {
                     if (!newSchedules.ContainsKey(processTime))
@@ -1902,9 +1800,9 @@ namespace ApiManagement.Base.Helper
                     }
 
                     var arrangeInfos = new List<ArrangeInfo>();
-                    if (schedule.Device)
+                    if (schedule.ProductType == 0)
                     {
-                        foreach (var (id, count) in schedule.DeviceList)
+                        foreach (var (id, count) in schedule.ActualDeviceList)
                         {
                             var device = deviceList.FirstOrDefault(x => x.Id == id);
                             if (device != null)
@@ -1936,14 +1834,14 @@ namespace ApiManagement.Base.Helper
                                 }
                                 else
                                 {
-                                    first.Arranges.Add(new ArrangeDetail(taskOrderId, productId, pId, single, count, singleCount));
+                                    first.Arranges.Add(new ArrangeDetail(taskOrderId, productId, pId, capacityList.Order, single, count, singleCount));
                                 }
                             }
                         }
                     }
-                    else
+                    else if (schedule.ProductType == 1)
                     {
-                        foreach (var (id, count) in schedule.OperatorsList)
+                        foreach (var (id, count) in schedule.ActualOperatorsList)
                         {
                             var op = operatorList.FirstOrDefault(x => x.Id == id);
                             if (op != null)
@@ -1975,12 +1873,19 @@ namespace ApiManagement.Base.Helper
                                 }
                                 else
                                 {
-                                    first.Arranges.Add(new ArrangeDetail(taskOrderId, productId, pId, single, count, singleCount));
+                                    first.Arranges.Add(new ArrangeDetail(taskOrderId, productId, pId, capacityList.Order, single, count, singleCount));
                                 }
                             }
                         }
                     }
-                    newSchedules[processTime].AddTaskOrderSchedule(schedule, arrangeInfos);
+                    if (arrangeInfos.Any())
+                    {
+                        //var capacity = GetDeviceOrOperatorCapacity(arrangeInfos, capacityList, pCapacity, schedule.ProductType);
+                        schedule.Target = schedule.DoneTarget;
+                        schedule.Put = schedule.HavePut;
+                        schedule.Devices = schedule.ActualDevices;
+                        newSchedules[processTime].AddTaskOrderSchedule(schedule, arrangeInfos);
+                    }
                 }
             }
         }
@@ -2000,7 +1905,7 @@ namespace ApiManagement.Base.Helper
         /// <param name="modelCounts"></param>
         /// <param name="operatorList"></param>
         /// <param name="operatorCounts"></param>
-        /// <param name="arrangeDevice"></param>
+        /// <param name="productType"></param>
         /// <param name="waitIndex">等待消耗的产能</param>
         private static void ArrangeDeviceOrOperator(
             SmartTaskOrderConfirm task,
@@ -2016,8 +1921,13 @@ namespace ApiManagement.Base.Helper
             IEnumerable<SmartDeviceModelCount> modelCounts,
             IEnumerable<SmartOperatorDetail> operatorList,
             IEnumerable<SmartOperatorCount> operatorCounts,
-            bool arrangeDevice)
+            int productType)
         {
+            capacity = 0;
+            if (number <= 0)
+            {
+                return;
+            }
             var schedule = newSchedules[processTime];
             var taskOrderId = task.Id;
             var capacityId = capacityList.CapacityId;
@@ -2025,8 +1935,8 @@ namespace ApiManagement.Base.Helper
             var pId = capacityList.PId;
             var productId = productCapacity.ProductId;
             var processId = capacityList.ProcessId;
-            var indexes = schedule.ProcessLeftCapacityIndex(categoryId, pId, capacityList, deviceList, operatorList, arrangeDevice, waitIndex);
-            capacity = 0;
+            var indexes = schedule.ProcessLeftCapacityIndex(categoryId, pId, capacityList, deviceList, operatorList, productType, waitIndex);
+
             if (!indexes.Any())
             {
                 return;
@@ -2036,7 +1946,7 @@ namespace ApiManagement.Base.Helper
             {
                 #region 动态规划最优安排
                 //安排设备
-                if (arrangeDevice)
+                if (productType == 0)
                 {
                     var devices = capacityList.DeviceList;
                     var maxSingle = devices.Max(x => x.Single);
@@ -2163,7 +2073,7 @@ namespace ApiManagement.Base.Helper
                         ss += left;
                     }
                 }
-                else
+                else if (productType == 1)
                 {
 
                 }
@@ -2174,7 +2084,7 @@ namespace ApiManagement.Base.Helper
             else
             {
                 //安排设备
-                if (arrangeDevice)
+                if (productType == 0)
                 {
                     var devices = capacityList.DeviceList;
                     //可生产的设备型号产量及单日次数
@@ -2210,7 +2120,7 @@ namespace ApiManagement.Base.Helper
                                     }
                                     else
                                     {
-                                        first.Arranges.Add(new ArrangeDetail(taskOrderId, productId, pId, single, actCount, singleCount));
+                                        first.Arranges.Add(new ArrangeDetail(taskOrderId, productId, pId, capacityList.Order, single, actCount, singleCount));
                                     }
                                 }
                                 if (capacity >= number)
@@ -2225,7 +2135,7 @@ namespace ApiManagement.Base.Helper
                         }
                     }
                 }
-                else
+                else if (productType == 1)
                 {
                     var operators = capacityList.OperatorList;
                     //可生产的人员等级产量及单日次数
@@ -2261,7 +2171,7 @@ namespace ApiManagement.Base.Helper
                                     }
                                     else
                                     {
-                                        first.Arranges.Add(new ArrangeDetail(taskOrderId, productId, pId, single, actCount, singleCount));
+                                        first.Arranges.Add(new ArrangeDetail(taskOrderId, productId, pId, capacityList.Order, single, actCount, singleCount));
                                     }
                                 }
                                 if (capacity >= number)
@@ -2277,6 +2187,70 @@ namespace ApiManagement.Base.Helper
                     }
                 }
             }
+        }
+
+
+
+        /// <summary>
+        /// 
+        /// </summary>
+        /// <param name="arrangeList">设备类型  设备型号 设备id  设备次数 /流程工序  人员等级 人员id  人员次数</param>
+        /// <param name="capacityList"></param>
+        /// <param name="productCapacity"></param>
+        /// <param name="productType"></param>
+        /// <param name="all">是否全部生产</param>
+        private static int GetDeviceOrOperatorCapacity(
+            List<ArrangeInfo> arrangeList,
+            SmartCapacityListDetail capacityList,
+            SmartProductCapacityDetail productCapacity,
+            int productType,
+            bool all = false)
+        {
+            var capacity = 0;
+            //安排设备
+            if (productType == 0)
+            {
+                var devices = capacityList.DeviceList;
+                //设备型号 设备id  设备次数
+                foreach (var info in arrangeList)
+                {
+                    var deviceCapacity = devices.FirstOrDefault(x => x.ModelId == info.Item);
+                    if (deviceCapacity != null)
+                    {
+                        //设备单次生产数量
+                        var single = deviceCapacity.Single;
+                        //设备单日生产次数
+                        var singleCount = deviceCapacity.SingleCount;
+                        foreach (var arrange in info.Arranges)
+                        {
+                            var count = !all ? arrange.Count > singleCount ? singleCount : arrange.Count : singleCount;
+                            capacity += count * single;
+                        }
+                    }
+                }
+            }
+            else if (productType == 1)
+            {
+                var operators = capacityList.OperatorList;
+                //人员等级 人员id  人员次数
+                foreach (var info in arrangeList)
+                {
+                    var operatorCapacity = operators.FirstOrDefault(x => x.LevelId == info.Item);
+                    if (operatorCapacity != null)
+                    {
+                        //人员单次生产数量
+                        var single = operatorCapacity.Single;
+                        //人员单日生产次数
+                        var singleCount = operatorCapacity.SingleCount;
+                        foreach (var arrange in info.Arranges)
+                        {
+                            var count = !all ? arrange.Count > singleCount ? singleCount : arrange.Count : singleCount;
+                            capacity += count * single;
+                        }
+                    }
+                }
+            }
+            return capacity;
         }
     }
 

@@ -1,7 +1,7 @@
 ﻿using ApiManagement.Base.Server;
 using ApiManagement.Models.BaseModel;
+using System;
 using System.Collections.Generic;
-using System.Linq;
 
 namespace ApiManagement.Models.SmartFactoryModel
 {
@@ -11,39 +11,66 @@ namespace ApiManagement.Models.SmartFactoryModel
         {
             Table = "t_task_order_schedule";
             InsertSql =
-                "INSERT INTO `t_task_order_schedule` (`CreateUserId`, `MarkedDateTime`, `Batch`, `IsDevice`, `ProcessTime`, `TaskOrderId`, `ProcessId`, `PId`, `ProductId`, `Target`, `Put`, `HavePut`, `Rate`, `Devices`, `Operators`, `Stock`, `DoneTarget`, `Done`, `DoingCount`, `Doing`, `IssueCount`, `Issue`) " +
-                "VALUES (@CreateUserId, @MarkedDateTime, @Batch, @IsDevice, @ProcessTime, @TaskOrderId, @ProcessId, @PId, @ProductId, @Target, @Put, @HavePut, @Rate, @Devices, @Operators, @Stock, @DoneTarget, @Done, @DoingCount, @Doing, @IssueCount, @Issue);";
+                "INSERT INTO `t_task_order_schedule` (`CreateUserId`, `MarkedDateTime`, `Batch`, `ArrangeOrder`, `ProductType`, `ProcessTime`, `TaskOrderId`, `ProcessId`, `PId`, `ProductId`, `Target`, `Put`, `HavePut`, `Rate`, `Devices`, `Operators`, `Stock`, `DoneTarget`, `Done`, `DoingCount`, `Doing`, `IssueCount`, `Issue`) " +
+                "VALUES (@CreateUserId, @MarkedDateTime, @Batch, @ArrangeOrder, @ProductType, @ProcessTime, @TaskOrderId, @ProcessId, @PId, @ProductId, @Target, @Put, @HavePut, @Rate, @Devices, @Operators, @Stock, @DoneTarget, @Done, @DoingCount, @Doing, @IssueCount, @Issue);";
             UpdateSql = "UPDATE `t_task_order_schedule` SET `MarkedDateTime` = @MarkedDateTime, `Target` = @Target, `Put` = @Put, `Rate` = @Rate WHERE `Id` = @Id;";
         }
         public static readonly SmartTaskOrderScheduleHelper Instance = new SmartTaskOrderScheduleHelper();
         #region Get
-        public IEnumerable<SmartTaskOrderScheduleDetail> GetSmartTaskOrderScheduleByBatch(int batch, int taskOrderId = 0)
+        /// <summary>
+        /// 获取最新安排
+        /// </summary>
+        /// <param name="taskOrderIds"></param>
+        /// <param name="startTime"></param>
+        /// <param name="endTime"></param>
+        /// <returns></returns>
+        public IEnumerable<SmartTaskOrderScheduleDetail> GetSmartTaskOrderSchedule(IEnumerable<int> taskOrderIds, DateTime startTime = default(DateTime), DateTime endTime = default(DateTime))
         {
-            return ServerConfig.ApiDb.Query<SmartTaskOrderScheduleDetail>($"SELECT a.*, b.`Order`, b.Process, c.TaskOrder, d.Product FROM `t_task_order_schedule` a " +
-                                                                          "JOIN `t_process` b ON a.PId = b.Id " +
-                                                                          "JOIN `t_task_order` c ON a.TaskOrderId = c.Id " +
-                                                                          "JOIN `t_product` d ON a.ProductId = d.Id " +
-                                                                          "JOIN `t_product_capacity` e ON a.ProductId = e.ProductId AND a.ProcessId = e.ProcessId " +
-                                                                          $"WHERE a.MarkedDelete = 0 AND a.Batch = @batch{(taskOrderId == 0 ? "" : " AND a.TaskOrderId = @taskOrderId")};", new { batch, taskOrderId });
+            return ServerConfig.ApiDb.Query<SmartTaskOrderScheduleDetail>(
+                $"SELECT a.*, b.`Order`, b.Process, c.TaskOrder, d.Product FROM `t_task_order_schedule` a " +
+                "JOIN `t_process` b ON a.PId = b.Id " +
+                "JOIN `t_task_order` c ON a.TaskOrderId = c.Id " +
+                "JOIN `t_product` d ON a.ProductId = d.Id " +
+                "JOIN `t_product_capacity` e ON a.ProductId = e.ProductId AND a.ProcessId = e.ProcessId " +
+                $"JOIN (SELECT * FROM (SELECT Id, ProcessTime, Batch, TaskOrderId, PId, ProcessId FROM `t_task_order_schedule` WHERE TaskOrderId IN @taskOrderIds{(startTime != default(DateTime) && endTime != default(DateTime) ? " AND ProcessTime >= @startTime AND ProcessTime <= @endTime" : "")} ORDER BY Batch DESC, ProcessTime DESC) a GROUP BY a.ProcessTime, a.TaskOrderId, a.PId) f ON a.Id = f.Id ORDER BY a.ProcessTime, a.Id",
+                new { taskOrderIds, startTime, endTime });
         }
-
-        public IEnumerable<SmartTaskOrderScheduleDetail> GetSmartTaskOrderScheduleByTaskOrderIds(IEnumerable<int> taskOrderIds)
+        /// <summary>
+        /// 获取最新安排
+        /// </summary>
+        /// <param name="taskOrderId"></param>
+        /// <param name="pId"></param>
+        /// <param name="startTime"></param>
+        /// <param name="endTime"></param>
+        /// <returns></returns>
+        public IEnumerable<SmartTaskOrderScheduleDetail> GetSmartTaskOrderSchedule(int taskOrderId, int pId, DateTime startTime = default(DateTime), DateTime endTime = default(DateTime))
         {
-            return ServerConfig.ApiDb.Query<SmartTaskOrderScheduleDetail>($"SELECT a.*, b.`Order`, b.Process, c.TaskOrder, d.Product FROM `t_task_order_schedule` a " +
-                                                                          "JOIN `t_process` b ON a.PId = b.Id " +
-                                                                          "JOIN `t_task_order` c ON a.TaskOrderId = c.Id " +
-                                                                          "JOIN `t_product` d ON a.ProductId = d.Id " +
-                                                                          "JOIN `t_product_capacity` e ON a.ProductId = e.ProductId AND a.ProcessId = e.ProcessId " +
-                                                                          "JOIN (SELECT * FROM (SELECT ProcessTime, Batch FROM `t_task_order_schedule` ORDER BY Batch DESC, ProcessTime DESC) a GROUP BY a.ProcessTime) f ON a.ProcessTime = f.ProcessTime AND a.Batch = f.Batch " +
-                                                                          $"WHERE a.MarkedDelete = 0 AND a.TaskOrderId IN @taskOrderIds", new { taskOrderIds });
+            return ServerConfig.ApiDb.Query<SmartTaskOrderScheduleDetail>(
+                $"SELECT a.*, b.`Order`, b.Process, c.TaskOrder, d.Product FROM `t_task_order_schedule` a " +
+                "JOIN `t_process` b ON a.PId = b.Id " +
+                "JOIN `t_task_order` c ON a.TaskOrderId = c.Id " +
+                "JOIN `t_product` d ON a.ProductId = d.Id " +
+                "JOIN `t_product_capacity` e ON a.ProductId = e.ProductId AND a.ProcessId = e.ProcessId " +
+                $"JOIN (SELECT * FROM (SELECT Id, ProcessTime, Batch, TaskOrderId, PId, ProcessId FROM `t_task_order_schedule` WHERE TaskOrderId = @taskOrderId {(pId ==0?"": " AND PId = @pId")} {(startTime != default(DateTime) && endTime != default(DateTime) ? " AND ProcessTime >= @startTime AND ProcessTime <= @endTime" : "")} ORDER BY Batch DESC, ProcessTime DESC) a GROUP BY a.ProcessTime, a.TaskOrderId, a.PId) f ON a.Id = f.Id ORDER BY a.ProcessTime",
+                new { taskOrderId, startTime, endTime, pId });
         }
-
-        public int GetSmartTaskOrderScheduleBatch(int taskOrderId = 0)
+        /// <summary>
+        /// 获取最新安排
+        /// </summary>
+        /// <param name="startTime"></param>
+        /// <param name="endTime"></param>
+        /// <returns></returns>
+        public IEnumerable<SmartTaskOrderScheduleDetail> GetSmartTaskOrderSchedule(DateTime startTime = default(DateTime), DateTime endTime = default(DateTime))
         {
-            return ServerConfig.ApiDb.Query<int>($"SELECT IFNULL(MAX(Batch), 0) FROM `t_task_order_schedule` " +
-                                                 $"WHERE MarkedDelete = 0{(taskOrderId == 0 ? "" : " AND TaskOrderId = @taskOrderId")};", new { taskOrderId }).FirstOrDefault();
+            return ServerConfig.ApiDb.Query<SmartTaskOrderScheduleDetail>(
+                $"SELECT a.*, b.`Order`, b.Process, c.TaskOrder, d.Product FROM `t_task_order_schedule` a " +
+                "JOIN `t_process` b ON a.PId = b.Id " +
+                "JOIN `t_task_order` c ON a.TaskOrderId = c.Id " +
+                "JOIN `t_product` d ON a.ProductId = d.Id " +
+                "JOIN `t_product_capacity` e ON a.ProductId = e.ProductId AND a.ProcessId = e.ProcessId " +
+                $"JOIN (SELECT * FROM (SELECT Id, ProcessTime, Batch, TaskOrderId, PId, ProcessId FROM `t_task_order_schedule`{(startTime != default(DateTime) && endTime != default(DateTime) ? " WHERE ProcessTime >= @startTime AND ProcessTime <= @endTime" : "")} ORDER BY Batch DESC, ProcessTime DESC) a GROUP BY a.ProcessTime, a.TaskOrderId, a.PId) f ON a.Id = f.Id ORDER BY a.ProcessTime, a.Id",
+                new { startTime, endTime });
         }
-
         #endregion
 
         #region Add

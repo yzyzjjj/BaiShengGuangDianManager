@@ -1,9 +1,10 @@
 ﻿using ApiManagement.Models.BaseModel;
 using ModelBase.Base.Utils;
-using Newtonsoft.Json;
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using Newtonsoft.Json;
+using ServiceStack;
 
 namespace ApiManagement.Models.SmartFactoryModel
 {
@@ -88,18 +89,25 @@ namespace ApiManagement.Models.SmartFactoryModel
         /// </summary>
         public bool Arranged { get; set; }
         /// <summary>
-        /// 开始时间
+        /// 首次安排日期
+        /// </summary>
+        public DateTime ArrangedTime { get; set; }
+        /// <summary>
+        /// 设置开始时间
         /// </summary>
         public DateTime StartTime { get; set; }
         /// <summary>
-        /// 结束时间
+        /// 设置结束时间
         /// </summary>
         public DateTime EndTime { get; set; }
         /// <summary>
-        /// 设置结束时间
+        /// 本次预计开始时间
         /// </summary>
-        [JsonIgnore]
-        public DateTime SetEndTime { get; set; }
+        public DateTime EstimatedStartTime { get; set; }
+        /// <summary>
+        /// 本次预计结束时间
+        /// </summary>
+        public DateTime EstimatedEndTime { get; set; }
         /// <summary>
         /// 耗时
         /// </summary>
@@ -122,12 +130,12 @@ namespace ApiManagement.Models.SmartFactoryModel
         {
             get
             {
-                if (SetEndTime != default(DateTime))
+                if (EndTime != default(DateTime))
                 {
-                    var time = EndTime != default(DateTime) ? EndTime : DateTime.Today;
-                    if (time > SetEndTime)
+                    var time = EstimatedEndTime != default(DateTime) ? EstimatedEndTime : DateTime.Today;
+                    if (time > EndTime)
                     {
-                        return (int)(time - SetEndTime).TotalDays;
+                        return (int)(time - EndTime).TotalDays;
                     }
                 }
                 return 0;
@@ -151,10 +159,10 @@ namespace ApiManagement.Models.SmartFactoryModel
                 return 0;
             }
         }
-        /// <summary>
-        /// 预计完成日期
-        /// </summary>
-        public DateTime EstimatedTime { get; set; }
+        ///// <summary>
+        ///// 预计完成日期
+        ///// </summary>
+        //public DateTime EstimatedTime { get; set; }
         /// <summary>
         /// 实际开始日期
         /// </summary>
@@ -236,11 +244,15 @@ namespace ApiManagement.Models.SmartFactoryModel
         /// </summary>
         public string Level { get; set; }
         public List<SmartTaskOrderNeedDetail> Needs { get; set; } = new List<SmartTaskOrderNeedDetail>();
-        [JsonIgnore]
-        public List<SmartTaskOrderNeedDetail> OldNeeds { get; set; } = new List<SmartTaskOrderNeedDetail>();
+        //[JsonIgnore]
+        //public List<SmartTaskOrderNeedDetail> OldNeeds { get; set; } = new List<SmartTaskOrderNeedDetail>();
     }
     public class SmartTaskOrderConfirm : SmartTaskOrderDetail, ICloneable
     {
+        /// <summary>
+        /// 工序产能配置是0 无法安排
+        /// </summary>
+        public bool CanArrange { get; set; } = true;
         /// <summary>
         /// 等级
         /// </summary>
@@ -286,7 +298,7 @@ namespace ApiManagement.Models.SmartFactoryModel
         /// <summary>
         /// 逾期
         /// </summary>
-        public int OverdueDay
+        public int OverDueDay
         {
             get
             {
@@ -313,6 +325,11 @@ namespace ApiManagement.Models.SmartFactoryModel
         /// <returns></returns>
         public bool AllDone(SmartTaskOrderSchedule need = null)
         {
+            if (!CanArrange)
+            {
+                return true;
+            }
+
             if (need == null)
             {
                 return !Needs.Any() || Needs.All(x => x.Have == 0);
@@ -335,5 +352,118 @@ namespace ApiManagement.Models.SmartFactoryModel
     {
         public List<SmartTaskOrderConfirm> TaskOrders { get; set; } = new List<SmartTaskOrderConfirm>();
         public List<SmartTaskOrderScheduleDetail> Schedule { get; set; } = new List<SmartTaskOrderScheduleDetail>();
+    }
+    public class SmartTaskOrderCapacity : SmartTaskOrderDetail
+    {
+        /// <summary>
+        /// 总需求/剩余需求
+        /// </summary>
+        public bool All { get; set; } = true;
+        public List<SmartTaskOrderCapacityNeed> Needs { get; set; } = new List<SmartTaskOrderCapacityNeed>();
+    }
+
+    public class SmartTaskOrderCapacityNeed : SmartTaskOrderNeedDetail
+    {
+        /// <summary>
+        /// 加工设备列表  型号,  单次,  次数
+        /// </summary>
+        public string Devices { get; set; }
+        private Dictionary<int, Tuple<int, int>> _deviceList { get; set; }
+        /// <summary>
+        /// 加工设备列表  型号,  单次,  次数
+        /// </summary>
+        [JsonIgnore]
+        public Dictionary<int, Tuple<int, int>> DeviceList
+        {
+            get
+            {
+                if (_deviceList == null)
+                {
+                    _deviceList = new Dictionary<int, Tuple<int, int>>();
+                    if (!Devices.IsNullOrEmpty())
+                    {
+                        var s = Devices.Split(",").Select(int.Parse).ToArray();
+                        for (var i = 0; i < s.Length / 3; i++)
+                        {
+                            var index = i * 3;
+                            _deviceList.Add(s[index], new Tuple<int, int>(s[index + 1], s[index + 2]));
+                        }
+                    }
+                }
+                return _deviceList;
+            }
+            set
+            {
+                _deviceList = value;
+                Devices = _deviceList.Select(x => $"{x.Key},{x.Value.Item1},{x.Value.Item2}").Join();
+            }
+        }
+        /// <summary>
+        /// 加工人员列表  等级,  单次,  次数
+        /// </summary>
+        public string Operators { get; set; }
+        private Dictionary<int, Tuple<int, int>> _operatorList { get; set; }
+        /// <summary>
+        /// 加工设备列表  等级,  单次,  次数
+        /// </summary>
+        [JsonIgnore]
+        public Dictionary<int, Tuple<int, int>> OperatorsList
+        {
+            get
+            {
+                if (_operatorList == null)
+                {
+                    _operatorList = new Dictionary<int, Tuple<int, int>>();
+                    if (!Operators.IsNullOrEmpty())
+                    {
+                        var s = Operators.Split(",").Select(int.Parse).ToArray();
+                        for (var i = 0; i < s.Length / 3; i++)
+                        {
+                            var index = i * 3;
+                            _operatorList.Add(s[index], new Tuple<int, int>(s[index + 1], s[index + 2]));
+                        }
+                    }
+                }
+                return _operatorList;
+            }
+            set
+            {
+                _deviceList = value;
+                Operators = _operatorList.Select(x => $"{x.Key},{x.Value.Item1},{x.Value.Item2}").Join();
+            }
+        }
+
+        /// <summary>
+        /// 设备产能
+        /// </summary>
+        public int DCapacity => DeviceList.Sum(x => x.Value.Item1 * x.Value.Item2);
+        /// <summary>
+        /// 设备总产能
+        /// </summary>
+        public int TotalDCapacity { get; set; }
+        /// <summary>
+        /// 需求
+        /// </summary>
+        public decimal NeedDCapacity { get; set; }
+        /// <summary>
+        /// 现有
+        /// </summary>
+        public decimal HaveDCapacity { get; set; }
+        /// <summary>
+        /// 人员产能
+        /// </summary>
+        public int OCapacity => OperatorsList.Sum(x => x.Value.Item1 * x.Value.Item2);
+        /// <summary>
+        /// 人员总产能
+        /// </summary>
+        public int TotalOCapacity { get; set; }
+        /// <summary>
+        /// 需求
+        /// </summary>
+        public decimal NeedOCapacity { get; set; }
+        /// <summary>
+        /// 现有
+        /// </summary>
+        public decimal HaveOCapacity { get; set; }
     }
 }

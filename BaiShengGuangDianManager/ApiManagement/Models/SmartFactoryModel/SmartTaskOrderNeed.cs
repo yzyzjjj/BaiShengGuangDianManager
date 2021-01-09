@@ -2,6 +2,9 @@
 using ModelBase.Models.Result;
 using System;
 using System.Collections.Generic;
+using System.Linq;
+using Newtonsoft.Json;
+using ServiceStack;
 
 namespace ApiManagement.Models.SmartFactoryModel
 {
@@ -58,13 +61,13 @@ namespace ApiManagement.Models.SmartFactoryModel
         /// <summary>
         /// 已完成 含库存
         /// </summary>
-        public int TotalHave => Stock + DoneTarget;
+        public int TotalDoneTarget => Stock + DoneTarget;
         /// <summary>
         /// 剩余未完成产量
         /// </summary>
-        public int LeftTarget => Target > TotalHave ? Target - TotalHave : 0;
+        public int LeftTarget => Target > TotalDoneTarget ? Target - TotalDoneTarget : 0;
         /// <summary>
-        /// 投料加工已完成产量
+        /// 投料加工完成产量(合格品)
         /// </summary>
         public int DoneTarget { get; set; }
         /// <summary>
@@ -88,13 +91,21 @@ namespace ApiManagement.Models.SmartFactoryModel
         /// </summary>
         public int Issue { get; set; }
         /// <summary>
-        /// 预计开始日期
+        /// 首次安排日期
+        /// </summary>
+        public DateTime FirstArrangedTime { get; set; }
+        /// <summary>
+        /// 首次加工日期
+        /// </summary>
+        public DateTime FirstProcessTime { get; set; }
+        /// <summary>
+        /// 工序预计开始日期
         /// </summary>
         public DateTime EstimatedStartTime { get; set; }
         /// <summary>
-        /// 预计完成日期
+        /// 工序预计完成日期
         /// </summary>
-        public DateTime EstimatedCompleteTime { get; set; }
+        public DateTime EstimatedEndTime { get; set; }
         /// <summary>
         /// 耗时
         /// </summary>
@@ -102,9 +113,9 @@ namespace ApiManagement.Models.SmartFactoryModel
         {
             get
             {
-                if (EstimatedStartTime != default(DateTime) && EstimatedCompleteTime != default(DateTime))
+                if (EstimatedStartTime != default(DateTime) && EstimatedEndTime != default(DateTime))
                 {
-                    return (int)(EstimatedCompleteTime - EstimatedStartTime).TotalDays + 1;
+                    return (int)(EstimatedEndTime - EstimatedStartTime).TotalDays + 1;
                 }
                 return 0;
             }
@@ -112,7 +123,7 @@ namespace ApiManagement.Models.SmartFactoryModel
         /// <summary>
         /// 实际完成时间
         /// </summary>
-        public DateTime ActualTime { get; set; }
+        public DateTime ActualCompleteTime { get; set; }
 
         /// <summary>
         /// 前道工序
@@ -133,29 +144,6 @@ namespace ApiManagement.Models.SmartFactoryModel
         /// 计划号
         /// </summary>
         public string Product { get; set; }
-        /// <summary>
-        /// 流程
-        /// </summary>
-        public string Process { get; set; }
-        /// <summary>
-        /// 顺序
-        /// </summary>
-        public int Order { get; set; }
-    }
-
-    public class SmartTaskOrderNeedDetailResult : DataResult
-    {
-        /// <summary>
-        /// 顺序
-        /// </summary>
-        public List<SmartTaskOrderNeedOrder> Orders { get; set; } = new List<SmartTaskOrderNeedOrder>();
-    }
-    public class SmartTaskOrderNeedOrder
-    {
-        /// <summary>
-        /// 流程id
-        /// </summary>
-        public int Id { get; set; }
         /// <summary>
         /// 流程
         /// </summary>

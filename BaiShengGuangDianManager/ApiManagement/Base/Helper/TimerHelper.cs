@@ -82,6 +82,7 @@ namespace ApiManagement.Base.Helper
                 return;
             }
 #endif
+            WorkFlowHelper.Instance.OnBillNeedUpdate();
             Console.WriteLine("GetErpDepartment 发布模式已开启");
             GetErpDepartment();
             Console.WriteLine("GetErpPurchase 发布模式已开启");
@@ -116,7 +117,7 @@ namespace ApiManagement.Base.Helper
                 return;
             }
 #endif
-            //WorkFlowHelper.Instance.OnBillNeedUpdate();
+            WorkFlowHelper.Instance.OnBillNeedUpdate();
             //Console.WriteLine("GetErpDepartment 调试模式已开启");
             GetErpDepartment();
             //Console.WriteLine("GetErpPurchase 调试模式已开启");

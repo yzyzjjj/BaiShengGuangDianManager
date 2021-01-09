@@ -141,6 +141,11 @@ namespace ApiManagement.Controllers.MaterialManagementController
                 return Result.GenError<DataResult>(Error.MaterialLogTypeDifferent);
             }
 
+            var logIds = materialLogs.Where(x => x.Number == 0).Select(y => y.Id);
+            var billIds = materialLogs.Select(x => x.BillId);
+            var timeLog = ServerConfig.ApiDb.Query<MaterialLog>("SELECT * FROM (SELECT * FROM `material_log` " +
+                    "WHERE BillId IN @billIds AND Id NOT IN @logIds AND Number > 0 Order By Time DESC) a GROUP BY Type;",
+                    new { billIds, logIds });
             var cnt =
                 ServerConfig.ApiDb.Query<int>("SELECT COUNT(1) FROM `material_log` WHERE Id IN @id;",
                     new { id = materialLogs.Select(x => x.Id) }).FirstOrDefault();
@@ -153,11 +158,27 @@ namespace ApiManagement.Controllers.MaterialManagementController
             var markedDateTime = DateTime.Now;
             var newLogs = new List<MaterialLog>();
             var newLogChanges = new List<MaterialLogChange>();
-            var billIds = materialLogs.Select(x => x.BillId);
-            var materials = billIds.ToDictionary(x => x, x => new MaterialManagementChange
+            var materials = billIds.ToDictionary(x => x, x =>
             {
-                BillId = x,
-                Number = 0,
+                var change = new MaterialManagementChange
+                {
+                    BillId = x,
+                    Number = 0
+                };
+                // 1 入库; 2 出库;3 冲正;
+                var inLog = timeLog.FirstOrDefault(y => y.BillId == x && y.Type == 1);
+                if (inLog != null)
+                {
+                    change.InTime = inLog.Time;
+                }
+
+                var outLog = timeLog.FirstOrDefault(y => y.BillId == x && y.Type == 2);
+                if (outLog != null)
+                {
+                    change.OutTime = outLog.Time;
+                }
+
+                return change;
             });
             foreach (var billId in billIds)
             {
@@ -189,10 +210,6 @@ namespace ApiManagement.Controllers.MaterialManagementController
                             billLog.Number = num;
                             billLog.OldNumber = material.Number;
                             material.Number += num;
-                            if (num != 0)
-                            {
-                                material.InTime = billLog.Time;
-                            }
                             break;
                         case 2:
                             billLog.Number = num;
@@ -204,10 +221,6 @@ namespace ApiManagement.Controllers.MaterialManagementController
                             }
                             billLog.OldNumber = material.Number;
                             material.Number -= num;
-                            if (num != 0)
-                            {
-                                material.OutTime = billLog.Time;
-                            }
                             break;
                         case 3:
                             billLog.Number = num;
@@ -316,6 +329,7 @@ namespace ApiManagement.Controllers.MaterialManagementController
                     {
                         var pItem = purchaseItems.FirstOrDefault(x => x.BillId == purchase.BillId && x.ErpId == erpId);
                         //if (purchase.ChangeNumber < purchase.Number)
+                        if (pItem != null)
                         {
                             pItem.Stock += purchase.ChangeNumber - purchase.Number;
                         }

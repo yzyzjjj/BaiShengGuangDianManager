@@ -178,65 +178,173 @@ namespace ApiManagement.Base.Helper
             BillNeedUpdate?.Invoke(this, null);
         }
         #endregion
-        
+
         public void Init()
         {
             BillNeedUpdate += (o, args) =>
             {
-                var duplicateCodes = ServerConfig.ApiDb.Query<dynamic>(
-                    "SELECT Id, `Code`, GROUP_CONCAT(`Id`) Ids, SiteId, SpecificationId, Price, COUNT(1) c FROM `material_bill` WHERE MarkedDelete = 0 GROUP BY SiteId, SpecificationId, Price HAVING c > 1");
-                if (duplicateCodes.Any())
+                try
                 {
-                    var updateBill = new List<MaterialBill>();
-                    var updateLog = new List<BillChange>();
-                    foreach (var duplicateCode in duplicateCodes)
+                    var duplicateCodes = ServerConfig.ApiDb.Query<dynamic>(
+                        "SELECT Id, `Code`, GROUP_CONCAT(`Id`) Ids, COUNT(1) c FROM (SELECT * FROM `material_bill` WHERE MarkedDelete = 0) a WHERE MarkedDelete = 0 GROUP BY SiteId, SpecificationId, Price HAVING c > 1;");
+                    if (duplicateCodes.Any())
                     {
-                        try
+                        var updateBill = new List<MaterialBill>();
+                        var updateLog = new List<BillChange>();
+                        foreach (var duplicateCode in duplicateCodes)
                         {
-                            var id = (int)duplicateCode.Id;
-                            var ids = ((string)duplicateCode.Ids).Split(",").Select(int.Parse);
-                            updateBill.AddRange(ids.Where(x => x != id).Select(y => new MaterialBill
+                            try
                             {
-                                Id = y,
-                                MarkedDelete = true
-                            }));
-                            updateLog.AddRange(ids.Where(x => x != id).Select(y => new BillChange
+                                var id = (int)duplicateCode.Id;
+                                var ids = ((string)duplicateCode.Ids).Split(",").Select(int.Parse);
+                                updateBill.AddRange(ids.Where(x => x != id).Select(y => new MaterialBill
+                                {
+                                    Id = y,
+                                    MarkedDelete = true
+                                }));
+                                updateLog.AddRange(ids.Where(x => x != id).Select(y => new BillChange
+                                {
+                                    BillId = y,
+                                    NewBillId = id,
+                                    NewCode = (string)duplicateCode.Code,
+                                }));
+                            }
+                            catch (Exception e)
                             {
-                                BillId = y,
-                                NewBillId = id,
-                                NewCode = (string)duplicateCode.Code,
-                            }));
+                                Log.Error($"{duplicateCode},{e}");
+                            }
                         }
-                        catch (Exception e)
+                        Console.WriteLine($"物料编码去重: updateBill: {updateBill.Count()},  log: {updateLog.Count()}");
+                        Log.Debug($"物料编码去重: updateBill: {updateBill.Count()},  log: {updateLog.Count()}");
+                        if (updateBill.Any())
                         {
-                            Log.Error($"{duplicateCode},{e}");
+                            ServerConfig.ApiDb.Execute(
+                                "UPDATE `material_bill` SET MarkedDelete = @MarkedDelete WHERE Id = @Id AND MarkedDelete = 0;",
+                                updateBill);
                         }
-                    }
-                    Console.WriteLine($"物料编码去重: updateBill: {updateBill.Count()},  log: {updateLog.Count()}");
-                    Log.Debug($"物料编码去重: updateBill: {updateBill.Count()},  log: {updateLog.Count()}");
+                        if (updateLog.Any())
+                        {
+                            ServerConfig.ApiDb.Execute(
+                                "UPDATE `material_log` SET BillId = @NewBillId, `Code` = @NewCode WHERE BillId = @BillId;",
+                                updateLog);
+                            ServerConfig.ApiDb.Execute(
+                                "UPDATE `material_purchase_item` SET BillId = @NewBillId, `ThisCode` = @NewCode WHERE BillId = @BillId AND MarkedDelete = 0;",
+                                updateLog);
 
-                    if (updateBill.Any())
-                    {
-                        ServerConfig.ApiDb.Execute(
-                            "UPDATE `material_bill` SET MarkedDelete = @MarkedDelete WHERE Id = @Id AND MarkedDelete = 0;",
-                            updateBill);
+                            var allBillId = updateLog.Select(x => x.BillId).Concat(updateLog.Select(x => x.NewBillId));
+                            var planBills = ServerConfig.ApiDb.Query<ProductionPlanBill>(
+                                "SELECT * FROM `production_plan_bill` WHERE BillId IN @allBillId AND MarkedDelete = 0",
+                                new { allBillId }).OrderBy(x => x.PlanId);
+                            var newPlanBill = planBills.Where(x => updateLog.Any(y => y.NewBillId == x.BillId));
+                            foreach (var planBill in newPlanBill)
+                            {
+                                var newBill = updateLog.Where(x => x.NewBillId == planBill.BillId);
+                                if (newBill.Any())
+                                {
+                                    var delBills = planBills.Where(x =>
+                                        x.PlanId == planBill.PlanId && newBill.Any(z => z.BillId == x.BillId));
+                                    planBill.ActualConsumption += delBills.Sum(y => y.ActualConsumption);
+                                    foreach (var del in delBills)
+                                    {
+                                        del.MarkedDelete = true;
+                                        del.ModifyId = planBill.BillId;
+                                        //del.ActualConsumption = 0;
+                                    }
+                                }
+                            }
+                            ServerConfig.ApiDb.Execute(
+                                "UPDATE `production_plan_bill` SET MarkedDelete = @MarkedDelete, ModifyId = @ModifyId, ActualConsumption = @ActualConsumption WHERE BillId = @BillId AND MarkedDelete = 0;",
+                                planBills);
+
+                            ServerConfig.ApiDb.Execute(
+                                "UPDATE production_plan_bill a JOIN (SELECT * FROM (SELECT a.PlanId, a.BillId, b.Time FROM `production_plan_bill` a " +
+                                "JOIN `material_log` b ON a.PlanId = b.PlanId AND a.BillId = b.BillId WHERE b.PlanId != 0 ORDER BY b.Time DESC) a GROUP BY a.PlanId, a.BillId) " +
+                                "b ON a.PlanId = b.PlanId AND a.BillId = b.BillId SET a.MarkedDateTime = b.Time WHERE a.MarkedDateTime != b.Time;");
+                        }
                     }
-                    if (updateLog.Any())
+
+                    var duplicateCodeSites = ServerConfig.ApiDb.Query<dynamic>(
+                        "SELECT Id, `Code`, GROUP_CONCAT(`Id`) Ids, GROUP_CONCAT(`SiteId`) SiteIds, COUNT(1) c FROM (SELECT * FROM `material_bill` WHERE MarkedDelete = 0) a " +
+                        "WHERE MarkedDelete = 0 GROUP BY SpecificationId, Price HAVING c > 1 AND SiteIds LIKE '%74%';");
+                    if (duplicateCodeSites.Any())
                     {
-                        ServerConfig.ApiDb.Execute(
-                            "UPDATE `material_log` SET BillId = @NewBillId, `Code` = @NewCode WHERE BillId = @BillId;",
-                            updateLog);
-                        ServerConfig.ApiDb.Execute(
-                            "UPDATE `material_purchase_item` SET BillId = @NewBillId, `ThisCode` = @NewCode WHERE BillId = @BillId AND MarkedDelete = 0;",
-                            updateLog);
-                        ServerConfig.ApiDb.Execute(
-                            "UPDATE `production_plan_bill` SET BillId = @NewBillId WHERE BillId = @BillId AND MarkedDelete = 0;",
-                            updateLog);
-                        ServerConfig.ApiDb.Execute(
-                            "UPDATE production_plan_bill a JOIN (SELECT * FROM (SELECT a.PlanId, a.BillId, b.Time FROM `production_plan_bill` a " +
-                            "JOIN `material_log` b ON a.PlanId = b.PlanId AND a.BillId = b.BillId WHERE b.PlanId != 0 ORDER BY b.Time DESC) a GROUP BY a.PlanId, a.BillId) " +
-                            "b ON a.PlanId = b.PlanId AND a.BillId = b.BillId SET a.MarkedDateTime = b.Time WHERE a.MarkedDateTime != b.Time;");
+                        var updateBill = new List<MaterialBill>();
+                        var updateLog = new List<BillChange>();
+                        foreach (var duplicateCode in duplicateCodeSites)
+                        {
+                            try
+                            {
+                                var id = (int)duplicateCode.Id;
+                                var ids = ((string)duplicateCode.Ids).Split(",").Select(int.Parse);
+                                updateBill.AddRange(ids.Where(x => x != id).Select(y => new MaterialBill
+                                {
+                                    Id = y,
+                                    MarkedDelete = true
+                                }));
+                                updateLog.AddRange(ids.Where(x => x != id).Select(y => new BillChange
+                                {
+                                    BillId = y,
+                                    NewBillId = id,
+                                    NewCode = (string)duplicateCode.Code,
+                                }));
+                            }
+                            catch (Exception e)
+                            {
+                                Log.Error($"{duplicateCode},{e}");
+                            }
+                        }
+                        Console.WriteLine($"物料编码位置纠正: updateBill: {updateBill.Count()},  log: {updateLog.Count()}");
+                        Log.Debug($"物料编码位置纠正: updateBill: {updateBill.Count()},  log: {updateLog.Count()}");
+                        if (updateBill.Any())
+                        {
+                            ServerConfig.ApiDb.Execute(
+                                "UPDATE `material_bill` SET MarkedDelete = @MarkedDelete WHERE Id = @Id AND MarkedDelete = 0;",
+                                updateBill);
+                        }
+                        if (updateLog.Any())
+                        {
+                            ServerConfig.ApiDb.Execute(
+                                "UPDATE `material_log` SET BillId = @NewBillId, `Code` = @NewCode WHERE BillId = @BillId;",
+                                updateLog);
+                            ServerConfig.ApiDb.Execute(
+                                "UPDATE `material_purchase_item` SET BillId = @NewBillId, `ThisCode` = @NewCode WHERE BillId = @BillId AND MarkedDelete = 0;",
+                                updateLog);
+
+                            var allBillId = updateLog.Select(x => x.BillId).Concat(updateLog.Select(x => x.NewBillId));
+                            var planBills = ServerConfig.ApiDb.Query<ProductionPlanBill>(
+                                "SELECT * FROM `production_plan_bill` WHERE BillId IN @allBillId AND MarkedDelete = 0",
+                                new { allBillId }).OrderBy(x => x.PlanId);
+                            var newPlanBill = planBills.Where(x => updateLog.Any(y => y.NewBillId == x.BillId));
+                            foreach (var planBill in newPlanBill)
+                            {
+                                var newBill = updateLog.Where(x => x.NewBillId == planBill.BillId);
+                                if (newBill.Any())
+                                {
+                                    var delBills = planBills.Where(x =>
+                                        x.PlanId == planBill.PlanId && newBill.Any(z => z.BillId == x.BillId));
+                                    planBill.ActualConsumption += delBills.Sum(y => y.ActualConsumption);
+                                    foreach (var del in delBills)
+                                    {
+                                        del.MarkedDelete = true;
+                                        del.ModifyId = planBill.BillId;
+                                        //del.ActualConsumption = 0;
+                                    }
+                                }
+                            }
+                            ServerConfig.ApiDb.Execute(
+                                "UPDATE `production_plan_bill` SET MarkedDelete = @MarkedDelete, ModifyId = @ModifyId, ActualConsumption = @ActualConsumption WHERE BillId = @BillId AND MarkedDelete = 0;",
+                                planBills);
+
+                            ServerConfig.ApiDb.Execute(
+                                "UPDATE production_plan_bill a JOIN (SELECT * FROM (SELECT a.PlanId, a.BillId, b.Time FROM `production_plan_bill` a " +
+                                "JOIN `material_log` b ON a.PlanId = b.PlanId AND a.BillId = b.BillId WHERE b.PlanId != 0 ORDER BY b.Time DESC) a GROUP BY a.PlanId, a.BillId) " +
+                                "b ON a.PlanId = b.PlanId AND a.BillId = b.BillId SET a.MarkedDateTime = b.Time WHERE a.MarkedDateTime != b.Time;");
+                        }
                     }
+                }
+                catch (Exception e)
+                {
+                    Log.Error(e);
                 }
             };
 
