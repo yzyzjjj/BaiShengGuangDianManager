@@ -22,14 +22,15 @@ namespace ApiManagement.Base.Helper
     /// </summary>
     public class AnalysisHelper
     {
+#if DEBUG
+#else
         private static readonly string Debug = "Debug";
-
         private static Timer _timer2S;
         private static Timer _timer10S;
         private static Timer _timer60S;
         private static Timer _script;
+#endif
         private static int _dealLength = 500;
-
         //public static MonitoringKanBan MonitoringKanBan;
         //private static MonitoringKanBan _monitoringKanBan;
         /// <summary>
@@ -1311,13 +1312,9 @@ namespace ApiManagement.Base.Helper
                             res[i] = new Dictionary<Tuple<DateTime, int>, MonitoringProcess>();
                             foreach (var process in resLast[i].Values)
                             {
-                                if (process != null && process.Time != null)
+                                if (process?.Time != null)
                                 {
                                     res[i].Add(new Tuple<DateTime, int>(process.Time, process.DeviceId), process);
-                                }
-                                else
-                                {
-                                    var a = 1;
                                 }
                             }
                         }

@@ -36,7 +36,7 @@ namespace ApiManagement.Models.SmartFactoryModel
         /// <summary>
         /// 设备类型id
         /// </summary>
-        public int CategoryId { get; set; }
+        //public int CategoryId { get; set; }
         /// <summary>
         /// 加工设备列表  id  次数
         /// </summary>

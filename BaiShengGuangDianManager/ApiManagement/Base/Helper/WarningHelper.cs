@@ -43,7 +43,10 @@ namespace ApiManagement.Base.Helper
         /// 预警项Id ItemId, 设备Id DeviceId, 数据类型 DataType, 预警类型， 预警设备分类 1研磨/抛光设备
         /// </summary>
         public static Dictionary<Tuple<int, int, WarningDataType, WarningType, int>, WarningCurrent> CurrentData;
+#if DEBUG
+#else
         private static Timer _timer5S;
+#endif
         private static int _dealLength = 500;
         private static DateTime _startTime = DateTime.Today;
         public static void Init()

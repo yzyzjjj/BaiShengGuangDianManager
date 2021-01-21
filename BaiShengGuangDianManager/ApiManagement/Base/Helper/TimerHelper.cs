@@ -26,7 +26,11 @@ namespace ApiManagement.Base.Helper
         private static string _url = ServerConfig.ErpUrl;
         private static string _urlFile = "http://192.168.1.100/lc/uploads/";
         private static string _createUserId = "ErpSystem";
+
+#if DEBUG
+#else
         private static Timer _totalTimer;
+#endif
         private static CancellationTokenSource cts = new CancellationTokenSource();
         public static void Init()
         {

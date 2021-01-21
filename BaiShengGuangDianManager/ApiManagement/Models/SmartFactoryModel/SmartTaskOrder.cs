@@ -172,7 +172,7 @@ namespace ApiManagement.Models.SmartFactoryModel
         /// </summary>
         public DateTime ActualEndTime { get; set; }
         /// <summary>
-        /// 等级
+        /// 等级优先排
         /// </summary>
         public int LevelId { get; set; }
         /// <summary>

@@ -16,14 +16,16 @@ namespace ApiManagement.Base.Helper
 {
     public class FlowCardHelper
     {
+#if DEBUG
+#else
         private static Timer _timer;
+#endif
         private static int _id = 0;
         private static string _createUserId = "ErpSystem";
         private static string _url = ServerConfig.ErpUrl;
         private static bool _isInsert;
         private static bool _isUpdate;
         private static bool _isUpdateFlowCardProcessStep;
-        private static bool _isUpdateFlowCardSpecification;
         private static bool _isUpdateProductionProcessStep;
         private static bool _isUpdateProductionProcess;
         private static bool _isUpdateProductionSpecification;

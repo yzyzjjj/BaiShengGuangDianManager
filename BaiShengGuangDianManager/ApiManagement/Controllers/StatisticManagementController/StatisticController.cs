@@ -178,6 +178,7 @@ namespace ApiManagement.Controllers.StatisticManagementController
             }
             catch (Exception e)
             {
+                Log.Error(e);
                 return Result.GenError<DataResult>(Error.ParamError);
             }
 
@@ -540,6 +541,7 @@ namespace ApiManagement.Controllers.StatisticManagementController
             }
             catch (Exception e)
             {
+                Log.Error(e);
                 return Result.GenError<Result>(Error.ParamError);
             }
         }
@@ -659,6 +661,7 @@ namespace ApiManagement.Controllers.StatisticManagementController
             }
             catch (Exception e)
             {
+                Log.Error(e);
                 return Result.GenError<DataResult>(Error.ParamError);
             }
         }
@@ -906,6 +909,7 @@ namespace ApiManagement.Controllers.StatisticManagementController
             }
             catch (Exception e)
             {
+                Log.Error(e);
                 return Result.GenError<DataResult>(Error.ParamError);
             }
         }
@@ -1015,6 +1019,7 @@ namespace ApiManagement.Controllers.StatisticManagementController
             }
             catch (Exception e)
             {
+                Log.Error(e);
                 return Result.GenError<DataResult>(Error.ParamError);
             }
         }
@@ -1115,6 +1120,7 @@ namespace ApiManagement.Controllers.StatisticManagementController
             }
             catch (Exception e)
             {
+                Log.Error(e);
                 return Result.GenError<DataResult>(Error.ParamError);
             }
         }
@@ -1665,6 +1671,7 @@ namespace ApiManagement.Controllers.StatisticManagementController
             }
             catch (Exception e)
             {
+                Log.Error(e);
                 return Result.GenError<DataResult>(Error.ParamError);
             }
         }
@@ -1815,6 +1822,7 @@ namespace ApiManagement.Controllers.StatisticManagementController
             }
             catch (Exception e)
             {
+                Log.Error(e);
                 return Result.GenError<Result>(Error.TimeOut);
             }
         }

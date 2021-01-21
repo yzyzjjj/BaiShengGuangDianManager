@@ -15,8 +15,8 @@ namespace ApiManagement.Base.Helper
 {
     public class AccountHelper
     {
-        private static string _createUserId = "ErpSystem";
-        private static string _url = ServerConfig.ErpUrl;
+        //private static string _createUserId = "ErpSystem";
+        private static readonly string Url = ServerConfig.ErpUrl;
 
         private static readonly string CheckAccountPre = "CheckAccount";
         private static readonly string CheckAccountLock = $"{CheckAccountPre}:Lock";
@@ -25,13 +25,13 @@ namespace ApiManagement.Base.Helper
             if (ServerConfig.RedisHelper.SetIfNotExist(CheckAccountLock, "lock"))
             {
                 ServerConfig.RedisHelper.SetExpireAt(CheckAccountLock, DateTime.Now.AddMinutes(5));
-                var f = HttpServer.Get(_url, new Dictionary<string, string>
+                var f = HttpServer.Get(Url, new Dictionary<string, string>
                 {
                     { "type", "getUser" },
                 });
                 if (f == "fail")
                 {
-                    Log.ErrorFormat("CheckAccount 请求erp获取账号数据失败,url:{0}", _url);
+                    Log.ErrorFormat("CheckAccount 请求erp获取账号数据失败,url:{0}", Url);
                 }
                 else
                 {

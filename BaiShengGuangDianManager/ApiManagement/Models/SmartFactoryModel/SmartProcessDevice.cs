@@ -163,7 +163,7 @@ namespace ApiManagement.Models.SmartFactoryModel
                         var process = SmartFlowCardProcessHelper.Instance.Get<SmartFlowCardProcess>(ProcessId);
                         if (process != null)
                         {
-                            var 合格率 = (RateWeight)RandomSeed.GetWeightRandom(ScheduleHelper.合格率);
+                            var 合格率 = (RateWeight)RandomSeed.GetWeightRandom(SimulateHelper.合格率);
                             var qualified = process.Doing * 合格率.Rate / 100;
                             var unqualified = process.Doing - qualified;
                             process.Qualified += qualified;

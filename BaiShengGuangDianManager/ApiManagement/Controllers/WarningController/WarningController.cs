@@ -210,7 +210,6 @@ namespace ApiManagement.Controllers.WarningController
                         }
                     }
                     return result;
-                    break;
                 case WarningDataType.故障数据:
                     //sql = "SELECT * FROM `warning_set_item` WHERE MarkedDelete = 0 AND SetId = @setId;";
                     break;
