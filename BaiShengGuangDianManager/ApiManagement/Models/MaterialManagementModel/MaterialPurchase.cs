@@ -55,6 +55,8 @@ namespace ApiManagement.Models.MaterialManagementModel
         public int ErpId { get; set; }
         [IgnoreChange]
         public int DepartmentId { get; set; }
+        [IgnoreChange]
+        public string Department { get; set; }
         public string Purchase { get; set; }
         /// <summary>
         /// 发起人编号

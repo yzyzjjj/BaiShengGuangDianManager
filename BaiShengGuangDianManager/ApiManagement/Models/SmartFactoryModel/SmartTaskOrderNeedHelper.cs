@@ -35,7 +35,7 @@ namespace ApiManagement.Models.SmartFactoryModel
         public IEnumerable<SmartTaskOrderNeedDetail> GetSmartTaskOrderNeedsByTaskOrderIds(IEnumerable<int> taskOrderIds, bool detail = false)
         {
             return ServerConfig.ApiDb.Query<SmartTaskOrderNeedDetail>(!detail?
-                "SELECT a.*, b.`Order`, SUM(a.Target) Target, SUM(a.DoneTarget) DoneTarget, SUM(a.Put) Put, SUM(a.HavePut) HavePut " +
+                "SELECT a.*, b.`Order`, b.DeviceCategoryId CategoryId, SUM(a.Target) Target, SUM(a.DoneTarget) DoneTarget, SUM(a.Put) Put, SUM(a.HavePut) HavePut " +
                 "FROM (SELECT * FROM (SELECT * FROM `t_task_order_need` WHERE TaskOrderId IN @taskOrderIds ORDER BY TaskOrderId, Batch DESC) a GROUP BY TaskOrderId, PId) a " +
                 "JOIN `t_process` b ON a.PId = b.Id GROUP BY TaskOrderId, PId;"
                 :

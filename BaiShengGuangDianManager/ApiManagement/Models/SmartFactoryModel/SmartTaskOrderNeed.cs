@@ -152,5 +152,9 @@ namespace ApiManagement.Models.SmartFactoryModel
         /// 顺序
         /// </summary>
         public int Order { get; set; }
+        /// <summary>
+        /// 设备类型
+        /// </summary>
+        public int CategoryId { get; set; }
     }
 }

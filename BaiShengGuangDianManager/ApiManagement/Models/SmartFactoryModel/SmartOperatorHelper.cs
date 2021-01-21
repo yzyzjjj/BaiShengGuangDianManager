@@ -50,7 +50,7 @@ namespace ApiManagement.Models.SmartFactoryModel
         public IEnumerable<SmartOperatorDetail> GetNormalSmartOperators()
         {
             return ServerConfig.ApiDb.Query<SmartOperatorDetail>(
-                "SELECT a.*, b.`Name`, c.`Order` FROM `t_operator` a JOIN `t_user` b ON a.UserId = b.Id JOIN `t_operator_level` c ON a.LevelId = c.Id WHERE a.`MarkedDelete` = 0 AND a.State = @state;"
+                "SELECT a.*, b.`Name`, c.`Level`, c.`Order` FROM `t_operator` a JOIN `t_user` b ON a.UserId = b.Id JOIN `t_operator_level` c ON a.LevelId = c.Id WHERE a.`MarkedDelete` = 0 AND a.State = @state;"
                     , new { state = SmartOperatorState.正常 });
         }
         public IEnumerable<SmartOperatorCount> GetNormalOperatorCount(IEnumerable<int> processIds)

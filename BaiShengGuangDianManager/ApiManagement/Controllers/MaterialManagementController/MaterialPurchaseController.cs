@@ -1,4 +1,5 @@
-﻿using ApiManagement.Base.Server;
+﻿using ApiManagement.Base.Helper;
+using ApiManagement.Base.Server;
 using ApiManagement.Models.BaseModel;
 using ApiManagement.Models.MaterialManagementModel;
 using Microsoft.AspNetCore.Mvc;
@@ -77,41 +78,43 @@ namespace ApiManagement.Controllers.MaterialManagementController
         }
 
         // PUT: api/MaterialPurchase
+        /// <summary>
+        /// 更新状态
+        /// </summary>
+        /// <param name="materialPurchases"></param>
+        /// <returns></returns>
         [HttpPut]
-        public Result PutMaterialPurchase([FromBody] MaterialPurchase materialPurchase)
+        public Result PutMaterialPurchase([FromBody] IEnumerable<MaterialPurchase> materialPurchases)
         {
-            if (materialPurchase == null)
+            if (materialPurchases == null || !materialPurchases.Any())
             {
                 return Result.GenError<Result>(Error.MaterialPurchaseNotExist);
             }
 
-            if (materialPurchase.Purchase.IsNullOrEmpty())
-            {
-                return Result.GenError<Result>(Error.MaterialPurchaseNotEmpty);
-            }
-
-            var cnt =
-                ServerConfig.ApiDb.Query<int>("SELECT COUNT(1) FROM `material_purchase` WHERE Id = @id AND `MarkedDelete` = 0;",
-                    new { id = materialPurchase.Id }).FirstOrDefault();
-            if (cnt == 0)
+            var ids = materialPurchases.Select(x => x.Id);
+            var oldMaterialPurchases =
+                ServerConfig.ApiDb.Query<MaterialPurchase>("SELECT * FROM `material_purchase` WHERE Id IN @id AND `MarkedDelete` = 0;",
+                    new { id = ids });
+            if (oldMaterialPurchases == null || !oldMaterialPurchases.Any() || oldMaterialPurchases.Count() != materialPurchases.Count())
             {
                 return Result.GenError<Result>(Error.MaterialPurchaseNotExist);
             }
-
-            cnt =
-                ServerConfig.ApiDb.Query<int>("SELECT COUNT(1) FROM `material_purchase` WHERE Id != @id AND Purchase = @Purchase AND `MarkedDelete` = 0;",
-                    new { id = materialPurchase.Id, materialPurchase.Purchase }).FirstOrDefault();
-            if (cnt > 0)
+            if (oldMaterialPurchases.Any(x => x.State != MaterialPurchaseStateEnum.订单完成))
             {
-                return Result.GenError<Result>(Error.MaterialPurchaseIsExist);
+                return Result.GenError<Result>(Error.MaterialPurchaseSateError);
             }
 
             var markedDateTime = DateTime.Now;
-            materialPurchase.MarkedDateTime = markedDateTime;
+            foreach (var purchase in oldMaterialPurchases)
+            {
+                purchase.MarkedDateTime = markedDateTime;
+                purchase.State = MaterialPurchaseStateEnum.开始采购;
+            }
 
             ServerConfig.ApiDb.Execute(
-                "UPDATE `material_purchase` SET `MarkedDateTime` = @MarkedDateTime, `Purchase` = @Purchase, `Step` = @Step, `State` = @State, `IsDesign` = @IsDesign, `Priority` = @Priority WHERE `Id` = @Id;", materialPurchase);
+                "UPDATE `material_purchase` SET `MarkedDateTime` = @MarkedDateTime, `State` = @State WHERE `Id` = @Id;", oldMaterialPurchases);
 
+            TimerHelper.ErpPurchaseFunc(ids);
             return Result.GenError<Result>(Error.Success);
         }
 

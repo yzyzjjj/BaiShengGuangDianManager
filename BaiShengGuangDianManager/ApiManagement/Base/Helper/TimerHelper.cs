@@ -541,31 +541,60 @@ namespace ApiManagement.Base.Helper
             if (ServerConfig.RedisHelper.SetIfNotExist(redisLock, DateTime.Now.ToStr()))
             {
                 ServerConfig.RedisHelper.SetExpireAt(redisLock, DateTime.Now.AddMinutes(30));
-                try
-                {
-                    var validState = new List<MaterialPurchaseStateEnum>
-                    {
-                        MaterialPurchaseStateEnum.正常,
-                        //MaterialPurchaseStateEnum.中止,
-                        MaterialPurchaseStateEnum.审核完成,
-                        MaterialPurchaseStateEnum.开始采购,
-                        MaterialPurchaseStateEnum.仓库到货,
-                        //MaterialPurchaseStateEnum.订单完成,
-                        MaterialPurchaseStateEnum.已入库,
-                    };
-                    var departments =
-                        ServerConfig.ApiDb.Query<dynamic>(
-                            "SELECT a.Id, a.Department, IFNULL(MIN(b.ErpId), 0) ErpId FROM `material_department` a " +
-                            "LEFT JOIN (SELECT * FROM `material_purchase` WHERE State IN @validState AND MarkedDelete = 0) b ON a.Id = b.DepartmentId WHERE a.Get = 1 AND a.MarkedDelete = 0 GROUP BY a.Id",
-                            new { validState });
+                ErpPurchaseFunc();
+                //ServerConfig.RedisHelper.Remove(redisLock);
+                ServerConfig.RedisHelper.SetExpireAt(redisLock, DateTime.Now.AddMinutes(1));
+            }
+        }
 
-                    var haveDepartments =
-                        ServerConfig.ApiDb.Query<MaterialDepartment>(
-                            "SELECT * FROM `material_department` WHERE MarkedDelete = 0;");
-                    var updatePurchaseItems = new List<MaterialPurchaseItem>();
-                    var addPurchaseItems = new List<MaterialPurchaseItem>();
-                    var updateMaterialBill = new List<MaterialBill>();
-                    var onBillNeedUpdate = false;
+        public static void ErpPurchaseFunc(IEnumerable<int> ids = null)
+        {
+            try
+            {
+                var validState = new List<MaterialPurchaseStateEnum>
+                {
+                    MaterialPurchaseStateEnum.正常,
+                    //MaterialPurchaseStateEnum.中止,
+                    MaterialPurchaseStateEnum.审核完成,
+                    MaterialPurchaseStateEnum.开始采购,
+                    MaterialPurchaseStateEnum.仓库到货,
+                    //MaterialPurchaseStateEnum.订单完成,
+                    MaterialPurchaseStateEnum.已入库,
+                };
+                var departments = ServerConfig.ApiDb.Query<dynamic>(
+                    "SELECT a.Id, a.Department, IFNULL(MIN(b.ErpId), 0) ErpId FROM `material_department` a " +
+                    "LEFT JOIN (SELECT * FROM `material_purchase` WHERE State IN @validState AND MarkedDelete = 0) b ON a.Id = b.DepartmentId WHERE a.Get = 1 AND a.MarkedDelete = 0 GROUP BY a.Id",
+                    new { validState });
+                var updatePurchaseItems = new List<MaterialPurchaseItem>();
+                var addPurchaseItems = new List<MaterialPurchaseItem>();
+                var updateMaterialBill = new List<MaterialBill>();
+                var onBillNeedUpdate = false;
+                if (ids != null)
+                {
+                    var havePurchases = ServerConfig.ApiDb.Query<MaterialPurchase>(
+                        "SELECT a.*, b.Department FROM `material_purchase` a JOIN `material_department` b ON a.DepartmentId = b.Id WHERE a.Id IN @Id AND a.MarkedDelete = 0;", new { Id = ids });
+                    foreach (var purchase in havePurchases)
+                    {
+                        var f = HttpServer.Get(_url, new Dictionary<string, string>
+                        {
+                            {"type", "getPurchase"},
+                            {"department", purchase.Department},
+                            {"fs", "1"},
+                            {"id", purchase.ErpId.ToString()},
+                        });
+                        if (f == "fail")
+                        {
+                            Log.ErrorFormat("GetErpPurchase1 请求erp部门指定请购单数据失败,url:{0}", _url);
+                        }
+                        else
+                        {
+                            var dep = departments.FirstOrDefault(x => x.Id == purchase.DepartmentId);
+                            ErpPurchaseItemFunc(true, f, dep, havePurchases, out updatePurchaseItems, out addPurchaseItems, out updateMaterialBill, out onBillNeedUpdate);
+                        }
+                    }
+                }
+                else
+                {
                     foreach (var department in departments)
                     {
                         var f = HttpServer.Get(_url, new Dictionary<string, string>
@@ -577,445 +606,428 @@ namespace ApiManagement.Base.Helper
                         });
                         if (f == "fail")
                         {
-                            Log.ErrorFormat("GetErpPurchase 请求erp部门请购单数据失败,url:{0}", _url);
+                            Log.ErrorFormat("GetErpPurchase2 请求erp部门请购单数据失败,url:{0}", _url);
                         }
                         else
                         {
-                            var now = DateTime.Now;
-                            var rr = HttpUtility.UrlDecode(f);
-                            var res = JsonConvert.DeserializeObject<IEnumerable<ErpPurchase>>(rr).OrderBy(x => x.f_id);
-                            //var bz = res.GroupBy(x => x.f_bz).Select(y => y.Key).Join();
-                            //var zt = res.GroupBy(x => x.f_zt).Select(y => y.Key).Join();
                             var havePurchases =
                                 ServerConfig.ApiDb.Query<MaterialPurchase>(
                                     "SELECT * FROM `material_purchase` WHERE DepartmentId = @Id AND ErpId >= @ErpId AND MarkedDelete = 0;",
                                     new { department.Id, department.ErpId });
-                            var existPurchases = res.Where(x => havePurchases.Any(y => y.ErpId == x.f_id));
-                            if (existPurchases.Any())
+                            ErpPurchaseItemFunc(false, f, department, havePurchases, out updatePurchaseItems, out addPurchaseItems, out updateMaterialBill, out onBillNeedUpdate);
+                        }
+                    }
+                }
+                Console.WriteLine($"采购管理: updateBill: {updateMaterialBill.Count()},  updateItem: {updatePurchaseItems.Count()},  add: {addPurchaseItems.Count()}, {onBillNeedUpdate}");
+
+                if (updateMaterialBill.Any())
+                {
+                    ServerConfig.ApiDb.Execute(
+                        "UPDATE `material_bill` SET `MarkedDateTime` = @MarkedDateTime, `Price` = @Price WHERE `Id` = @Id;",
+                        updateMaterialBill);
+                }
+
+                if (updatePurchaseItems.Any())
+                {
+                    ServerConfig.ApiDb.Execute(
+                        "UPDATE `material_purchase_item` SET  `ModifyId` = @ModifyId, `MarkedDateTime` = @MarkedDateTime, `MarkedDelete` = @MarkedDelete, `Class` = @Class, `Category` = @Category, `Name` = @Name, `Supplier` = @Supplier, `SupplierFull` = @SupplierFull, " +
+                        "`Specification` = @Specification, `Number` = @Number, `Unit` = @Unit, `Remark` = @Remark, `Purchaser` = @Purchaser, `PurchasingCompany` = @PurchasingCompany, `Order` = @Order, " +
+                        "`EstimatedTime` = @EstimatedTime, `ArrivalTime` = @ArrivalTime, `File` = @File, `FileUrl` = @FileUrl, `IsInspection` = @IsInspection, " +
+                        "`Currency` = @Currency, `Payment` = @Payment, `Transaction` = @Transaction, `Invoice` = @Invoice, `TaxPrice` = @TaxPrice, `TaxAmount` = @TaxAmount, " +
+                        "`Price` = @Price, `Stock` = IF(@BillId > 0, @Stock, `Stock`), `BillId` = IF(@BillId > 0, @BillId, `BillId`) WHERE `Id` = @Id;",
+                        updatePurchaseItems);
+                }
+
+                if (addPurchaseItems.Any())
+                {
+                    ServerConfig.ApiDb.Execute(
+                        "INSERT INTO `material_purchase_item` (`CreateUserId`, `MarkedDateTime`, `Time`, `IsErp`, `ErpId`, `PurchaseId`, `Code`, `Class`, `Category`, `Name`, `Supplier`, `SupplierFull`, `Specification`, `Number`, `Unit`, `Remark`, `Purchaser`, `PurchasingCompany`, `Order`, `EstimatedTime`, `ArrivalTime`, `File`, `FileUrl`, `IsInspection`, `Currency`, `Payment`, `Transaction`, `Invoice`, `TaxPrice`, `TaxAmount`, `Price`, `Stock`, `BillId`) " +
+                        "VALUES (@CreateUserId, @MarkedDateTime, @Time, @IsErp, @ErpId, @PurchaseId, @Code, @Class, @Category, @Name, @Supplier, @SupplierFull, @Specification, @Number, @Unit, @Remark, @Purchaser, @PurchasingCompany, @Order, @EstimatedTime, @ArrivalTime, @File, @FileUrl, @IsInspection, @Currency, @Payment, @Transaction, @Invoice, @TaxPrice, @TaxAmount, @Price, @Stock, @BillId);",
+                        addPurchaseItems);
+                }
+                if (onBillNeedUpdate)
+                {
+                    WorkFlowHelper.Instance.OnBillNeedUpdate();
+                }
+            }
+            catch (Exception e)
+            {
+                Log.Error(e);
+            }
+        }
+
+        private static void ErpPurchaseItemFunc(bool changeState, string f, dynamic dep,
+            IEnumerable<MaterialPurchase> havePurchases,
+            out List<MaterialPurchaseItem> updatePurchaseItems,
+            out List<MaterialPurchaseItem> addPurchaseItems,
+            out List<MaterialBill> updateMaterialBill,
+            out bool onBillNeedUpdate)
+        {
+            updatePurchaseItems = new List<MaterialPurchaseItem>();
+            addPurchaseItems = new List<MaterialPurchaseItem>();
+            updateMaterialBill = new List<MaterialBill>();
+            onBillNeedUpdate = false;
+            try
+            {
+                if (havePurchases == null)
+                {
+                    havePurchases = new List<MaterialPurchase>();
+                }
+
+                var now = DateTime.Now;
+                var rr = HttpUtility.UrlDecode(f);
+                var res = JsonConvert.DeserializeObject<IEnumerable<ErpPurchase>>(rr).OrderBy(x => x.f_id);
+                //var bz = res.GroupBy(x => x.f_bz).Select(y => y.Key).Join();
+                //var zt = res.GroupBy(x => x.f_zt).Select(y => y.Key).Join();
+                var existPurchases = res.Where(x => havePurchases.Any(y => y.ErpId == x.f_id));
+                if (existPurchases.Any())
+                {
+                    var havePurchaseItems = ServerConfig.ApiDb.Query<MaterialPurchaseItem>(
+                        "SELECT * FROM `material_purchase_item` WHERE MarkedDelete = 0 AND PurchaseId IN @PurchaseId;",
+                        new
+                        {
+                            PurchaseId = havePurchases
+                                .Where(x => existPurchases.Any(y => y.f_id == x.ErpId)).Select(z => z.Id)
+                        });
+                    var purchases = new List<MaterialPurchase>();
+                    foreach (var p in existPurchases)
+                    {
+                        if (dep == 0)
+                        {
+                            continue;
+                        }
+
+                        if (!EnumHelper.TryParseStr(p.f_zt, out MaterialPurchaseStateEnum state, true))
+                        {
+                            continue;
+                        }
+
+                        if (!EnumHelper.TryParseStr(p.f_dj, out MaterialPurchasePriorityEnum priority,
+                            true))
+                        {
+                            continue;
+                        }
+
+                        var purchase = new MaterialPurchase(dep.Id, p, _createUserId, now, state, priority);
+                        var existPurchase = havePurchases.FirstOrDefault(x => x.ErpId == p.f_id);
+                        if (existPurchase != null)
+                        {
+                            purchase.Id = existPurchase.Id;
+                            if (existPurchase.State != MaterialPurchaseStateEnum.订单完成
+                                && ClassExtension.HaveChange(purchase, existPurchase))
                             {
-                                var havePurchaseItems = ServerConfig.ApiDb.Query<MaterialPurchaseItem>(
-                                    "SELECT * FROM `material_purchase_item` WHERE MarkedDelete = 0 AND PurchaseId IN @PurchaseId;",
-                                    new
-                                    {
-                                        PurchaseId = havePurchases
-                                            .Where(x => existPurchases.Any(y => y.f_id == x.ErpId)).Select(z => z.Id)
-                                    });
-                                var purchases = new List<MaterialPurchase>();
-                                foreach (var p in existPurchases)
+                                purchases.Add(purchase);
+                            }
+
+                            if (p.goods == null)
+                            {
+                                continue;
+                            }
+
+                            p.goods = p.goods.Where(x => !x.f_wlpc.IsNullOrEmpty()).ToArray();
+                            var existPurchaseItems =
+                                havePurchaseItems.Where(x => x.PurchaseId == purchase.Id);
+                            if (existPurchaseItems.Any(x => x.Name.IsNullOrEmpty()))
+                            {
+                                //删除
+                                updatePurchaseItems.AddRange(existPurchaseItems.Where(x => x.Name.IsNullOrEmpty()).Select(z =>
                                 {
-                                    var dep = haveDepartments.FirstOrDefault(x => x.Department == p.f_bm);
-                                    if (dep == null)
+                                    z.ModifyId = 611;
+                                    z.MarkedDateTime = now;
+                                    z.MarkedDelete = true;
+                                    return z;
+                                }));
+                                existPurchaseItems = existPurchaseItems.Where(x => !x.Name.IsNullOrEmpty());
+                            }
+                            if (existPurchaseItems.GroupBy(x => new { x.Name, x.Specification, x.Supplier, x.TaxPrice, x.Order }).Any(z => z.Count() > 1))
+                            {
+                                var validItems = existPurchaseItems
+                                    .GroupBy(x => new { x.Name, x.Specification, x.Supplier, x.TaxPrice, x.Order })
+                                    .Select(y =>
+                                        y.Count() > 1
+                                            ? (y.All(z => z.Code.IsNullOrEmpty())
+                                                ? y.First()
+                                                : y.First(x => !x.Code.IsNullOrEmpty()))
+                                            : y.First());
+                                //删除
+                                updatePurchaseItems.AddRange(existPurchaseItems.Where(x => validItems.All(y => y.Id != x.Id)).Select(z =>
+                                {
+                                    z.ModifyId = 624;
+                                    z.MarkedDateTime = now;
+                                    z.MarkedDelete = true;
+                                    return z;
+                                }));
+                                existPurchaseItems = validItems;
+                            }
+
+                            var existPurchaseItemsStock = existPurchaseItems.Where(y => y.Stock == 0);
+                            if (purchase.State == MaterialPurchaseStateEnum.撤销 &&
+                                existPurchase.State != MaterialPurchaseStateEnum.撤销)
+                            {
+                                //删除
+                                updatePurchaseItems.AddRange(existPurchaseItemsStock.Select(z =>
+                                //updatePurchaseItems.AddRange(existPurchaseItems.Select(z =>
+                                {
+                                    z.ModifyId = 627;
+                                    z.MarkedDateTime = now;
+                                    z.MarkedDelete = true;
+                                    return z;
+                                }));
+                            }
+                            else
+                            {
+                                IEnumerable<MaterialPurchaseItem> l;
+                                var erpPurchaseItems = p.goods.Select(good =>
+                                    new MaterialPurchaseItem(purchase.Id, good, _createUserId, now,
+                                        _urlFile));
+
+                                if (p.goods.Any(x => x.f_id == 0))
+                                {
+                                    if (erpPurchaseItems.Any())
                                     {
-                                        continue;
-                                    }
+                                        var wlCode = erpPurchaseItems.GroupBy(x => x.Code)
+                                            .Select(y => y.Key).Where(z => !z.IsNullOrEmpty());
 
-                                    if (!EnumHelper.TryParseStr(p.f_zt, out MaterialPurchaseStateEnum state, true))
-                                    {
-                                        continue;
-                                    }
-
-                                    if (!EnumHelper.TryParseStr(p.f_dj, out MaterialPurchasePriorityEnum priority,
-                                        true))
-                                    {
-                                        continue;
-                                    }
-
-                                    var purchase = new MaterialPurchase(dep.Id, p, _createUserId, now, state, priority);
-                                    var existPurchase = havePurchases.FirstOrDefault(x => x.ErpId == p.f_id);
-                                    if (existPurchase != null)
-                                    {
-                                        purchase.Id = existPurchase.Id;
-                                        if (existPurchase.State != MaterialPurchaseStateEnum.订单完成
-                                            && ClassExtension.HaveChange(purchase, existPurchase))
-                                        {
-                                            purchases.Add(purchase);
-                                        }
-
-                                        if (p.goods == null)
-                                        {
-                                            continue;
-                                        }
-
-                                        p.goods = p.goods.Where(x => !x.f_wlpc.IsNullOrEmpty()).ToArray();
-                                        var existPurchaseItems =
-                                            havePurchaseItems.Where(x => x.PurchaseId == purchase.Id);
-                                        if (existPurchaseItems.Any(x => x.Name.IsNullOrEmpty()))
-                                        {
-                                            //删除
-                                            updatePurchaseItems.AddRange(existPurchaseItems.Where(x => x.Name.IsNullOrEmpty()).Select(z =>
+                                        //删除不存在的code
+                                        l = existPurchaseItems
+                                            .Where(x => wlCode.All(y => y != x.Code) && x.Stock != 0)
+                                            .Select(z =>
                                             {
-                                                z.ModifyId = 611;
+                                                z.ModifyId = 652;
                                                 z.MarkedDateTime = now;
                                                 z.MarkedDelete = true;
                                                 return z;
-                                            }));
-                                            existPurchaseItems = existPurchaseItems.Where(x => !x.Name.IsNullOrEmpty());
-                                        }
-                                        if (existPurchaseItems.GroupBy(x => new { x.Name, x.Specification, x.Supplier, x.TaxPrice, x.Order }).Any(z => z.Count() > 1))
+                                            });
+                                        if (l.Any())
                                         {
-                                            var validItems = existPurchaseItems
-                                                .GroupBy(x => new { x.Name, x.Specification, x.Supplier, x.TaxPrice, x.Order })
-                                                .Select(y =>
-                                                    y.Count() > 1
-                                                        ? (y.All(z => z.Code.IsNullOrEmpty())
-                                                            ? y.First()
-                                                            : y.First(x => !x.Code.IsNullOrEmpty()))
-                                                        : y.First());
-                                            //删除
-                                            updatePurchaseItems.AddRange(existPurchaseItems.Where(x => validItems.All(y => y.Id != x.Id)).Select(z =>
-                                                {
-                                                    z.ModifyId = 624;
-                                                    z.MarkedDateTime = now;
-                                                    z.MarkedDelete = true;
-                                                    return z;
-                                                }));
-                                            existPurchaseItems = validItems;
-                                        }
-
-                                        var existPurchaseItemsStock = existPurchaseItems.Where(y => y.Stock == 0);
-                                        if (purchase.State == MaterialPurchaseStateEnum.撤销 &&
-                                            existPurchase.State != MaterialPurchaseStateEnum.撤销)
-                                        {
-                                            //删除
-                                            updatePurchaseItems.AddRange(existPurchaseItemsStock.Select(z =>
-                                            //updatePurchaseItems.AddRange(existPurchaseItems.Select(z =>
+                                            updatePurchaseItems.AddRange(l.Select(x =>
                                             {
-                                                z.ModifyId = 627;
-                                                z.MarkedDateTime = now;
-                                                z.MarkedDelete = true;
-                                                return z;
+                                                x.ModifyId = 661;
+                                                return x;
                                             }));
                                         }
-                                        else
+                                        foreach (var code in wlCode)
                                         {
-                                            IEnumerable<MaterialPurchaseItem> l;
-                                            var erpPurchaseItems = p.goods.Select(good =>
-                                                new MaterialPurchaseItem(purchase.Id, good, _createUserId, now,
-                                                    _urlFile));
-
-                                            if (p.goods.Any(x => x.f_id == 0))
+                                            var erpCodes = erpPurchaseItems.Where(x => x.Code == code);
+                                            var myCodes = existPurchaseItems.Where(x => x.Code == code);
+                                            var erpCodeCnt = erpCodes.Count();
+                                            var myCodeCnt = myCodes.Count();
+                                            var erpDic = new Dictionary<int, bool>();
+                                            for (var i = 0; i < erpCodeCnt; i++)
                                             {
-                                                if (erpPurchaseItems.Any())
-                                                {
-                                                    var wlCode = erpPurchaseItems.GroupBy(x => x.Code)
-                                                        .Select(y => y.Key).Where(z => !z.IsNullOrEmpty());
-
-                                                    //删除不存在的code
-                                                    l = existPurchaseItems
-                                                        .Where(x => wlCode.All(y => y != x.Code) && x.Stock != 0)
-                                                        .Select(z =>
-                                                        {
-                                                            z.ModifyId = 652;
-                                                            z.MarkedDateTime = now;
-                                                            z.MarkedDelete = true;
-                                                            return z;
-                                                        });
-                                                    if (l.Any())
-                                                    {
-                                                        updatePurchaseItems.AddRange(l.Select(x =>
-                                                        {
-                                                            x.ModifyId = 661;
-                                                            return x;
-                                                        }));
-                                                    }
-                                                    foreach (var code in wlCode)
-                                                    {
-                                                        var erpCodes = erpPurchaseItems.Where(x => x.Code == code);
-                                                        var myCodes = existPurchaseItems.Where(x => x.Code == code);
-                                                        var erpCodeCnt = erpCodes.Count();
-                                                        var myCodeCnt = myCodes.Count();
-                                                        var erpDic = new Dictionary<int, bool>();
-                                                        for (var i = 0; i < erpCodeCnt; i++)
-                                                        {
-                                                            erpDic.Add(i, false);
-                                                        }
-
-                                                        var myDic = new Dictionary<int, bool>();
-                                                        for (var i = 0; i < myCodeCnt; i++)
-                                                        {
-                                                            myDic.Add(i, false);
-                                                        }
-
-                                                        for (var i = 0; i < erpCodeCnt; i++)
-                                                        {
-                                                            var erpCode = erpCodes.ElementAt(i);
-                                                            var myCode = myCodes.FirstOrDefault(x =>
-                                                                x.ErpId != 0 && x.ErpId == erpCode.ErpId);
-                                                            if (myCode == null)
-                                                            {
-                                                                myCode = myCodes.FirstOrDefault(x =>
-                                                                    x.ErpId == 0 && x.Number == erpCode.Number);
-                                                                if (myCode != null)
-                                                                {
-                                                                    erpDic[i] = true;
-                                                                    var findI = myCodes.IndexOf(myCode);
-                                                                    myDic[findI] = true;
-                                                                    erpCode.Id = myCode.Id;
-                                                                    //try
-                                                                    //{
-                                                                    if (ClassExtension.HaveChange(erpCode, myCode))
-                                                                    {
-                                                                        erpCode.ModifyId = 702;
-                                                                        updatePurchaseItems.Add(erpCode);
-                                                                    }
-
-                                                                    //}
-                                                                    //catch (Exception e)
-                                                                    //{
-                                                                    //    Console.WriteLine(e);
-                                                                    //    //throw;
-                                                                    //}
-                                                                }
-                                                                else
-                                                                {
-                                                                    erpCode.ModifyId = 715;
-                                                                    addPurchaseItems.Add(erpCode);
-                                                                }
-                                                            }
-                                                            else
-                                                            {
-                                                                erpDic[i] = true;
-                                                                var findI = myCodes.IndexOf(myCode);
-                                                                myDic[findI] = true;
-                                                                erpCode.Id = myCode.Id;
-                                                                if (ClassExtension.HaveChange(erpCode, myCode))
-                                                                {
-                                                                    erpCode.ModifyId = 728;
-                                                                    updatePurchaseItems.Add(erpCode);
-                                                                }
-                                                            }
-                                                        }
-
-                                                        //删除多余的的ErpId
-                                                        l = myCodes
-                                                            .Where(x => myDic.Where(md => !md.Value)
-                                                                .Any(y => myCodes.IndexOf(x) == y.Key)).Select(z =>
-                                                            {
-                                                                z.ModifyId = 682;
-                                                                z.MarkedDateTime = now;
-                                                                z.MarkedDelete = true;
-                                                                return z;
-                                                            });
-                                                        if (l.Any())
-                                                        {
-                                                            updatePurchaseItems.AddRange(l.Select(x =>
-                                                            {
-                                                                x.ModifyId = 747;
-                                                                return x;
-                                                            }));
-                                                        }
-                                                    }
-                                                }
+                                                erpDic.Add(i, false);
                                             }
-                                            else
+
+                                            var myDic = new Dictionary<int, bool>();
+                                            for (var i = 0; i < myCodeCnt; i++)
                                             {
-                                                //删除
-                                                l = existPurchaseItemsStock
-                                                    .Where(x => p.goods.All(y => y.f_id != x.ErpId)).Select(z =>
-                                                    {
-                                                        z.ModifyId = 760;
-                                                        z.MarkedDateTime = now;
-                                                        z.MarkedDelete = true;
-                                                        return z;
-                                                    });
-                                                if (l.Any())
-                                                {
-                                                    updatePurchaseItems.AddRange(l.Select(x =>
-                                                    {
-                                                        x.ModifyId = 769;
-                                                        return x;
-                                                    }));
-                                                }
+                                                myDic.Add(i, false);
+                                            }
 
-                                                //删除存在的code但是请购id变了
-                                                var idChange = existPurchaseItems.Where(x =>
+                                            for (var i = 0; i < erpCodeCnt; i++)
+                                            {
+                                                var erpCode = erpCodes.ElementAt(i);
+                                                var myCode = myCodes.FirstOrDefault(x =>
+                                                    x.ErpId != 0 && x.ErpId == erpCode.ErpId);
+                                                if (myCode == null)
                                                 {
-                                                    var erpPurchaseItem =
-                                                        erpPurchaseItems.FirstOrDefault(y =>
-                                                            y.IsSame(x) && y.ErpId == x.ErpId);
-                                                    if (erpPurchaseItem != null)
+                                                    myCode = myCodes.FirstOrDefault(x =>
+                                                        x.ErpId == 0 && x.Number == erpCode.Number);
+                                                    if (myCode != null)
                                                     {
-                                                        return false;
-                                                    }
-
-                                                    erpPurchaseItem = erpPurchaseItems.FirstOrDefault(y => y.IsSame(x));
-                                                    return erpPurchaseItem != null && erpPurchaseItem.ErpId != x.ErpId;
-                                                });
-                                                if (idChange.Any())
-                                                {
-                                                    var s = idChange.Select(z =>
-                                                    {
-                                                        z.ModifyId = 792;
-                                                        z.MarkedDateTime = now;
-                                                        z.MarkedDelete = true;
-                                                        return z;
-                                                    });
-                                                    updatePurchaseItems.AddRange(s.Select(x =>
-                                                    {
-                                                        x.ModifyId = 799;
-                                                        return x;
-                                                    }));
-                                                }
-
-                                                //更新
-                                                var existGoods = p.goods.Where(x =>
-                                                    existPurchaseItems.Any(y => y.ErpId == x.f_id));
-                                                foreach (var good in existGoods)
-                                                {
-                                                    var g = new MaterialPurchaseItem(purchase.Id, good, _createUserId,
-                                                        now, _urlFile);
-                                                    g.ModifyId = 811;
-                                                    var existGood =
-                                                        existPurchaseItems.FirstOrDefault(x => x.ErpId == good.f_id);
-                                                    var change = idChange.FirstOrDefault(x => x.Code == good.f_wlbm);
-                                                    if (existGood != null)
-                                                    {
-                                                        g.Id = existGood.Id;
-                                                        g.PurchaseId = existGood.PurchaseId;
-                                                        if (ClassExtension.HaveChange(g, existGood))
+                                                        erpDic[i] = true;
+                                                        var findI = myCodes.IndexOf(myCode);
+                                                        myDic[findI] = true;
+                                                        erpCode.Id = myCode.Id;
+                                                        //try
+                                                        //{
+                                                        if (ClassExtension.HaveChange(erpCode, myCode))
                                                         {
-                                                            g.ModifyId = 820;
-                                                            updatePurchaseItems.Add(g);
+                                                            erpCode.ModifyId = 702;
+                                                            updatePurchaseItems.Add(erpCode);
                                                         }
 
-                                                        if (change != null && change.BillId > 0)
-                                                        {
-                                                            g.Stock = change.Stock;
-                                                            g.BillId = change.BillId;
-                                                            if (g.Price != change.Price)
-                                                            {
-                                                                updateMaterialBill.Add(new MaterialBill
-                                                                {
-                                                                    Id = g.BillId,
-                                                                    MarkedDateTime = now,
-                                                                    Price = g.Price
-                                                                });
-                                                                onBillNeedUpdate = true;
-                                                            }
-
-                                                            g.ModifyId = 839;
-                                                            updatePurchaseItems.Add(g);
-                                                        }
-                                                    }
-                                                }
-
-                                                //新增
-                                                l = p.goods.Where(x => existPurchaseItems.All(y => y.ErpId != x.f_id))
-                                                    .Select(z =>
-                                                    {
-                                                        var g = new MaterialPurchaseItem(purchase.Id, z, _createUserId,
-                                                            now, _urlFile)
-                                                        { ModifyId = 850 };
-                                                        return g;
-                                                    });
-                                                if (l.Any())
-                                                {
-                                                    if (idChange.Any())
-                                                    {
-                                                        foreach (var ll in l)
-                                                        {
-                                                            var change = idChange.FirstOrDefault(x => x.IsSame(ll));
-                                                            if (change != null && change.BillId > 0)
-                                                            {
-                                                                ll.Stock = change.Stock;
-                                                                ll.BillId = change.BillId;
-                                                                if (ll.Price != change.Price)
-                                                                {
-                                                                    updateMaterialBill.Add(new MaterialBill
-                                                                    {
-                                                                        Id = ll.BillId,
-                                                                        MarkedDateTime = now,
-                                                                        Price = ll.Price
-                                                                    });
-                                                                    onBillNeedUpdate = true;
-                                                                }
-                                                            }
-
-                                                            ll.ModifyId = 871;
-                                                            addPurchaseItems.Add(ll);
-                                                        }
+                                                        //}
+                                                        //catch (Exception e)
+                                                        //{
+                                                        //    Console.WriteLine(e);
+                                                        //    //throw;
+                                                        //}
                                                     }
                                                     else
                                                     {
-                                                        addPurchaseItems.AddRange(l.Select(x =>
-                                                        {
-                                                            x.ModifyId = 879;
-                                                            return x;
-                                                        }));
+                                                        erpCode.ModifyId = 715;
+                                                        addPurchaseItems.Add(erpCode);
                                                     }
                                                 }
+                                                else
+                                                {
+                                                    erpDic[i] = true;
+                                                    var findI = myCodes.IndexOf(myCode);
+                                                    myDic[findI] = true;
+                                                    erpCode.Id = myCode.Id;
+                                                    if (ClassExtension.HaveChange(erpCode, myCode))
+                                                    {
+                                                        erpCode.ModifyId = 728;
+                                                        updatePurchaseItems.Add(erpCode);
+                                                    }
+                                                }
+                                            }
+
+                                            //删除多余的的ErpId
+                                            l = myCodes
+                                                .Where(x => myDic.Where(md => !md.Value)
+                                                    .Any(y => myCodes.IndexOf(x) == y.Key)).Select(z =>
+                                                    {
+                                                        z.ModifyId = 682;
+                                                        z.MarkedDateTime = now;
+                                                        z.MarkedDelete = true;
+                                                        return z;
+                                                    });
+                                            if (l.Any())
+                                            {
+                                                updatePurchaseItems.AddRange(l.Select(x =>
+                                                {
+                                                    x.ModifyId = 747;
+                                                    return x;
+                                                }));
                                             }
                                         }
                                     }
                                 }
-
-                                if (purchases.Any())
+                                else
                                 {
-                                    ServerConfig.ApiDb.Execute(
-                                        "UPDATE `material_purchase` SET `MarkedDateTime` = @MarkedDateTime, `Purchase` = @Purchase, `Number` = @Number, `Name` = @Name, `Valuer` = @Valuer, `Step` = @Step, " +
-                                        "`State` = @State, `IsDesign` = @IsDesign, `Priority` = @Priority WHERE `Id` = @Id;",
-                                        purchases);
-                                }
-                            }
-
-                            var notExistPurchases = res.Where(x => havePurchases.All(y => y.ErpId != x.f_id));
-                            if (notExistPurchases.Any())
-                            {
-                                var purchases = new List<MaterialPurchase>();
-                                foreach (var p in notExistPurchases)
-                                {
-                                    var dep = haveDepartments.FirstOrDefault(x => x.Department == p.f_bm);
-                                    if (dep == null)
-                                    {
-                                        continue;
-                                    }
-
-                                    if (!EnumHelper.TryParseStr(p.f_zt, out MaterialPurchaseStateEnum state, true))
-                                    {
-                                        continue;
-                                    }
-
-                                    if (!EnumHelper.TryParseStr(p.f_dj, out MaterialPurchasePriorityEnum priority,
-                                        true))
-                                    {
-                                        continue;
-                                    }
-
-                                    p.DepartmentId = dep.Id;
-                                    p.valid = true;
-                                    purchases.Add(new MaterialPurchase(dep.Id, p, _createUserId, now, state, priority));
-                                }
-
-                                if (purchases.Any())
-                                {
-                                    ServerConfig.ApiDb.Execute(
-                                        "INSERT INTO `material_purchase` (`CreateUserId`, `MarkedDateTime`, `Time`, `IsErp`, `ErpId`, `DepartmentId`, `Purchase`, `Number`, `Name`, `Valuer`, `Step`, `State`, `IsDesign`, `Priority`) " +
-                                        "VALUES (@CreateUserId, @MarkedDateTime, @Time, @IsErp, @ErpId, @DepartmentId, @Purchase, @Number, @Name, @Valuer, @Step, @State, @IsDesign, @Priority);",
-                                        purchases);
-
-                                    havePurchases =
-                                        ServerConfig.ApiDb.Query<MaterialPurchase>(
-                                            "SELECT * FROM `material_purchase` WHERE DepartmentId = @Id AND ErpId >= @ErpId AND MarkedDelete = 0;",
-                                            new { department.Id, department.ErpId });
-
-                                    var validNotExistPurchases = res.Where(x => purchases.Any(y => y.ErpId == x.f_id));
-                                    foreach (var p in validNotExistPurchases)
-                                    {
-                                        var purchase = havePurchases.FirstOrDefault(x => x.ErpId == p.f_id);
-
-                                        //新增
-                                        var l = p.goods.Select(good =>
+                                    //删除
+                                    l = existPurchaseItemsStock
+                                        .Where(x => p.goods.All(y => y.f_id != x.ErpId)).Select(z =>
                                         {
-                                            var x = new MaterialPurchaseItem(purchase.Id, good, _createUserId, now,
-                                                _urlFile)
-                                            { ModifyId = 948 };
-                                            return x;
+                                            z.ModifyId = 760;
+                                            z.MarkedDateTime = now;
+                                            z.MarkedDelete = true;
+                                            return z;
                                         });
-                                        if (l.Any())
+                                    if (l.Any())
+                                    {
+                                        updatePurchaseItems.AddRange(l.Select(x =>
+                                        {
+                                            x.ModifyId = 769;
+                                            return x;
+                                        }));
+                                    }
+
+                                    //删除存在的code但是请购id变了
+                                    var idChange = existPurchaseItems.Where(x =>
+                                    {
+                                        var erpPurchaseItem =
+                                            erpPurchaseItems.FirstOrDefault(y =>
+                                                y.IsSame(x) && y.ErpId == x.ErpId);
+                                        if (erpPurchaseItem != null)
+                                        {
+                                            return false;
+                                        }
+
+                                        erpPurchaseItem = erpPurchaseItems.FirstOrDefault(y => y.IsSame(x));
+                                        return erpPurchaseItem != null && erpPurchaseItem.ErpId != x.ErpId;
+                                    });
+                                    if (idChange.Any())
+                                    {
+                                        var s = idChange.Select(z =>
+                                        {
+                                            z.ModifyId = 792;
+                                            z.MarkedDateTime = now;
+                                            z.MarkedDelete = true;
+                                            return z;
+                                        });
+                                        updatePurchaseItems.AddRange(s.Select(x =>
+                                        {
+                                            x.ModifyId = 799;
+                                            return x;
+                                        }));
+                                    }
+
+                                    //更新
+                                    var existGoods = p.goods.Where(x =>
+                                        existPurchaseItems.Any(y => y.ErpId == x.f_id));
+                                    foreach (var good in existGoods)
+                                    {
+                                        var g = new MaterialPurchaseItem(purchase.Id, good, _createUserId,
+                                            now, _urlFile);
+                                        g.ModifyId = 811;
+                                        var existGood =
+                                            existPurchaseItems.FirstOrDefault(x => x.ErpId == good.f_id);
+                                        var change = idChange.FirstOrDefault(x => x.Code == good.f_wlbm);
+                                        if (existGood != null)
+                                        {
+                                            g.Id = existGood.Id;
+                                            g.PurchaseId = existGood.PurchaseId;
+                                            if (ClassExtension.HaveChange(g, existGood))
+                                            {
+                                                g.ModifyId = 820;
+                                                updatePurchaseItems.Add(g);
+                                            }
+
+                                            if (change != null && change.BillId > 0)
+                                            {
+                                                g.Stock = change.Stock;
+                                                g.BillId = change.BillId;
+                                                if (g.Price != change.Price)
+                                                {
+                                                    updateMaterialBill.Add(new MaterialBill
+                                                    {
+                                                        Id = g.BillId,
+                                                        MarkedDateTime = now,
+                                                        Price = g.Price
+                                                    });
+                                                    onBillNeedUpdate = true;
+                                                }
+
+                                                g.ModifyId = 839;
+                                                updatePurchaseItems.Add(g);
+                                            }
+                                        }
+                                    }
+
+                                    //新增
+                                    l = p.goods.Where(x => existPurchaseItems.All(y => y.ErpId != x.f_id))
+                                        .Select(z =>
+                                        {
+                                            var g = new MaterialPurchaseItem(purchase.Id, z, _createUserId,
+                                                now, _urlFile)
+                                            { ModifyId = 850 };
+                                            return g;
+                                        });
+                                    if (l.Any())
+                                    {
+                                        if (idChange.Any())
+                                        {
+                                            foreach (var ll in l)
+                                            {
+                                                var change = idChange.FirstOrDefault(x => x.IsSame(ll));
+                                                if (change != null && change.BillId > 0)
+                                                {
+                                                    ll.Stock = change.Stock;
+                                                    ll.BillId = change.BillId;
+                                                    if (ll.Price != change.Price)
+                                                    {
+                                                        updateMaterialBill.Add(new MaterialBill
+                                                        {
+                                                            Id = ll.BillId,
+                                                            MarkedDateTime = now,
+                                                            Price = ll.Price
+                                                        });
+                                                        onBillNeedUpdate = true;
+                                                    }
+                                                }
+
+                                                ll.ModifyId = 871;
+                                                addPurchaseItems.Add(ll);
+                                            }
+                                        }
+                                        else
                                         {
                                             addPurchaseItems.AddRange(l.Select(x =>
                                             {
-                                                x.ModifyId = 955;
+                                                x.ModifyId = 879;
                                                 return x;
                                             }));
                                         }
@@ -1024,46 +1036,84 @@ namespace ApiManagement.Base.Helper
                             }
                         }
                     }
-                    Console.WriteLine($"采购管理: updateBill: {updateMaterialBill.Count()},  updateItem: {updatePurchaseItems.Count()},  add: {addPurchaseItems.Count()}, {onBillNeedUpdate}");
 
-                    if (updateMaterialBill.Any())
+                    if (purchases.Any())
                     {
                         ServerConfig.ApiDb.Execute(
-                            "UPDATE `material_bill` SET `MarkedDateTime` = @MarkedDateTime, `Price` = @Price WHERE `Id` = @Id;",
-                            updateMaterialBill);
-                    }
-
-                    if (updatePurchaseItems.Any())
-                    {
-                        ServerConfig.ApiDb.Execute(
-                            "UPDATE `material_purchase_item` SET  `ModifyId` = @ModifyId, `MarkedDateTime` = @MarkedDateTime, `MarkedDelete` = @MarkedDelete, `Class` = @Class, `Category` = @Category, `Name` = @Name, `Supplier` = @Supplier, `SupplierFull` = @SupplierFull, " +
-                            "`Specification` = @Specification, `Number` = @Number, `Unit` = @Unit, `Remark` = @Remark, `Purchaser` = @Purchaser, `PurchasingCompany` = @PurchasingCompany, `Order` = @Order, " +
-                            "`EstimatedTime` = @EstimatedTime, `ArrivalTime` = @ArrivalTime, `File` = @File, `FileUrl` = @FileUrl, `IsInspection` = @IsInspection, " +
-                            "`Currency` = @Currency, `Payment` = @Payment, `Transaction` = @Transaction, `Invoice` = @Invoice, `TaxPrice` = @TaxPrice, `TaxAmount` = @TaxAmount, " +
-                            "`Price` = @Price, `Stock` = IF(@BillId > 0, @Stock, `Stock`), `BillId` = IF(@BillId > 0, @BillId, `BillId`) WHERE `Id` = @Id;",
-                            updatePurchaseItems);
-                    }
-
-                    if (addPurchaseItems.Any())
-                    {
-                        ServerConfig.ApiDb.Execute(
-                            "INSERT INTO `material_purchase_item` (`CreateUserId`, `MarkedDateTime`, `Time`, `IsErp`, `ErpId`, `PurchaseId`, `Code`, `Class`, `Category`, `Name`, `Supplier`, `SupplierFull`, `Specification`, `Number`, `Unit`, `Remark`, `Purchaser`, `PurchasingCompany`, `Order`, `EstimatedTime`, `ArrivalTime`, `File`, `FileUrl`, `IsInspection`, `Currency`, `Payment`, `Transaction`, `Invoice`, `TaxPrice`, `TaxAmount`, `Price`, `Stock`, `BillId`) " +
-                            "VALUES (@CreateUserId, @MarkedDateTime, @Time, @IsErp, @ErpId, @PurchaseId, @Code, @Class, @Category, @Name, @Supplier, @SupplierFull, @Specification, @Number, @Unit, @Remark, @Purchaser, @PurchasingCompany, @Order, @EstimatedTime, @ArrivalTime, @File, @FileUrl, @IsInspection, @Currency, @Payment, @Transaction, @Invoice, @TaxPrice, @TaxAmount, @Price, @Stock, @BillId);",
-                            addPurchaseItems);
-                    }
-                    if (onBillNeedUpdate)
-                    {
-                        WorkFlowHelper.Instance.OnBillNeedUpdate();
+                            "UPDATE `material_purchase` SET `MarkedDateTime` = @MarkedDateTime, `Purchase` = @Purchase, `Number` = @Number, `Name` = @Name, `Valuer` = @Valuer, `Step` = @Step, " +
+                            "`State` = @State, `IsDesign` = @IsDesign, `Priority` = @Priority WHERE `Id` = @Id;",
+                            purchases);
                     }
                 }
-                catch (Exception e)
+
+                var notExistPurchases = res.Where(x => havePurchases.All(y => y.ErpId != x.f_id));
+                if (notExistPurchases.Any())
                 {
-                    Log.Error(e);
-                }
+                    var purchases = new List<MaterialPurchase>();
+                    foreach (var p in notExistPurchases)
+                    {
+                        if (dep == null)
+                        {
+                            continue;
+                        }
 
-                //ServerConfig.RedisHelper.Remove(redisLock);
-                ServerConfig.RedisHelper.SetExpireAt(redisLock, DateTime.Now.AddMinutes(1));
+                        if (!EnumHelper.TryParseStr(p.f_zt, out MaterialPurchaseStateEnum state, true))
+                        {
+                            continue;
+                        }
+
+                        if (!EnumHelper.TryParseStr(p.f_dj, out MaterialPurchasePriorityEnum priority,
+                            true))
+                        {
+                            continue;
+                        }
+
+                        p.DepartmentId = dep.Id;
+                        p.valid = true;
+                        purchases.Add(new MaterialPurchase(dep.Id, p, _createUserId, now, state, priority));
+                    }
+
+                    if (purchases.Any())
+                    {
+                        ServerConfig.ApiDb.Execute(
+                            "INSERT INTO `material_purchase` (`CreateUserId`, `MarkedDateTime`, `Time`, `IsErp`, `ErpId`, `DepartmentId`, `Purchase`, `Number`, `Name`, `Valuer`, `Step`, `State`, `IsDesign`, `Priority`) " +
+                            "VALUES (@CreateUserId, @MarkedDateTime, @Time, @IsErp, @ErpId, @DepartmentId, @Purchase, @Number, @Name, @Valuer, @Step, @State, @IsDesign, @Priority);",
+                            purchases);
+
+                        havePurchases = ServerConfig.ApiDb.Query<MaterialPurchase>(changeState
+                            ? "SELECT * FROM `material_purchase` WHERE DepartmentId = @Id AND ErpId = @ErpId AND MarkedDelete = 0;"
+                            : "SELECT * FROM `material_purchase` WHERE DepartmentId = @Id AND ErpId >= @ErpId AND MarkedDelete = 0;", new { dep.Id, dep.ErpId });
+
+                        var validNotExistPurchases = res.Where(x => purchases.Any(y => y.ErpId == x.f_id));
+                        foreach (var p in validNotExistPurchases)
+                        {
+                            var purchase = havePurchases.FirstOrDefault(x => x.ErpId == p.f_id);
+
+                            //新增
+                            var l = p.goods.Select(good =>
+                            {
+                                var x = new MaterialPurchaseItem(purchase.Id, good, _createUserId, now,
+                                    _urlFile)
+                                { ModifyId = 948 };
+                                return x;
+                            });
+                            if (l.Any())
+                            {
+                                addPurchaseItems.AddRange(l.Select(x =>
+                                {
+                                    x.ModifyId = 955;
+                                    return x;
+                                }));
+                            }
+                        }
+                    }
+                }
             }
+            catch (Exception e)
+            {
+                Log.Error(e);
+            }
+
         }
 
         public class ErpPurchase
@@ -1783,11 +1833,11 @@ namespace ApiManagement.Base.Helper
         /// <summary>
         /// 库存、日志数据修复
         /// </summary>
-        private static void MaterialRecovery()
+        public static void MaterialRecovery(bool re = false)
         {
             var _pre = "MaterialRecovery";
             var redisLock = $"{_pre}:Lock";
-            if (_first)
+            if (_first || re)
             {
                 ServerConfig.RedisHelper.Remove(redisLock);
             }
@@ -1851,17 +1901,36 @@ namespace ApiManagement.Base.Helper
                     var changes = oldMaterial.Where(x =>
                         newMaterial.ContainsKey(x.BillId) && ClassExtension.HaveChange(x, newMaterial[x.BillId])).ToDictionary(z => z.BillId);
                     var s = newMaterial.Where(x => changes.ContainsKey(x.Key)).Select(y => y.Value).ToList();
+                    var all = ServerConfig.ApiDb.Query<MaterialManagement>("SELECT * FROM `material_management`;");
+                    var exist = s.Where(x =>
+                    {
+                        if (all.Any(y => y.BillId == x.BillId))
+                        {
+                            if (ClassExtension.HaveChange(all.First(y => y.BillId == x.BillId), x))
+                            {
+                                return true;
+                            }
+                        }
+                        return false;
+                    });
+                    var notExist = newMaterial.Values.Where(x => oldMaterial.All(y => y.BillId != x.BillId));
                     var changeLogs = logs.Where(x =>
                         oldLogs.Any(y => y.Id == x.Id) && oldLogs.First(y => y.Id == x.Id).OldNumber != x.OldNumber).ToList();
-                    Console.WriteLine($"库存、日志数据修复: time: {DateTime.Now.ToDateStr()},  库存: {s.Count()},  日志: {changeLogs.Count()}");
-                    if (s.Any())
+                    Console.WriteLine($"库存、日志数据修复: time: {DateTime.Now.ToDateStr()},  更新: {exist.Count()},  新增: {notExist.Count()},  日志: {changeLogs.Count()}");
+                    if (exist.Any())
                     {
                         ServerConfig.ApiDb.Execute(
                             "UPDATE `material_management` SET " +
                             "`InTime` = IF(ISNULL(`InTime`) OR `InTime` != @InTime, @InTime, `InTime`), " +
                             "`OutTime` = IF(ISNULL(`OutTime`) OR `OutTime` != @OutTime, @OutTime, `OutTime`), " +
                             "`Number` = @Number WHERE `BillId` = @BillId;",
-                            s);
+
+                            exist);
+                    }
+
+                    if (notExist.Any())
+                    {
+                        ServerConfig.ApiDb.Execute("INSERT INTO material_management (`BillId`, `InTime`, `OutTime`, `Number`) VALUES (@BillId, @InTime, @OutTime, @Number);", notExist);
                     }
 
                     if (changeLogs.Any())

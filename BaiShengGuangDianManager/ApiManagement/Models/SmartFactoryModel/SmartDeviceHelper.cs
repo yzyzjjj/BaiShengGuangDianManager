@@ -20,10 +20,10 @@ namespace ApiManagement.Models.SmartFactoryModel
         /// 获取状态正常的设备
         /// </summary>
         /// <returns></returns>
-        public IEnumerable<SmartDevice> GetNormalSmartDevices()
+        public IEnumerable<SmartDeviceDetail> GetNormalSmartDevices()
         {
-            return ServerConfig.ApiDb.Query<SmartDevice>(
-                "SELECT * FROM `t_device` WHERE MarkedDelete = 0 AND State = @state;"
+            return ServerConfig.ApiDb.Query<SmartDeviceDetail>(
+                "SELECT a.*, b.Model FROM `t_device` a JOIN `t_device_model` b ON a.ModelId = b.Id WHERE a.MarkedDelete = 0 AND a.State = @state;"
                 , new { state = SmartDeviceState.正常 });
         }
         #endregion

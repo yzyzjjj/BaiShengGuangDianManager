@@ -144,7 +144,7 @@ namespace ApiManagement.Controllers.MaterialManagementController
             var logIds = materialLogs.Where(x => x.Number == 0).Select(y => y.Id);
             var billIds = materialLogs.Select(x => x.BillId);
             var timeLog = ServerConfig.ApiDb.Query<MaterialLog>("SELECT * FROM (SELECT * FROM `material_log` " +
-                    "WHERE BillId IN @billIds AND Id NOT IN @logIds AND Number > 0 Order By Time DESC) a GROUP BY Type;",
+                    $"WHERE BillId IN @billIds{(logIds.Any() ? " AND Id NOT IN @logIds" : "")} AND Number > 0 Order By Time DESC) a GROUP BY Type;",
                     new { billIds, logIds });
             var cnt =
                 ServerConfig.ApiDb.Query<int>("SELECT COUNT(1) FROM `material_log` WHERE Id IN @id;",

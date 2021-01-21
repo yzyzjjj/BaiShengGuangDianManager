@@ -24,13 +24,13 @@ namespace ApiManagement.Controllers.SmartFactoryController.CapacityFolder
         public DataResult GetSmartCapacity([FromQuery]int qId, int categoryId, bool menu)
         {
             var result = new DataResult();
-            var sql = menu ? $"SELECT a.Id, `Capacity`, Category FROM t_capacity a JOIN t_process_code_category b ON a.CategoryId = b.Id " +
+            var sql = menu ? $"SELECT a.Id, `Capacity`, CategoryId, Category FROM t_capacity a JOIN t_process_code_category b ON a.CategoryId = b.Id " +
                              $"WHERE a.MarkedDelete = 0{(qId == 0 ? "" : " AND a.Id = @qId")}{(categoryId == 0 ? "" : " AND a.CategoryId = @categoryId")};"
                 : $"SELECT a.*, b.Category FROM t_capacity a JOIN t_process_code_category b ON a.CategoryId = b.Id " +
                   $"WHERE a.MarkedDelete = 0{(qId == 0 ? "" : " AND a.Id = @qId")}{(categoryId == 0 ? "" : " AND a.CategoryId = @categoryId")};";
             result.datas.AddRange(menu
-                ? ServerConfig.ApiDb.Query<dynamic>(sql, new { qId, categoryId })
-                : ServerConfig.ApiDb.Query<SmartCapacityDetail>(sql, new { qId, categoryId }));
+                ? ServerConfig.ApiDb.Query<dynamic>(sql, new { qId, categoryId }).OrderBy(x=>(int)x.CategoryId)
+                : ServerConfig.ApiDb.Query<SmartCapacityDetail>(sql, new { qId, categoryId }).OrderBy(x => x.CategoryId));
             if (qId != 0 && !result.datas.Any())
             {
                 result.errno = Error.SmartCapacityNotExist;

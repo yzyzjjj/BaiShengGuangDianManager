@@ -33,21 +33,24 @@ namespace ApiManagement.Controllers.SmartFactoryController.ProcessFolder
             else
             {
                 var processIds = data.SelectMany(x => x.ProcessIdList).Distinct();
-                var processList = ServerConfig.ApiDb.Query<SmartProcess>(
+                if (processIds.Any())
+                {
+                    var processList = ServerConfig.ApiDb.Query<SmartProcess>(
                     "SELECT a.Id, b.Process FROM `t_process_code_category_process` a JOIN `t_process` b ON a.ProcessId = b.Id WHERE a.MarkedDelete = 0 AND b.MarkedDelete = 0 AND a.Id IN @processIds", new
                     {
                         processIds
                     });
-                if (processList.Any())
-                {
-                    foreach (var d in data)
+                    if (processList.Any())
                     {
-                        foreach (var processId in d.ProcessIdList)
+                        foreach (var d in data)
                         {
-                            var process = processList.FirstOrDefault(x => x.Id == processId);
-                            if (process != null)
+                            foreach (var processId in d.ProcessIdList)
                             {
-                                d.ProcessList.Add(process.Process);
+                                var process = processList.FirstOrDefault(x => x.Id == processId);
+                                if (process != null)
+                                {
+                                    d.ProcessList.Add(process.Process);
+                                }
                             }
                         }
                     }

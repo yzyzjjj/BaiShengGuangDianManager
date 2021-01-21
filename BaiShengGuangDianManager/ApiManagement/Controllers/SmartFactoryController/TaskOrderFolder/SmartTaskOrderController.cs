@@ -124,7 +124,7 @@ namespace ApiManagement.Controllers.SmartFactoryController.TaskOrderFolder
             {
                 return Result.GenError<Result>(Error.SmartTaskOrderDuplicate);
             }
-            var result = new SmartTaskOrderNeedOrderResult();
+            var result = new SmartTaskOrderNeedWithOrderPreviewResult();
             if (taskOrders.Any())
             {
                 var tOrders = SmartTaskOrderHelper.Instance.GetByIds<SmartTaskOrderCapacity>(taskIds);
@@ -199,14 +199,18 @@ namespace ApiManagement.Controllers.SmartFactoryController.TaskOrderFolder
             {
                 return result;
             }
-
+            //设备型号
+            var deviceModels = SmartDeviceModelHelper.Instance.GetAll<SmartDeviceModel>();
             //设备型号数量
             var deviceList = SmartDeviceHelper.Instance.GetNormalSmartDevices();
-            var modelCounts = deviceList.GroupBy(x => x.ModelId).Select(y => new SmartDeviceModelCount
+            var modelCounts = deviceList.GroupBy(x => new { x.CategoryId, x.ModelId }).Select(y => new SmartDeviceModelCount
             {
-                ModelId = y.Key,
+                CategoryId = y.Key.CategoryId,
+                ModelId = y.Key.ModelId,
                 Count = y.Count()
             });
+            //人员等级
+            var operatorLevels = SmartOperatorLevelHelper.Instance.GetAll<SmartOperatorLevel>();
             //人员等级数量
             var operatorList = SmartOperatorHelper.Instance.GetNormalSmartOperators();
             var operatorCounts = operatorList.GroupBy(x => new { x.ProcessId, x.LevelId }).Select(y => new SmartOperatorCount
@@ -216,6 +220,7 @@ namespace ApiManagement.Controllers.SmartFactoryController.TaskOrderFolder
                 Count = y.Count()
             });
             var taskNeeds = SmartTaskOrderNeedHelper.Instance.GetSmartTaskOrderNeedsByTaskOrderIds(taskIds);
+
             foreach (var task in taskOrders)
             {
                 var needs = taskNeeds.Where(need => need.TaskOrderId == task.Id);
@@ -269,6 +274,7 @@ namespace ApiManagement.Controllers.SmartFactoryController.TaskOrderFolder
                         TaskOrderId = task.Id,
                         ProductId = productId,
                         ProcessId = cList.ProcessId,
+                        CategoryId = cList.CategoryId,
                         PId = cList.PId,
                         Target = target,
                         DoneTarget = doneTarget,
@@ -282,7 +288,6 @@ namespace ApiManagement.Controllers.SmartFactoryController.TaskOrderFolder
                     if (need != null)
                     {
                         newNeed.Devices = need.Devices;
-                        newNeed.Operators = need.Operators;
                         newNeed.NeedDCapacity = newNeed.DCapacity != 0 ? ((decimal)put / newNeed.DCapacity).ToRound() : 0;
                         foreach (var device in need.DeviceList)
                         {
@@ -291,11 +296,12 @@ namespace ApiManagement.Controllers.SmartFactoryController.TaskOrderFolder
                         }
                         newNeed.HaveDCapacity = newNeed.DCapacity != 0 ? ((decimal)newNeed.TotalDCapacity / newNeed.DCapacity).ToRound() : 0;
 
+                        newNeed.Operators = need.Operators;
                         newNeed.NeedOCapacity = newNeed.OCapacity != 0 ? ((decimal)put / newNeed.OCapacity).ToRound() : 0;
                         foreach (var op in need.OperatorsList)
                         {
-                            var modelCount = operatorCounts.FirstOrDefault(x => x.LevelId == op.Key)?.Count ?? 0;
-                            newNeed.TotalOCapacity += modelCount * op.Value.Item1 * op.Value.Item2;
+                            var operatorCount = operatorCounts.FirstOrDefault(x => x.LevelId == op.Key)?.Count ?? 0;
+                            newNeed.TotalOCapacity += operatorCount * op.Value.Item1 * op.Value.Item2;
                         }
                         newNeed.HaveOCapacity = newNeed.OCapacity != 0 ? ((decimal)newNeed.TotalOCapacity / newNeed.OCapacity).ToRound() : 0;
                     }
@@ -304,13 +310,72 @@ namespace ApiManagement.Controllers.SmartFactoryController.TaskOrderFolder
                 }
             }
             result.datas.AddRange(taskOrders);
-            var orders = taskOrders.SelectMany(x => x.Needs).GroupBy(y => new { y.PId, y.Order, y.Process }).Select(z => new SmartTaskOrderNeedOrder
+            var orders = taskOrders.SelectMany(x => x.Needs).GroupBy(y => new { y.PId, y.Order, y.Process }).Select(z => new SmartTaskOrderNeedWithOrderPreview
             {
                 Id = z.Key.PId,
                 Process = z.Key.Process,
                 Order = z.Key.Order
-            });
-            result.Orders.AddRange(orders.OrderBy(z => z.Order));
+            }).ToList();
+            foreach (var task in taskOrders)
+            {
+                foreach (var newNeed in task.Needs)
+                {
+                    var order = orders.FirstOrDefault(x => x.Id == newNeed.PId);
+                    if (order != null)
+                    {
+                        order.Stock += newNeed.Stock;
+                        order.Put += newNeed.Put;
+                        order.Target += newNeed.Target;
+                        if (newNeed.DeviceList.Any())
+                        {
+                            foreach (var device in newNeed.DeviceList)
+                            {
+                                var modelDevice = order.Devices.FirstOrDefault(x => x.Id == device.Key);
+                                if (modelDevice == null)
+                                {
+                                    order.Devices.Add(new SmartTaskOrderNeedCapacityPreview
+                                    {
+                                        Id = device.Key,
+                                        Name = deviceModels.FirstOrDefault(x => x.Id == device.Key)?.Model ?? "",
+                                    });
+                                }
+                                modelDevice = order.Devices.FirstOrDefault(x => x.Id == device.Key);
+                                modelDevice.NeedCapacity += newNeed.NeedDCapacity;
+
+                                var modelCount = modelCounts.FirstOrDefault(x => x.ModelId == device.Key)?.Count ?? 0;
+                                modelDevice.HaveCapacity = modelCount;
+                            }
+                        }
+
+                        if (newNeed.OperatorsList.Any())
+                        {
+                            foreach (var op in newNeed.OperatorsList)
+                            {
+                                var levelOp = order.Operators.FirstOrDefault(x => x.Id == op.Key);
+                                if (levelOp == null)
+                                {
+                                    order.Operators.Add(new SmartTaskOrderNeedCapacityPreview
+                                    {
+                                        Id = op.Key,
+                                        Name = operatorLevels.FirstOrDefault(x => x.Id == op.Key)?.Level ?? "",
+                                    });
+                                }
+                                levelOp = order.Operators.FirstOrDefault(x => x.Id == op.Key);
+                                levelOp.NeedCapacity += newNeed.NeedOCapacity;
+
+                                var operatorCount = operatorCounts.FirstOrDefault(x => newNeed.PId == x.ProcessId && x.LevelId == op.Key)?.Count ?? 0;
+                                levelOp.HaveCapacity = operatorCount;
+                            }
+                        }
+                    }
+                }
+            }
+            result.Orders.AddRange(orders.OrderBy(z => z.Order).Select(x =>
+                {
+                    x.Devices = x.Devices.OrderBy(y => y.Id).ToList();
+                    x.Operators = x.Operators.OrderBy(y => y.Id).ToList();
+                    return x;
+                }));
             return result;
         }
 

@@ -1022,9 +1022,10 @@ namespace ApiManagement.Base.Helper
             var smartCapacityLists = SmartCapacityListHelper.Instance.GetAllSmartCapacityListsWithOrder(capacityIds);
             //设备型号数量
             var deviceList = SmartDeviceHelper.Instance.GetNormalSmartDevices();
-            var modelCount = deviceList.GroupBy(x => x.ModelId).Select(y => new SmartDeviceModelCount
+            var modelCount = deviceList.GroupBy(x => new { x.CategoryId, x.ModelId }).Select(y => new SmartDeviceModelCount
             {
-                ModelId = y.Key,
+                CategoryId = y.Key.CategoryId,
+                ModelId = y.Key.ModelId,
                 Count = y.Count()
             });
             //人员等级数量
@@ -1385,6 +1386,9 @@ namespace ApiManagement.Base.Helper
                     superTasks = allTasks.Where(x => x.LevelId == 1).OrderBy(x => x.EndTime).ThenBy(x => x.Id);
                     //有时间要求的任务 先按生产天数从小到大排，再按截止时间从小到大排
                     superTimeLimitTasks = superTasks.Where(x => x.EndTime != default(DateTime)).OrderBy(t => t.Order).ThenBy(y => y.CapacityCostDay).ThenBy(y => y.EndTime).ThenBy(y => y.StartTime).ToList();
+                    
+                    
+                    
                     //没有时间要求的任务 先按生产天数从小到大排，再按目标量从小到大排
                     superNotTimeLimitTasks = superTasks.Where(x => x.EndTime == default(DateTime)).OrderBy(t => t.Order).ThenBy(y => y.CapacityCostDay).ThenBy(y => y.StartTime).ThenBy(y => y.Target).ToList();
 

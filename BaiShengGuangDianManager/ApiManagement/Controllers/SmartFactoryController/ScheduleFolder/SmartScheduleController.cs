@@ -37,31 +37,31 @@ namespace ApiManagement.Controllers.SmartFactoryController.ScheduleFolder
 
             tasks = SmartTaskOrderHelper.Instance.GetAllArrangedButNotDoneSmartTaskOrderDetails(taskIds);
             var taskNeeds = SmartTaskOrderNeedHelper.Instance.GetSmartTaskOrderNeedsByTaskOrderIds(taskIds, true);
-            var orders = taskNeeds.GroupBy(y => new { y.PId, y.Order, y.Process }).Select(z => new SmartTaskOrderNeedOrder
+            var orders = taskNeeds.GroupBy(y => new { y.PId, y.Order, y.Process, y.CategoryId }).Select(z => new SmartTaskOrderNeedWithOrder
             {
                 Id = z.Key.PId,
                 Process = z.Key.Process,
+                CategoryId = z.Key.CategoryId,
                 Order = z.Key.Order
             });
             result.StartTime = startTime;
             result.EndTime = endTime;
             result.Orders.AddRange(orders.OrderBy(z => z.Order));
 
-            ////设备型号数量
-            //var deviceList = SmartDeviceHelper.Instance.GetNormalSmartDevices();
-            //var modelCount = deviceList.GroupBy(x => x.ModelId).Select(y => new SmartDeviceModelCount
-            //{
-            //    ModelId = y.Key,
-            //    Count = y.Count()
-            //});
-            ////人员等级数量
-            //var operatorList = SmartOperatorHelper.Instance.GetNormalSmartOperators();
-            //var operatorCount = operatorList.GroupBy(x => new { x.ProcessId, x.LevelId }).Select(y => new SmartOperatorCount
-            //{
-            //    ProcessId = y.Key.ProcessId,
-            //    LevelId = y.Key.LevelId,
-            //    Count = y.Count()
-            //});
+            //设备型号数量
+            var deviceList = SmartDeviceHelper.Instance.GetNormalSmartDevices();
+            //人员等级数量
+            var operatorList = SmartOperatorHelper.Instance.GetNormalSmartOperators();
+            var modelCount = deviceList.GroupBy(x => new { x.CategoryId }).Select(y => new SmartDeviceModelCount
+            {
+                CategoryId = y.Key.CategoryId,
+                Count = y.Count()
+            });
+            var operatorCount = operatorList.GroupBy(x => new { x.ProcessId }).Select(y => new SmartOperatorCount
+            {
+                ProcessId = y.Key.ProcessId,
+                Count = y.Count()
+            });
             //if (schedules.Any())
             //{
             //    var productIds = schedules.Select(x => x.ProductId);
@@ -147,11 +147,19 @@ namespace ApiManagement.Controllers.SmartFactoryController.ScheduleFolder
                     else
                     {
                         var ins = indexes.Where(p => p.ProcessTime == t && p.PId == order.Id);
+                        decimal index = 0;
+                        if (ins.Any())
+                        {
+                            var cnt = ins.First().ProductType == 0
+                                ? (modelCount.FirstOrDefault(x => x.CategoryId == order.CategoryId)?.Count ?? 0)
+                                : (operatorCount.FirstOrDefault(x => x.ProcessId == order.Id)?.Count ?? 0);
+                            index = cnt == 0 ? 0 : (ins.Sum(x => x.Index) / cnt).ToRound(2);
+                        }
                         arrangeIndexes.Add(new SmartTaskOrderScheduleIndex
                         {
                             ProcessTime = t,
                             PId = order.Id,
-                            Index = !ins.Any() ? 0 : (ins.Sum(index => index.Index) / ins.Count()).ToRound(2)
+                            Index = index
                         });
                     }
                 }
@@ -310,9 +318,58 @@ namespace ApiManagement.Controllers.SmartFactoryController.ScheduleFolder
                 return result;
             }
             //设备型号数量
-            var deviceList = SmartDeviceHelper.Instance.GetAll<SmartDevice>();
+            var deviceList = SmartDeviceHelper.Instance.GetNormalSmartDevices();
             //人员等级数量
-            var operatorList = SmartOperatorHelper.Instance.GetAllSmartOperators();
+            var operatorList = SmartOperatorHelper.Instance.GetNormalSmartOperators();
+            var modelCount = deviceList.GroupBy(x => new { x.CategoryId, x.ModelId }).Select(y => new SmartDeviceModelCount
+            {
+                CategoryId = y.Key.CategoryId,
+                ModelId = y.Key.ModelId,
+                Count = y.Count()
+            });
+            var operatorCount = operatorList.GroupBy(x => new { x.ProcessId, x.LevelId }).Select(y => new SmartOperatorCount
+            {
+                ProcessId = y.Key.ProcessId,
+                LevelId = y.Key.LevelId,
+                Count = y.Count()
+            });
+            var order = SmartProcessHelper.Instance.Get<SmartProcess>(pId);
+            var productType = data.First().ProductType;
+            if (productType == 0)
+            {
+                var devices = deviceList.Where(x => x.CategoryId == order.DeviceCategoryId);
+                foreach (var device in devices)
+                {
+                    if (data.All(p => p.DealId != device.Id))
+                    {
+                        data.Add(new SmartTaskOrderScheduleIndexDetail
+                        {
+                            ProductType = productType,
+                            ProcessTime = time,
+                            PId = pId,
+                            DealId = device.Id
+                        });
+                    }
+                }
+            }
+            else if (productType == 1)
+            {
+                var operators = operatorList.Where(x => x.ProcessId == order.Id);
+                foreach (var op in operators)
+                {
+                    if (data.All(p => p.DealId != op.Id))
+                    {
+                        data.Add(new SmartTaskOrderScheduleIndexDetail
+                        {
+                            ProductType = productType,
+                            ProcessTime = time,
+                            PId = pId,
+                            DealId = op.Id
+                        });
+                    }
+                }
+            }
+
             foreach (var x in data)
             {
                 if (x.ProductType == 0)
@@ -404,6 +461,7 @@ namespace ApiManagement.Controllers.SmartFactoryController.ScheduleFolder
                     result.datas.AddRange(taskOrders.Where(x => tOrders.All(y => y.Id != x.Id)).Select(x => x.TaskOrder.IsNullOrEmpty() ? x.Id.ToString() : x.TaskOrder));
                     return result;
                 }
+
                 //var arranged = tOrders.Where(x => x.Arranged);
                 //if (arranged.Any())
                 //{
@@ -420,12 +478,20 @@ namespace ApiManagement.Controllers.SmartFactoryController.ScheduleFolder
                         result.errno = Error.SmartTaskOrderNotExist;
                         result.datas.Add(task.TaskOrder);
                     }
-
-                    task.StartTime = t.StartTime;
-                    task.EndTime = t.EndTime;
-                    task.Needs = t.Needs;
+                    else
+                    {
+                        //页面选择顺序
+                        task.Order = t.Order;
+                        task.StartTime = t.StartTime;
+                        task.EndTime = t.EndTime;
+                        task.Needs = t.Needs;
+                    }
                 }
                 allTasks.AddRange(tOrders);
+            }
+            if (result.errno != Error.Success)
+            {
+                return result;
             }
             var otherTasks = SmartTaskOrderHelper.Instance.GetArrangedButNotDoneSmartTaskOrders();
             if (otherTasks.Any())
@@ -563,9 +629,9 @@ namespace ApiManagement.Controllers.SmartFactoryController.ScheduleFolder
                     target = put;
                 }
             }
-            var r = new SmartTaskOrderNeedOrderResult();
-            r.datas.AddRange(data.Values.OrderBy(x => x.Arranged).ThenBy(x => x.DeliveryTime).ThenByDescending(x => x.StartTime));
-            var orders = data.Values.SelectMany(x => x.Needs).GroupBy(y => new { y.PId, y.Order, y.Process }).Select(z => new SmartTaskOrderNeedOrder
+            var r = new SmartTaskOrderNeedWithOrderResult();
+            r.datas.AddRange(data.Values.OrderBy(x => x.Arranged).ThenBy(x => x.ModifyId));
+            var orders = data.Values.SelectMany(x => x.Needs).GroupBy(y => new { y.PId, y.Order, y.Process }).Select(z => new SmartTaskOrderNeedWithOrder
             {
                 Id = z.Key.PId,
                 Process = z.Key.Process,
@@ -643,7 +709,7 @@ namespace ApiManagement.Controllers.SmartFactoryController.ScheduleFolder
                 eEndTime = today;
             }
             var put = new List<object>();
-            var orders = new List<SmartTaskOrderNeedOrder>();
+            var orders = new List<SmartTaskOrderNeedWithOrder>();
             //设备型号数量
             var deviceList = SmartDeviceHelper.Instance.GetAll<SmartDevice>();
             //人员等级数量
@@ -744,7 +810,7 @@ namespace ApiManagement.Controllers.SmartFactoryController.ScheduleFolder
             });
             put.AddRange(ts);
 
-            orders.AddRange(costDays.SelectMany(x => x.CostDays).GroupBy(y => new { y.PId, y.Process, y.Order }).Select(z => new SmartTaskOrderNeedOrder
+            orders.AddRange(costDays.SelectMany(x => x.CostDays).GroupBy(y => new { y.PId, y.Process, y.Order }).Select(z => new SmartTaskOrderNeedWithOrder
             {
                 Id = z.Key.PId,
                 Process = z.Key.Process,

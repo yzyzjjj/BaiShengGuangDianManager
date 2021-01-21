@@ -28,6 +28,10 @@ namespace ApiManagement.Models.SmartFactoryModel
     public class SmartDeviceModelCount
     {
         /// <summary>
+        /// 设备类别id
+        /// </summary>
+        public int CategoryId { get; set; }
+        /// <summary>
         /// 设备型号
         /// </summary>
         public int ModelId { get; set; }

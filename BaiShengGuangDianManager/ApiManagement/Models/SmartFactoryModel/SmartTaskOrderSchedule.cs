@@ -933,17 +933,17 @@ namespace ApiManagement.Models.SmartFactoryModel
     /// <summary>
     /// 流程顺序结果
     /// </summary>
-    public class SmartTaskOrderNeedOrderResult : DataResult
+    public class SmartTaskOrderNeedWithOrderResult : DataResult
     {
         /// <summary>
         /// 顺序
         /// </summary>
-        public List<SmartTaskOrderNeedOrder> Orders { get; set; } = new List<SmartTaskOrderNeedOrder>();
+        public List<SmartTaskOrderNeedWithOrder> Orders { get; set; } = new List<SmartTaskOrderNeedWithOrder>();
     }
     /// <summary>
     /// 流程顺序结果
     /// </summary>
-    public class SmartTaskOrderNeedOrderTimeResult : SmartTaskOrderNeedOrderResult
+    public class SmartTaskOrderNeedOrderTimeResult : SmartTaskOrderNeedWithOrderResult
     {
         public DateTime StartTime { get; set; }
         public DateTime EndTime { get; set; }
@@ -953,7 +953,7 @@ namespace ApiManagement.Models.SmartFactoryModel
         public List<SmartTaskOrderScheduleIndex> Indexes { get; set; } = new List<SmartTaskOrderScheduleIndex>();
     }
 
-    public class SmartTaskOrderNeedOrder
+    public class SmartTaskOrderNeedWithOrder
     {
         /// <summary>
         /// 流程id
@@ -967,5 +967,57 @@ namespace ApiManagement.Models.SmartFactoryModel
         /// 顺序
         /// </summary>
         public int Order { get; set; }
+        /// <summary>
+        /// 设备类型
+        /// </summary>
+        public int CategoryId { get; set; }
+    }
+
+    /// <summary>
+    /// 流程顺序结果
+    /// </summary>
+    public class SmartTaskOrderNeedWithOrderPreviewResult : DataResult
+    {
+        /// <summary>
+        /// 顺序
+        /// </summary>
+        public List<SmartTaskOrderNeedWithOrderPreview> Orders { get; set; } = new List<SmartTaskOrderNeedWithOrderPreview>();
+    }
+
+    public class SmartTaskOrderNeedWithOrderPreview : SmartTaskOrderNeedWithOrder
+    {
+        /// <summary>
+        /// 库存
+        /// </summary>
+        public int Stock { get; set; }
+        /// <summary>
+        /// 需生产
+        /// </summary>
+        public int Target { get; set; }
+        /// <summary>
+        /// 需投料
+        /// </summary>
+        public int Put { get; set; }
+
+        public List<SmartTaskOrderNeedCapacityPreview> Devices { get; set; } = new List<SmartTaskOrderNeedCapacityPreview>();
+        public List<SmartTaskOrderNeedCapacityPreview> Operators { get; set; } = new List<SmartTaskOrderNeedCapacityPreview>();
+    }
+
+    public class SmartTaskOrderNeedCapacityPreview
+    {
+        public int Id { get; set; }
+        public string Name { get; set; }
+        /// <summary>
+        /// 需求
+        /// </summary>
+        public decimal NeedCapacity { get; set; }
+        /// <summary>
+        /// 现有
+        /// </summary>
+        public decimal HaveCapacity { get; set; }
+        /// <summary>
+        /// 班次
+        /// </summary>
+        public decimal Times => HaveCapacity != 0 ? (NeedCapacity / HaveCapacity).ToRound() : 0;
     }
 }
