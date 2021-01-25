@@ -15,17 +15,21 @@ namespace ApiManagement.Base.Helper
     /// </summary>
     public class WorkFlowHelper
     {
+        public WorkFlowHelper()
+        {
+            Init();
+        }
         public static readonly WorkFlowHelper Instance = new WorkFlowHelper();
 
         #region 创建
         /// <summary>
         /// 用户创建
         /// </summary>
-        public event EventHandler<SmartUser> SmartUserCreated;
-        public void OnSmartUserCreated(SmartUser user)
+        public event EventHandler<SmartAccount> SmartAccountCreated;
+        public void OnSmartAccountCreated(SmartAccount user)
         {
-            //SmartUserCreated?.BeginInvoke(this, user, null, null);
-            SmartUserCreated?.Invoke(this, user);
+            //SmartAccountCreated?.BeginInvoke(this, user, null, null);
+            SmartAccountCreated?.Invoke(this, user);
         }
 
         /// <summary>
@@ -60,10 +64,10 @@ namespace ApiManagement.Base.Helper
         /// <summary>
         /// 用户改变
         /// </summary>
-        public event EventHandler<IEnumerable<SmartUser>> SmartUserChanged;
-        public void OnSmartUserChanged(IEnumerable<SmartUser> user)
+        public event EventHandler<IEnumerable<SmartAccount>> SmartAccountChanged;
+        public void OnSmartAccountChanged(IEnumerable<SmartAccount> user)
         {
-            SmartUserChanged?.Invoke(this, user);
+            SmartAccountChanged?.Invoke(this, user);
         }
         /// <summary>
         /// 流程卡工序 更新  开始加工 结束加工 录报表
@@ -450,7 +454,7 @@ namespace ApiManagement.Base.Helper
                 var taskOrderIds = flowCards.GroupBy(x => x.TaskOrderId).Select(y => y.Key);
                 var processCodeCategoryIds = flowCards.GroupBy(x => x.ProcessCodeId).Select(y => y.Key);
                 var processes =
-                    SmartProcessCodeCategoryProcessHelper.Instance
+                    SmartProcessCodeCategoryProcessHelper
                         .GetSmartProcessCodeCategoryProcessesByProcessCodeCategoryIds(processCodeCategoryIds);
                 var existTaskOrderLines = ServerConfig.ApiDb
                     .Query<SmartLineTaskOrder>(
@@ -534,7 +538,7 @@ namespace ApiManagement.Base.Helper
 
                 foreach (var fault in processFaults)
                 {
-                    SmartFlowCardProcessHelper.Instance.UpdateSmartFlowCardProcessFault(fault.ProcessId);
+                    SmartFlowCardProcessHelper.UpdateSmartFlowCardProcessFault(fault.ProcessId);
                 }
             };
 
@@ -616,7 +620,7 @@ namespace ApiManagement.Base.Helper
                 //}
 
                 //ServerConfig.ApiDb.Execute("UPDATE `t_capacity` SET `Number` = @Number, `DeviceNumber` = @DeviceNumber, `OperatorNumber` = @OperatorNumber, `Last` = @Last WHERE `Id` = @Id;", capacities);
-                var smartProducts = SmartProductHelper.Instance.GetSmartProductsByCapacityIds(capacityIds);
+                var smartProducts = SmartProductHelper.GetSmartProductsByCapacityIds(capacityIds);
                 OnSmartProductCapacityNeedUpdate(smartProducts);
             };
 
@@ -652,7 +656,7 @@ namespace ApiManagement.Base.Helper
                 var taskOrderIds = taskOrderIdProcessCodeIds.Select(x => x.TaskOrderId);
                 var processCodeCategoryIds = taskOrderIdProcessCodeIds.Select(x => x.ProcessCodeCategoryId);
                 var processes =
-                    SmartFlowCardProcessHelper.Instance.GetSmartFlowCardProcesses1(taskOrderIds, processCodeCategoryIds);
+                    SmartFlowCardProcessHelper.GetSmartFlowCardProcesses1(taskOrderIds, processCodeCategoryIds);
 
                 var smartLines = new Dictionary<Tuple<int, int, int>, SmartLineTaskOrder>();
                 foreach (var process in processes)
@@ -727,7 +731,7 @@ namespace ApiManagement.Base.Helper
                 var workOrderIds = workOrderIdProcessCodeIds.Select(x => x.WorkOrderId);
                 var processCodeCategoryIds = workOrderIdProcessCodeIds.Select(x => x.ProcessCodeCategoryId);
                 var processes =
-                    SmartFlowCardProcessHelper.Instance.GetSmartFlowCardProcesses2(workOrderIds, processCodeCategoryIds);
+                    SmartFlowCardProcessHelper.GetSmartFlowCardProcesses2(workOrderIds, processCodeCategoryIds);
 
                 var smartLines = new Dictionary<Tuple<int, int, int>, SmartLineWorkOrder>();
                 foreach (var process in processes)
@@ -803,8 +807,8 @@ namespace ApiManagement.Base.Helper
                 var productsIds = smartProducts.Select(x => x.Id);
                 smartProducts = SmartProductHelper.Instance.GetByIds<SmartProduct>(productsIds);
                 var capacityIds = smartProducts.Select(x => x.CapacityId);
-                var capacities = SmartCapacityListHelper.Instance.GetSmartCapacityListsWithOrder(capacityIds);
-                var productCapacities = SmartProductCapacityHelper.Instance.GetSmartProductCapacities(productsIds).Select(
+                var capacities = SmartCapacityListHelper.GetSmartCapacityListsWithOrder(capacityIds);
+                var productCapacities = SmartProductCapacityHelper.GetSmartProductCapacities(productsIds).Select(
                     x =>
                     {
                         x.DeviceNumber = 0;
@@ -814,10 +818,10 @@ namespace ApiManagement.Base.Helper
                     });
 
                 var modelIds = capacities.SelectMany(x => x.DeviceList).Select(y => y.ModelId).Distinct();
-                var modelCount = SmartDeviceModelHelper.Instance.GetNormalModelCount(modelIds);
+                var modelCount = SmartDeviceModelHelper.GetNormalModelCount(modelIds);
 
                 var processIds = capacities.Select(x => x.ProcessId).Distinct();
-                var operatorCount = SmartOperatorHelper.Instance.GetNormalOperatorCount(processIds);
+                var operatorCount = SmartOperatorHelper.GetNormalOperatorCount(processIds);
 
                 var smartProductCapacities = new List<SmartProductCapacity>();
                 foreach (var smartProduct in smartProducts)

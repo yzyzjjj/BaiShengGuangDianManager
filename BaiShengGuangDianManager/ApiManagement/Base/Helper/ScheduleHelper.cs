@@ -1,13 +1,14 @@
-﻿using ApiManagement.Base.Server;
-using ApiManagement.Models.SmartFactoryModel;
+﻿using ApiManagement.Models.SmartFactoryModel;
 using ModelBase.Base.Utils;
 using Newtonsoft.Json;
 using ServiceStack;
 using System;
 using System.Collections.Generic;
 using System.Linq;
+#if DEBUG
+#else
 using System.Threading;
-using static ApiManagement.Models.SmartFactoryModel.ScheduleState;
+#endif
 using DateTime = System.DateTime;
 
 namespace ApiManagement.Base.Helper
@@ -17,6 +18,10 @@ namespace ApiManagement.Base.Helper
     /// </summary>
     public class ScheduleHelper
     {
+        public ScheduleHelper()
+        {
+            Init();
+        }
 #if DEBUG
 #else
         private static Timer _scheduleTimer;
@@ -56,11 +61,11 @@ namespace ApiManagement.Base.Helper
             var costDays = new List<SmartTaskOrderScheduleCostDays>();
             var today = DateTime.Today;
             var taskIds = tasks.Select(x => x.Id);
-            var theseTasks = SmartTaskOrderHelper.Instance.GetWillArrangedSmartTaskOrders(taskIds);
+            var theseTasks = SmartTaskOrderHelper.GetWillArrangedSmartTaskOrders(taskIds);
             var needs = new List<SmartTaskOrderNeedDetail>();
             if (theseTasks.Any())
             {
-                needs.AddRange(SmartTaskOrderNeedHelper.Instance.GetSmartTaskOrderNeedsByTaskOrderIds(
+                needs.AddRange(SmartTaskOrderNeedHelper.GetSmartTaskOrderNeedsByTaskOrderIds(
                     theseTasks.Select(x => x.Id)));
             }
 
@@ -104,12 +109,12 @@ namespace ApiManagement.Base.Helper
             // 任务单计划号
             var products = SmartProductHelper.Instance.GetByIds<SmartProduct>(productIds);
             // 计划号产能
-            var productCapacities = SmartProductCapacityHelper.Instance.GetAllSmartProductCapacities(productIds);
+            var productCapacities = SmartProductCapacityHelper.GetAllSmartProductCapacities(productIds);
             var capacityIds = products.Select(x => x.CapacityId);
             // 产能设置
-            var smartCapacityLists = SmartCapacityListHelper.Instance.GetAllSmartCapacityListsWithOrder(capacityIds);
+            var smartCapacityLists = SmartCapacityListHelper.GetAllSmartCapacityListsWithOrder(capacityIds);
             //设备型号数量
-            var deviceList = SmartDeviceHelper.Instance.GetNormalSmartDevices();
+            var deviceList = SmartDeviceHelper.GetNormalSmartDevices();
             var modelCount = deviceList.GroupBy(x => new { x.CategoryId, x.ModelId }).Select(y => new SmartDeviceModelCount
             {
                 CategoryId = y.Key.CategoryId,
@@ -117,7 +122,7 @@ namespace ApiManagement.Base.Helper
                 Count = y.Count()
             });
             //人员等级数量
-            var operatorList = SmartOperatorHelper.Instance.GetNormalSmartOperators();
+            var operatorList = SmartOperatorHelper.GetNormalSmartOperators();
             var operatorCount = operatorList.GroupBy(x => new { x.ProcessId, x.LevelId }).Select(y => new SmartOperatorCount
             {
                 ProcessId = y.Key.ProcessId,
@@ -125,7 +130,7 @@ namespace ApiManagement.Base.Helper
                 Count = y.Count()
             });
             //工序已安排数量
-            var schedules = SmartTaskOrderScheduleHelper.Instance.GetSmartTaskOrderSchedule(taskIds);
+            var schedules = SmartTaskOrderScheduleHelper.GetSmartTaskOrderSchedule(taskIds);
 
             //设备 0  人员 1
             var way = 2;
@@ -151,11 +156,7 @@ namespace ApiManagement.Base.Helper
 
             foreach (var task in tasks)
             {
-                //if (task.StartTime == default(DateTime))
-                //{
-                //    task.StartTime = today;
-                //}
-
+                task.SetStartTime = task.StartTime < today ? today : task.StartTime;
                 var product = products.FirstOrDefault(x => x.Id == task.ProductId);
                 task.Product = product.Product;
                 task.CapacityId = product.CapacityId;
@@ -355,8 +356,8 @@ namespace ApiManagement.Base.Helper
 
             if (isArrange)
             {
-                var batch = SmartTaskOrderHelper.Instance.AddSmartTaskOrderBatch(createUserId);
-                var oldNeeds = SmartTaskOrderNeedHelper.Instance.GetSmartTaskOrderNeedsByTaskOrderIds(taskIds);
+                var batch = SmartTaskOrderHelper.AddSmartTaskOrderBatch(createUserId);
+                var oldNeeds = SmartTaskOrderNeedHelper.GetSmartTaskOrderNeedsByTaskOrderIds(taskIds);
                 var calNeeds = cnWaitTasks[ii][jj].SelectMany(x => x.Needs);
                 var newNeeds = tasks.SelectMany(x => x.Needs);
                 foreach (var need in newNeeds)
@@ -400,7 +401,7 @@ namespace ApiManagement.Base.Helper
                     x.MarkedDateTime = markedDateTime;
                     return x;
                 }));
-                SmartTaskOrderHelper.Instance.Arrange(tasks.Select(x =>
+                SmartTaskOrderHelper.Arrange(tasks.Select(x =>
                 {
                     x.ArrangedTime = markedDateTime;
                     x.MarkedDateTime = markedDateTime;
@@ -460,16 +461,17 @@ namespace ApiManagement.Base.Helper
 
             AddDay(ref newSchedules, minTime, maxTime, deviceList, operatorList);
             InitData(ref newSchedules, allTasks, schedules, productCapacities, smartCapacityLists, deviceList, operatorList);
-            IEnumerable<SmartTaskOrderConfirm> normalTasks;
             IEnumerable<SmartTaskOrderConfirm> superTasks;
-            List<SmartTaskOrderConfirm> normalNotTimeLimitTasks;
-            List<SmartTaskOrderConfirm> normalTimeLimitTasks;
-            List<SmartTaskOrderConfirm> superNotTimeLimitTasks;
+            IEnumerable<SmartTaskOrderConfirm> normalTasks;
             List<SmartTaskOrderConfirm> superTimeLimitTasks;
+            List<SmartTaskOrderConfirm> superNotTimeLimitTasks;
+            List<SmartTaskOrderConfirm> normalTimeLimitTasks;
+            List<SmartTaskOrderConfirm> normalNotTimeLimitTasks;
+            List<SmartTaskOrderConfirm> processTasks = new List<SmartTaskOrderConfirm>();
             var f = false;
             if (f)
             {
-                #region 普通
+#region 普通
                 //S级任务  排产优先
                 superTasks = allTasks.Where(x => x.LevelId == 1).OrderBy(x => x.EndTime).ThenBy(x => x.Id);
                 //有时间要求的任务 先按生产天数从小到大排，再按截止时间从小到大排
@@ -483,110 +485,197 @@ namespace ApiManagement.Base.Helper
                 normalTimeLimitTasks = normalTasks.Where(x => x.EndTime != default(DateTime)).OrderBy(t => t.Order).ThenBy(y => y.CapacityCostDay).ThenBy(y => y.EndTime).ThenBy(y => y.StartTime).ToList();
                 //没有时间要求的任务 先按生产天数从小到大排，再按目标量从小到大排
                 normalNotTimeLimitTasks = normalTasks.Where(x => x.EndTime == default(DateTime)).OrderBy(t => t.Order).ThenBy(y => y.CapacityCostDay).ThenBy(y => y.StartTime).ThenBy(y => y.Target).ToList();
-                #endregion
+#endregion
             }
             else
             {
-                #region MyRegion
+#region MyRegion
                 switch (type)
                 {
                     case 0:
-                        #region 最短工期
+#region 最短工期
                         //S级任务  排产优先
-                        superTasks = allTasks.Where(x => x.LevelId == 1).OrderBy(x => x.EndTime).ThenBy(x => x.Id);
-                        //有时间要求的任务 先按生产天数从小到大排，再按截止时间从小到大排
-                        superTimeLimitTasks = superTasks.Where(x => x.EndTime != default(DateTime)).OrderBy(t => t.Order).ThenBy(y => y.CapacityCostDay).ThenBy(y => y.EndTime).ThenBy(y => y.StartTime).ToList();
-                        //没有时间要求的任务 先按生产天数从小到大排，再按目标量从小到大排
-                        superNotTimeLimitTasks = superTasks.Where(x => x.EndTime == default(DateTime)).OrderBy(t => t.Order).ThenBy(y => y.CapacityCostDay).ThenBy(y => y.StartTime).ThenBy(y => y.Target).ToList();
+                        superTasks = allTasks.Where(x => x.LevelId == 1);
+                        //有开始时间和截止时间的任务
+                        superTimeLimitTasks = superTasks.Where(x => x.SetStartTime != default(DateTime) && x.EndTime != default(DateTime)).ToList();
+                        //开始时间从小到大排 截止时间从小到大排 生产天数从小到大排
+                        processTasks.AddRange(superTimeLimitTasks.OrderBy(t => t.SetStartTime).ThenBy(t => t.EndTime).ThenBy(t => t.CapacityCostDay));
+                        //有开始时间，没有截止时间的任务
+                        superNotTimeLimitTasks = superTasks.Where(x => x.SetStartTime != default(DateTime) && x.EndTime == default(DateTime)).ToList();
+                        //开始时间从小到大排 生产天数从小到大排
+                        processTasks.AddRange(superNotTimeLimitTasks.OrderBy(t => t.SetStartTime).ThenBy(t => t.CapacityCostDay));
+                        //有截止时间，没有开始时间的任务
+                        superNotTimeLimitTasks = superTasks.Where(x => x.SetStartTime == default(DateTime) && x.EndTime != default(DateTime)).ToList();
+                        //截止时间从小到大排 生产天数从小到大排
+                        processTasks.AddRange(superNotTimeLimitTasks.OrderBy(t => t.EndTime).ThenBy(t => t.CapacityCostDay));
+                        //没有开始时间和截止时间的任务
+                        superNotTimeLimitTasks = superTasks.Where(x => x.SetStartTime == default(DateTime) && x.EndTime == default(DateTime)).ToList();
+                        //生产天数从小到大排
+                        processTasks.AddRange(superNotTimeLimitTasks.OrderBy(t => t.CapacityCostDay));
 
                         //非S级任务  排产可修改
-                        normalTasks = allTasks.Where(x => x.LevelId != 1).OrderBy(y => y.Order);
-                        //有时间要求的任务 先按生产天数从小到大排，再按截止时间从小到大排
-                        normalTimeLimitTasks = normalTasks.Where(x => x.EndTime != default(DateTime)).OrderBy(t => t.Order).ThenBy(y => y.CapacityCostDay).ThenBy(y => y.EndTime).ThenBy(y => y.StartTime).ToList();
-                        //没有时间要求的任务 先按生产天数从小到大排，再按目标量从小到大排
-                        normalNotTimeLimitTasks = normalTasks.Where(x => x.EndTime == default(DateTime)).OrderBy(t => t.Order).ThenBy(y => y.CapacityCostDay).ThenBy(y => y.StartTime).ThenBy(y => y.Target).ToList();
-                        #endregion
+                        normalTasks = allTasks.Where(x => x.LevelId != 1);
+                        //有开始时间和截止时间的任务
+                        normalTimeLimitTasks = normalTasks.Where(x => x.SetStartTime != default(DateTime) && x.EndTime != default(DateTime)).ToList();
+                        //开始时间从小到大排 截止时间从小到大排 生产天数从小到大排
+                        processTasks.AddRange(normalTimeLimitTasks.OrderBy(t => t.SetStartTime).ThenBy(t => t.EndTime).ThenBy(t => t.CapacityCostDay));
+                        //有开始时间，没有截止时间的任务
+                        normalNotTimeLimitTasks = normalTasks.Where(x => x.SetStartTime != default(DateTime) && x.EndTime == default(DateTime)).ToList();
+                        //开始时间从小到大排 生产天数从小到大排
+                        processTasks.AddRange(normalNotTimeLimitTasks.OrderBy(t => t.SetStartTime).ThenBy(t => t.CapacityCostDay));
+                        //有截止时间，没有开始时间的任务
+                        normalNotTimeLimitTasks = normalTasks.Where(x => x.SetStartTime == default(DateTime) && x.EndTime != default(DateTime)).ToList();
+                        //截止时间从小到大排 生产天数从小到大排
+                        processTasks.AddRange(normalNotTimeLimitTasks.OrderBy(t => t.EndTime).ThenBy(t => t.CapacityCostDay));
+                        //没有开始时间和截止时间的任务
+                        normalNotTimeLimitTasks = normalTasks.Where(x => x.SetStartTime == default(DateTime) && x.EndTime == default(DateTime)).ToList();
+                        //生产天数从小到大排
+                        processTasks.AddRange(normalNotTimeLimitTasks.OrderBy(t => t.CapacityCostDay));
+#endregion
                         break;
                     case 1:
-                        #region 最早交货期  截止日期
+#region 最早交货期  截止日期
                         //S级任务  排产优先
-                        superTasks = allTasks.Where(x => x.LevelId == 1).OrderBy(x => x.EndTime).ThenBy(x => x.Id);
-                        //有时间要求的任务 按交货期/截止时间从早到晚排
-                        superTimeLimitTasks = superTasks.Where(x => x.EndTime != default(DateTime)).OrderBy(t => t.Order).ThenBy(y => y.EndTime).ThenBy(y => y.StartTime).ToList();
-                        //没有时间要求的任务 按目标量从小到大排
-                        superNotTimeLimitTasks = superTasks.Where(x => x.EndTime == default(DateTime)).OrderBy(t => t.Order).ThenBy(y => y.StartTime).ThenBy(y => y.Target).ToList();
+                        superTasks = allTasks.Where(x => x.LevelId == 1);
+                        //有开始时间和截止时间的任务
+                        superTimeLimitTasks = superTasks.Where(x => x.SetStartTime != default(DateTime) && x.EndTime != default(DateTime)).ToList();
+                        //开始时间从小到大排 截止时间从小到大排 生产天数从小到大排
+                        processTasks.AddRange(superTimeLimitTasks.OrderBy(t => t.SetStartTime).ThenBy(t => t.EndTime).ThenBy(t => t.DeliveryTime));
+                        //有开始时间，没有截止时间的任务
+                        superNotTimeLimitTasks = superTasks.Where(x => x.SetStartTime != default(DateTime) && x.EndTime == default(DateTime)).ToList();
+                        //开始时间从小到大排 生产天数从小到大排
+                        processTasks.AddRange(superNotTimeLimitTasks.OrderBy(t => t.SetStartTime).ThenBy(t => t.DeliveryTime));
+                        //有截止时间，没有开始时间的任务
+                        superNotTimeLimitTasks = superTasks.Where(x => x.SetStartTime == default(DateTime) && x.EndTime != default(DateTime)).ToList();
+                        //截止时间从小到大排 生产天数从小到大排
+                        processTasks.AddRange(superNotTimeLimitTasks.OrderBy(t => t.EndTime).ThenBy(t => t.DeliveryTime));
+                        //没有开始时间和截止时间的任务
+                        superNotTimeLimitTasks = superTasks.Where(x => x.SetStartTime == default(DateTime) && x.EndTime == default(DateTime)).ToList();
+                        //生产天数从小到大排
+                        processTasks.AddRange(superNotTimeLimitTasks.OrderBy(t => t.DeliveryTime));
 
                         //非S级任务  排产可修改
-                        normalTasks = allTasks.Where(x => x.LevelId != 1).OrderBy(y => y.Order);
-                        //有时间要求的任务 按交货期/截止时间从早到晚排
-                        normalTimeLimitTasks = normalTasks.Where(x => x.EndTime != default(DateTime)).OrderBy(t => t.Order).ThenBy(y => y.EndTime).ThenBy(y => y.StartTime).ToList();
-                        //没有时间要求的任务 按目标量从小到大排
-                        normalNotTimeLimitTasks = normalTasks.Where(x => x.EndTime == default(DateTime)).OrderBy(t => t.Order).ThenBy(y => y.StartTime).ThenBy(y => y.Target).ToList();
-                        #endregion
+                        normalTasks = allTasks.Where(x => x.LevelId != 1);
+                        //有开始时间和截止时间的任务
+                        normalTimeLimitTasks = normalTasks.Where(x => x.SetStartTime != default(DateTime) && x.EndTime != default(DateTime)).ToList();
+                        //开始时间从小到大排 截止时间从小到大排 生产天数从小到大排
+                        processTasks.AddRange(normalTimeLimitTasks.OrderBy(t => t.SetStartTime).ThenBy(t => t.EndTime).ThenBy(t => t.DeliveryTime));
+                        //有开始时间，没有截止时间的任务
+                        normalNotTimeLimitTasks = normalTasks.Where(x => x.SetStartTime != default(DateTime) && x.EndTime == default(DateTime)).ToList();
+                        //开始时间从小到大排 生产天数从小到大排
+                        processTasks.AddRange(normalNotTimeLimitTasks.OrderBy(t => t.SetStartTime).ThenBy(t => t.DeliveryTime));
+                        //有截止时间，没有开始时间的任务
+                        normalNotTimeLimitTasks = normalTasks.Where(x => x.SetStartTime == default(DateTime) && x.EndTime != default(DateTime)).ToList();
+                        //截止时间从小到大排 生产天数从小到大排
+                        processTasks.AddRange(normalNotTimeLimitTasks.OrderBy(t => t.EndTime).ThenBy(t => t.DeliveryTime));
+                        //没有开始时间和截止时间的任务
+                        normalNotTimeLimitTasks = normalTasks.Where(x => x.SetStartTime == default(DateTime) && x.EndTime == default(DateTime)).ToList();
+                        //生产天数从小到大排
+                        processTasks.AddRange(normalNotTimeLimitTasks.OrderBy(t => t.DeliveryTime));
+
+#endregion
                         break;
                     case 2:
-                        #region 工期和交货期之间的距离
+#region 工期和交货期之间的距离
                         //S级任务  排产优先
-                        superTasks = allTasks.Where(x => x.LevelId == 1).OrderBy(x => x.EndTime).ThenBy(x => x.Id);
-                        //有时间要求的任务 先按期和交货期之间的距离从小到大排，再按截止时间从小到大排
-                        superTimeLimitTasks = superTasks.Where(x => x.EndTime != default(DateTime)).OrderBy(t => t.Order).ThenBy(y => y.DistanceDay).ThenBy(y => y.EndTime).ThenBy(y => y.StartTime).ToList();
-                        //没有时间要求的任务 按目标量从小到大排
-                        superNotTimeLimitTasks = superTasks.Where(x => x.EndTime == default(DateTime)).OrderBy(t => t.Order).ThenBy(y => y.StartTime).ThenBy(y => y.Target).ToList();
+                        superTasks = allTasks.Where(x => x.LevelId == 1);
+                        //有开始时间和截止时间的任务
+                        superTimeLimitTasks = superTasks.Where(x => x.SetStartTime != default(DateTime) && x.EndTime != default(DateTime)).ToList();
+                        //开始时间从小到大排 截止时间从小到大排 生产天数从小到大排
+                        processTasks.AddRange(superTimeLimitTasks.OrderBy(t => t.SetStartTime).ThenBy(t => t.EndTime).ThenBy(t => t.DistanceDay));
+                        //有开始时间，没有截止时间的任务
+                        superNotTimeLimitTasks = superTasks.Where(x => x.SetStartTime != default(DateTime) && x.EndTime == default(DateTime)).ToList();
+                        //开始时间从小到大排 生产天数从小到大排
+                        processTasks.AddRange(superNotTimeLimitTasks.OrderBy(t => t.SetStartTime).ThenBy(t => t.DistanceDay));
+                        //有截止时间，没有开始时间的任务
+                        superNotTimeLimitTasks = superTasks.Where(x => x.SetStartTime == default(DateTime) && x.EndTime != default(DateTime)).ToList();
+                        //截止时间从小到大排 生产天数从小到大排
+                        processTasks.AddRange(superNotTimeLimitTasks.OrderBy(t => t.EndTime).ThenBy(t => t.DistanceDay));
+                        //没有开始时间和截止时间的任务
+                        superNotTimeLimitTasks = superTasks.Where(x => x.SetStartTime == default(DateTime) && x.EndTime == default(DateTime)).ToList();
+                        //生产天数从小到大排
+                        processTasks.AddRange(superNotTimeLimitTasks.OrderBy(t => t.DistanceDay));
 
                         //非S级任务  排产可修改
-                        normalTasks = allTasks.Where(x => x.LevelId != 1).OrderBy(y => y.Order);
-                        //有时间要求的任务 先按期和交货期之间的距离从小到大排，再按截止时间从小到大排
-                        normalTimeLimitTasks = normalTasks.Where(x => x.EndTime != default(DateTime)).OrderBy(t => t.Order).ThenBy(y => y.DistanceDay).ThenBy(y => y.EndTime).ThenBy(y => y.StartTime).ToList();
-                        //没有时间要求的任务 按目标量从小到大排
-                        normalNotTimeLimitTasks = normalTasks.Where(x => x.EndTime == default(DateTime)).OrderBy(t => t.Order).ThenBy(y => y.StartTime).ToList();
-                        ////S级任务  排产优先
-                        //superTasks = allTasks.Where(x => x.LevelId == 1).OrderBy(x => x.EndTime).ThenBy(x => x.Id);
-                        ////有时间要求的任务 先按期和交货期之间的距离从小到大排，再按截止时间从小到大排
-                        //superTimeLimitTasks = superTasks.Where(x => x.EndTime != default(DateTime)).OrderBy(t => t.Order).ThenBy(y => y.DistanceDay).ThenBy(y => y.EndTime).ThenBy(y => y.StartTime).ToList();
-                        ////没有时间要求的任务 按目标量从小到大排
-                        //superNotTimeLimitTasks = superTasks.Where(x => x.EndTime == default(DateTime)).OrderBy(t => t.Order).ThenBy(y => y.StartTime).ThenBy(y => y.Target).ToList();
-
-                        ////非S级任务  排产可修改
-                        //normalTasks = allTasks.Where(x => x.LevelId != 1).OrderBy(y => y.Order);
-                        ////有时间要求的任务 先按期和交货期之间的距离从小到大排，再按截止时间从小到大排
-                        //normalTimeLimitTasks = normalTasks.Where(x => x.EndTime != default(DateTime)).OrderBy(t => t.Order).ThenBy(y => y.DistanceDay).ThenBy(y => y.EndTime).ThenBy(y => y.StartTime).ToList();
-                        ////没有时间要求的任务 按目标量从小到大排
-                        //normalNotTimeLimitTasks = normalTasks.Where(x => x.EndTime == default(DateTime)).OrderBy(t => t.Order).ThenBy(y => y.StartTime).ThenBy(y => y.Target).ToList();
-                        #endregion
+                        normalTasks = allTasks.Where(x => x.LevelId != 1);
+                        //有开始时间和截止时间的任务
+                        normalTimeLimitTasks = normalTasks.Where(x => x.SetStartTime != default(DateTime) && x.EndTime != default(DateTime)).ToList();
+                        //开始时间从小到大排 截止时间从小到大排 生产天数从小到大排
+                        processTasks.AddRange(normalTimeLimitTasks.OrderBy(t => t.SetStartTime).ThenBy(t => t.EndTime).ThenBy(t => t.DistanceDay));
+                        //有开始时间，没有截止时间的任务
+                        normalNotTimeLimitTasks = normalTasks.Where(x => x.SetStartTime != default(DateTime) && x.EndTime == default(DateTime)).ToList();
+                        //开始时间从小到大排 生产天数从小到大排
+                        processTasks.AddRange(normalNotTimeLimitTasks.OrderBy(t => t.SetStartTime).ThenBy(t => t.DistanceDay));
+                        //有截止时间，没有开始时间的任务
+                        normalNotTimeLimitTasks = normalTasks.Where(x => x.SetStartTime == default(DateTime) && x.EndTime != default(DateTime)).ToList();
+                        //截止时间从小到大排 生产天数从小到大排
+                        processTasks.AddRange(normalNotTimeLimitTasks.OrderBy(t => t.EndTime).ThenBy(t => t.DistanceDay));
+                        //没有开始时间和截止时间的任务
+                        normalNotTimeLimitTasks = normalTasks.Where(x => x.SetStartTime == default(DateTime) && x.EndTime == default(DateTime)).ToList();
+                        //生产天数从小到大排
+                        processTasks.AddRange(normalNotTimeLimitTasks.OrderBy(t => t.DistanceDay));
+#endregion
                         break;
                     case 3:
-                        #region CR值
+#region CR值
                         //Critical Ratio, 可以翻译为重要比率。它的计算方法：交期减去目前日期之差额,再除以工期，数值越小表示紧急程度越高，排程优先级高。
                         //S级任务  排产优先
-                        superTasks = allTasks.Where(x => x.LevelId == 1).OrderBy(x => x.EndTime).ThenBy(x => x.Id);
-                        //有时间要求的任务 先按生产天数从小到大排，再按截止时间从小到大排
-                        superTimeLimitTasks = superTasks.Where(x => x.EndTime != default(DateTime)).OrderBy(t => t.Order).ThenBy(y => y.CR).ThenBy(y => y.EndTime).ThenBy(y => y.StartTime).ToList();
-                        //没有时间要求的任务 先按生产天数从小到大排，再按目标量从小到大排
-                        superNotTimeLimitTasks = superTasks.Where(x => x.EndTime == default(DateTime)).OrderBy(t => t.Order).ThenBy(y => y.StartTime).ThenBy(y => y.Target).ToList();
+                        superTasks = allTasks.Where(x => x.LevelId == 1);
+                        //有开始时间和截止时间的任务
+                        superTimeLimitTasks = superTasks.Where(x => x.SetStartTime != default(DateTime) && x.EndTime != default(DateTime)).ToList();
+                        //开始时间从小到大排 截止时间从小到大排 生产天数从小到大排
+                        processTasks.AddRange(superTimeLimitTasks.OrderBy(t => t.SetStartTime).ThenBy(t => t.EndTime).ThenBy(t => t.CR));
+                        //有开始时间，没有截止时间的任务
+                        superNotTimeLimitTasks = superTasks.Where(x => x.SetStartTime != default(DateTime) && x.EndTime == default(DateTime)).ToList();
+                        //开始时间从小到大排 生产天数从小到大排
+                        processTasks.AddRange(superNotTimeLimitTasks.OrderBy(t => t.SetStartTime).ThenBy(t => t.CR));
+                        //有截止时间，没有开始时间的任务
+                        superNotTimeLimitTasks = superTasks.Where(x => x.SetStartTime == default(DateTime) && x.EndTime != default(DateTime)).ToList();
+                        //截止时间从小到大排 生产天数从小到大排
+                        processTasks.AddRange(superNotTimeLimitTasks.OrderBy(t => t.EndTime).ThenBy(t => t.CR));
+                        //没有开始时间和截止时间的任务
+                        superNotTimeLimitTasks = superTasks.Where(x => x.SetStartTime == default(DateTime) && x.EndTime == default(DateTime)).ToList();
+                        //生产天数从小到大排
+                        processTasks.AddRange(superNotTimeLimitTasks.OrderBy(t => t.CR));
 
                         //非S级任务  排产可修改
-                        normalTasks = allTasks.Where(x => x.LevelId != 1).OrderBy(y => y.Order);
-                        //有时间要求的任务 先按生产天数从小到大排，再按截止时间从小到大排
-                        normalTimeLimitTasks = normalTasks.Where(x => x.EndTime != default(DateTime)).OrderBy(t => t.Order).ThenBy(y => y.CR).ThenBy(y => y.EndTime).ThenBy(y => y.StartTime).ToList();
-                        //没有时间要求的任务 先按生产天数从小到大排，再按目标量从小到大排
-                        normalNotTimeLimitTasks = normalTasks.Where(x => x.EndTime == default(DateTime)).OrderBy(t => t.Order).ThenBy(y => y.StartTime).ThenBy(y => y.Target).ToList();
-                        #endregion
+                        normalTasks = allTasks.Where(x => x.LevelId != 1);
+                        //有开始时间和截止时间的任务
+                        normalTimeLimitTasks = normalTasks.Where(x => x.SetStartTime != default(DateTime) && x.EndTime != default(DateTime)).ToList();
+                        //开始时间从小到大排 截止时间从小到大排 生产天数从小到大排
+                        processTasks.AddRange(normalTimeLimitTasks.OrderBy(t => t.SetStartTime).ThenBy(t => t.EndTime).ThenBy(t => t.CR));
+                        //有开始时间，没有截止时间的任务
+                        normalNotTimeLimitTasks = normalTasks.Where(x => x.SetStartTime != default(DateTime) && x.EndTime == default(DateTime)).ToList();
+                        //开始时间从小到大排 生产天数从小到大排
+                        processTasks.AddRange(normalNotTimeLimitTasks.OrderBy(t => t.SetStartTime).ThenBy(t => t.CR));
+                        //有截止时间，没有开始时间的任务
+                        normalNotTimeLimitTasks = normalTasks.Where(x => x.SetStartTime == default(DateTime) && x.EndTime != default(DateTime)).ToList();
+                        //截止时间从小到大排 生产天数从小到大排
+                        processTasks.AddRange(normalNotTimeLimitTasks.OrderBy(t => t.EndTime).ThenBy(t => t.CR));
+                        //没有开始时间和截止时间的任务
+                        normalNotTimeLimitTasks = normalTasks.Where(x => x.SetStartTime == default(DateTime) && x.EndTime == default(DateTime)).ToList();
+                        //生产天数从小到大排
+                        processTasks.AddRange(normalNotTimeLimitTasks.OrderBy(t => t.CR));
+#endregion
                         break;
                     default:
                         return newSchedules;
                 }
-                #endregion
+#endregion
             }
 
 
-            ScheduleArrangeCal(ref superTimeLimitTasks, ref newSchedules, productCapacities, smartCapacityLists,
+            ScheduleArrangeCal(ref processTasks, ref newSchedules, productCapacities, smartCapacityLists,
                 deviceList, modelCounts, operatorList, operatorCounts, time, productType);
-            ScheduleArrangeCal(ref superNotTimeLimitTasks, ref newSchedules, productCapacities, smartCapacityLists,
-                deviceList, modelCounts, operatorList, operatorCounts, time, productType);
-            ScheduleArrangeCal(ref normalTimeLimitTasks, ref newSchedules, productCapacities, smartCapacityLists,
-                deviceList, modelCounts, operatorList, operatorCounts, time, productType);
-            ScheduleArrangeCal(ref normalNotTimeLimitTasks, ref newSchedules, productCapacities, smartCapacityLists,
-                deviceList, modelCounts, operatorList, operatorCounts, time, productType);
+
+            //ScheduleArrangeCal(ref superTimeLimitTasks, ref newSchedules, productCapacities, smartCapacityLists,
+            //    deviceList, modelCounts, operatorList, operatorCounts, time, productType);
+            //ScheduleArrangeCal(ref superNotTimeLimitTasks, ref newSchedules, productCapacities, smartCapacityLists,
+            //    deviceList, modelCounts, operatorList, operatorCounts, time, productType);
+            //ScheduleArrangeCal(ref normalTimeLimitTasks, ref newSchedules, productCapacities, smartCapacityLists,
+            //    deviceList, modelCounts, operatorList, operatorCounts, time, productType);
+            //ScheduleArrangeCal(ref normalNotTimeLimitTasks, ref newSchedules, productCapacities, smartCapacityLists,
+            //    deviceList, modelCounts, operatorList, operatorCounts, time, productType);
             return newSchedules;
         }
 
@@ -723,7 +812,7 @@ namespace ApiManagement.Base.Helper
                             productType = 1;
                         }
                         SmartTaskOrderScheduleDetail sc;
-                        if (task.StartTime != default(DateTime) && task.StartTime > t)
+                        if (task.SetStartTime != default(DateTime) && task.SetStartTime > t)
                         {
                             //当前没东西可加工
                             sc = new SmartTaskOrderScheduleDetail(t, task, cList, pCapacity)
@@ -1058,7 +1147,7 @@ namespace ApiManagement.Base.Helper
             var dy = false;
             if (dy)
             {
-                #region 动态规划最优安排
+#region 动态规划最优安排
                 //安排设备
                 if (productType == 0)
                 {
@@ -1193,7 +1282,7 @@ namespace ApiManagement.Base.Helper
                 }
 
 
-                #endregion
+#endregion
             }
             else
             {

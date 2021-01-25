@@ -86,8 +86,7 @@ namespace ApiManagement.Controllers.SmartFactoryController.CapacityFolder
                 return Result.GenError<Result>(Error.ParamError);
             }
 
-            var processes = SmartProcessCodeCategoryProcessHelper.Instance
-                .GetSmartProcessCodeCategoryProcessesByProcessCodeCategoryId(smartCapacity.CategoryId);
+            var processes = SmartProcessCodeCategoryProcessHelper.GetSmartProcessCodeCategoryProcessesByProcessCodeCategoryId(smartCapacity.CategoryId);
             if (!processes.Any())
             {
                 return Result.GenError<Result>(Error.SmartProcessCodeCategoryProcessNotExist);
@@ -118,7 +117,7 @@ namespace ApiManagement.Controllers.SmartFactoryController.CapacityFolder
             if (capacity.CategoryId != smartCapacity.CategoryId)
             {
                 smartCapacity.MarkedDateTime = markedDateTime;
-                SmartCapacityHelper.Instance.UpdateSmartCapacity(smartCapacity);
+                SmartCapacityHelper.UpdateSmartCapacity(smartCapacity);
             }
 
             foreach (var smartCapacityList in smartCapacityLists)
@@ -127,7 +126,7 @@ namespace ApiManagement.Controllers.SmartFactoryController.CapacityFolder
                 smartCapacityList.MarkedDateTime = markedDateTime;
                 smartCapacityList.CapacityId = capacityId;
             }
-            var oldSmartCapacityLists = SmartCapacityListHelper.Instance.GetSmartCapacityLists(capacityId);
+            var oldSmartCapacityLists = SmartCapacityListHelper.GetSmartCapacityLists(capacityId);
             //删除 
             var delete = oldSmartCapacityLists.Where(z => smartCapacityLists.Where(x => x.Id != 0).All(y => y.Id != z.Id));
             if (delete.Any())
@@ -190,7 +189,7 @@ namespace ApiManagement.Controllers.SmartFactoryController.CapacityFolder
                 return Result.GenError<Result>(Error.SmartCapacityDuplicate);
             }
 
-            var data = SmartCapacityHelper.Instance.GetSmartCapacities(capacities);
+            var data = SmartCapacityHelper.GetSmartCapacities(capacities);
             if (data.Any())
             {
                 result.errno = Error.SmartCapacityDuplicate;
@@ -206,7 +205,7 @@ namespace ApiManagement.Controllers.SmartFactoryController.CapacityFolder
                 smartCapacity.MarkedDateTime = markedDateTime;
             }
             SmartCapacityHelper.Instance.Add(smartCapacities);
-            var capacityList = SmartCapacityHelper.Instance.GetSmartCapacities(capacities);
+            var capacityList = SmartCapacityHelper.GetSmartCapacities(capacities);
             foreach (var smartCapacity in smartCapacities)
             {
                 var capacity = capacityList.FirstOrDefault(x => x.Capacity == smartCapacity.Capacity);
@@ -242,7 +241,7 @@ namespace ApiManagement.Controllers.SmartFactoryController.CapacityFolder
                 return Result.GenError<Result>(Error.SmartCapacityNotExist);
             }
             SmartCapacityHelper.Instance.Delete(ids);
-            SmartCapacityListHelper.Instance.DeleteByCapacityId(ids);
+            SmartCapacityListHelper.Instance.DeleteFromParent(ids);
             return Result.GenError<Result>(Error.Success);
         }
     }

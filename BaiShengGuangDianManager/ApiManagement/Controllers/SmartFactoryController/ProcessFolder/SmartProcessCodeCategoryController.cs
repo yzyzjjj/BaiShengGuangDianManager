@@ -133,7 +133,7 @@ namespace ApiManagement.Controllers.SmartFactoryController.ProcessFolder
             SmartProcessCodeCategoryHelper.Instance.Add(smartProcessCodeCategories);
 
             var newCategories = smartProcessCodeCategories.Select(x => x.Category);
-            var categories = SmartProcessCodeCategoryHelper.Instance.GetSmartProcessCodeCategoriesByCategories(newCategories);
+            var categories = SmartProcessCodeCategoryHelper.GetSmartProcessCodeCategoriesByCategories(newCategories);
 
             var processes = smartProcessCodeCategories.SelectMany(x => x.Processes);
             if (processes.Any())

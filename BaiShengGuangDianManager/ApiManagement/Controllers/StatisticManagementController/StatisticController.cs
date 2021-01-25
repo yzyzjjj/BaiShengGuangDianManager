@@ -20,8 +20,7 @@ namespace ApiManagement.Controllers.StatisticManagementController
     /// <summary>
     /// 数据统计
     /// </summary>
-    [Microsoft.AspNetCore.Mvc.Route("api/[controller]")]
-    [ApiController]
+    [Microsoft.AspNetCore.Mvc.Route("api/[controller]"), ApiController]
     public class StatisticController : ControllerBase
     {
         public class StatisticRequest

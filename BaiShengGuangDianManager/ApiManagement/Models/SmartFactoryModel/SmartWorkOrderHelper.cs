@@ -1,5 +1,4 @@
 ﻿using ApiManagement.Models.BaseModel;
-using System.Collections.Generic;
 
 namespace ApiManagement.Models.SmartFactoryModel
 {

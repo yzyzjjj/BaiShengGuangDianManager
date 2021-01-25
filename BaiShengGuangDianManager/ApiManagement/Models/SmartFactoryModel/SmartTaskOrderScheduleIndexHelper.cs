@@ -22,12 +22,12 @@ namespace ApiManagement.Models.SmartFactoryModel
         }
         public static readonly SmartTaskOrderScheduleIndexHelper Instance = new SmartTaskOrderScheduleIndexHelper();
         #region Get
-        public IEnumerable<SmartTaskOrderScheduleIndex> GetSmartTaskOrderScheduleIndexByBatch(int batch, int taskOrderId = 0)
+        public static IEnumerable<SmartTaskOrderScheduleIndex> GetSmartTaskOrderScheduleIndexByBatch(int batch, int taskOrderId = 0)
         {
             return ServerConfig.ApiDb.Query<SmartTaskOrderScheduleIndex>($"SELECT * FROM `t_task_order_schedule_index` " +
                                                                           $"WHERE MarkedDelete = 0 AND Batch = @batch{(taskOrderId == 0 ? "" : " AND TaskOrderId = @taskOrderId")};", new { batch, taskOrderId });
         }
-        public IEnumerable<SmartTaskOrderScheduleIndex> GetSmartTaskOrderScheduleIndex(DateTime startTime = default(DateTime), DateTime endTime = default(DateTime), int pId = 0)
+        public static IEnumerable<SmartTaskOrderScheduleIndex> GetSmartTaskOrderScheduleIndex(DateTime startTime = default(DateTime), DateTime endTime = default(DateTime), int pId = 0)
         {
             var param = new List<string>();
             if (startTime != default(DateTime) && endTime != default(DateTime))
@@ -62,7 +62,6 @@ namespace ApiManagement.Models.SmartFactoryModel
         #endregion
 
         #region Delete
-
         #endregion
     }
 }

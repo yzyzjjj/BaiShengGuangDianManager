@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Linq;
+using ApiManagement.Base.Helper;
 using ApiManagement.Base.Server;
 using ApiManagement.Models.DeviceManagementModel;
 using Microsoft.AspNetCore.Mvc;
@@ -71,7 +72,7 @@ namespace ApiManagement.Controllers.DeviceManagementController
                 "@ModifyId, `ScriptId` = @ScriptId, `VariableNameId` = @VariableNameId, `DictionaryId` = @DictionaryId, `VariableTypeId` = @VariableTypeId WHERE `Id` = @Id;",
                 usuallyDictionary);
 
-            ServerConfig.RedisHelper.PublishToTable();
+            RedisHelper.PublishToTable();
             return Result.GenError<Result>(Error.Success);
         }
 
@@ -125,7 +126,7 @@ namespace ApiManagement.Controllers.DeviceManagementController
                     "UPDATE usually_dictionary SET `CreateUserId` = @CreateUserId, `MarkedDateTime` = @MarkedDateTime, `MarkedDelete` = @MarkedDelete, `ModifyId` = " +
                     "@ModifyId, `ScriptId` = @ScriptId, `VariableNameId` = @VariableNameId, `DictionaryId` = @DictionaryId, `VariableTypeId` = @VariableTypeId WHERE `Id` = @Id;",
                 update);
-            ServerConfig.RedisHelper.PublishToTable();
+            RedisHelper.PublishToTable();
             return Result.GenError<Result>(Error.Success);
         }
 
@@ -140,7 +141,7 @@ namespace ApiManagement.Controllers.DeviceManagementController
                 "VALUES (@CreateUserId, @MarkedDateTime, @MarkedDelete, @ModifyId, @ScriptId, @VariableNameId, @DictionaryId, @VariableTypeId);",
                 usuallyDictionary);
 
-            ServerConfig.RedisHelper.PublishToTable();
+            RedisHelper.PublishToTable();
             return Result.GenError<Result>(Error.Success);
         }
 
@@ -158,7 +159,7 @@ namespace ApiManagement.Controllers.DeviceManagementController
                 "VALUES (@CreateUserId, @MarkedDateTime, @MarkedDelete, @ModifyId, @ScriptId, @VariableNameId, @DictionaryId, @VariableTypeId);",
                 usuallyDictionaries);
 
-            ServerConfig.RedisHelper.PublishToTable();
+            RedisHelper.PublishToTable();
             return Result.GenError<Result>(Error.Success);
         }
 
@@ -185,7 +186,7 @@ namespace ApiManagement.Controllers.DeviceManagementController
                     MarkedDelete = true,
                     Id = id
                 });
-            ServerConfig.RedisHelper.PublishToTable();
+            RedisHelper.PublishToTable();
             return Result.GenError<Result>(Error.Success);
         }
 

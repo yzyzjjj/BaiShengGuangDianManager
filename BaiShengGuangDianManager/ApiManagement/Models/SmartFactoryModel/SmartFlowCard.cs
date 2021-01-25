@@ -6,6 +6,10 @@ namespace ApiManagement.Models.SmartFactoryModel
     public class SmartFlowCard : CommonBase
     {
         /// <summary>
+        /// 车间Id
+        /// </summary>
+        public int WorkshopId { get; set; }
+        /// <summary>
         /// 生成时间
         /// </summary>
         public DateTime CreateTime { get; set; }

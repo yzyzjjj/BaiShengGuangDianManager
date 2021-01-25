@@ -36,9 +36,9 @@ namespace ApiManagement.Controllers.SmartFactoryController.WorkOrderFolder
                 var d = data.First();
                 if (d.State != SmartWorkOrderState.未加工)
                 {
-                    var taskOrders = SmartTaskOrderHelper.Instance.GetSmartTaskOrdersByWorkOrderId(d.Id);
-                    var flowCards = SmartFlowCardHelper.Instance.GetSmartFlowCardsByTaskOrderIds(taskOrders.Select(x => x.Id));
-                    var processes = SmartFlowCardProcessHelper.Instance.GetSmartFlowCardProcessesByFlowCardIds(flowCards.Select(x => x.Id));
+                    var taskOrders = SmartTaskOrderHelper.GetSmartTaskOrdersByWorkOrderId(d.Id);
+                    var flowCards = SmartFlowCardHelper.GetSmartFlowCardsByTaskOrderIds(taskOrders.Select(x => x.Id));
+                    var processes = SmartFlowCardProcessHelper.GetSmartFlowCardProcessesByFlowCardIds(flowCards.Select(x => x.Id));
                     if (processes.Any())
                     {
                         var st = processes.Where(x => x.StartTime != default(DateTime)).Min(y => y.StartTime);

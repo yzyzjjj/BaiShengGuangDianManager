@@ -22,6 +22,7 @@ namespace ApiManagement.Models.MaterialManagementModel
         public string Remark { get; set; }
         public bool IsErp { get; set; }
         public bool Get { get; set; }
+        public int ErpId { get; set; }
     }
     public class MaterialDepartmentMember : CommonBase
     {

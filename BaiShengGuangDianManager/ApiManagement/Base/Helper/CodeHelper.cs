@@ -63,19 +63,19 @@ namespace ApiManagement.Base.Helper
             var ws = Stopwatch.StartNew();
             while (ws.ElapsedMilliseconds < 10 * 1000)
             {
-                if (!ServerConfig.RedisHelper.SetIfNotExist(redisKey, DateTime.Today.ToStr()))
+                if (!RedisHelper.SetIfNotExist(redisKey, DateTime.Today.ToStr()))
                 {
                     continue;
                 }
 
                 var startKey = $"{RedisPre}:{DateTime.Today.ToDateStr()}-{CodeType.流程卡}";
-                var startValue = ServerConfig.RedisHelper.Get<int>(startKey);
+                var startValue = RedisHelper.Get<int>(startKey);
                 for (var i = 0; i < count; i++)
                 {
                     str.Add($"{((int)CodeType.流程卡):D2}{DateTime.Today.ToStrShort()}{startValue++:D4}{suffix}");
                 }
-                ServerConfig.RedisHelper.SetForever(startKey, startValue);
-                ServerConfig.RedisHelper.Remove(redisKey);
+                RedisHelper.SetForever(startKey, startValue);
+                RedisHelper.Remove(redisKey);
                 break;
             }
             return str;

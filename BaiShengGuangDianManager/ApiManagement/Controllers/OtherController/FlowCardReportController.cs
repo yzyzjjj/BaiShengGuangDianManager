@@ -9,6 +9,7 @@ using ModelBase.Models.Result;
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using ApiManagement.Models.SmartFactoryModel;
 
 namespace ApiManagement.Controllers.OtherController
 {
@@ -61,7 +62,7 @@ namespace ApiManagement.Controllers.OtherController
 
             if (processorId == 0)
             {
-                var pro = ServerConfig.WebDb.Query<AccountHelper.AccountInfo>("SELECT * FROM `accounts` WHERE IsDeleted = 0 AND `Name` = @jgr", new { jgr }).FirstOrDefault();
+                var pro = SmartAccountHelper.GetSmartAccountByName(jgr);
                 if (pro != null)
                 {
                     processorId = ServerConfig.ApiDb.Query<int>(
@@ -73,7 +74,7 @@ namespace ApiManagement.Controllers.OtherController
                             ProcessorName = pro.Name,
                             Account = pro.Account,
                         }).FirstOrDefault();
-                    ServerConfig.WebDb.Execute("UPDATE `accounts` SET `ProductionRole` = '0', `MaxProductionRole` = '0' WHERE `Id` = @Id;", new { pro.Id });
+                    ServerConfig.ApiDb.Execute("UPDATE `accounts` SET `ProductionRole` = '0', `MaxProductionRole` = '0' WHERE `Id` = @Id;", new { pro.Id });
                 }
             }
 
@@ -83,7 +84,7 @@ namespace ApiManagement.Controllers.OtherController
             var flowCardPre = "FlowCardReport";
             var flowCardDeviceKey = $"{flowCardPre}:Device";
             var flowCardLockKey = $"{flowCardPre}:Lock";
-            var deviceList = ServerConfig.RedisHelper.Get<IEnumerable<FlowCardReport>>(flowCardDeviceKey);
+            var deviceList = RedisHelper.Get<IEnumerable<FlowCardReport>>(flowCardDeviceKey);
             if (deviceList != null && (flowCardId != 0 && deviceList.Any(x => x.DeviceId == deviceId)))
             {
                 var flowCardInfo = new
@@ -112,7 +113,7 @@ namespace ApiManagement.Controllers.OtherController
                             break;
                         }
 
-                        if (ServerConfig.RedisHelper.Exists(flowCardDeviceKey))
+                        if (RedisHelper.Exists(flowCardDeviceKey))
                         {
                             var currentDeviceListDb = ServerConfig.ApiDb.Query<FlowCardReport>(
                                 "SELECT Id, DeviceId, FlowCardId, StartTime FROM `npc_monitoring_process_log` WHERE DeviceId = @DeviceId AND OpName = '加工' AND NOT ISNULL(EndTime) AND FlowCardId = 0",
@@ -154,7 +155,7 @@ namespace ApiManagement.Controllers.OtherController
                                 deviceList.First(x => x.DeviceId == deviceId).Id = currentDeviceListDb.First(x => x.DeviceId == deviceId).Id;
                                 Log.Debug($"UPDATE 流程卡:{lck}, 流程卡Id:{flowCardId}, 机台号:{jth}, 设备Id:{deviceId}, 工序:{gx}, 加工人:{jgr}, Id:{currentDeviceListDb.LastOrDefault()?.Id ?? 0} - {currentDeviceListDb.FirstOrDefault()?.Id ?? 0}");
                                 //}
-                                ServerConfig.RedisHelper.SetForever(flowCardDeviceKey, deviceList);
+                                RedisHelper.SetForever(flowCardDeviceKey, deviceList);
                             }
                         }
                         //AnalysisHelper.FlowCardReport(true);

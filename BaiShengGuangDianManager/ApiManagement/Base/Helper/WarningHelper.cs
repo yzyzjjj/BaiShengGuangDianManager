@@ -18,6 +18,10 @@ namespace ApiManagement.Base.Helper
     /// </summary>
     public class WarningHelper
     {
+        public WarningHelper()
+        {
+            Init();
+        }
         private static readonly string Debug = "Debug";
         public static List<string> 生产数据字段 = new List<string> { "加工数", "合格数", "裂片数", "合格率(%)", "次品率(%)" };
         public static Dictionary<string, int> 生产数据字段Dic = 生产数据字段.ToDictionary(x => x, x => 生产数据字段.IndexOf(x));
@@ -49,19 +53,19 @@ namespace ApiManagement.Base.Helper
 #endif
         private static int _dealLength = 500;
         private static DateTime _startTime = DateTime.Today;
-        public static void Init()
+        public void Init()
         {
             try
             {
 #if DEBUG
-                if (!ServerConfig.RedisHelper.Exists(Debug))
+                if (!RedisHelper.Exists(Debug))
                 {
-                    ServerConfig.RedisHelper.SetForever(Debug, 0);
+                    RedisHelper.SetForever(Debug, 0);
                 }
 
                 var redisPre = "Warning";
                 var redisLock = $"{redisPre}:Lock";
-                ServerConfig.RedisHelper.Remove(redisLock);
+                RedisHelper.Remove(redisLock);
 
                 CurrentData = ServerConfig.ApiDb.Query<WarningCurrent>("SELECT a.*, b.VariableName, b.VariableTypeId, b.PointerAddress, b.`Precision`, c.Type, c.ClassId, c.`Name` SetName FROM `warning_current` a " +
                                                                        "JOIN `data_name_dictionary` b ON a.DictionaryId = b.Id " +
@@ -72,14 +76,14 @@ namespace ApiManagement.Base.Helper
                 //_timer5S = new Timer(DoSth_5s, null, 5000, 1000 * 5);
                 Console.WriteLine("WarningHelper 调试模式已开启");
 #else
-                if (!ServerConfig.RedisHelper.Exists(Debug))
+                if (!RedisHelper.Exists(Debug))
                 {
-                    ServerConfig.RedisHelper.SetForever(Debug, 0);
+                    RedisHelper.SetForever(Debug, 0);
                 }
 
                 var redisPre = "Warning";
                 var redisLock = $"{redisPre}:Lock";
-                ServerConfig.RedisHelper.Remove(redisLock);
+                RedisHelper.Remove(redisLock);
 
                 CurrentData = ServerConfig.ApiDb.Query<WarningCurrent>("SELECT a.*, b.VariableName, b.VariableTypeId, b.PointerAddress, b.`Precision`, c.Type, c.ClassId, c.`Name` SetName FROM `warning_current` a " +
                                                                        "JOIN `data_name_dictionary` b ON a.DictionaryId = b.Id " +
@@ -240,7 +244,7 @@ namespace ApiManagement.Base.Helper
         private static void 设备数据Warning()
         {
 #if !DEBUG
-            if (ServerConfig.RedisHelper.Get<int>("Debug") != 0)
+            if (RedisHelper.Get<int>("Debug") != 0)
             {
                 return;
             }
@@ -248,17 +252,17 @@ namespace ApiManagement.Base.Helper
             var redisPre = "Warning";
             var redisLock = $"{redisPre}:设备数据Lock";
             var idKey = $"{redisPre}:设备数据Id";
-            if (ServerConfig.RedisHelper.SetIfNotExist(redisLock, DateTime.Now.ToStr()))
+            if (RedisHelper.SetIfNotExist(redisLock, DateTime.Now.ToStr()))
             {
                 try
                 {
-                    ServerConfig.RedisHelper.SetExpireAt(redisLock, DateTime.Now.AddMinutes(5));
+                    RedisHelper.SetExpireAt(redisLock, DateTime.Now.AddMinutes(5));
 
-                    var startId = ServerConfig.RedisHelper.Get<int>(idKey);
+                    var startId = RedisHelper.Get<int>(idKey);
                     if (startId == 0)
                     {
                         startId = ServerConfig.ApiDb.Query<int>("SELECT Id FROM `npc_monitoring_analysis` WHERE SendTime <= @_startTime ORDER BY SendTime DESC LIMIT 1;", new { _startTime }).FirstOrDefault();
-                        ServerConfig.RedisHelper.SetForever(idKey, startId);
+                        RedisHelper.SetForever(idKey, startId);
                     }
                     var mData = ServerConfig.ApiDb.Query<MonitoringData>(
                         "SELECT * FROM `npc_monitoring_analysis` WHERE Id > @Id AND UserSend = 0 ORDER BY Id LIMIT @limit;", new
@@ -406,7 +410,7 @@ namespace ApiManagement.Base.Helper
                                 }
                             }
                             #endregion
-                            ServerConfig.RedisHelper.SetForever(idKey, endId);
+                            RedisHelper.SetForever(idKey, endId);
                         }
                     }
                     if (CurrentData.Any())
@@ -429,7 +433,7 @@ namespace ApiManagement.Base.Helper
                 {
                     Log.Error(e);
                 }
-                ServerConfig.RedisHelper.Remove(redisLock);
+                RedisHelper.Remove(redisLock);
             }
         }
 
@@ -440,7 +444,7 @@ namespace ApiManagement.Base.Helper
         {
             //return;
 #if !DEBUG
-            if (ServerConfig.RedisHelper.Get<int>("Debug") != 0)
+            if (RedisHelper.Get<int>("Debug") != 0)
             {
                 return;
             }
@@ -448,17 +452,17 @@ namespace ApiManagement.Base.Helper
             var redisPre = "Warning";
             var redisLock = $"{redisPre}:生产数据Lock";
             var redisTime = $"{redisPre}:生产数据Time";
-            if (ServerConfig.RedisHelper.SetIfNotExist(redisLock, DateTime.Now.ToStr()))
+            if (RedisHelper.SetIfNotExist(redisLock, DateTime.Now.ToStr()))
             {
                 try
                 {
-                    ServerConfig.RedisHelper.SetExpireAt(redisLock, DateTime.Now.AddMinutes(45));
+                    RedisHelper.SetExpireAt(redisLock, DateTime.Now.AddMinutes(45));
 
-                    var startTimeStr = ServerConfig.RedisHelper.Get<string>(redisTime);
+                    var startTimeStr = RedisHelper.Get<string>(redisTime);
                     var startTime = _startTime;
                     if (startTimeStr.IsNullOrEmpty())
                     {
-                        ServerConfig.RedisHelper.SetForever(redisTime, startTime.ToStr());
+                        RedisHelper.SetForever(redisTime, startTime.ToStr());
                     }
                     else
                     {
@@ -866,7 +870,7 @@ namespace ApiManagement.Base.Helper
                     }
                     #endregion
 
-                    ServerConfig.RedisHelper.SetForever(redisTime, nowTime.ToStr());
+                    RedisHelper.SetForever(redisTime, nowTime.ToStr());
                     if (CurrentData.Any())
                     {
                         ServerConfig.ApiDb.Execute(
@@ -887,7 +891,7 @@ namespace ApiManagement.Base.Helper
                 {
                     Log.Error(e);
                 }
-                ServerConfig.RedisHelper.Remove(redisLock);
+                RedisHelper.Remove(redisLock);
             }
         }
 

@@ -10,8 +10,8 @@ namespace ApiManagement.Models.SmartFactoryModel
         {
             Table = "t_capacity";
             InsertSql =
-                "INSERT INTO `t_capacity` (`CreateUserId`, `MarkedDateTime`, `Capacity`, `CategoryId`, `Number`, `Last`, `Remark`) " +
-                "VALUES (@CreateUserId, @MarkedDateTime, @Capacity, @CategoryId, @Number, @Last, @Remark);";
+                "INSERT INTO `t_capacity` (`CreateUserId`, `MarkedDateTime`, `WorkshopId`, `Capacity`, `CategoryId`, `Number`, `Last`, `Remark`) " +
+                "VALUES (@CreateUserId, @MarkedDateTime, @WorkshopId, @Capacity, @CategoryId, @Number, @Last, @Remark);";
             UpdateSql =
                 "UPDATE `t_capacity` SET `MarkedDateTime` = @MarkedDateTime, `Capacity` = @Capacity, `Remark` = @Remark WHERE `Id` = @Id;";
         }
@@ -22,13 +22,13 @@ namespace ApiManagement.Models.SmartFactoryModel
         /// </summary>
         /// <param name="processCodeCategoryIds">流程类型id</param>
         /// <returns></returns>
-        public IEnumerable<SmartCapacity> GetSameSmartCapacities(IEnumerable<int> processCodeCategoryIds)
+        public static IEnumerable<SmartCapacity> GetSameSmartCapacities(IEnumerable<int> processCodeCategoryIds)
         {
             return ServerConfig.ApiDb.Query<SmartCapacity>(
                 "SELECT * FROM `t_capacity` WHERE MarkedDelete = 0 AND CategoryId IN @processCodeCategoryIds;", new { processCodeCategoryIds });
         }
 
-        public IEnumerable<SmartCapacity> GetSmartCapacities(IEnumerable<string> capacities)
+        public static IEnumerable<SmartCapacity> GetSmartCapacities(IEnumerable<string> capacities)
         {
             return ServerConfig.ApiDb.Query<SmartCapacity>(
                 "SELECT * FROM `t_capacity` WHERE MarkedDelete = 0 AND Capacity IN @capacities;", new { capacities });
@@ -39,7 +39,7 @@ namespace ApiManagement.Models.SmartFactoryModel
         #endregion
 
         #region Update
-        public void UpdateSmartCapacity(SmartCapacity capacity)
+        public static void UpdateSmartCapacity(SmartCapacity capacity)
         {
             ServerConfig.ApiDb.Execute(
               "UPDATE `t_capacity` SET `MarkedDateTime` = @MarkedDateTime, `CategoryId` = @CategoryId WHERE `Id` = @Id;", capacity);

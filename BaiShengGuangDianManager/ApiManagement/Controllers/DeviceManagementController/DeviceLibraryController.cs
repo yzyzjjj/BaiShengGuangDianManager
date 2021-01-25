@@ -1,4 +1,5 @@
-﻿using ApiManagement.Base.Server;
+﻿using ApiManagement.Base.Helper;
+using ApiManagement.Base.Server;
 using ApiManagement.Models.DeviceManagementModel;
 using ApiManagement.Models.FlowCardManagementModel;
 using ApiManagement.Models.ProcessManagementModel;
@@ -865,7 +866,7 @@ namespace ApiManagement.Controllers.DeviceManagementController
 
             //当前配方
             //messagePacket.Vals.Add(98, flowCard.Id);
-            var isSetProcessData = ServerConfig.RedisHelper.Get<int>(ServerConfig.IsSetProcessDataKey) == 1;
+            var isSetProcessData = RedisHelper.Get<int>(ServerConfig.IsSetProcessDataKey) == 1;
             IEnumerable<dynamic> processDatas = null;
             var dictionaryIds =
                 ServerConfig.ApiDb.Query<UsuallyDictionaryPrecision>("SELECT a.Id, VariableName, DictionaryId, b.`Precision` FROM `usually_dictionary_type` a  " +
@@ -1377,7 +1378,7 @@ namespace ApiManagement.Controllers.DeviceManagementController
                         if (f)
                         {
                             ServerConfig.ApiDb.Execute(sql, data);
-                            ServerConfig.RedisHelper.PublishToTable();
+                            RedisHelper.PublishToTable();
                         }
                     }
                     return result;

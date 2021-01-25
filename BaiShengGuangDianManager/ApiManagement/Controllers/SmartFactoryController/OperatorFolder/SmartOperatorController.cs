@@ -41,7 +41,7 @@ namespace ApiManagement.Controllers.SmartFactoryController.OperatorFolder
             string sql;
             if (menu && add)
             {
-                sql = $"SELECT a.Id, a.`Name` FROM `t_user` a LEFT JOIN(SELECT * FROM `t_operator` WHERE MarkedDelete = 0) b ON a.Id = b.UserId " +
+                sql = $"SELECT a.Id, a.`Name` FROM `accounts` a LEFT JOIN(SELECT * FROM `t_operator` WHERE MarkedDelete = 0) b ON a.Id = b.UserId " +
                       $"WHERE a.MarkedDelete = 0 AND ISNULL(b.Id) ORDER BY b.ProcessId, b.Priority, a.Id;";
             }
             else if (menu)
@@ -50,7 +50,7 @@ namespace ApiManagement.Controllers.SmartFactoryController.OperatorFolder
             }
             else if (add)
             {
-                sql = $"SELECT a.* FROM `t_user` a LEFT JOIN (SELECT * FROM `t_operator` WHERE MarkedDelete = 0) b ON a.Id = b.UserId " +
+                sql = $"SELECT a.* FROM `accounts` a LEFT JOIN (SELECT * FROM `t_operator` WHERE MarkedDelete = 0) b ON a.Id = b.UserId " +
                       $"WHERE a.MarkedDelete = 0 AND ISNULL(b.Id) ORDER BY b.ProcessId, b.Priority, a.Id;";
             }
             else
@@ -97,7 +97,7 @@ namespace ApiManagement.Controllers.SmartFactoryController.OperatorFolder
                     paramList.Add($" AND a.ProcessId = @processId");
                 }
                 sql = $"SELECT a.*, b.`Number`, b.`Name`, b.`Account`, c.Process, d.`Level` FROM `t_operator` a " +
-                      $"JOIN `t_user` b ON a.UserId = b.Id " +
+                      $"JOIN `accounts` b ON a.UserId = b.Id " +
                       $"JOIN `t_process` c ON a.ProcessId = c.Id " +
                       $"JOIN `t_operator_level` d ON a.LevelId = d.Id " +
                       $"WHERE a.MarkedDelete = 0{(paramList.Join(""))} ORDER BY a.ProcessId, a.Priority, a.Id;";

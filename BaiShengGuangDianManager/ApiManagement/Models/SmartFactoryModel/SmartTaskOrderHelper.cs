@@ -19,12 +19,12 @@ namespace ApiManagement.Models.SmartFactoryModel
         }
         public static readonly SmartTaskOrderHelper Instance = new SmartTaskOrderHelper();
         #region Get
-        public IEnumerable<SmartTaskOrder> GetSmartTaskOrdersByWorkOrderId(int workOrderId)
+        public static IEnumerable<SmartTaskOrder> GetSmartTaskOrdersByWorkOrderId(int workOrderId)
         {
             return ServerConfig.ApiDb.Query<SmartTaskOrder>("SELECT * FROM `t_task_order` WHERE MarkedDelete = 0 AND WorkOrderId = @workOrderId;", new { workOrderId });
         }
 
-        public IEnumerable<SmartTaskOrder> GetSmartTaskOrdersByWorkOrderIds(IEnumerable<int> workOrderIds)
+        public static IEnumerable<SmartTaskOrder> GetSmartTaskOrdersByWorkOrderIds(IEnumerable<int> workOrderIds)
         {
             return ServerConfig.ApiDb.Query<SmartTaskOrder>("SELECT * FROM `t_task_order` WHERE MarkedDelete = 0 AND WorkOrderId IN @workOrderIds;", new { workOrderIds });
         }
@@ -33,13 +33,13 @@ namespace ApiManagement.Models.SmartFactoryModel
         /// </summary>
         /// <param name="taskOrderIds"></param>
         /// <returns></returns>
-        public IEnumerable<SmartTaskOrder> GetWillArrangedSmartTaskOrders(IEnumerable<int> taskOrderIds)
+        public static IEnumerable<SmartTaskOrder> GetWillArrangedSmartTaskOrders(IEnumerable<int> taskOrderIds)
         {
             return ServerConfig.ApiDb.Query<SmartTaskOrder>(
                 $"SELECT a.*, IFNULL(b.`Order`, 0) `Order` FROM `t_task_order` a LEFT JOIN `t_task_order_level` b ON a.LevelId = b.Id WHERE a.Id IN @taskOrderIds AND a.State NOT IN @State AND a.MarkedDelete = 0 ORDER BY b.`Order`, a.Id;",
                 new { State = new[] { SmartTaskOrderState.已完成, SmartTaskOrderState.已取消, SmartTaskOrderState.暂停中 }, taskOrderIds });
         }
-        public IEnumerable<SmartTaskOrder> GetArrangedButNotDoneSmartTaskOrders(DateTime deliveryTime = default(DateTime))
+        public static IEnumerable<SmartTaskOrder> GetArrangedButNotDoneSmartTaskOrders(DateTime deliveryTime = default(DateTime))
         {
             return ServerConfig.ApiDb.Query<SmartTaskOrder>(
                 $"SELECT a.*, b.`Order` FROM `t_task_order` a JOIN `t_task_order_level` b ON a.LevelId = b.Id WHERE a.Arranged = 1 AND a.State NOT IN @State AND a.MarkedDelete = 0 ORDER BY b.`Order`, a.Id;",
@@ -51,7 +51,7 @@ namespace ApiManagement.Models.SmartFactoryModel
         /// <param name="deliveryTime"></param>
         /// <param name="all"></param>
         /// <returns></returns>
-        public IEnumerable<SmartTaskOrder> GetAllArrangedButNotDoneSmartTaskOrders(DateTime deliveryTime = default(DateTime), bool all = false)
+        public static IEnumerable<SmartTaskOrder> GetAllArrangedButNotDoneSmartTaskOrders(DateTime deliveryTime = default(DateTime), bool all = false)
         {
             return ServerConfig.ApiDb.Query<SmartTaskOrder>(
                 $"SELECT a.*, b.`Order` FROM `t_task_order` a JOIN `t_task_order_level` b ON a.LevelId = b.Id " +
@@ -64,7 +64,7 @@ namespace ApiManagement.Models.SmartFactoryModel
         /// <param name="deliveryTime"></param>
         /// <param name="all"></param>
         /// <returns></returns>
-        public IEnumerable<SmartTaskOrderDetail> GetAllArrangedButNotDoneSmartTaskOrderDetails(DateTime deliveryTime = default(DateTime), bool all = false)
+        public static IEnumerable<SmartTaskOrderDetail> GetAllArrangedButNotDoneSmartTaskOrderDetails(DateTime deliveryTime = default(DateTime), bool all = false)
         {
             return ServerConfig.ApiDb.Query<SmartTaskOrderDetail>(
                 $"SELECT a.*, b.`Order`, c.Product, c.CapacityId, c.CategoryId FROM `t_task_order` a JOIN `t_task_order_level` b ON a.LevelId = b.Id JOIN t_product c ON a.ProductId = c.Id " +
@@ -76,7 +76,7 @@ namespace ApiManagement.Models.SmartFactoryModel
         /// </summary>
         /// <param name="taskOrderIds"></param>
         /// <returns></returns>
-        public IEnumerable<SmartTaskOrderDetail> GetAllArrangedButNotDoneSmartTaskOrderDetails(IEnumerable<int> taskOrderIds)
+        public static IEnumerable<SmartTaskOrderDetail> GetAllArrangedButNotDoneSmartTaskOrderDetails(IEnumerable<int> taskOrderIds)
         {
             return ServerConfig.ApiDb.Query<SmartTaskOrderDetail>(
                 $"SELECT a.*, b.`Order`, c.Product, c.CapacityId, c.CategoryId FROM `t_task_order` a JOIN `t_task_order_level` b ON a.LevelId = b.Id JOIN t_product c ON a.ProductId = c.Id " +
@@ -84,14 +84,14 @@ namespace ApiManagement.Models.SmartFactoryModel
                 new { taskOrderIds });
         }
 
-        public int GetSmartTaskOrderBatch()
+        public static int GetSmartTaskOrderBatch()
         {
             return ServerConfig.ApiDb.Query<int>("SELECT Id FROM `t_task_order_batch` ORDER BY Id DESC LIMIT 1;").FirstOrDefault();
         }
         #endregion
 
         #region Add
-        public int AddSmartTaskOrderBatch(string createUserId)
+        public static int AddSmartTaskOrderBatch(string createUserId)
         {
             return ServerConfig.ApiDb.Query<int>("Call CreateTaskBatch(@createUserId);", new { createUserId }).FirstOrDefault();
         }
@@ -99,14 +99,14 @@ namespace ApiManagement.Models.SmartFactoryModel
 
         #region Update
 
-        public void ArrangedUpdate(IEnumerable<SmartTaskOrder> taskOrders)
+        public static void ArrangedUpdate(IEnumerable<SmartTaskOrder> taskOrders)
         {
             ServerConfig.ApiDb.Execute("UPDATE `t_task_order` SET `MarkedDateTime` = @MarkedDateTime, `LevelId` = @LevelId, " +
                                        "`StartTime` = IF(@StartTime = '0001-01-01 00:00:00', `StartTime`, @StartTime), " +
                                        "`EndTime` = IF(@EndTime = '0001-01-01 00:00:00', `EndTime`, @EndTime) WHERE `Id` = @Id;", taskOrders);
 
         }
-        public void Arrange(IEnumerable<SmartTaskOrder> taskOrders)
+        public static void Arrange(IEnumerable<SmartTaskOrder> taskOrders)
         {
             ServerConfig.ApiDb.Execute("UPDATE `t_task_order` SET `MarkedDateTime` = @MarkedDateTime, Arranged = 1, LevelId = 1" +
                         ", `ArrangedTime` = @ArrangedTime" +

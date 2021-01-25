@@ -149,11 +149,11 @@ namespace ApiManagement.Controllers.SmartFactoryController.CapacityFolder
             var actDevices = new List<SmartDeviceCapacity>();
             if (deviceCategoryId != 0)
             {
-                var models = SmartDeviceModelHelper.Instance.GetSmartDeviceModelDetails(deviceCategoryId);
+                var models = SmartDeviceModelHelper.GetSmartDeviceModelDetails(deviceCategoryId);
                 var devices = capacityList.DeviceList;
                 if (models.Any())
                 {
-                    var modelCount = SmartDeviceModelHelper.Instance.GetNormalModelCount(models.Select(x => x.Id));
+                    var modelCount = SmartDeviceModelHelper.GetNormalModelCount(models.Select(x => x.Id));
                     foreach (var model in models)
                     {
                         var device = devices.FirstOrDefault(x => x.ModelId == model.Id) ?? new SmartDeviceCapacity();
@@ -172,7 +172,7 @@ namespace ApiManagement.Controllers.SmartFactoryController.CapacityFolder
             var levels = SmartOperatorLevelHelper.Instance.GetAll<SmartOperatorLevel>().OrderBy(x => x.Order);
             if (levels.Any())
             {
-                var operatorCount = SmartOperatorHelper.Instance.GetNormalOperatorCount(capacityList.ProcessId);
+                var operatorCount = SmartOperatorHelper.GetNormalOperatorCount(capacityList.ProcessId);
                 var operators = capacityList.OperatorList;
                 if (levels.Any())
                 {
@@ -224,7 +224,7 @@ namespace ApiManagement.Controllers.SmartFactoryController.CapacityFolder
                 return Result.GenError<Result>(Error.SmartCapacityNotExist);
             }
 
-            var processes = SmartProcessCodeCategoryProcessHelper.Instance
+            var processes = SmartProcessCodeCategoryProcessHelper
                 .GetSmartProcessCodeCategoryProcessesByProcessCodeCategoryId(capacity.CategoryId);
             if (!processes.Any())
             {
@@ -256,7 +256,7 @@ namespace ApiManagement.Controllers.SmartFactoryController.CapacityFolder
                 smartCapacityList.MarkedDateTime = markedDateTime;
                 smartCapacityList.CapacityId = capacityId;
             }
-            var oldSmartCapacityLists = SmartCapacityListHelper.Instance.GetSmartCapacityLists(capacityId);
+            var oldSmartCapacityLists = SmartCapacityListHelper.GetSmartCapacityLists(capacityId);
             //删除 
             var delete = oldSmartCapacityLists.Where(z => smartCapacityLists.Where(x => x.Id != 0).All(y => y.Id != z.Id));
             if (delete.Any())
@@ -306,7 +306,7 @@ namespace ApiManagement.Controllers.SmartFactoryController.CapacityFolder
                 return Result.GenError<Result>(Error.SmartCapacityNotExist);
             }
 
-            var processes = SmartProcessCodeCategoryProcessHelper.Instance
+            var processes = SmartProcessCodeCategoryProcessHelper
                 .GetSmartProcessCodeCategoryProcessesByProcessCodeCategoryId(capacity.CategoryId);
             if (!processes.Any())
             {
@@ -326,7 +326,7 @@ namespace ApiManagement.Controllers.SmartFactoryController.CapacityFolder
                 smartCapacityList.MarkedDateTime = markedDateTime;
                 smartCapacityList.CapacityId = capacityId;
             }
-            SmartCapacityListHelper.Instance.DeleteByCapacityId(capacityId);
+            SmartCapacityListHelper.Instance.DeleteFromParent(capacityId);
             SmartCapacityListHelper.Instance.Add(smartCapacityLists);
             WorkFlowHelper.Instance.OnSmartCapacityListChanged(smartCapacityLists);
             return Result.GenError<Result>(Error.Success);

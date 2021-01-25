@@ -16,19 +16,19 @@ namespace ApiManagement.Models.SmartFactoryModel
         }
         public static readonly SmartDeviceModelHelper Instance = new SmartDeviceModelHelper();
         #region Get
-        public IEnumerable<SmartDeviceModel> GetSmartDeviceModels(int categoryId)
+        public static IEnumerable<SmartDeviceModel> GetSmartDeviceModels(int categoryId)
         {
             return ServerConfig.ApiDb.Query<SmartDeviceModel>(
                 "SELECT * FROM `t_device_model` WHERE MarkedDelete = 0 AND CategoryId = @categoryId;", new { categoryId });
         }
 
-        public IEnumerable<SmartDeviceModelDetail> GetSmartDeviceModelDetails(int categoryId)
+        public static IEnumerable<SmartDeviceModelDetail> GetSmartDeviceModelDetails(int categoryId)
         {
             return ServerConfig.ApiDb.Query<SmartDeviceModelDetail>(
                 "SELECT a.*, b.Category FROM `t_device_model` a JOIN `t_device_category` b ON a.CategoryId = b.Id WHERE a.MarkedDelete = 0 AND CategoryId = @categoryId;", new { categoryId });
         }
 
-        public IEnumerable<SmartDeviceModelCount> GetModelCount(IEnumerable<int> modelIds)
+        public static IEnumerable<SmartDeviceModelCount> GetModelCount(IEnumerable<int> modelIds)
         {
             return ServerConfig.ApiDb.Query<SmartDeviceModelCount>(
                  "SELECT ModelId, COUNT(1) Count FROM `t_device` WHERE ModelId IN @modelIds AND MarkedDelete = 0 GROUP BY ModelId;",
@@ -38,7 +38,7 @@ namespace ApiManagement.Models.SmartFactoryModel
                  });
         }
 
-        public IEnumerable<SmartDeviceModelCount> GetNormalModelCount(IEnumerable<int> modelIds)
+        public static IEnumerable<SmartDeviceModelCount> GetNormalModelCount(IEnumerable<int> modelIds)
         {
             return ServerConfig.ApiDb.Query<SmartDeviceModelCount>(
                 "SELECT ModelId, COUNT(1) Count FROM `t_device` WHERE ModelId IN @modelIds AND MarkedDelete = 0 AND State = @state GROUP BY ModelId;",

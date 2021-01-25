@@ -17,7 +17,7 @@ namespace ApiManagement.Models.SmartFactoryModel
         }
         public static readonly SmartProcessCodeCategoryHelper Instance = new SmartProcessCodeCategoryHelper();
         #region Get
-        public IEnumerable<SmartProcessCodeCategory> GetSmartProcessCodeCategoriesByCategories(IEnumerable<string> categories)
+        public static IEnumerable<SmartProcessCodeCategory> GetSmartProcessCodeCategoriesByCategories(IEnumerable<string> categories)
         {
             return ServerConfig.ApiDb.Query<SmartProcessCodeCategory>("SELECT * FROM `t_process_code_category` WHERE MarkedDelete = 0 AND Category IN @categories;", new { categories });
         }

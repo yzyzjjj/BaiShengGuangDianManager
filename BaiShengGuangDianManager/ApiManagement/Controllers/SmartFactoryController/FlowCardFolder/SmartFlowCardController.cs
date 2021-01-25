@@ -45,7 +45,7 @@ namespace ApiManagement.Controllers.SmartFactoryController.FlowCardFolder
                 var d = data.First();
                 if (d.State != SmartFlowCardState.未加工)
                 {
-                    var processes = SmartFlowCardProcessHelper.Instance.GetSmartFlowCardProcessesByFlowCardId(d.Id);
+                    var processes = SmartFlowCardProcessHelper.GetSmartFlowCardProcessesByFlowCardId(d.Id);
                     if (processes.Any())
                     {
                         var st = processes.First().StartTime;
@@ -154,13 +154,13 @@ namespace ApiManagement.Controllers.SmartFactoryController.FlowCardFolder
                 return Result.GenError<Result>(Error.SmartFlowCardNumberLimit);
             }
 
-            var processes = SmartProductProcessHelper.Instance.GetSmartProductProcesses(taskOrderId, processCodeId);
+            var processes = SmartProductProcessHelper.GetSmartProductProcesses(taskOrderId, processCodeId);
             if (!processes.Any())
             {
                 return Result.GenError<Result>(Error.SmartProcessNotEmpty);
             }
 
-            var batch = SmartFlowCardHelper.Instance.GetSmartFlowCardBatch(taskOrderId);
+            var batch = SmartFlowCardHelper.GetSmartFlowCardBatch(taskOrderId);
             batch++;
 
             var count = smartFlowCards.Count();
@@ -178,7 +178,7 @@ namespace ApiManagement.Controllers.SmartFactoryController.FlowCardFolder
                 i++;
             }
             SmartFlowCardHelper.Instance.Add(smartFlowCards);
-            var addFlowCards = SmartFlowCardHelper.Instance.GetSmartFlowCardsByBatch(taskOrderId, batch);
+            var addFlowCards = SmartFlowCardHelper.GetSmartFlowCardsByBatch(taskOrderId, batch);
 
             var smartFlowCardProcesses = new List<SmartFlowCardProcess>();
             i = 0;
@@ -242,7 +242,7 @@ namespace ApiManagement.Controllers.SmartFactoryController.FlowCardFolder
                 return Result.GenError<Result>(Error.SmartFlowCardProcessNotExist);
             }
             SmartFlowCardHelper.Instance.Delete(ids);
-            SmartFlowCardProcessHelper.Instance.DeleteByFlowCardIs(ids);
+            SmartFlowCardProcessHelper.DeleteByFlowCardIs(ids);
             WorkFlowHelper.Instance.OnSmartFlowCardChanged(smartFlowCards);
             return Result.GenError<Result>(Error.Success);
         }

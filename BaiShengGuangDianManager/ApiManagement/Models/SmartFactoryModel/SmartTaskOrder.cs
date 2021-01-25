@@ -93,6 +93,10 @@ namespace ApiManagement.Models.SmartFactoryModel
         /// </summary>
         public DateTime ArrangedTime { get; set; }
         /// <summary>
+        /// 设置开始时间(计算)
+        /// </summary>
+        public DateTime SetStartTime { get; set; }
+        /// <summary>
         /// 设置开始时间
         /// </summary>
         public DateTime StartTime { get; set; }

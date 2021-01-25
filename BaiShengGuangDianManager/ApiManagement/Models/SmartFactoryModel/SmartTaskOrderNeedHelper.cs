@@ -21,7 +21,7 @@ namespace ApiManagement.Models.SmartFactoryModel
         }
         public static readonly SmartTaskOrderNeedHelper Instance = new SmartTaskOrderNeedHelper();
         #region Get
-        public IEnumerable<SmartTaskOrderNeed> GetSmartTaskOrderNeedsByTaskOrderId(int taskOrderId)
+        public static IEnumerable<SmartTaskOrderNeed> GetSmartTaskOrderNeedsByTaskOrderId(int taskOrderId)
         {
             return ServerConfig.ApiDb.Query<SmartTaskOrderNeed>("SELECT * FROM `t_task_order_need` WHERE MarkedDelete = 0 AND TaskOrderId = @taskOrderId;", new { taskOrderId });
         }
@@ -32,9 +32,9 @@ namespace ApiManagement.Models.SmartFactoryModel
         /// <param name="taskOrderIds"></param>
         /// <param name="detail"></param>
         /// <returns></returns>
-        public IEnumerable<SmartTaskOrderNeedDetail> GetSmartTaskOrderNeedsByTaskOrderIds(IEnumerable<int> taskOrderIds, bool detail = false)
+        public static IEnumerable<SmartTaskOrderNeedDetail> GetSmartTaskOrderNeedsByTaskOrderIds(IEnumerable<int> taskOrderIds, bool detail = false)
         {
-            return ServerConfig.ApiDb.Query<SmartTaskOrderNeedDetail>(!detail?
+            return ServerConfig.ApiDb.Query<SmartTaskOrderNeedDetail>(!detail ?
                 "SELECT a.*, b.`Order`, b.DeviceCategoryId CategoryId, SUM(a.Target) Target, SUM(a.DoneTarget) DoneTarget, SUM(a.Put) Put, SUM(a.HavePut) HavePut " +
                 "FROM (SELECT * FROM (SELECT * FROM `t_task_order_need` WHERE TaskOrderId IN @taskOrderIds ORDER BY TaskOrderId, Batch DESC) a GROUP BY TaskOrderId, PId) a " +
                 "JOIN `t_process` b ON a.PId = b.Id GROUP BY TaskOrderId, PId;"

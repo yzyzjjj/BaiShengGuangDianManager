@@ -1,6 +1,6 @@
 ﻿namespace ApiManagement.Models.SmartFactoryModel
 {
-    public class SmartOperator : SmartUser
+    public class SmartOperator : SmartAccount
     {
         /// <summary>
         /// 用户Id

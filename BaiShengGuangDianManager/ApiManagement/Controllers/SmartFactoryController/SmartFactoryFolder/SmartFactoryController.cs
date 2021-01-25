@@ -67,13 +67,13 @@ namespace ApiManagement.Controllers.SmartFactoryController.SmartFactoryFolder
             }
 
             //工单生产线 标准流程
-            var smartLineWorkOrders = SmartLineWorkOrderHelper.Instance.GetSmartLineWorkOrderDetailsByWorkOrderId(qId);
+            var smartLineWorkOrders = SmartLineWorkOrderHelper.GetSmartLineWorkOrderDetailsByWorkOrderId(qId);
             if (!smartLineWorkOrders.Any())
             {
                 return result;
             }
             //流程卡
-            var flowCards = SmartFlowCardHelper.Instance.GetSmartFlowCardsByWorkOrderId(qId);
+            var flowCards = SmartFlowCardHelper.GetSmartFlowCardsByWorkOrderId(qId);
             if (!flowCards.Any())
             {
                 return result;
@@ -91,7 +91,7 @@ namespace ApiManagement.Controllers.SmartFactoryController.SmartFactoryFolder
             //流程卡id
             var flowCardIds = flowCards.Select(x => x.Id);
             //流程卡流程错误
-            var processFaults = SmartProcessFaultHelper.Instance.GetSmartProcessFaultDetailsByFlowCardIds(flowCardIds);
+            var processFaults = SmartProcessFaultHelper.GetSmartProcessFaultDetailsByFlowCardIds(flowCardIds);
 
             //标准生产线
             var tempLines = smartLineWorkOrders.GroupBy(x => x.ProcessCodeCategoryId).ToDictionary(x => x.Key);
@@ -300,13 +300,13 @@ namespace ApiManagement.Controllers.SmartFactoryController.SmartFactoryFolder
                 return result;
             }
             //任务单生产线 标准流程
-            var smartLineTaskOrders = SmartLineTaskOrderHelper.Instance.GetSmartLineTaskOrderDetailsByTaskOrderId(qId);
+            var smartLineTaskOrders = SmartLineTaskOrderHelper.GetSmartLineTaskOrderDetailsByTaskOrderId(qId);
             if (!smartLineTaskOrders.Any())
             {
                 return result;
             }
             //流程卡
-            var flowCards = SmartFlowCardHelper.Instance.GetSmartFlowCardsByTaskOrderId(qId);
+            var flowCards = SmartFlowCardHelper.GetSmartFlowCardsByTaskOrderId(qId);
             if (!flowCards.Any())
             {
                 return result;
@@ -324,7 +324,7 @@ namespace ApiManagement.Controllers.SmartFactoryController.SmartFactoryFolder
             //流程卡id
             var flowCardIds = flowCards.Select(x => x.Id);
             //流程卡流程错误
-            var processFaults = SmartProcessFaultHelper.Instance.GetSmartProcessFaultDetailsByFlowCardIds(flowCardIds);
+            var processFaults = SmartProcessFaultHelper.GetSmartProcessFaultDetailsByFlowCardIds(flowCardIds);
 
             //标准生产线
             var tempLines = smartLineTaskOrders.GroupBy(x => x.ProcessCodeCategoryId).ToDictionary(x => x.Key);
@@ -562,10 +562,10 @@ namespace ApiManagement.Controllers.SmartFactoryController.SmartFactoryFolder
             }
 
             //流程卡流程错误
-            var processFaults = SmartProcessFaultHelper.Instance.GetSmartProcessFaultDetails(qId);
+            var processFaults = SmartProcessFaultHelper.GetSmartProcessFaultDetails(qId);
             //流程卡流程
             var smartFlowCardProcesses =
-                SmartLineFlowCardHelper.Instance.GetSmartLineFlowCardsByFlowCardId(qId);
+                SmartLineFlowCardHelper.GetSmartLineFlowCardsByFlowCardId(qId);
 
             foreach (var processFault in processFaults)
             {
@@ -747,7 +747,7 @@ namespace ApiManagement.Controllers.SmartFactoryController.SmartFactoryFolder
         {
             smartProcessFault.IsDeal = true;
             SmartProcessFaultHelper.Instance.Update(smartProcessFault);
-            SmartFlowCardProcessHelper.Instance.UpdateSmartFlowCardProcessFault(smartProcessFault.ProcessId);
+            SmartFlowCardProcessHelper.UpdateSmartFlowCardProcessFault(smartProcessFault.ProcessId);
             return Result.GenError<Result>(Error.Success);
         }
 

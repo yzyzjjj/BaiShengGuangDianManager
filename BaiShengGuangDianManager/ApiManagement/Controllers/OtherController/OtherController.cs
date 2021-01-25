@@ -1,4 +1,5 @@
-﻿using ApiManagement.Base.Server;
+﻿using ApiManagement.Base.Helper;
+using ApiManagement.Base.Server;
 using ApiManagement.Models.Notify;
 using Microsoft.AspNetCore.Mvc;
 using ModelBase.Base.EnumConfig;
@@ -27,8 +28,8 @@ namespace ApiManagement.Controllers.OtherController
             var sql =
                 "UPDATE roles SET Permissions = (SELECT GROUP_CONCAT(Id) FROM permissions_group ORDER BY Id) WHERE Id = 1";
 
-            ServerConfig.WebDb.Execute(sql);
-            ServerConfig.RedisHelper.PublishToTable();
+            ServerConfig.ApiDb.Execute(sql);
+            RedisHelper.PublishToTable();
 
             return Result.GenError<Result>(Error.Success);
         }

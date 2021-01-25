@@ -9,6 +9,7 @@ using ServiceStack;
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using ApiManagement.Base.Helper;
 
 namespace ApiManagement.Controllers.DeviceManagementController
 {
@@ -124,7 +125,7 @@ namespace ApiManagement.Controllers.DeviceManagementController
                 "UPDATE script_version SET `MarkedDateTime` = @MarkedDateTime, `DeviceModelId` = @DeviceModelId, `ScriptName` = @ScriptName, `ScriptFile` = @ScriptFile WHERE `Id` = @Id;", scriptVersion);
 
             //CheckScriptVersion(id);
-            ServerConfig.RedisHelper.PublishToTable();
+            RedisHelper.PublishToTable();
             return Result.GenError<Result>(Error.Success);
         }
 
@@ -176,7 +177,7 @@ namespace ApiManagement.Controllers.DeviceManagementController
 
             ServerConfig.ApiDb.Execute(
                 "UPDATE npc_proxy_link SET `Instruction` = @HeartPacket WHERE `Instruction` = @oldHeartPacket;", new { oldHeartPacket, scriptVersion.HeartPacket });
-            ServerConfig.RedisHelper.PublishToTable();
+            RedisHelper.PublishToTable();
         }
 
         // POST: api/ScriptVersion
@@ -217,7 +218,7 @@ namespace ApiManagement.Controllers.DeviceManagementController
                 "VALUES (@CreateUserId, @ScriptId, @VariableNameId, @DictionaryId, @VariableTypeId);",
                 usuallyDictionaries);
 
-            ServerConfig.RedisHelper.PublishToTable();
+            RedisHelper.PublishToTable();
             return Result.GenError<Result>(Error.Success);
         }
 
@@ -252,7 +253,7 @@ namespace ApiManagement.Controllers.DeviceManagementController
                 "VALUES (@CreateUserId, @DeviceModelId, @ScriptName, @ValueNumber, @InputNumber, @OutputNumber, @HeartPacket, @ScriptFile);",
                 scriptVersions);
 
-            ServerConfig.RedisHelper.PublishToTable();
+            RedisHelper.PublishToTable();
             return Result.GenError<Result>(Error.Success);
         }
 
@@ -284,7 +285,7 @@ namespace ApiManagement.Controllers.DeviceManagementController
                     MarkedDelete = true,
                     Id = id
                 });
-            ServerConfig.RedisHelper.PublishToTable();
+            RedisHelper.PublishToTable();
             return Result.GenError<Result>(Error.Success);
         }
 

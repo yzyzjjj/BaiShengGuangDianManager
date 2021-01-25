@@ -17,6 +17,10 @@ namespace ApiManagement.Base.Helper
     /// </summary>
     public class SimulateHelper
     {
+        public SimulateHelper()
+        {
+            //Init();
+        }
         public static List<DeviceStateWeight> 故障_暂停概率 = new List<DeviceStateWeight>
         {
             new DeviceStateWeight( SmartDeviceOperateState.未加工, 500),
@@ -52,23 +56,19 @@ namespace ApiManagement.Base.Helper
         private static string ProcessorKey = $"{RedisPre}:Processor";
         private static string ProcessorLockKey = $"{RedisPre}:ProcessorLock";
         //private static List<SmartProcessDevice> _devices;
-        private static List<SmartProcessor> _processors;
+        private static List<SmartProcessor> _processors = new List<SmartProcessor>();
         public static readonly SimulateHelper Instance = new SimulateHelper();
 
 #if DEBUG
 #else
         private static Timer _simulateTimer;
 #endif
-        public SimulateHelper()
-        {
-            _processors = new List<SmartProcessor>();
-        }
-       
+        
         public void Init()
         {
-            //            if (!ServerConfig.RedisHelper.Exists(StateKey))
+            //            if (!RedisHelper.Exists(StateKey))
             //            {
-            //                ServerConfig.RedisHelper.SetForever(StateKey, 1);
+            //                RedisHelper.SetForever(StateKey, 1);
             //            }
 
             //            var categories = SmartDeviceCategoryHelper.Instance.GetAll<SmartDeviceCategory>();
@@ -88,17 +88,17 @@ namespace ApiManagement.Base.Helper
 
         private void NeedArrange(object obj)
         {
-            if (ServerConfig.RedisHelper.SetIfNotExist(DateLock, DateTime.Now.ToStrx()))
+            if (RedisHelper.SetIfNotExist(DateLock, DateTime.Now.ToStrx()))
             {
-                ServerConfig.RedisHelper.SetExpireAt(DateLock, DateTime.Now.AddMinutes(5));
-                var last = ServerConfig.RedisHelper.Get<DateTime>(DateKey);
+                RedisHelper.SetExpireAt(DateLock, DateTime.Now.AddMinutes(5));
+                var last = RedisHelper.Get<DateTime>(DateKey);
                 var now = DateTime.Now;
                 if (last == default(DateTime) || last < now.Date)
                 {
                     var tasks = new List<SmartTaskOrderConfirm>();
                     var schedule = new List<SmartTaskOrderScheduleDetail>();
                     //ArrangeSchedule(ref tasks, ref schedule, true);
-                    ServerConfig.RedisHelper.SetForever(DateKey, now);
+                    RedisHelper.SetForever(DateKey, now);
                 }
             }
         }
@@ -112,7 +112,7 @@ namespace ApiManagement.Base.Helper
             {
                 devices.Clear();
                 var deviceKey = GetDeviceKey(categoryId);
-                var processDevices = ServerConfig.RedisHelper.Get<List<SmartProcessDevice>>(deviceKey);
+                var processDevices = RedisHelper.Get<List<SmartProcessDevice>>(deviceKey);
                 var categoryDevices = deviceList.Where(x => x.CategoryId == categoryId);
                 if (processDevices == null)
                 {
@@ -148,8 +148,8 @@ namespace ApiManagement.Base.Helper
 
         public void InitProcessor()
         {
-            var users = SmartUserHelper.Instance.GetAll<SmartUser>();
-            var processorList = ServerConfig.RedisHelper.Get<List<SmartProcessor>>(ProcessorKey);
+            var users = SmartAccountHelper.Instance.GetAll<SmartAccount>();
+            var processorList = RedisHelper.Get<List<SmartProcessor>>(ProcessorKey);
             if (processorList == null)
             {
                 _processors.AddRange(users.Select(x => new SmartProcessor
@@ -179,7 +179,7 @@ namespace ApiManagement.Base.Helper
             while (true)
             {
 #if !DEBUG
-                if (ServerConfig.RedisHelper.Get<int>("StateKey") != 1)
+                if (RedisHelper.Get<int>("StateKey") != 1)
                 {
                     return;
                 }
@@ -195,7 +195,7 @@ namespace ApiManagement.Base.Helper
                         if (LockDevice(category.Id, "加工"))
                         {
                             var deviceKey = GetDeviceKey(category.Id);
-                            var processDevices = ServerConfig.RedisHelper.Get<List<SmartProcessDevice>>(deviceKey);
+                            var processDevices = RedisHelper.Get<List<SmartProcessDevice>>(deviceKey);
                             foreach (var device in processDevices)
                             {
                                 device.StartNextProcess();
@@ -234,20 +234,20 @@ namespace ApiManagement.Base.Helper
         private bool LockDevice(int categoryId, string op)
         {
             var deviceKey = GetDeviceLockKey(categoryId);
-            return ServerConfig.RedisHelper.SetIfNotExist(deviceKey, $"{DateTime.Now.ToStrx()}:{op}");
+            return RedisHelper.SetIfNotExist(deviceKey, $"{DateTime.Now.ToStrx()}:{op}");
         }
         private void UnLockDevice(int categoryId)
         {
             var deviceKey = GetDeviceLockKey(categoryId);
-            ServerConfig.RedisHelper.Remove(deviceKey);
+            RedisHelper.Remove(deviceKey);
         }
         private bool LockProcessor(string op)
         {
-            return ServerConfig.RedisHelper.SetIfNotExist(ProcessorLockKey, $"{DateTime.Now.ToStrx()}:{op}");
+            return RedisHelper.SetIfNotExist(ProcessorLockKey, $"{DateTime.Now.ToStrx()}:{op}");
         }
         private void UnLockProcessor()
         {
-            ServerConfig.RedisHelper.Remove(ProcessorLockKey);
+            RedisHelper.Remove(ProcessorLockKey);
         }
 
         public IEnumerable<SmartProcessDevice> Devices()
@@ -258,7 +258,7 @@ namespace ApiManagement.Base.Helper
             foreach (var categoryId in categoryIds)
             {
                 var deviceKey = GetDeviceKey(categoryId);
-                var processDevices = ServerConfig.RedisHelper.Get<List<SmartProcessDevice>>(deviceKey);
+                var processDevices = RedisHelper.Get<List<SmartProcessDevice>>(deviceKey);
                 devices.AddRange(processDevices);
             }
             return devices;
@@ -273,7 +273,7 @@ namespace ApiManagement.Base.Helper
             foreach (var device in devices)
             {
                 var deviceKey = GetDeviceKey(device.Key);
-                ServerConfig.RedisHelper.SetForever(deviceKey, device.Value);
+                RedisHelper.SetForever(deviceKey, device.Value);
             }
         }
 
@@ -284,7 +284,7 @@ namespace ApiManagement.Base.Helper
         private void UpdateDevices(int categoryId, IEnumerable<SmartProcessDevice> devices)
         {
             var deviceKey = GetDeviceKey(categoryId);
-            ServerConfig.RedisHelper.SetForever(deviceKey, devices);
+            RedisHelper.SetForever(deviceKey, devices);
         }
 
         /// <summary>
@@ -293,7 +293,7 @@ namespace ApiManagement.Base.Helper
         /// <returns></returns>
         private void UpdateProcessors(IEnumerable<SmartProcessor> processors)
         {
-            ServerConfig.RedisHelper.SetForever(ProcessorKey, processors);
+            RedisHelper.SetForever(ProcessorKey, processors);
         }
         /// <summary>
         ///  获取设备状况
@@ -304,7 +304,7 @@ namespace ApiManagement.Base.Helper
         public SmartDeviceOperateState GetDeviceState(int categoryId, int deviceId)
         {
             var deviceKey = GetDeviceKey(categoryId);
-            var devices = ServerConfig.RedisHelper.Get<List<SmartProcessDevice>>(deviceKey);
+            var devices = RedisHelper.Get<List<SmartProcessDevice>>(deviceKey);
             return devices.FirstOrDefault(x => x.Id == deviceId)?.State ?? SmartDeviceOperateState.缺失;
         }
 
@@ -324,7 +324,7 @@ namespace ApiManagement.Base.Helper
         ///// <returns></returns>
         //public static SmartProcessor GetProcessorState(int processorId)
         //{
-        //    var processors = ServerConfig.RedisHelper.Get<List<SmartProcessor>>(ProcessorKey);
+        //    var processors = RedisHelper.Get<List<SmartProcessor>>(ProcessorKey);
         //    return processors.FirstOrDefault(x => x.Id == processorId);
         //}
 
@@ -371,7 +371,7 @@ namespace ApiManagement.Base.Helper
         //            continue;
         //        }
 
-        //        var processors = ServerConfig.RedisHelper.Get<List<SmartProcessor>>(ProcessorKey);
+        //        var processors = RedisHelper.Get<List<SmartProcessor>>(ProcessorKey);
         //        if (!processors.Any())
         //        {
         //            UnLockProcessor();
@@ -425,7 +425,7 @@ namespace ApiManagement.Base.Helper
         //            continue;
         //        }
 
-        //        var processors = ServerConfig.RedisHelper.Get<List<SmartProcessor>>(ProcessorKey);
+        //        var processors = RedisHelper.Get<List<SmartProcessor>>(ProcessorKey);
         //        var processor = processors.FirstOrDefault(x => x.Id == processorId);
         //        if (processor != null)
         //        {
@@ -465,7 +465,7 @@ namespace ApiManagement.Base.Helper
         //            continue;
         //        }
 
-        //        var processors = ServerConfig.RedisHelper.Get<List<SmartProcessor>>(ProcessorKey);
+        //        var processors = RedisHelper.Get<List<SmartProcessor>>(ProcessorKey);
         //        foreach (var processorId in processorIds)
         //        {
         //            var processor = processors.FirstOrDefault(x => x.Id == processorId);
@@ -536,7 +536,7 @@ namespace ApiManagement.Base.Helper
                     }
 
                     var deviceKey = GetDeviceKey(deviceCategoryId);
-                    var devices = ServerConfig.RedisHelper.Get<List<SmartProcessDevice>>(deviceKey);
+                    var devices = RedisHelper.Get<List<SmartProcessDevice>>(deviceKey);
                     if (!devices.Any())
                     {
                         state = 缺少设备;
@@ -619,7 +619,7 @@ namespace ApiManagement.Base.Helper
         //            continue;
         //        }
 
-        //        var processors = ServerConfig.RedisHelper.Get<List<SmartProcessor>>(ProcessorKey);
+        //        var processors = RedisHelper.Get<List<SmartProcessor>>(ProcessorKey);
         //        if (!processors.Any())
         //        {
         //            state = 缺少工人;
@@ -664,7 +664,7 @@ namespace ApiManagement.Base.Helper
         //            }
 
         //            var deviceKey = GetDeviceKey(deviceCategoryId);
-        //            var devices = ServerConfig.RedisHelper.Get<List<SmartProcessDevice>>(deviceKey);
+        //            var devices = RedisHelper.Get<List<SmartProcessDevice>>(deviceKey);
         //            if (!devices.Any())
         //            {
         //                state = 缺少设备;
@@ -734,7 +734,7 @@ namespace ApiManagement.Base.Helper
             while (LockDevice(deviceCategoryId, $"更新设备状态-{state}"))
             {
                 var deviceKey = GetDeviceKey(deviceCategoryId);
-                var devices = ServerConfig.RedisHelper.Get<List<SmartProcessDevice>>(deviceKey);
+                var devices = RedisHelper.Get<List<SmartProcessDevice>>(deviceKey);
                 var device = devices.FirstOrDefault(x => x.Id == deviceId && x.State != state);
                 if (device != null)
                 {
@@ -759,7 +759,7 @@ namespace ApiManagement.Base.Helper
         ///// <returns></returns>
         //public static string GenDevice(int deviceCategoryId)
         //{
-        //    _devices = ServerConfig.RedisHelper.Get<List<SmartDeviceProcess>>(DeviceKey);
+        //    _devices = RedisHelper.Get<List<SmartDeviceProcess>>(DeviceKey);
         //    var 闲置设备 = _devices.Where(x=>x.State == SmartDeviceState.未加工)
         //    return results.FirstOrDefault() ?? "";
         //}
@@ -849,7 +849,7 @@ namespace ApiManagement.Base.Helper
                             {
                                 processDevice.State = SmartFlowCardProcessState.已完成;
                                 ReleaseProcess(processDevice.ProcessorId);
-                                SmartFlowCardProcessHelper.Instance.UpdateSmartFlowCardProcessNextBefore(processDevice.FlowCardId, processDevice.Id, processDevice.Qualified);
+                                SmartFlowCardProcessHelper.UpdateSmartFlowCardProcessNextBefore(processDevice.FlowCardId, processDevice.Id, processDevice.Qualified);
                                 if (processDevice.Rate < rate)
                                 {
                                     processDevice.Fault = true;
@@ -866,7 +866,7 @@ namespace ApiManagement.Base.Helper
                                     });
                                 }
                             }
-                            var processor = SmartUserHelper.Instance.GetSmartUserAccountById(processDevice.ProcessorId) ?? "";
+                            var processor = SmartAccountHelper.GetSmartAccount(processDevice.ProcessorId)?.Account ?? "";
                             var log = new SmartFlowCardProcessLog(processor, markedDateTime, processDevice, qualified, unqualified);
                             SmartFlowCardProcessLogHelper.Instance.Add(log);
                             categroy0.Add(processDevice.Id);
@@ -934,7 +934,7 @@ namespace ApiManagement.Base.Helper
                     }
                 }
             }
-            SmartFlowCardProcessHelper.Instance.UpdateSmartFlowCardProcessArrange(processDevices.Where(x => categroy_0.Contains(x.Id)));
+            SmartFlowCardProcessHelper.UpdateSmartFlowCardProcessArrange(processDevices.Where(x => categroy_0.Contains(x.Id)));
             SmartFlowCardProcessHelper.Instance.Update(processDevices.Where(x => categroy0.Contains(x.Id)));
             SmartProcessFaultHelper.Instance.Add<SmartProcessFault>(faults);
             WorkFlowHelper.Instance.OnSmartFlowCardProcessChanged(processDevices.Where(x => categroy0.Contains(x.Id)));

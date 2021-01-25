@@ -22,7 +22,7 @@ namespace ApiManagement.Models.SmartFactoryModel
         /// </summary>
         /// <param name="flowCardIds"></param>
         /// <returns></returns>
-        public IEnumerable<SmartProcessFault> GetSmartProcessFaultsByFlowCardIds(IEnumerable<int> flowCardIds)
+        public static IEnumerable<SmartProcessFault> GetSmartProcessFaultsByFlowCardIds(IEnumerable<int> flowCardIds)
         {
             return ServerConfig.ApiDb.Query<SmartProcessFault>("SELECT * FROM `t_process_fault` WHERE MarkedDelete = 0 AND FlowCardId IN @flowCardIds AND IsDeal = false;", new { flowCardIds });
         }
@@ -32,7 +32,7 @@ namespace ApiManagement.Models.SmartFactoryModel
         /// </summary>
         /// <param name="flowCardId"></param>
         /// <returns></returns>
-        public IEnumerable<SmartProcessFaultDetail> GetSmartProcessFaultDetails(int flowCardId)
+        public static IEnumerable<SmartProcessFaultDetail> GetSmartProcessFaultDetails(int flowCardId)
         {
             return ServerConfig.ApiDb.Query<SmartProcessFaultDetail>("SELECT a.*, IFNULL(b.`Code`, '') `Code`, c.FlowCard, d.Process FROM `t_process_fault` a " +
                                                                      "LEFT JOIN `t_device` b ON a.DeviceId = b.Id JOIN `t_flow_card` c ON a.FlowCardId = c.Id " +
@@ -47,7 +47,7 @@ namespace ApiManagement.Models.SmartFactoryModel
         /// </summary>
         /// <param name="flowCardIds"></param>
         /// <returns></returns>
-        public IEnumerable<SmartProcessFaultDetail> GetSmartProcessFaultDetails(IEnumerable<int> flowCardIds)
+        public static IEnumerable<SmartProcessFaultDetail> GetSmartProcessFaultDetails(IEnumerable<int> flowCardIds)
         {
             return ServerConfig.ApiDb.Query<SmartProcessFaultDetail>("SELECT a.*, IFNULL(b.`Code`, '') `Code`, c.FlowCard, d.Process FROM `t_process_fault` a " +
                                                                      "LEFT JOIN `t_device` b ON a.DeviceId = b.Id JOIN `t_flow_card` c ON a.FlowCardId = c.Id " +
@@ -63,7 +63,7 @@ namespace ApiManagement.Models.SmartFactoryModel
         /// </summary>
         /// <param name="flowCardId"></param>
         /// <returns></returns>
-        public IEnumerable<SmartProcessFaultDetail> GetSmartProcessFaultDetailsByFlowCardId(int flowCardId)
+        public static IEnumerable<SmartProcessFaultDetail> GetSmartProcessFaultDetailsByFlowCardId(int flowCardId)
         {
             return ServerConfig.ApiDb.Query<SmartProcessFaultDetail>("SELECT a.*, IFNULL(b.`Code`, '') `Code`, c.FlowCard, d.ProcessId, d.Process FROM `t_process_fault` a " +
                                                                      "LEFT JOIN `t_device` b ON a.DeviceId = b.Id JOIN `t_flow_card` c ON a.FlowCardId = c.Id " +
@@ -78,7 +78,7 @@ namespace ApiManagement.Models.SmartFactoryModel
         /// </summary>
         /// <param name="flowCardIds"></param>
         /// <returns></returns>
-        public IEnumerable<SmartProcessFaultDetail> GetSmartProcessFaultDetailsByFlowCardIds(IEnumerable<int> flowCardIds)
+        public static IEnumerable<SmartProcessFaultDetail> GetSmartProcessFaultDetailsByFlowCardIds(IEnumerable<int> flowCardIds)
         {
             return ServerConfig.ApiDb.Query<SmartProcessFaultDetail>("SELECT a.*, IFNULL(b.`Code`, '') `Code`, c.FlowCard, d.ProcessId, d.Process FROM `t_process_fault` a " +
                                                                      "LEFT JOIN `t_device` b ON a.DeviceId = b.Id JOIN `t_flow_card` c ON a.FlowCardId = c.Id " +
@@ -93,7 +93,7 @@ namespace ApiManagement.Models.SmartFactoryModel
         /// </summary>
         /// <param name="flowCardIds"></param>
         /// <returns></returns>
-        public IEnumerable<SmartProcessFault> GetAllSmartProcessFaultsByFlowCardIds(IEnumerable<int> flowCardIds)
+        public static IEnumerable<SmartProcessFault> GetAllSmartProcessFaultsByFlowCardIds(IEnumerable<int> flowCardIds)
         {
             return ServerConfig.ApiDb.Query<SmartProcessFault>("SELECT * FROM `t_process_fault` WHERE MarkedDelete = 0 AND FlowCardId IN @flowCardIds;", new { flowCardIds });
         }

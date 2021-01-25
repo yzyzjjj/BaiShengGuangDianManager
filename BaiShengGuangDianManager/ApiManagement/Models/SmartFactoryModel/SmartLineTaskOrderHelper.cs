@@ -23,7 +23,7 @@ namespace ApiManagement.Models.SmartFactoryModel
         /// </summary>
         /// <param name="taskOrderId">任务单id</param>
         /// <returns></returns>
-        public IEnumerable<SmartLineTaskOrderDetail> GetSmartLineTaskOrderDetailsByTaskOrderId(int taskOrderId)
+        public static IEnumerable<SmartLineTaskOrderDetail> GetSmartLineTaskOrderDetailsByTaskOrderId(int taskOrderId)
         {
             return ServerConfig.ApiDb.Query<SmartLineTaskOrderDetail>("SELECT a.*, b.TaskOrder, c.Category ProcessCodeCategory, d.Process FROM `t_line_task_order` a " +
                                                                       "JOIN `t_task_order` b ON a.TaskOrderId = b.Id " +
@@ -36,7 +36,7 @@ namespace ApiManagement.Models.SmartFactoryModel
         /// </summary>
         /// <param name="taskOrderIds">任务单id</param>
         /// <returns></returns>
-        public IEnumerable<SmartLineTaskOrderDetail> GetSmartLineTaskOrderDetailsByTaskOrderIds(IEnumerable<int> taskOrderIds)
+        public static IEnumerable<SmartLineTaskOrderDetail> GetSmartLineTaskOrderDetailsByTaskOrderIds(IEnumerable<int> taskOrderIds)
         {
             return ServerConfig.ApiDb.Query<SmartLineTaskOrderDetail>("SELECT a.*, b.TaskOrder, c.Category ProcessCodeCategory, d.Process FROM `t_line_task_order` a " +
                                                                       "JOIN `t_task_order` b ON a.TaskOrderId = b.Id " +

@@ -27,16 +27,16 @@ namespace ApiManagement.Controllers.SmartFactoryController.ScheduleFolder
             {
                 return result;
             }
-            var schedules = SmartTaskOrderScheduleHelper.Instance.GetSmartTaskOrderSchedule(startTime, endTime);
-            var tasks = SmartTaskOrderHelper.Instance.GetAllArrangedButNotDoneSmartTaskOrderDetails(deliveryTime, all);
+            var schedules = SmartTaskOrderScheduleHelper.GetSmartTaskOrderSchedule(startTime, endTime);
+            var tasks = SmartTaskOrderHelper.GetAllArrangedButNotDoneSmartTaskOrderDetails(deliveryTime, all);
             var taskIds = tasks.Select(x => x.Id).Concat(schedules.Select(y => y.TaskOrderId)).Distinct();
             if (!taskIds.Any())
             {
                 return result;
             }
 
-            tasks = SmartTaskOrderHelper.Instance.GetAllArrangedButNotDoneSmartTaskOrderDetails(taskIds);
-            var taskNeeds = SmartTaskOrderNeedHelper.Instance.GetSmartTaskOrderNeedsByTaskOrderIds(taskIds, true);
+            tasks = SmartTaskOrderHelper.GetAllArrangedButNotDoneSmartTaskOrderDetails(taskIds);
+            var taskNeeds = SmartTaskOrderNeedHelper.GetSmartTaskOrderNeedsByTaskOrderIds(taskIds, true);
             var orders = taskNeeds.GroupBy(y => new { y.PId, y.Order, y.Process, y.CategoryId }).Select(z => new SmartTaskOrderNeedWithOrder
             {
                 Id = z.Key.PId,
@@ -49,9 +49,9 @@ namespace ApiManagement.Controllers.SmartFactoryController.ScheduleFolder
             result.Orders.AddRange(orders.OrderBy(z => z.Order));
 
             //设备型号数量
-            var deviceList = SmartDeviceHelper.Instance.GetNormalSmartDevices();
+            var deviceList = SmartDeviceHelper.GetNormalSmartDevices();
             //人员等级数量
-            var operatorList = SmartOperatorHelper.Instance.GetNormalSmartOperators();
+            var operatorList = SmartOperatorHelper.GetNormalSmartOperators();
             var modelCount = deviceList.GroupBy(x => new { x.CategoryId }).Select(y => new SmartDeviceModelCount
             {
                 CategoryId = y.Key.CategoryId,
@@ -129,7 +129,7 @@ namespace ApiManagement.Controllers.SmartFactoryController.ScheduleFolder
             });
             result.datas.AddRange(ts.OrderBy(x => x.DeliveryTime).ThenBy(x => x.ArrangedTime));
 
-            var indexes = SmartTaskOrderScheduleIndexHelper.Instance.GetSmartTaskOrderScheduleIndex(startTime, endTime).ToList();
+            var indexes = SmartTaskOrderScheduleIndexHelper.GetSmartTaskOrderScheduleIndex(startTime, endTime).ToList();
             var arrangeIndexes = new List<SmartTaskOrderScheduleIndex>();
             foreach (var order in result.Orders)
             {
@@ -188,7 +188,7 @@ namespace ApiManagement.Controllers.SmartFactoryController.ScheduleFolder
             }
             else if (taskOrderId != 0 && pId != 0)
             {
-                data = SmartTaskOrderScheduleHelper.Instance.GetSmartTaskOrderSchedule(taskOrderId, pId).Select(x => new SmartTaskOrderSchedulePutInfoResult
+                data = SmartTaskOrderScheduleHelper.GetSmartTaskOrderSchedule(taskOrderId, pId).Select(x => new SmartTaskOrderSchedulePutInfoResult
                 {
                     ProcessTime = x.ProcessTime,
                     ProductType = x.ProductType,
@@ -212,7 +212,7 @@ namespace ApiManagement.Controllers.SmartFactoryController.ScheduleFolder
             //设备型号数量
             var deviceList = SmartDeviceHelper.Instance.GetAll<SmartDevice>();
             //人员等级数量
-            var operatorList = SmartOperatorHelper.Instance.GetAllSmartOperators();
+            var operatorList = SmartOperatorHelper.GetAllSmartOperators();
             //// 任务单计划号
             //var productIds = data.Select(x => x.ProductId);
             //// 任务单计划号
@@ -286,7 +286,7 @@ namespace ApiManagement.Controllers.SmartFactoryController.ScheduleFolder
             }
             else if (taskOrderId != 0 && pId != 0)
             {
-                data = SmartTaskOrderScheduleHelper.Instance.GetSmartTaskOrderSchedule(taskOrderId, pId).Select(x => new SmartTaskOrderScheduleWarehouseInfoResult
+                data = SmartTaskOrderScheduleHelper.GetSmartTaskOrderSchedule(taskOrderId, pId).Select(x => new SmartTaskOrderScheduleWarehouseInfoResult
                 {
                     ProcessTime = x.ProcessTime,
                     TaskOrderId = x.TaskOrderId,
@@ -311,16 +311,16 @@ namespace ApiManagement.Controllers.SmartFactoryController.ScheduleFolder
         {
             var result = new DataResult();
             var data =
-                SmartTaskOrderScheduleIndexHelper.Instance.GetSmartTaskOrderScheduleIndex(time, default(DateTime), pId)
+                SmartTaskOrderScheduleIndexHelper.GetSmartTaskOrderScheduleIndex(time, default(DateTime), pId)
                     .Select(ClassExtension.ParentCopyToChild<SmartTaskOrderScheduleIndex, SmartTaskOrderScheduleIndexDetail>).Where(x => x.Index > 0).ToList();
             if (!data.Any())
             {
                 return result;
             }
             //设备型号数量
-            var deviceList = SmartDeviceHelper.Instance.GetNormalSmartDevices();
+            var deviceList = SmartDeviceHelper.GetNormalSmartDevices();
             //人员等级数量
-            var operatorList = SmartOperatorHelper.Instance.GetNormalSmartOperators();
+            var operatorList = SmartOperatorHelper.GetNormalSmartOperators();
             var modelCount = deviceList.GroupBy(x => new { x.CategoryId, x.ModelId }).Select(y => new SmartDeviceModelCount
             {
                 CategoryId = y.Key.CategoryId,
@@ -481,7 +481,7 @@ namespace ApiManagement.Controllers.SmartFactoryController.ScheduleFolder
                     else
                     {
                         //页面选择顺序
-                        task.Order = t.Order;
+                        task.Order = !t.Arranged && t.Order == 0 ? int.MaxValue : t.Order;
                         task.StartTime = t.StartTime;
                         task.EndTime = t.EndTime;
                         task.Needs = t.Needs;
@@ -493,11 +493,11 @@ namespace ApiManagement.Controllers.SmartFactoryController.ScheduleFolder
             {
                 return result;
             }
-            var otherTasks = SmartTaskOrderHelper.Instance.GetArrangedButNotDoneSmartTaskOrders();
+            var otherTasks = SmartTaskOrderHelper.GetArrangedButNotDoneSmartTaskOrders();
             if (otherTasks.Any())
             {
                 taskIds = otherTasks.Select(x => x.Id);
-                var taskNeeds = SmartTaskOrderNeedHelper.Instance.GetSmartTaskOrderNeedsByTaskOrderIds(taskIds);
+                var taskNeeds = SmartTaskOrderNeedHelper.GetSmartTaskOrderNeedsByTaskOrderIds(taskIds);
                 foreach (var otherTask in otherTasks)
                 {
                     var aTask = allTasks.FirstOrDefault(x => x.Id == otherTask.Id);
@@ -549,7 +549,7 @@ namespace ApiManagement.Controllers.SmartFactoryController.ScheduleFolder
                 return Result.GenError<Result>(Error.SmartProductNotExist);
             }
 
-            var productCapacities = SmartProductCapacityHelper.Instance.GetSmartProductCapacities(productIds);
+            var productCapacities = SmartProductCapacityHelper.GetSmartProductCapacities(productIds);
             if (!productCapacities.Any())
             {
                 return Result.GenError<Result>(Error.SmartProductCapacityNotExist);
@@ -560,7 +560,7 @@ namespace ApiManagement.Controllers.SmartFactoryController.ScheduleFolder
             {
                 return Result.GenError<Result>(Error.SmartCapacityNotExist);
             }
-            var capacityLists = SmartCapacityListHelper.Instance.GetSmartCapacityListsWithOrder(capacityIds);
+            var capacityLists = SmartCapacityListHelper.GetSmartCapacityListsWithOrder(capacityIds);
             foreach (var productId in productIds)
             {
                 var tasks = allTasks.Where(x => x.ProductId == productId);
@@ -673,7 +673,7 @@ namespace ApiManagement.Controllers.SmartFactoryController.ScheduleFolder
                 return result;
             }
 
-            SmartTaskOrderHelper.Instance.ArrangedUpdate(taskOrders);
+            SmartTaskOrderHelper.ArrangedUpdate(taskOrders);
             return Result.GenError<Result>(Error.Success);
         }
 
@@ -713,7 +713,7 @@ namespace ApiManagement.Controllers.SmartFactoryController.ScheduleFolder
             //设备型号数量
             var deviceList = SmartDeviceHelper.Instance.GetAll<SmartDevice>();
             //人员等级数量
-            var operatorList = SmartOperatorHelper.Instance.GetAllSmartOperators();
+            var operatorList = SmartOperatorHelper.GetAllSmartOperators();
             //按工序排
             var processes = schedules.GroupBy(x => new { x.PId, x.Process, x.Order }).Select(y => y.Key);
             var ts = costDays.SelectMany(costDay =>

@@ -1,6 +1,4 @@
-﻿using ApiManagement.Base.Server;
-using ApiManagement.Models.BaseModel;
-using System.Collections.Generic;
+﻿using ApiManagement.Models.BaseModel;
 
 namespace ApiManagement.Models.SmartFactoryModel
 {

@@ -24,7 +24,7 @@ namespace ApiManagement.Models.SmartFactoryModel
         /// </summary>
         /// <param name="flowCardId"></param>
         /// <returns></returns>
-        public IEnumerable<SmartFlowCardProcess> GetSmartFlowCardProcessesByFlowCardId(int flowCardId)
+        public static IEnumerable<SmartFlowCardProcess> GetSmartFlowCardProcessesByFlowCardId(int flowCardId)
         {
             return ServerConfig.ApiDb.Query<SmartFlowCardProcess>("SELECT * FROM `t_flow_card_process` WHERE MarkedDelete = 0 AND FlowCardId = @flowCardId;", new { flowCardId });
         }
@@ -33,7 +33,7 @@ namespace ApiManagement.Models.SmartFactoryModel
         /// </summary>
         /// <param name="flowCardIds"></param>
         /// <returns></returns>
-        public IEnumerable<SmartFlowCardProcess> GetSmartFlowCardProcessesByFlowCardIds(IEnumerable<int> flowCardIds)
+        public static IEnumerable<SmartFlowCardProcess> GetSmartFlowCardProcessesByFlowCardIds(IEnumerable<int> flowCardIds)
         {
             return ServerConfig.ApiDb.Query<SmartFlowCardProcess>("SELECT * FROM `t_flow_card_process` WHERE MarkedDelete = 0 AND FlowCardId IN @flowCardIds;", new { flowCardIds });
         }
@@ -42,7 +42,7 @@ namespace ApiManagement.Models.SmartFactoryModel
         /// </summary>
         /// <param name="flowCardId"></param>
         /// <returns></returns>
-        public IEnumerable<SmartFlowCardProcessDetail> GetSmartFlowCardProcessDetailsByFlowCardId(int flowCardId)
+        public static IEnumerable<SmartFlowCardProcessDetail> GetSmartFlowCardProcessDetailsByFlowCardId(int flowCardId)
         {
             return ServerConfig.ApiDb.Query<SmartFlowCardProcessDetail>("SELECT a.*, b.Process FROM `t_flow_card_process` a " +
                                                                         "JOIN (SELECT a.Id, b.Process FROM `t_product_process` a JOIN `t_process` b ON a.ProcessId = b.Id) b ON a.ProcessId = b.Id " +
@@ -53,7 +53,7 @@ namespace ApiManagement.Models.SmartFactoryModel
         ///// </summary>
         ///// <param name="flowCardIds"></param>
         ///// <returns></returns>
-        //public IEnumerable<SmartFlowCardProcess> GetSmartFlowCardProcessByFlowCardIds(IEnumerable<int> flowCardIds)
+        //public static IEnumerable<SmartFlowCardProcess> GetSmartFlowCardProcessByFlowCardIds(IEnumerable<int> flowCardIds)
         //{
         //    return ServerConfig.ApiDb.Query<SmartFlowCardProcess>("SELECT * FROM `t_flow_card_process` WHERE MarkedDelete = 0 AND FlowCardId IN @flowCardIds;", new { flowCardIds });
         //}
@@ -64,7 +64,7 @@ namespace ApiManagement.Models.SmartFactoryModel
         /// <param name="taskOrderIds"></param>
         /// <param name="processCodeCategoryIds"></param>
         /// <returns></returns>
-        public IEnumerable<SmartFlowCardProcessStandard1> GetSmartFlowCardProcesses1(IEnumerable<int> taskOrderIds, IEnumerable<int> processCodeCategoryIds)
+        public static IEnumerable<SmartFlowCardProcessStandard1> GetSmartFlowCardProcesses1(IEnumerable<int> taskOrderIds, IEnumerable<int> processCodeCategoryIds)
         {
             return ServerConfig.ApiDb.Query<SmartFlowCardProcessStandard1>("SELECT a.*, b.TaskOrderId, c.ProcessCodeCategoryId, c.ProcessId StandardId FROM `t_flow_card_process` a " +
                                                                            "JOIN `t_flow_card` b ON a.FlowCardId = b.Id " +
@@ -82,7 +82,7 @@ namespace ApiManagement.Models.SmartFactoryModel
         /// <param name="workOrderIds"></param>
         /// <param name="processCodeCategoryIds"></param>
         /// <returns></returns>
-        public IEnumerable<SmartFlowCardProcessStandard2> GetSmartFlowCardProcesses2(IEnumerable<int> workOrderIds, IEnumerable<int> processCodeCategoryIds)
+        public static IEnumerable<SmartFlowCardProcessStandard2> GetSmartFlowCardProcesses2(IEnumerable<int> workOrderIds, IEnumerable<int> processCodeCategoryIds)
         {
             return ServerConfig.ApiDb.Query<SmartFlowCardProcessStandard2>("SELECT a.*, b.WorkOrderId, c.ProcessCodeCategoryId, c.ProcessId StandardId FROM `t_flow_card_process` a " +
                                                                            "JOIN (SELECT a.*, b.WorkOrderId FROM `t_flow_card` a " +
@@ -91,7 +91,7 @@ namespace ApiManagement.Models.SmartFactoryModel
                                                                            "JOIN `t_process_code_category_process` b ON a.ProcessId = b.Id) c ON a.ProcessId = c.Id " +
                                                                            "WHERE a.MarkedDelete = 0 AND b.WorkOrderId IN @workOrderIds " +
                                                                            "AND c.ProcessCodeCategoryId IN @processCodeCategoryIds " +
-                                                                           "AND a.State != @state GROUP BY b.WorkOrderId, c.ProcessCodeCategoryId, a.ProcessId;", 
+                                                                           "AND a.State != @state GROUP BY b.WorkOrderId, c.ProcessCodeCategoryId, a.ProcessId;",
                 new { workOrderIds, processCodeCategoryIds, state = SmartFlowCardProcessState.未加工 });
         }
         #endregion
@@ -105,7 +105,7 @@ namespace ApiManagement.Models.SmartFactoryModel
         /// </summary>
         /// <param name="id"></param>
         /// <returns></returns>
-        public void UpdateSmartFlowCardProcessFault(int id)
+        public static void UpdateSmartFlowCardProcessFault(int id)
         {
             ServerConfig.ApiDb.Execute("UPDATE `t_flow_card_process` SET Fault = IF((SELECT COUNT(1) FROM `t_process_fault` " +
                                        "WHERE MarkedDelete = 0 AND IsDeal = 0 AND ProcessId = @id) > 0, 1, 0) WHERE Id = @id", new { id });
@@ -116,7 +116,7 @@ namespace ApiManagement.Models.SmartFactoryModel
         /// </summary>
         /// <param name="processes"></param>
         /// <returns></returns>
-        public void UpdateSmartFlowCardProcessArrange(IEnumerable<SmartFlowCardProcessDevice> processes)
+        public static void UpdateSmartFlowCardProcessArrange(IEnumerable<SmartFlowCardProcessDevice> processes)
         {
             ServerConfig.ApiDb.Execute("UPDATE `t_flow_card_process` SET `MarkedDateTime` = @MarkedDateTime, `State` = @State, `ProcessorId` = @ProcessorId, `DeviceId` = @DeviceId WHERE `Id` = @Id", processes);
         }
@@ -125,7 +125,7 @@ namespace ApiManagement.Models.SmartFactoryModel
         /// 更新下道流程发出数量
         /// </summary>
         /// <returns></returns>
-        public void UpdateSmartFlowCardProcessNextBefore(int flowCardId, int id, int before)
+        public static void UpdateSmartFlowCardProcessNextBefore(int flowCardId, int id, int before)
         {
             //ServerConfig.ApiDb.Execute("UPDATE `t_flow_card_process` SET `Before` = @before, `State` = @state " +
             //                           "WHERE MarkedDelete = 0 AND FlowCardId = @flowCardId AND Id > @id LIMIT 1;", new { flowCardId, id, before, state = SmartFlowCardProcessState.等待中 });
@@ -140,7 +140,7 @@ namespace ApiManagement.Models.SmartFactoryModel
         /// </summary>
         /// <param name="flowCardIds"></param>
         /// <returns></returns>
-        public void DeleteByFlowCardIs(IEnumerable<int> flowCardIds)
+        public static void DeleteByFlowCardIs(IEnumerable<int> flowCardIds)
         {
             ServerConfig.ApiDb.Execute("DELETE FROM `t_flow_card_process` WHERE FlowCardId IN @flowCardIds;", new { flowCardIds });
         }

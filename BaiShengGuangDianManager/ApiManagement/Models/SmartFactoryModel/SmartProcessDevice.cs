@@ -175,12 +175,12 @@ namespace ApiManagement.Models.SmartFactoryModel
                             TotalSecond += second;
                             var last = process.Left == 0;
                             process.State = last ? SmartFlowCardProcessState.已完成 : SmartFlowCardProcessState.等待中;
-                            var createUserId = SmartUserHelper.Instance.GetSmartUserAccountById(process.ProcessorId) ?? "";
+                            var createUserId = SmartAccountHelper.GetSmartAccount(process.ProcessorId)?.Account ?? "";
                             if (last)
                             {
                                 processorId = ProcessorId;
                                 NextProcesses.Remove(NextProcesses.First());
-                                SmartFlowCardProcessHelper.Instance.UpdateSmartFlowCardProcessNextBefore(process.FlowCardId, process.Id, process.Qualified);
+                                SmartFlowCardProcessHelper.UpdateSmartFlowCardProcessNextBefore(process.FlowCardId, process.Id, process.Qualified);
                                 if (process.Rate < Rate)
                                 {
                                     process.Fault = true;

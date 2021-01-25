@@ -5,6 +5,7 @@ using ApiManagement.Models.ManufactureModel;
 using ApiManagement.Models.MaterialManagementModel;
 using ApiManagement.Models.OtherModel;
 using ApiManagement.Models.RepairManagementModel;
+using ApiManagement.Models.SmartFactoryModel;
 using Microsoft.EntityFrameworkCore.Internal;
 using ModelBase.Base.HttpServer;
 using ModelBase.Base.Logger;
@@ -22,6 +23,10 @@ namespace ApiManagement.Base.Helper
 {
     public class TimerHelper
     {
+        public TimerHelper()
+        {
+            Init();
+        }
         private static readonly string Debug = "Debug";
         private static string _url = ServerConfig.ErpUrl;
         private static string _urlFile = "http://192.168.1.100/lc/uploads/";
@@ -32,11 +37,11 @@ namespace ApiManagement.Base.Helper
         private static Timer _totalTimer;
 #endif
         private static CancellationTokenSource cts = new CancellationTokenSource();
-        public static void Init()
+        public void Init()
         {
-            if (!ServerConfig.RedisHelper.Exists(Debug))
+            if (!RedisHelper.Exists(Debug))
             {
-                ServerConfig.RedisHelper.SetForever(Debug, 0);
+                RedisHelper.SetForever(Debug, 0);
             }
 
             Task.Run(async () =>
@@ -81,7 +86,7 @@ namespace ApiManagement.Base.Helper
         {
 
 #if !DEBUG
-            if (ServerConfig.RedisHelper.Get<int>("Debug") != 0)
+            if (RedisHelper.Get<int>("Debug") != 0)
             {
                 return;
             }
@@ -105,7 +110,7 @@ namespace ApiManagement.Base.Helper
             DayBalanceRecovery();
             Console.WriteLine("GetDayBalance 发布模式已开启");
             GetDayBalance();
-            AccountHelper.CheckAccount();
+            CheckAccount();
             MaintainerSchedule();
             _first = false;
         }
@@ -116,7 +121,7 @@ namespace ApiManagement.Base.Helper
         {
 
 #if !DEBUG
-            if (ServerConfig.RedisHelper.Get<int>("Debug") != 0)
+            if (RedisHelper.Get<int>("Debug") != 0)
             {
                 return;
             }
@@ -140,7 +145,7 @@ namespace ApiManagement.Base.Helper
             DayBalanceRecovery();
             //Console.WriteLine("GetDayBalance 调试模式已开启");
             GetDayBalance();
-            AccountHelper.CheckAccount();
+            CheckAccount();
             MaintainerSchedule();
             _first = false;
         }
@@ -152,11 +157,11 @@ namespace ApiManagement.Base.Helper
         {
             var checkPlanPre = "CheckPlan";
             var checkPlanLock = $"{checkPlanPre}:Lock";
-            if (ServerConfig.RedisHelper.SetIfNotExist(checkPlanLock, "lock"))
+            if (RedisHelper.SetIfNotExist(checkPlanLock, "lock"))
             {
                 try
                 {
-                    ServerConfig.RedisHelper.SetExpireAt(checkPlanLock, DateTime.Now.AddMinutes(5));
+                    RedisHelper.SetExpireAt(checkPlanLock, DateTime.Now.AddMinutes(5));
                     var sql = "SELECT c.*, a.*, b.Plan FROM `spot_check_device` a " +
                               "JOIN `spot_check_plan` b ON a.PlanId = b.Id " +
                               "JOIN `spot_check_item` c ON a.ItemId = c.Id " +
@@ -220,7 +225,7 @@ namespace ApiManagement.Base.Helper
                     Log.Error(e);
                 }
 
-                ServerConfig.RedisHelper.Remove(checkPlanLock);
+                RedisHelper.Remove(checkPlanLock);
             }
         }
 
@@ -231,9 +236,9 @@ namespace ApiManagement.Base.Helper
         {
             var manufacturePlanPre = "CheckManufacturePlan";
             var manufacturePlanLock = $"{manufacturePlanPre}:Lock";
-            if (ServerConfig.RedisHelper.SetIfNotExist(manufacturePlanLock, "lock"))
+            if (RedisHelper.SetIfNotExist(manufacturePlanLock, "lock"))
             {
-                ServerConfig.RedisHelper.SetExpireAt(manufacturePlanLock, DateTime.Now.AddMinutes(5));
+                RedisHelper.SetExpireAt(manufacturePlanLock, DateTime.Now.AddMinutes(5));
                 try
                 {
                     var sql = "SELECT a.*, IFNULL(b.Sum, 0) Sum FROM `manufacture_plan` a " +
@@ -265,7 +270,7 @@ namespace ApiManagement.Base.Helper
                     Log.Error(e);
                 }
 
-                ServerConfig.RedisHelper.Remove(manufacturePlanLock);
+                RedisHelper.Remove(manufacturePlanLock);
             }
         }
 
@@ -273,11 +278,11 @@ namespace ApiManagement.Base.Helper
         {
             var _6sPre = "6s";
             var _6sLock = $"{_6sPre}:Lock";
-            if (ServerConfig.RedisHelper.SetIfNotExist(_6sLock, "lock"))
+            if (RedisHelper.SetIfNotExist(_6sLock, "lock"))
             {
                 try
                 {
-                    ServerConfig.RedisHelper.SetExpireAt(_6sLock, DateTime.Now.AddMinutes(5));
+                    RedisHelper.SetExpireAt(_6sLock, DateTime.Now.AddMinutes(5));
                     Init_6sItem();
                 }
                 catch (Exception e)
@@ -285,7 +290,7 @@ namespace ApiManagement.Base.Helper
                     Log.Error(e);
                 }
 
-                ServerConfig.RedisHelper.Remove(_6sLock);
+                RedisHelper.Remove(_6sLock);
             }
         }
 
@@ -395,11 +400,11 @@ namespace ApiManagement.Base.Helper
         {
             var _pre = "GetErpDepartment";
             var redisLock = $"{_pre}:Lock";
-            if (ServerConfig.RedisHelper.SetIfNotExist(redisLock, DateTime.Now.ToStr()))
+            if (RedisHelper.SetIfNotExist(redisLock, DateTime.Now.ToStr()))
             {
                 try
                 {
-                    ServerConfig.RedisHelper.SetExpireAt(redisLock, DateTime.Now.AddMinutes(5));
+                    RedisHelper.SetExpireAt(redisLock, DateTime.Now.AddMinutes(5));
                     var f = HttpServer.Get(_url, new Dictionary<string, string>
                     {
                         {"type", "getDepartment"},
@@ -475,7 +480,7 @@ namespace ApiManagement.Base.Helper
                     Log.Error(e);
                 }
 
-                ServerConfig.RedisHelper.Remove(redisLock);
+                RedisHelper.Remove(redisLock);
             }
         }
 
@@ -492,11 +497,11 @@ namespace ApiManagement.Base.Helper
         {
             var _pre = "GetErpValuer";
             var redisLock = $"{_pre}:Lock";
-            if (ServerConfig.RedisHelper.SetIfNotExist(redisLock, DateTime.Now.ToStr()))
+            if (RedisHelper.SetIfNotExist(redisLock, DateTime.Now.ToStr()))
             {
                 try
                 {
-                    ServerConfig.RedisHelper.SetExpireAt(redisLock, DateTime.Now.AddMinutes(5));
+                    RedisHelper.SetExpireAt(redisLock, DateTime.Now.AddMinutes(5));
                     var f = HttpServer.Get(_url, new Dictionary<string, string>
                     {
                         {"type", "getHjry"},
@@ -534,7 +539,7 @@ namespace ApiManagement.Base.Helper
                     Log.Error(e);
                 }
 
-                ServerConfig.RedisHelper.Remove(redisLock);
+                RedisHelper.Remove(redisLock);
             }
         }
 
@@ -542,12 +547,12 @@ namespace ApiManagement.Base.Helper
         {
             var _pre = "GetErpPurchase";
             var redisLock = $"{_pre}:Lock";
-            if (ServerConfig.RedisHelper.SetIfNotExist(redisLock, DateTime.Now.ToStr()))
+            if (RedisHelper.SetIfNotExist(redisLock, DateTime.Now.ToStr()))
             {
-                ServerConfig.RedisHelper.SetExpireAt(redisLock, DateTime.Now.AddMinutes(30));
+                RedisHelper.SetExpireAt(redisLock, DateTime.Now.AddMinutes(30));
                 ErpPurchaseFunc();
-                //ServerConfig.RedisHelper.Remove(redisLock);
-                ServerConfig.RedisHelper.SetExpireAt(redisLock, DateTime.Now.AddMinutes(1));
+                //RedisHelper.Remove(redisLock);
+                RedisHelper.SetExpireAt(redisLock, DateTime.Now.AddMinutes(1));
             }
         }
 
@@ -565,7 +570,7 @@ namespace ApiManagement.Base.Helper
                     //MaterialPurchaseStateEnum.订单完成,
                     MaterialPurchaseStateEnum.已入库,
                 };
-                var departments = ServerConfig.ApiDb.Query<dynamic>(
+                var departments = ServerConfig.ApiDb.Query<MaterialDepartment>(
                     "SELECT a.Id, a.Department, IFNULL(MIN(b.ErpId), 0) ErpId FROM `material_department` a " +
                     "LEFT JOIN (SELECT * FROM `material_purchase` WHERE State IN @validState AND MarkedDelete = 0) b ON a.Id = b.DepartmentId WHERE a.Get = 1 AND a.MarkedDelete = 0 GROUP BY a.Id",
                     new { validState });
@@ -593,7 +598,7 @@ namespace ApiManagement.Base.Helper
                         else
                         {
                             var dep = departments.FirstOrDefault(x => x.Id == purchase.DepartmentId);
-                            ErpPurchaseItemFunc(true, f, dep, havePurchases, out updatePurchaseItems, out addPurchaseItems, out updateMaterialBill, out onBillNeedUpdate);
+                            ErpPurchaseItemFunc(true, f, dep, havePurchases, ref updatePurchaseItems, ref addPurchaseItems, ref updateMaterialBill, ref onBillNeedUpdate);
                         }
                     }
                 }
@@ -618,7 +623,7 @@ namespace ApiManagement.Base.Helper
                                 ServerConfig.ApiDb.Query<MaterialPurchase>(
                                     "SELECT * FROM `material_purchase` WHERE DepartmentId = @Id AND ErpId >= @ErpId AND MarkedDelete = 0;",
                                     new { department.Id, department.ErpId });
-                            ErpPurchaseItemFunc(false, f, department, havePurchases, out updatePurchaseItems, out addPurchaseItems, out updateMaterialBill, out onBillNeedUpdate);
+                            ErpPurchaseItemFunc(false, f, department, havePurchases, ref updatePurchaseItems, ref addPurchaseItems, ref updateMaterialBill, ref onBillNeedUpdate);
                         }
                     }
                 }
@@ -660,16 +665,13 @@ namespace ApiManagement.Base.Helper
             }
         }
 
-        private static void ErpPurchaseItemFunc(bool changeState, string f, dynamic dep,
+        private static void ErpPurchaseItemFunc(bool changeState, string f, MaterialDepartment dep,
             IEnumerable<MaterialPurchase> havePurchases,
-            out List<MaterialPurchaseItem> updatePurchaseItems,
-            out List<MaterialPurchaseItem> addPurchaseItems,
-            out List<MaterialBill> updateMaterialBill,
-            out bool onBillNeedUpdate)
+            ref List<MaterialPurchaseItem> updatePurchaseItems,
+            ref List<MaterialPurchaseItem> addPurchaseItems,
+            ref List<MaterialBill> updateMaterialBill,
+            ref bool onBillNeedUpdate)
         {
-            updatePurchaseItems = new List<MaterialPurchaseItem>();
-            addPurchaseItems = new List<MaterialPurchaseItem>();
-            updateMaterialBill = new List<MaterialBill>();
             onBillNeedUpdate = false;
             try
             {
@@ -677,13 +679,24 @@ namespace ApiManagement.Base.Helper
                 {
                     havePurchases = new List<MaterialPurchase>();
                 }
-
+                if (updatePurchaseItems == null)
+                {
+                    updatePurchaseItems = new List<MaterialPurchaseItem>();
+                }
+                if (addPurchaseItems == null)
+                {
+                    addPurchaseItems = new List<MaterialPurchaseItem>();
+                }
+                if (updateMaterialBill == null)
+                {
+                    updateMaterialBill = new List<MaterialBill>();
+                }
                 var now = DateTime.Now;
                 var rr = HttpUtility.UrlDecode(f);
                 var res = JsonConvert.DeserializeObject<IEnumerable<ErpPurchase>>(rr).OrderBy(x => x.f_id);
                 //var bz = res.GroupBy(x => x.f_bz).Select(y => y.Key).Join();
                 //var zt = res.GroupBy(x => x.f_zt).Select(y => y.Key).Join();
-                var existPurchases = res.Where(x => havePurchases.Any(y => y.ErpId == x.f_id));
+                var existPurchases = res.Where(x => havePurchases.Any(y => y.ErpId == x.f_id)).ToList();
                 if (existPurchases.Any())
                 {
                     var havePurchaseItems = ServerConfig.ApiDb.Query<MaterialPurchaseItem>(
@@ -696,7 +709,7 @@ namespace ApiManagement.Base.Helper
                     var purchases = new List<MaterialPurchase>();
                     foreach (var p in existPurchases)
                     {
-                        if (dep == 0)
+                        if (dep == null)
                         {
                             continue;
                         }
@@ -1050,7 +1063,7 @@ namespace ApiManagement.Base.Helper
                     }
                 }
 
-                var notExistPurchases = res.Where(x => havePurchases.All(y => y.ErpId != x.f_id));
+                var notExistPurchases = res.Where(x => havePurchases.All(y => y.ErpId != x.f_id)).ToList();
                 if (notExistPurchases.Any())
                 {
                     var purchases = new List<MaterialPurchase>();
@@ -1338,28 +1351,28 @@ namespace ApiManagement.Base.Helper
             var timeKey = $"{_pre}:Time";
             if (_first)
             {
-                ServerConfig.RedisHelper.Remove(redisLock);
+                RedisHelper.Remove(redisLock);
             }
 
             if (_getDayBalanceRuning)
             {
-                //ServerConfig.RedisHelper.SetExpireAt(redisLock, DateTime.Now.AddMinutes(10));
+                //RedisHelper.SetExpireAt(redisLock, DateTime.Now.AddMinutes(10));
                 return;
             }
 
-            if (ServerConfig.RedisHelper.SetIfNotExist(redisLock, DateTime.Now.ToStr()))
+            if (RedisHelper.SetIfNotExist(redisLock, DateTime.Now.ToStr()))
             {
                 try
                 {
                     _getDayBalanceRuning = true;
-                    ServerConfig.RedisHelper.SetExpireAt(redisLock, DateTime.Now.AddMinutes(5 * 12));
+                    RedisHelper.SetExpireAt(redisLock, DateTime.Now.AddMinutes(5 * 12));
                     var now = DateTime.Now;
-                    if (!ServerConfig.RedisHelper.Exists(timeKey))
+                    if (!RedisHelper.Exists(timeKey))
                     {
-                        ServerConfig.RedisHelper.SetForever(timeKey, now.ToStr());
+                        RedisHelper.SetForever(timeKey, now.ToStr());
                     }
 
-                    var calTime = ServerConfig.RedisHelper.Get<DateTime>(timeKey);
+                    var calTime = RedisHelper.Get<DateTime>(timeKey);
                     calTime = calTime == default(DateTime) ? now.Date : calTime.Date;
 
                     var tomorrow = calTime.AddDays(1);
@@ -1525,14 +1538,14 @@ namespace ApiManagement.Base.Helper
                         calTime = now.Date;
                     }
 
-                    ServerConfig.RedisHelper.SetForever(timeKey, calTime.ToStr());
+                    RedisHelper.SetForever(timeKey, calTime.ToStr());
                 }
                 catch (Exception e)
                 {
                     Log.Error(e);
                 }
 
-                ServerConfig.RedisHelper.Remove(redisLock);
+                RedisHelper.Remove(redisLock);
                 _isGetDayBalance = true;
                 _getDayBalanceRuning = false;
             }
@@ -1577,7 +1590,7 @@ namespace ApiManagement.Base.Helper
             var timeKey = $"{_pre1}:Time";
             //if (first)
             //{
-            //    ServerConfig.RedisHelper.Remove(redisLock);
+            //    RedisHelper.Remove(redisLock);
             //}
 
             if (!_isGetDayBalance)
@@ -1586,22 +1599,22 @@ namespace ApiManagement.Base.Helper
             }
             if (_dayBalanceRecoveryRuning)
             {
-                //ServerConfig.RedisHelper.SetExpireAt(redisLock, DateTime.Now.AddMinutes(10));
+                //RedisHelper.SetExpireAt(redisLock, DateTime.Now.AddMinutes(10));
                 return;
             }
 
-            if (ServerConfig.RedisHelper.SetIfNotExist(redisLock, DateTime.Now.ToStr()))
+            if (RedisHelper.SetIfNotExist(redisLock, DateTime.Now.ToStr()))
             {
                 try
                 {
                     _dayBalanceRecoveryRuning = true;
-                    //ServerConfig.RedisHelper.SetExpireAt(redisLock, DateTime.Now.AddMinutes(5 * 12));
+                    //RedisHelper.SetExpireAt(redisLock, DateTime.Now.AddMinutes(5 * 12));
 
                     var minLogDay = ServerConfig.ApiDb.Query<DateTime>("SELECT MIN(Time) FROM `material_log`;")
                         .FirstOrDefault();
                     if (minLogDay == default(DateTime))
                     {
-                        ServerConfig.RedisHelper.Remove(redisLock);
+                        RedisHelper.Remove(redisLock);
                         _dayBalanceRecoveryRuning = false;
                         return;
                     }
@@ -1610,14 +1623,14 @@ namespace ApiManagement.Base.Helper
                     var balanceDays = ServerConfig.ApiDb.Query<DateTime>("SELECT Time FROM `material_balance` GROUP BY Time ORDER BY Time;");
                     if (!balanceDays.Any())
                     {
-                        ServerConfig.RedisHelper.Remove(redisLock);
+                        RedisHelper.Remove(redisLock);
                         _dayBalanceRecoveryRuning = false;
                         return;
                     }
                     var maxBalanceDay = balanceDays.LastOrDefault().Date;
                     var minBalanceDay = balanceDays.FirstOrDefault().Date;
 
-                    var calTime = ServerConfig.RedisHelper.Get<DateTime>(timeKey);
+                    var calTime = RedisHelper.Get<DateTime>(timeKey);
                     calTime = calTime == default(DateTime) ? DateTime.Now : calTime;
 
                     var timeDic = new Dictionary<DateTime, int>();
@@ -1640,11 +1653,11 @@ namespace ApiManagement.Base.Helper
                     timeDic = timeDic.OrderByDescending(x => x.Key).ToDictionary(y => y.Key, y => y.Value);
                     if (timeDic.All(x => x.Value != 0))
                     {
-                        var reTime = ServerConfig.RedisHelper.Get<DateTime>(recoveryTime);
+                        var reTime = RedisHelper.Get<DateTime>(recoveryTime);
                         var rTime = reTime != default(DateTime) ? (reTime.Date > calTime.Date ? calTime.Date : reTime.Date) : calTime.Date;
                         if (reTime != default(DateTime))
                         {
-                            ServerConfig.RedisHelper.SetForever(recoveryTime, rTime.ToDateStr());
+                            RedisHelper.SetForever(recoveryTime, rTime.ToDateStr());
                         }
                         timeDic = timeDic.Where(x => x.Key <= rTime).ToDictionary(y => y.Key, y => y.Key == rTime ? 1 : 0);
                     }
@@ -1820,16 +1833,16 @@ namespace ApiManagement.Base.Helper
                             }
                             timeDic[t] = 1;
                         }
-                        ServerConfig.RedisHelper.SetForever(recoveryTime, time.Key.ToDateStr());
+                        RedisHelper.SetForever(recoveryTime, time.Key.ToDateStr());
                     }
                 }
                 catch (Exception e)
                 {
                     Log.Error(e);
                 }
-                //ServerConfig.RedisHelper.Remove(redisLock);
-                ServerConfig.RedisHelper.SetExpireAt(recoveryTime, DateTime.Now.AddMinutes(5));
-                ServerConfig.RedisHelper.SetForever(redisLock, $"{ DateTime.Now.ToStr()} Done");
+                //RedisHelper.Remove(redisLock);
+                RedisHelper.SetExpireAt(recoveryTime, DateTime.Now.AddMinutes(5));
+                RedisHelper.SetForever(redisLock, $"{ DateTime.Now.ToStr()} Done");
                 _dayBalanceRecoveryRuning = false;
             }
         }
@@ -1843,9 +1856,9 @@ namespace ApiManagement.Base.Helper
             var redisLock = $"{_pre}:Lock";
             if (_first || re)
             {
-                ServerConfig.RedisHelper.Remove(redisLock);
+                RedisHelper.Remove(redisLock);
             }
-            if (ServerConfig.RedisHelper.SetIfNotExist(redisLock, DateTime.Now.ToStr()))
+            if (RedisHelper.SetIfNotExist(redisLock, DateTime.Now.ToStr()))
             {
                 try
                 {
@@ -1946,7 +1959,7 @@ namespace ApiManagement.Base.Helper
                 {
                     Log.Error(e);
                 }
-                ServerConfig.RedisHelper.Set(redisLock, $"{ DateTime.Now.ToStr()} Done", DateTime.Now.AddMinutes(60));
+                RedisHelper.Set(redisLock, $"{ DateTime.Now.ToStr()} Done", DateTime.Now.AddMinutes(60));
             }
         }
 
@@ -1957,11 +1970,11 @@ namespace ApiManagement.Base.Helper
         {
             var _pre = "MaintainerSchedule";
             var redisLock = $"{_pre}:Lock";
-            if (ServerConfig.RedisHelper.SetIfNotExist(redisLock, DateTime.Now.ToStr()))
+            if (RedisHelper.SetIfNotExist(redisLock, DateTime.Now.ToStr()))
             {
-                ServerConfig.RedisHelper.SetExpireAt(redisLock, DateTime.Now.AddMinutes(5 * 12));
+                RedisHelper.SetExpireAt(redisLock, DateTime.Now.AddMinutes(5 * 12));
                 DoMaintainerSchedule();
-                ServerConfig.RedisHelper.Remove(redisLock);
+                RedisHelper.Remove(redisLock);
             }
         }
 
@@ -1994,7 +2007,7 @@ namespace ApiManagement.Base.Helper
                 var lastWeekNightKey = $"{_pre}:LastWeekNight";
                 var thisWeekNightKey = $"{_pre}:ThisWeekNight";
                 //上周夜班
-                var lastWeekNightMaintainerId = ServerConfig.RedisHelper.Get<int>(lastWeekNightKey);
+                var lastWeekNightMaintainerId = RedisHelper.Get<int>(lastWeekNightKey);
                 if (lastWeekNightMaintainerId == 0)
                 {
                     lastWeekNightMaintainerId = schedules.FirstOrDefault(x => (x.StartTime >= lastWeekEnd &&
@@ -2002,7 +2015,7 @@ namespace ApiManagement.Base.Helper
                 }
 
                 //本周夜班 = 上周日夜班 20 - 24
-                var thisWeekNightMaintainerId = ServerConfig.RedisHelper.Get<int>(thisWeekNightKey);
+                var thisWeekNightMaintainerId = RedisHelper.Get<int>(thisWeekNightKey);
                 if (thisWeekNightMaintainerId == 0)
                 {
                     thisWeekNightMaintainerId = schedules.FirstOrDefault(x => (x.StartTime >= lastWeekEnd.AddSeconds(GlobalConfig.Night20.TotalSeconds) &&
@@ -2267,13 +2280,93 @@ namespace ApiManagement.Base.Helper
                 }
 
 
-                ServerConfig.RedisHelper.SetForever(lastWeekNightKey, thisWeekNightMaintainerId);
-                ServerConfig.RedisHelper.SetForever(thisWeekNightKey, nextWeekNightMaintainerId);
+                RedisHelper.SetForever(lastWeekNightKey, thisWeekNightMaintainerId);
+                RedisHelper.SetForever(thisWeekNightKey, nextWeekNightMaintainerId);
             }
             catch (Exception e)
             {
                 Log.Error(e);
             }
         }
+
+        #region 账号获取
+        public static void CheckAccount()
+        {
+            //var _createUserId = "ErpSystem";
+            var checkAccountPre = "CheckAccount";
+            var checkAccountLock = $"{checkAccountPre}:Lock";
+            if (RedisHelper.SetIfNotExist(checkAccountLock, "lock"))
+            {
+                RedisHelper.SetExpireAt(checkAccountLock, DateTime.Now.AddMinutes(5));
+                var f = HttpServer.Get(ServerConfig.ErpUrl, new Dictionary<string, string>
+                {
+                    { "type", "getUser" },
+                });
+                if (f == "fail")
+                {
+                    Log.ErrorFormat("CheckAccount 请求erp获取账号数据失败,url:{0}", ServerConfig.ErpUrl);
+                }
+                else
+                {
+                    try
+                    {
+                        var rr = HttpUtility.UrlDecode(f);
+                        var res = JsonConvert.DeserializeObject<ErpAccount[]>(rr);
+                        if (res.Any())
+                        {
+                            var accounts = SmartAccountHelper.Instance.GetAllData<SmartAccount>();
+                            var add = res.Where(x => accounts.All(y => y.Account != x.f_username));
+                            if (add.Any())
+                            {
+                                var role = ServerConfig.ApiDb.Query<int>("SELECT Id FROM `roles` WHERE New = 1;");
+                                ServerConfig.ApiDb.Execute(
+                                    "INSERT INTO accounts (`Number`, `Account`, `Name`, `Role`, `DeviceIds`, `MarkedDelete`) VALUES (@Number, @Account, @Name, @Role, '', @MarkedDelete);",
+                                    add.Select(x => new SmartAccount
+                                    {
+                                        Number = x.f_ygbh,
+                                        Account = x.f_username,
+                                        Name = x.f_name,
+                                        Role = role?.Join(",") ?? "",
+                                        MarkedDelete = x.ifdelete,
+                                    }));
+                            }
+
+                            var update = res.Where(x => accounts.Any(y => y.Account == x.f_username) &&
+                                                        (!accounts.First(y => y.Account == x.f_username).MarkedDelete && x.ifdelete ||
+                                                         accounts.First(y => y.Account == x.f_username).Name != x.f_name ||
+                                                         accounts.First(y => y.Account == x.f_username).Number != x.f_ygbh));
+                            if (update.Any())
+                            {
+                                ServerConfig.ApiDb.Execute(
+                                    "UPDATE accounts SET `Number` = @Number, `Name` = @Name, `MarkedDelete` = @MarkedDelete WHERE `Account` = @Account;",
+                                    update.Select(x => new SmartAccount
+                                    {
+                                        Account = x.f_username,
+                                        Number = x.f_ygbh,
+                                        Name = x.f_name,
+                                        MarkedDelete = x.ifdelete,
+                                    }));
+                            }
+                        }
+                    }
+                    catch (Exception e)
+                    {
+                        Log.ErrorFormat("erp账号数据解析失败,原因:{0},错误:{1}", e.Message, e.StackTrace);
+                    }
+                }
+
+                RedisHelper.Remove(checkAccountLock);
+            }
+        }
+
+        public class ErpAccount
+        {
+            public string f_name;
+            public string f_username;
+            public string f_ifdelete;
+            public bool ifdelete => f_ifdelete == "1";
+            public string f_ygbh;
+        }
+        #endregion
     }
 }

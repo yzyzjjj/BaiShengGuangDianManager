@@ -1,13 +1,13 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using ApiManagement.Base.Server;
-using ApiManagement.Models.BaseModel;
+﻿using ApiManagement.Models.BaseModel;
 using ApiManagement.Models.SmartFactoryModel;
 using Microsoft.AspNetCore.Mvc;
 using ModelBase.Base.EnumConfig;
 using ModelBase.Base.Utils;
 using ModelBase.Models.Result;
+using ServiceStack;
+using System;
+using System.Collections.Generic;
+using System.Linq;
 
 namespace ApiManagement.Controllers.SmartFactoryController.DeviceFolder
 {
@@ -20,14 +20,12 @@ namespace ApiManagement.Controllers.SmartFactoryController.DeviceFolder
     {
         // GET: api/SmartDevice
         [HttpGet]
-        public DataResult GetSmartDevice([FromQuery]int qId, bool menu)
+        public DataResult GetSmartDevice([FromQuery]int qId, int wId, bool menu)
         {
             var result = new DataResult();
-            var sql = menu ? $"SELECT Id, `Code` FROM t_device WHERE MarkedDelete = 0{(qId == 0 ? "" : " AND Id = @qId")};"
-                : $"SELECT a.*, b.Category, c.Model FROM t_device a JOIN t_device_category b ON a.CategoryId = b.Id JOIN t_device_model c ON a.ModelId = c.Id WHERE a.MarkedDelete = 0{(qId == 0 ? "" : " AND a.Id = @qId")};";
             result.datas.AddRange(menu
-                ? ServerConfig.ApiDb.Query<dynamic>(sql, new { qId })
-                : ServerConfig.ApiDb.Query<SmartDeviceDetail>(sql, new { qId }));
+                ? SmartDeviceHelper.GetSmartDeviceMenu(qId, wId)
+                : SmartDeviceHelper.GetSmartDevice(qId, wId));
             if (qId != 0 && !result.datas.Any())
             {
                 result.errno = Error.SmartDeviceNotExist;
@@ -50,19 +48,29 @@ namespace ApiManagement.Controllers.SmartFactoryController.DeviceFolder
                 return Result.GenError<Result>(Error.ParamError);
             }
 
-            var smartDeviceIds = smartDevices.Select(x => x.Id);
-            var data = SmartDeviceHelper.Instance.GetByIds<SmartDevice>(smartDeviceIds);
-            if (data.Count() != smartDevices.Count())
+            if (smartDevices.Any(x => x.Code.IsNullOrEmpty()))
+            {
+                return Result.GenError<Result>(Error.SmartDeviceNotEmpty);
+            }
+
+            var codes = smartDevices.Select(x => x.Code);
+            var ids = smartDevices.Select(x => x.Id);
+            if (SmartWorkshopHelper.Instance.HaveSame(codes, ids))
+            {
+                return Result.GenError<Result>(Error.SmartDeviceDuplicate);
+            }
+
+            var cnt = SmartWorkshopHelper.Instance.GetCountByIds(ids);
+            if (cnt != smartDevices.Count())
             {
                 return Result.GenError<Result>(Error.SmartDeviceNotExist);
             }
 
-            var createUserId = Request.GetIdentityInformation();
             var markedDateTime = DateTime.Now;
             foreach (var SmartDevice in smartDevices)
             {
-                SmartDevice.CreateUserId = createUserId;
                 SmartDevice.MarkedDateTime = markedDateTime;
+                SmartDevice.Remark = SmartDevice.Remark ?? "";
             }
             SmartDeviceHelper.Instance.Update(smartDevices);
             return Result.GenError<Result>(Error.Success);
@@ -72,12 +80,27 @@ namespace ApiManagement.Controllers.SmartFactoryController.DeviceFolder
         [HttpPost]
         public Result PostSmartDevice([FromBody] IEnumerable<SmartDevice> smartDevices)
         {
-            var createUserId = Request.GetIdentityInformation();
+            if (smartDevices == null || !smartDevices.Any())
+            {
+                return Result.GenError<Result>(Error.ParamError);
+            }
+
+            if (smartDevices.Any(x => x.Code.IsNullOrEmpty()))
+            {
+                return Result.GenError<Result>(Error.SmartDeviceNotEmpty);
+            }
+            var codes = smartDevices.Select(x => x.Code);
+            if (SmartWorkshopHelper.Instance.HaveSame(codes))
+            {
+                return Result.GenError<Result>(Error.SmartDeviceDuplicate);
+            }
+            var userId = Request.GetIdentityInformation();
             var markedDateTime = DateTime.Now;
             foreach (var smartDevice in smartDevices)
             {
-                smartDevice.CreateUserId = createUserId;
+                smartDevice.CreateUserId = userId;
                 smartDevice.MarkedDateTime = markedDateTime;
+                smartDevice.Remark = smartDevice.Remark ?? "";
             }
             SmartDeviceHelper.Instance.Add(smartDevices);
             return Result.GenError<Result>(Error.Success);

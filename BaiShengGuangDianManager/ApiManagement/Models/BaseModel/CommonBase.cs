@@ -18,9 +18,6 @@ namespace ApiManagement.Models.BaseModel
         public bool MarkedDelete { get; set; } = false;
         [IgnoreChange]
         [JsonIgnore]
-        public string ModifyUserId { get; set; } = "";
-        [IgnoreChange]
-        [JsonIgnore]
         public int ModifyId { get; set; } = 0;
     }
 }

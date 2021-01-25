@@ -20,24 +20,24 @@
 //        private static readonly string _6sLock = $"{_6sPre}:Lock";
 //        public static void Init(IConfiguration configuration)
 //        {
-//            ServerConfig.RedisHelper.Remove(_6sLock);
+//            RedisHelper.Remove(_6sLock);
 //            _checkTimer = new Timer(Check_6sItem, null, 5000, 1000 * 10 * 1);
 //        }
 
 //        private static void Check_6sItem(object state)
 //        {
-//            if (ServerConfig.RedisHelper.SetIfNotExist(_6sLock, "lock"))
+//            if (RedisHelper.SetIfNotExist(_6sLock, "lock"))
 //            {
 //                try
 //                {
-//                    ServerConfig.RedisHelper.SetExpireAt(_6sLock, DateTime.Now.AddMinutes(5));
+//                    RedisHelper.SetExpireAt(_6sLock, DateTime.Now.AddMinutes(5));
 //                    Init_6sItem();
 //                }
 //                catch (Exception e)
 //                {
 //                    Log.Error(e);
 //                }
-//                ServerConfig.RedisHelper.Remove(_6sLock);
+//                RedisHelper.Remove(_6sLock);
 //            }
 //        }
 

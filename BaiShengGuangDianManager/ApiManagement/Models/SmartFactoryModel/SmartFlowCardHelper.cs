@@ -17,26 +17,26 @@ namespace ApiManagement.Models.SmartFactoryModel
         }
         public static readonly SmartFlowCardHelper Instance = new SmartFlowCardHelper();
         #region Get
-        public IEnumerable<SmartFlowCard> GetSmartFlowCardsByBatch(int taskOrderId, int batch)
+        public static IEnumerable<SmartFlowCard> GetSmartFlowCardsByBatch(int taskOrderId, int batch)
         {
             return ServerConfig.ApiDb.Query<SmartFlowCard>("SELECT * FROM `t_flow_card` WHERE MarkedDelete = 0 AND TaskOrderId = @taskOrderId AND Batch = @batch", new { taskOrderId, batch });
         }
 
-        public IEnumerable<SmartFlowCard> GetSmartFlowCardsByTaskOrderId(int taskOrderId)
+        public static IEnumerable<SmartFlowCard> GetSmartFlowCardsByTaskOrderId(int taskOrderId)
         {
             return ServerConfig.ApiDb.Query<SmartFlowCard>("SELECT * FROM `t_flow_card` WHERE MarkedDelete = 0 AND TaskOrderId = @taskOrderId", new { taskOrderId });
         }
-        public IEnumerable<SmartFlowCard> GetSmartFlowCardsByWorkOrderId(int workOrderId)
+        public static IEnumerable<SmartFlowCard> GetSmartFlowCardsByWorkOrderId(int workOrderId)
         {
             return ServerConfig.ApiDb.Query<SmartFlowCard>("SELECT a.* FROM `t_flow_card` a JOIN `t_task_order` b ON a.TaskOrderId = b.Id WHERE a.MarkedDelete = 0 AND b.MarkedDelete = 0 AND b.WorkOrderId = @workOrderId", new { workOrderId });
         }
 
-        public IEnumerable<SmartFlowCard> GetSmartFlowCardsByTaskOrderIds(IEnumerable<int> taskOrderIds)
+        public static IEnumerable<SmartFlowCard> GetSmartFlowCardsByTaskOrderIds(IEnumerable<int> taskOrderIds)
         {
             return ServerConfig.ApiDb.Query<SmartFlowCard>("SELECT * FROM `t_flow_card` WHERE MarkedDelete = 0 AND TaskOrderId IN @taskOrderIds", new { taskOrderIds });
         }
 
-        public int GetSmartFlowCardBatch(int taskOrderId)
+        public static int GetSmartFlowCardBatch(int taskOrderId)
         {
             return ServerConfig.ApiDb.Query<int>("SELECT IFNULL(MAX(Batch), 0) FROM `t_flow_card` WHERE MarkedDelete = 0 AND TaskOrderId = @taskOrderId", new { taskOrderId }).FirstOrDefault();
         }

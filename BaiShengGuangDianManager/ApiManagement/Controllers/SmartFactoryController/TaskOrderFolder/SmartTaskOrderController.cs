@@ -36,8 +36,8 @@ namespace ApiManagement.Controllers.SmartFactoryController.TaskOrderFolder
                 var d = data.First();
                 if (d.State != SmartTaskOrderState.未加工)
                 {
-                    var flowCards = SmartFlowCardHelper.Instance.GetSmartFlowCardsByTaskOrderId(d.Id);
-                    var processes = SmartFlowCardProcessHelper.Instance.GetSmartFlowCardProcessesByFlowCardIds(flowCards.Select(x => x.Id));
+                    var flowCards = SmartFlowCardHelper.GetSmartFlowCardsByTaskOrderId(d.Id);
+                    var processes = SmartFlowCardProcessHelper.GetSmartFlowCardProcessesByFlowCardIds(flowCards.Select(x => x.Id));
                     if (processes.Any())
                     {
                         var st = processes.Where(x => x.StartTime != default(DateTime)).Min(y => y.StartTime);
@@ -170,7 +170,7 @@ namespace ApiManagement.Controllers.SmartFactoryController.TaskOrderFolder
                 return Result.GenError<Result>(Error.SmartProductNotExist);
             }
 
-            var productCapacities = SmartProductCapacityHelper.Instance.GetSmartProductCapacities(productIds);
+            var productCapacities = SmartProductCapacityHelper.GetSmartProductCapacities(productIds);
             if (!productCapacities.Any())
             {
                 return Result.GenError<Result>(Error.SmartProductCapacityNotExist);
@@ -181,7 +181,7 @@ namespace ApiManagement.Controllers.SmartFactoryController.TaskOrderFolder
             {
                 return Result.GenError<Result>(Error.SmartCapacityNotExist);
             }
-            var capacityLists = SmartCapacityListHelper.Instance.GetSmartCapacityListsWithOrder(capacityIds);
+            var capacityLists = SmartCapacityListHelper.GetSmartCapacityListsWithOrder(capacityIds);
             foreach (var productId in productIds)
             {
                 var tasks = taskOrders.Where(x => x.ProductId == productId);
@@ -202,7 +202,7 @@ namespace ApiManagement.Controllers.SmartFactoryController.TaskOrderFolder
             //设备型号
             var deviceModels = SmartDeviceModelHelper.Instance.GetAll<SmartDeviceModel>();
             //设备型号数量
-            var deviceList = SmartDeviceHelper.Instance.GetNormalSmartDevices();
+            var deviceList = SmartDeviceHelper.GetNormalSmartDevices();
             var modelCounts = deviceList.GroupBy(x => new { x.CategoryId, x.ModelId }).Select(y => new SmartDeviceModelCount
             {
                 CategoryId = y.Key.CategoryId,
@@ -212,14 +212,14 @@ namespace ApiManagement.Controllers.SmartFactoryController.TaskOrderFolder
             //人员等级
             var operatorLevels = SmartOperatorLevelHelper.Instance.GetAll<SmartOperatorLevel>();
             //人员等级数量
-            var operatorList = SmartOperatorHelper.Instance.GetNormalSmartOperators();
+            var operatorList = SmartOperatorHelper.GetNormalSmartOperators();
             var operatorCounts = operatorList.GroupBy(x => new { x.ProcessId, x.LevelId }).Select(y => new SmartOperatorCount
             {
                 ProcessId = y.Key.ProcessId,
                 LevelId = y.Key.LevelId,
                 Count = y.Count()
             });
-            var taskNeeds = SmartTaskOrderNeedHelper.Instance.GetSmartTaskOrderNeedsByTaskOrderIds(taskIds);
+            var taskNeeds = SmartTaskOrderNeedHelper.GetSmartTaskOrderNeedsByTaskOrderIds(taskIds);
 
             foreach (var task in taskOrders)
             {

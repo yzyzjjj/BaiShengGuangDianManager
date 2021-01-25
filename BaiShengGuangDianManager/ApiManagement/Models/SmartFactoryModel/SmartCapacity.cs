@@ -6,6 +6,10 @@ namespace ApiManagement.Models.SmartFactoryModel
     public class SmartCapacity : CommonBase
     {
         /// <summary>
+        /// 车间Id
+        /// </summary>
+        public int WorkshopId { get; set; }
+        /// <summary>
         /// 产能
         /// </summary>
         public string Capacity { get; set; }

@@ -20,14 +20,12 @@ namespace ApiManagement.Controllers.SmartFactoryController.DeviceFolder
     {
         // GET: api/SmartDeviceCategory
         [HttpGet]
-        public DataResult GetSmartDeviceCategory([FromQuery]int qId, bool menu)
+        public DataResult GetSmartDeviceCategory([FromQuery]int qId, int wId, bool menu)
         {
             var result = new DataResult();
-            var sql = menu ? $"SELECT Id, `Category`, `Remark` FROM `t_device_category` WHERE MarkedDelete = 0{(qId == 0 ? "" : " AND Id = @qId")};"
-                : $"SELECT * FROM `t_device_category` WHERE MarkedDelete = 0{(qId == 0 ? "" : " AND Id = @qId")};";
             result.datas.AddRange(menu
-                ? ServerConfig.ApiDb.Query<dynamic>(sql, new {qId})
-                : ServerConfig.ApiDb.Query<SmartDeviceCategory>(sql, new {qId}));
+                ? SmartDeviceCategoryHelper.GetSmartDeviceCategoryMenu(qId, wId)
+                : SmartDeviceCategoryHelper.GetSmartDeviceCategory(qId, wId));
             if (qId != 0 && !result.datas.Any())
             {
                 result.errno = Error.SmartDeviceCategoryNotExist;

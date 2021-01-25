@@ -156,7 +156,7 @@ namespace ApiManagement.Controllers.SmartFactoryController.ProductFolder
             }
 
             var result = new DataResult();
-            var duplicate = SmartProductHelper.Instance.GetSameSmartProducts(products, productIds);
+            var duplicate = SmartProductHelper.GetSameSmartProducts(products, productIds);
             if (duplicate.Any())
             {
                 result.errno = Error.SmartProductDuplicate;
@@ -188,7 +188,7 @@ namespace ApiManagement.Controllers.SmartFactoryController.ProductFolder
 
             SmartProductHelper.Instance.Update(smartProducts);
 
-            var smartProductCapacities = SmartProductCapacityHelper.Instance.GetSmartProductCapacities(productIds);
+            var smartProductCapacities = SmartProductCapacityHelper.GetSmartProductCapacities(productIds);
             var productCapacities = smartProducts.SelectMany(x => x.ProductCapacities);
             //删除
             var deleteCapacities = smartProductCapacities.Where(z => productCapacities.Where(y => y.Id != 0).All(a => a.Id != z.Id));
@@ -252,7 +252,7 @@ namespace ApiManagement.Controllers.SmartFactoryController.ProductFolder
                 return Result.GenError<Result>(Error.SmartProductDuplicate);
             }
             var result = new DataResult();
-            var data = SmartProductHelper.Instance.GetSmartProductsByProducts(products);
+            var data = SmartProductHelper.GetSmartProductsByProducts(products);
             if (data.Any())
             {
                 result.errno = Error.SmartProductDuplicate;
@@ -290,7 +290,7 @@ namespace ApiManagement.Controllers.SmartFactoryController.ProductFolder
             IEnumerable<SmartProduct> productList = null;
             if (productProcesses.Any())
             {
-                productList = SmartProductHelper.Instance.GetSmartProductsByProducts(products);
+                productList = SmartProductHelper.GetSmartProductsByProducts(products);
                 foreach (var smartProduct in smartProducts)
                 {
 
@@ -311,7 +311,7 @@ namespace ApiManagement.Controllers.SmartFactoryController.ProductFolder
             {
                 if (productList == null)
                 {
-                    productList = SmartProductHelper.Instance.GetSmartProductsByProducts(products);
+                    productList = SmartProductHelper.GetSmartProductsByProducts(products);
                 }
 
                 foreach (var smartProduct in smartProducts)
@@ -349,8 +349,8 @@ namespace ApiManagement.Controllers.SmartFactoryController.ProductFolder
                 return Result.GenError<Result>(Error.SmartProductNotExist);
             }
             SmartProductHelper.Instance.Delete(ids);
-            SmartProductProcessHelper.Instance.DeleteByProductId(ids);
-            SmartProductCapacityHelper.Instance.DeleteByProductId(ids);
+            SmartProductProcessHelper.Instance.DeleteFromParent(ids);
+            SmartProductCapacityHelper.Instance.DeleteFromParent(ids);
             return Result.GenError<Result>(Error.Success);
         }
     }

@@ -1,7 +1,7 @@
-﻿using ApiManagement.Models.BaseModel;
+﻿using ApiManagement.Base.Server;
+using ApiManagement.Models.BaseModel;
 using System.Collections.Generic;
 using System.Linq;
-using ApiManagement.Base.Server;
 
 namespace ApiManagement.Models.SmartFactoryModel
 {
@@ -17,15 +17,15 @@ namespace ApiManagement.Models.SmartFactoryModel
         }
         public static readonly SmartOperatorHelper Instance = new SmartOperatorHelper();
         #region Get
-        public string GetSmartOperatorNameById(int id)
+        public static string GetSmartOperatorNameById(int id)
         {
             return ServerConfig.ApiDb.Query<string>("SELECT b.`Name` FROM `t_operator` a JOIN `t_user` b ON a.UserId = b.Id WHERE a.Id = @id AND a.`MarkedDelete` = 0;", new { id }).FirstOrDefault();
         }
-        public string GetSmartOperatorAccountById(int id)
+        public static string GetSmartOperatorAccountById(int id)
         {
             return ServerConfig.ApiDb.Query<string>("SELECT b.`Account` FROM `t_operator` a JOIN `t_user` b ON a.UserId = b.Id WHERE a.Id = @id AND a.`MarkedDelete` = 0;", new { id }).FirstOrDefault();
         }
-        public IEnumerable<SmartOperatorCount> GetOperatorCount(IEnumerable<int> processIds)
+        public static IEnumerable<SmartOperatorCount> GetOperatorCount(IEnumerable<int> processIds)
         {
             return ServerConfig.ApiDb.Query<SmartOperatorCount>(
                 "SELECT a.ProcessId, LevelId, COUNT(1) Count FROM `t_operator` a " +
@@ -38,7 +38,7 @@ namespace ApiManagement.Models.SmartFactoryModel
         /// 获取所有员工
         /// </summary>
         /// <returns></returns>
-        public IEnumerable<SmartOperator> GetAllSmartOperators()
+        public static IEnumerable<SmartOperator> GetAllSmartOperators()
         {
             return ServerConfig.ApiDb.Query<SmartOperator>(
                 "SELECT a.*, b.`Name` FROM `t_operator` a JOIN `t_user` b ON a.UserId = b.Id;");
@@ -47,13 +47,13 @@ namespace ApiManagement.Models.SmartFactoryModel
         /// 获取状态正常的员工
         /// </summary>
         /// <returns></returns>
-        public IEnumerable<SmartOperatorDetail> GetNormalSmartOperators()
+        public static IEnumerable<SmartOperatorDetail> GetNormalSmartOperators()
         {
             return ServerConfig.ApiDb.Query<SmartOperatorDetail>(
                 "SELECT a.*, b.`Name`, c.`Level`, c.`Order` FROM `t_operator` a JOIN `t_user` b ON a.UserId = b.Id JOIN `t_operator_level` c ON a.LevelId = c.Id WHERE a.`MarkedDelete` = 0 AND a.State = @state;"
                     , new { state = SmartOperatorState.正常 });
         }
-        public IEnumerable<SmartOperatorCount> GetNormalOperatorCount(IEnumerable<int> processIds)
+        public static IEnumerable<SmartOperatorCount> GetNormalOperatorCount(IEnumerable<int> processIds)
         {
             return ServerConfig.ApiDb.Query<SmartOperatorCount>(
                 "SELECT a.ProcessId, LevelId, COUNT(1) Count FROM `t_operator` a " +
@@ -64,7 +64,7 @@ namespace ApiManagement.Models.SmartFactoryModel
                 });
         }
 
-        public IEnumerable<SmartOperatorCount> GetOperatorCount(int processId)
+        public static IEnumerable<SmartOperatorCount> GetOperatorCount(int processId)
         {
             return ServerConfig.ApiDb.Query<SmartOperatorCount>(
                 "SELECT a.ProcessId, LevelId, COUNT(1) Count FROM `t_operator` a " +
@@ -73,7 +73,7 @@ namespace ApiManagement.Models.SmartFactoryModel
                     processId
                 });
         }
-        public IEnumerable<SmartOperatorCount> GetNormalOperatorCount(int processId)
+        public static IEnumerable<SmartOperatorCount> GetNormalOperatorCount(int processId)
         {
             return ServerConfig.ApiDb.Query<SmartOperatorCount>(
                 "SELECT a.ProcessId, LevelId, COUNT(1) Count FROM `t_operator` a " +

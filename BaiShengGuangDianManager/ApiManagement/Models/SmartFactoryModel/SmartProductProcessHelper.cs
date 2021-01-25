@@ -18,19 +18,19 @@ namespace ApiManagement.Models.SmartFactoryModel
         }
         public static readonly SmartProductProcessHelper Instance = new SmartProductProcessHelper();
         #region Get
-        public IEnumerable<SmartProductProcess> GetSmartProductProcesses(IEnumerable<int> productIds)
+        public static IEnumerable<SmartProductProcess> GetSmartProductProcesses(IEnumerable<int> productIds)
         {
             return ServerConfig.ApiDb.Query<SmartProductProcess>(
                 "SELECT * FROM `t_product_process` WHERE MarkedDelete = 0 AND ProductId IN @productIds;", new { productIds });
         }
-        //public IEnumerable<SmartProductProcess> GetSameSmartProductProcesss(IEnumerable<string> products, IEnumerable<int> productIds)
+        //public static IEnumerable<SmartProductProcess> GetSameSmartProductProcesss(IEnumerable<string> products, IEnumerable<int> productIds)
         //{
         //    return ServerConfig.ApiDb.Query<SmartProductProcess>(
         //        "SELECT Id, Product FROM `t_product` WHERE MarkedDelete = 0 AND Product IN @products AND Id NOT IN @productIds;"
         //        , new { products, productIds });
         //}
 
-        public IEnumerable<SmartProductProcess> GetSmartProductProcesses(int taskOrderId, int processCodeId)
+        public static IEnumerable<SmartProductProcess> GetSmartProductProcesses(int taskOrderId, int processCodeId)
         {
             return ServerConfig.ApiDb.Query<SmartProductProcess>(
                 "SELECT a.* FROM `t_product_process` a JOIN `t_task_order` b ON a.ProductId = b.ProductId WHERE a.MarkedDelete = 0 AND b.Id = @taskOrderId AND a.ProcessCodeId = @processCodeId"
@@ -46,18 +46,6 @@ namespace ApiManagement.Models.SmartFactoryModel
         #endregion
 
         #region Delete
-        /// <summary>
-        /// 批量删除
-        /// </summary>
-        /// <param name="productId"></param>
-        public void DeleteByProductId(int productId)
-        {
-            ServerConfig.ApiDb.Execute($"UPDATE `{Table}` SET `MarkedDateTime`= NOW(), `MarkedDelete`= true WHERE `ProductId` = @productId;", new { productId });
-        }
-        public void DeleteByProductId(IEnumerable<int> productIds)
-        {
-            ServerConfig.ApiDb.Execute($"UPDATE `{Table}` SET `MarkedDateTime`= NOW(), `MarkedDelete`= true WHERE `ProductId` IN @productIds;", new { productIds });
-        }
         #endregion
     }
 }

@@ -1,7 +1,4 @@
 ﻿using ApiManagement.Models.BaseModel;
-using System.Collections.Generic;
-using System.Linq;
-using ApiManagement.Base.Server;
 
 namespace ApiManagement.Models.SmartFactoryModel
 {

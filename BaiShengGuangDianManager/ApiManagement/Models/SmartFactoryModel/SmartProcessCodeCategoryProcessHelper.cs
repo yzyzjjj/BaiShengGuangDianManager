@@ -22,7 +22,7 @@ namespace ApiManagement.Models.SmartFactoryModel
         /// </summary>
         /// <param name="processCodeCategoryIds"></param>
         /// <returns></returns>
-        public IEnumerable<SmartProcessCodeCategoryProcess> GetSmartProcessCodeCategoryProcessesByProcessCodeCategoryIds(IEnumerable<int> processCodeCategoryIds)
+        public static IEnumerable<SmartProcessCodeCategoryProcess> GetSmartProcessCodeCategoryProcessesByProcessCodeCategoryIds(IEnumerable<int> processCodeCategoryIds)
         {
             return ServerConfig.ApiDb.Query<SmartProcessCodeCategoryProcess>("SELECT * FROM `t_process_code_category_process` WHERE MarkedDelete = 0 AND ProcessCodeCategoryId IN @processCodeCategoryIds;", new { processCodeCategoryIds });
         }
@@ -31,7 +31,7 @@ namespace ApiManagement.Models.SmartFactoryModel
         /// </summary>
         /// <param name="processCodeCategoryId"></param>
         /// <returns></returns>
-        public IEnumerable<SmartProcessCodeCategoryProcess> GetSmartProcessCodeCategoryProcessesByProcessCodeCategoryId(int processCodeCategoryId)
+        public static IEnumerable<SmartProcessCodeCategoryProcess> GetSmartProcessCodeCategoryProcessesByProcessCodeCategoryId(int processCodeCategoryId)
         {
             return ServerConfig.ApiDb.Query<SmartProcessCodeCategoryProcess>("SELECT * FROM `t_process_code_category_process` WHERE MarkedDelete = 0 AND ProcessCodeCategoryId = @processCodeCategoryId;", new { processCodeCategoryId });
         }

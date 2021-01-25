@@ -5,6 +5,10 @@ namespace ApiManagement.Models.SmartFactoryModel
     public class SmartDevice : CommonBase
     {
         /// <summary>
+        /// 车间Id
+        /// </summary>
+        public int WorkshopId { get; set; }
+        /// <summary>
         /// 全部 = 0,正常 = 1,故障 = 2,报废 = 3,
         /// </summary>
         public SmartDeviceState State { get; set; }

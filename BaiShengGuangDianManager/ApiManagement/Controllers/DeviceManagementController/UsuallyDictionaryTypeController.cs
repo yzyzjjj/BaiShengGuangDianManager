@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Linq;
+using ApiManagement.Base.Helper;
 using ApiManagement.Base.Server;
 using ApiManagement.Models.DeviceManagementModel;
 using Microsoft.AspNetCore.Mvc;
@@ -107,7 +108,7 @@ namespace ApiManagement.Controllers.DeviceManagementController
             usuallyDictionaryType.MarkedDateTime = DateTime.Now;
             ServerConfig.ApiDb.Execute(
                 "UPDATE usually_dictionary_type SET `CreateUserId` = @CreateUserId, `MarkedDateTime` = @MarkedDateTime, `VariableName` = @VariableName, `StatisticType` = @StatisticType WHERE `Id` = @Id;", usuallyDictionaryType);
-            ServerConfig.RedisHelper.PublishToTable();
+            RedisHelper.PublishToTable();
             return Result.GenError<Result>(Error.Success);
         }
 
@@ -158,7 +159,7 @@ namespace ApiManagement.Controllers.DeviceManagementController
                 "VALUES(@CreateUserId, @MarkedDateTime, @MarkedDelete, @ModifyId, @ScriptId, @VariableNameId, @DictionaryId, @VariableTypeId);",
                 usuallyDictionaries);
 
-            ServerConfig.RedisHelper.PublishToTable();
+            RedisHelper.PublishToTable();
             return Result.GenError<Result>(Error.Success);
         }
 
@@ -185,7 +186,7 @@ namespace ApiManagement.Controllers.DeviceManagementController
                     MarkedDelete = true,
                     Id = id
                 });
-            ServerConfig.RedisHelper.PublishToTable();
+            RedisHelper.PublishToTable();
             return Result.GenError<Result>(Error.Success);
         }
 

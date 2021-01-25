@@ -9,6 +9,7 @@ using ServiceStack;
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using ApiManagement.Base.Helper;
 
 namespace ApiManagement.Controllers.DeviceManagementController
 {
@@ -307,7 +308,7 @@ namespace ApiManagement.Controllers.DeviceManagementController
 
             ServerConfig.ApiDb.Execute(
                 "UPDATE npc_proxy_link SET `Instruction` = @HeartPacket WHERE `Instruction` = @oldHeartPacket;", new { oldHeartPacket, scriptVersion.HeartPacket });
-            ServerConfig.RedisHelper.PublishToTable();
+            RedisHelper.PublishToTable();
         }
 
         /// <summary>

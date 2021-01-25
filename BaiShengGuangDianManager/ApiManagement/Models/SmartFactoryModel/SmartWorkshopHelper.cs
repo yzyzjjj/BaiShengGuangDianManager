@@ -1,7 +1,6 @@
 ﻿using ApiManagement.Models.BaseModel;
 using System.Collections.Generic;
 using System.Linq;
-using ApiManagement.Base.Server;
 
 namespace ApiManagement.Models.SmartFactoryModel
 {
@@ -9,21 +8,19 @@ namespace ApiManagement.Models.SmartFactoryModel
     {
         private SmartWorkshopHelper()
         {
-            Table = "t_user";
+            Table = "t_workshop";
+            SameField = "Workshop";
             InsertSql =
-                "INSERT INTO `t_workshop` (`CreateUserId`, `MarkedDateTime`, `Workshop`) " +
-                "VALUES (@CreateUserId, @MarkedDateTime, @Workshop);";
-            UpdateSql = "UPDATE `t_workshop` SET `MarkedDateTime` = @MarkedDateTime, `ModifyId` = @ModifyId, `Workshop` = @Workshop WHERE `Id` = @Id;";
+                "INSERT INTO `t_workshop` (`CreateUserId`, `MarkedDateTime`, `Workshop`, `Remark`) " +
+                "VALUES (@CreateUserId, @MarkedDateTime, @Workshop, @Remark);";
+            UpdateSql = "UPDATE `t_workshop` SET `MarkedDateTime` = @MarkedDateTime, `Workshop` = @Workshop, `Remark` = @Remark WHERE `Id` = @Id;";
+            MenuFields.AddRange(new[] { "`Id`", "`Workshop`" });
         }
         public static readonly SmartWorkshopHelper Instance = new SmartWorkshopHelper();
         #region Get
-        public string GetSmartWorkshopNameById(int id)
+        public static IEnumerable<dynamic> GetSmartWorkshopSimple(int id)
         {
-            return ServerConfig.ApiDb.Query<string>("SELECT `Name` FROM `t_user` WHERE Id = @id;", new { id }).FirstOrDefault();
-        }
-        public string GetSmartWorkshopAccountById(int id)
-        {
-            return ServerConfig.ApiDb.Query<string>("SELECT Account FROM `t_user` WHERE Id = @id;", new { id }).FirstOrDefault();
+            return Instance.CommonGet<SmartWorkshop>(id, true).Select(x => new { x.Id, x.Workshop });
         }
 
         #endregion

@@ -4,6 +4,7 @@ using System.ComponentModel;
 using System.Linq;
 using System.Reflection;
 using System.Runtime.Serialization;
+using ApiManagement.Base.Helper;
 
 namespace ApiManagement.Base.Server
 {
@@ -39,7 +40,7 @@ namespace ApiManagement.Base.Server
                 value
             });
 
-            ServerConfig.RedisHelper.PublishToTable("", TableName);
+            RedisHelper.PublishToTable("", TableName);
             LoadGlobalConfig();
         }
 
@@ -49,7 +50,7 @@ namespace ApiManagement.Base.Server
         /// <param name="tableName"></param>
         public static void RefreshCnfTable(string tableName)
         {
-            ServerConfig.RedisHelper.PublishToTable("", tableName);
+            RedisHelper.PublishToTable("", tableName);
         }
 
         /// <summary>

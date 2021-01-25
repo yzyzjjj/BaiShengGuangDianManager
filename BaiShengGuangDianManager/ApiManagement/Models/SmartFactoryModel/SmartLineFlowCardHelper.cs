@@ -16,7 +16,7 @@ namespace ApiManagement.Models.SmartFactoryModel
         /// </summary>
         /// <param name="flowCardId"></param>
         /// <returns></returns>
-        public IEnumerable<SmartLineFlowCard> GetSmartLineFlowCardsByFlowCardId(int flowCardId)
+        public static IEnumerable<SmartLineFlowCard> GetSmartLineFlowCardsByFlowCardId(int flowCardId)
         {
             return ServerConfig.ApiDb.Query<SmartLineFlowCard>("SELECT a.*, b.Process FROM `t_flow_card_process` a " +
                                                                "JOIN (SELECT a.Id, b.Process FROM `t_product_process` a JOIN (SELECT a.Id, b.Process FROM `t_process_code_category_process` a JOIN `t_process` b ON a.ProcessId = b.Id) b ON a.ProcessId = b.Id) b ON a.ProcessId = b.Id " +

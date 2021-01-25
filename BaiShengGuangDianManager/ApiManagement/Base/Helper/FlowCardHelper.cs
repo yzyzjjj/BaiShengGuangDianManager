@@ -16,6 +16,10 @@ namespace ApiManagement.Base.Helper
 {
     public class FlowCardHelper
     {
+        public FlowCardHelper()
+        {
+            Init();
+        }
 #if DEBUG
 #else
         private static Timer _timer;
@@ -39,7 +43,7 @@ namespace ApiManagement.Base.Helper
             {"精抛", "精抛"},
         };
 
-        public static void Init()
+        public void Init()
         {
 #if DEBUG
             Console.WriteLine("FlowCardHelper 调试模式已开启");
@@ -56,11 +60,11 @@ namespace ApiManagement.Base.Helper
         {
             var _pre = "FlowCard";
             var lockKey = $"{_pre}:Lock";
-            if (ServerConfig.RedisHelper.SetIfNotExist(lockKey, "lock"))
+            if (RedisHelper.SetIfNotExist(lockKey, "lock"))
             {
                 try
                 {
-                    ServerConfig.RedisHelper.SetExpireAt(lockKey, DateTime.Now.AddMinutes(5));
+                    RedisHelper.SetExpireAt(lockKey, DateTime.Now.AddMinutes(5));
                     UpdateProductionProcessStep();
                     UpdateProductionSpecification();
                     UpdateProductionProcess();
@@ -74,7 +78,7 @@ namespace ApiManagement.Base.Helper
                 {
                     Log.Error(e);
                 }
-                ServerConfig.RedisHelper.Remove(lockKey);
+                RedisHelper.Remove(lockKey);
 
             }
         }
@@ -681,11 +685,11 @@ namespace ApiManagement.Base.Helper
             }
 
             var key = "isUpdateProductionProcess";
-            if (!ServerConfig.RedisHelper.Exists(key))
+            if (!RedisHelper.Exists(key))
             {
-                ServerConfig.RedisHelper.SetForever(key, 0);
+                RedisHelper.SetForever(key, 0);
             }
-            var isUpdateProductionProcessFlag = ServerConfig.RedisHelper.Get<int>(key) == 1;
+            var isUpdateProductionProcessFlag = RedisHelper.Get<int>(key) == 1;
             if (isUpdateProductionProcessFlag)
             {
                 var now = DateTime.Now;
