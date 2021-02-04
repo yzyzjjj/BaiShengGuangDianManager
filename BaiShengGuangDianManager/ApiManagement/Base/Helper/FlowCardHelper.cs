@@ -16,10 +16,6 @@ namespace ApiManagement.Base.Helper
 {
     public class FlowCardHelper
     {
-        public FlowCardHelper()
-        {
-            Init();
-        }
 #if DEBUG
 #else
         private static Timer _timer;
@@ -43,7 +39,7 @@ namespace ApiManagement.Base.Helper
             {"精抛", "精抛"},
         };
 
-        public void Init()
+        public static void Init()
         {
 #if DEBUG
             Console.WriteLine("FlowCardHelper 调试模式已开启");

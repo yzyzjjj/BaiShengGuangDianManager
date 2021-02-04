@@ -9,6 +9,10 @@ namespace ApiManagement.Models.SmartFactoryModel
     public class SmartWorkOrder : CommonBase
     {
         /// <summary>
+        /// 车间Id
+        /// </summary>
+        public int WorkshopId { get; set; }
+        /// <summary>
         /// 工单
         /// </summary>
         public string WorkOrder { get; set; }

@@ -1,21 +1,20 @@
-﻿using ApiManagement.Base.Server;
+﻿using System;
+using System.Collections.Generic;
+using System.Linq;
+using ApiManagement.Base.Server;
 using ApiManagement.Models.BaseModel;
 using ApiManagement.Models.SmartFactoryModel;
 using Microsoft.AspNetCore.Mvc;
 using ModelBase.Base.EnumConfig;
 using ModelBase.Base.Utils;
 using ModelBase.Models.Result;
-using System;
-using System.Collections.Generic;
-using System.Linq;
 
-namespace ApiManagement.Controllers.SmartFactoryController.UserFolder
+namespace ApiManagement.Controllers.SmartFactoryController.AccountFolder
 {
     /// <summary>
     /// 
     /// </summary>
-    [Route("api/[controller]")]
-    [ApiController]
+    [Microsoft.AspNetCore.Mvc.Route("api/[controller]"), ApiController]
     public class SmartAccountController : ControllerBase
     {
         // GET: api/SmartAccount

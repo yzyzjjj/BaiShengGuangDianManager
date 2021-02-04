@@ -11,6 +11,10 @@ namespace ApiManagement.Models.SmartFactoryModel
     public class SmartTaskOrder : CommonBase
     {
         /// <summary>
+        /// 车间Id
+        /// </summary>
+        public int WorkshopId { get; set; }
+        /// <summary>
         /// 任务单
         /// </summary>
         public string TaskOrder { get; set; }
@@ -349,12 +353,29 @@ namespace ApiManagement.Models.SmartFactoryModel
             return MemberwiseClone();
         }
     }
+    ///// <summary>
+    ///// 任务单设计安排
+    ///// </summary>
+    //public class SmartTaskOrderArrange
+    //{
+    //    /// <summary>
+    //    /// 车间Id
+    //    /// </summary>
+    //    public int WorkshopId { get; set; }
+    //    public List<SmartTaskOrderConfirm> TaskOrders { get; set; } = new List<SmartTaskOrderConfirm>();
+    //    public List<SmartTaskOrderScheduleDetail> Schedule { get; set; } = new List<SmartTaskOrderScheduleDetail>();
+    //}
     /// <summary>
     /// 任务单设计安排
     /// </summary>
-    public class SmartTaskOrderArrange
+    public class SmartTaskOrderArrangeParam
     {
-        public List<SmartTaskOrderConfirm> TaskOrders { get; set; } = new List<SmartTaskOrderConfirm>();
+        /// <summary>
+        /// 车间Id
+        /// </summary>
+        public int WorkshopId { get; set; }
+        public IEnumerable<SmartTaskOrderPreview> Previews { get; set; }
+        public IEnumerable<SmartTaskOrderConfirm> Confirms { get; set; }
         public List<SmartTaskOrderScheduleDetail> Schedule { get; set; } = new List<SmartTaskOrderScheduleDetail>();
     }
     public class SmartTaskOrderCapacity : SmartTaskOrderDetail

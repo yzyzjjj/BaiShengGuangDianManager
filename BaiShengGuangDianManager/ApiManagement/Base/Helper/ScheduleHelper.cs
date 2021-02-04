@@ -18,17 +18,12 @@ namespace ApiManagement.Base.Helper
     /// </summary>
     public class ScheduleHelper
     {
-        public ScheduleHelper()
-        {
-            Init();
-        }
 #if DEBUG
 #else
-        private static Timer _scheduleTimer;
+        //private static Timer _scheduleTimer;
 #endif
-        public static readonly ScheduleHelper Instance = new ScheduleHelper();
         private const int Day = 100;
-        public void Init()
+        public static void Init()
         {
             //_scheduleTimer = new Timer(NeedArrange, null, 5000, 1000 * 60 * 1);
         }
@@ -45,7 +40,7 @@ namespace ApiManagement.Base.Helper
         /// <param name="markedDateTime">安排时间</param>
         /// <param name="type">排程方法 （1）最短工期（2）最早交货期（3）按照工期和交货期之间的距离（4）CR值</param>
         /// https://blog.csdn.net/console11/article/details/96288314
-        public static List<SmartTaskOrderScheduleCostDays> ArrangeSchedule(
+        public static List<SmartTaskOrderScheduleCostDays> ArrangeSchedule(int wId,
             ref IEnumerable<SmartTaskOrderConfirm> tasks,
             ref List<SmartTaskOrderScheduleDetail> schedule,
             out IEnumerable<SmartTaskOrderScheduleIndex> indexes,
@@ -61,12 +56,11 @@ namespace ApiManagement.Base.Helper
             var costDays = new List<SmartTaskOrderScheduleCostDays>();
             var today = DateTime.Today;
             var taskIds = tasks.Select(x => x.Id);
-            var theseTasks = SmartTaskOrderHelper.GetWillArrangedSmartTaskOrders(taskIds);
+            var theseTasks = SmartTaskOrderHelper.GetWillArrangedSmartTaskOrders(wId, taskIds);
             var needs = new List<SmartTaskOrderNeedDetail>();
             if (theseTasks.Any())
             {
-                needs.AddRange(SmartTaskOrderNeedHelper.GetSmartTaskOrderNeedsByTaskOrderIds(
-                    theseTasks.Select(x => x.Id)));
+                needs.AddRange(SmartTaskOrderNeedHelper.GetSmartTaskOrderNeedsByTaskOrderIds(wId, theseTasks.Select(x => x.Id)));
             }
 
             foreach (var task in tasks)
@@ -114,7 +108,7 @@ namespace ApiManagement.Base.Helper
             // 产能设置
             var smartCapacityLists = SmartCapacityListHelper.GetAllSmartCapacityListsWithOrder(capacityIds);
             //设备型号数量
-            var deviceList = SmartDeviceHelper.GetNormalSmartDevices();
+            var deviceList = SmartDeviceHelper.GetNormalSmartDevices(wId);
             var modelCount = deviceList.GroupBy(x => new { x.CategoryId, x.ModelId }).Select(y => new SmartDeviceModelCount
             {
                 CategoryId = y.Key.CategoryId,
@@ -122,7 +116,7 @@ namespace ApiManagement.Base.Helper
                 Count = y.Count()
             });
             //人员等级数量
-            var operatorList = SmartOperatorHelper.GetNormalSmartOperators();
+            var operatorList = SmartOperatorHelper.GetNormalSmartOperators(wId);
             var operatorCount = operatorList.GroupBy(x => new { x.ProcessId, x.LevelId }).Select(y => new SmartOperatorCount
             {
                 ProcessId = y.Key.ProcessId,
@@ -130,7 +124,7 @@ namespace ApiManagement.Base.Helper
                 Count = y.Count()
             });
             //工序已安排数量
-            var schedules = SmartTaskOrderScheduleHelper.GetSmartTaskOrderSchedule(taskIds);
+            var schedules = SmartTaskOrderScheduleHelper.GetSmartTaskOrderSchedule(wId, taskIds);
 
             //设备 0  人员 1
             var way = 2;
@@ -357,7 +351,7 @@ namespace ApiManagement.Base.Helper
             if (isArrange)
             {
                 var batch = SmartTaskOrderHelper.AddSmartTaskOrderBatch(createUserId);
-                var oldNeeds = SmartTaskOrderNeedHelper.GetSmartTaskOrderNeedsByTaskOrderIds(taskIds);
+                var oldNeeds = SmartTaskOrderNeedHelper.GetSmartTaskOrderNeedsByTaskOrderIds(wId, taskIds);
                 var calNeeds = cnWaitTasks[ii][jj].SelectMany(x => x.Needs);
                 var newNeeds = tasks.SelectMany(x => x.Needs);
                 foreach (var need in newNeeds)
@@ -787,7 +781,7 @@ namespace ApiManagement.Base.Helper
                     var capacityList = smartCapacityLists.Where(x => x.CapacityId == capacityId);
                     //计划号单日工序实际产能列表
                     var pCapacities = productCapacities.Where(x => x.ProductId == productId);
-                    if (pCapacities.Any(x => x.DeviceNumber == 0 || x.OperatorNumber == 0))
+                    if (pCapacities.Any(x => x.DeviceCapacity == 0 || x.OperatorCapacity == 0))
                     {
                         task.CanArrange = false;
                         continue;
@@ -796,6 +790,7 @@ namespace ApiManagement.Base.Helper
                     decimal waitIndex = 0;
                     for (var i = 0; i < task.Needs.Count; i++)
                     {
+                        var rate = 0m;
                         var need = task.Needs.ElementAt(i);
                         var processId = need.ProcessId;
                         //工序单日产能配置
@@ -806,10 +801,19 @@ namespace ApiManagement.Base.Helper
                         var pCapacity = pCapacities.FirstOrDefault(x => x.ProcessId == processId);
                         //安排设备或人员列表
                         var arrangeList = new List<ArrangeInfo>();
-                        //用设备产能计算但是不支持设备加工
+                        //用设备产能计算时不支持设备加工
                         if (productType == 0 && cList.CategoryId == 0)
                         {
                             productType = 1;
+                        }
+
+                        if (productType == 0)
+                        {
+                            rate = pCapacity.DeviceList.Any() ? pCapacity.DeviceList.First().Rate : 0;
+                        }
+                        else if (productType == 1)
+                        {
+                            rate = pCapacity.OperatorList.Any() ? pCapacity.OperatorList.First().Rate : 0;
                         }
                         SmartTaskOrderScheduleDetail sc;
                         if (task.SetStartTime != default(DateTime) && task.SetStartTime > t)
@@ -885,7 +889,7 @@ namespace ApiManagement.Base.Helper
                             ProductType = productType,
                             Process = need.Process,
                             Stock = need.Stock,
-                            Target = (int)Math.Floor(put * pCapacity.Rate / 100),
+                            Target = (int)Math.Floor(put * rate / 100),
                             Put = put,
                             //Target = (int)(put * pCapacity.Rate / 100).ToRound(0),
                             CapacityIndex = ((decimal)put / capacity).ToRound(4)

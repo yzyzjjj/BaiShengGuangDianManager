@@ -696,7 +696,7 @@ namespace ApiManagement.Controllers.SmartFactoryController.SmartFactoryFolder
             var result = new DataResult();
             var deviceList = SmartDeviceHelper.Instance.GetAll<SmartDevice>();
             var categories = SmartDeviceCategoryHelper.Instance.GetAll<SmartDeviceCategory>();
-            var devices = SimulateHelper.Instance.Devices();
+            var devices = SimulateHelper.Devices();
             var data = new List<SmartProcessDeviceDetail>();
             data.AddRange(devices.Select(ClassExtension.ParentCopyToChild<SmartProcessDevice, SmartProcessDeviceDetail>));
             foreach (var device in data)

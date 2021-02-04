@@ -9,6 +9,10 @@ namespace ApiManagement.Models.SmartFactoryModel
     public class SmartProduct : CommonBase
     {
         /// <summary>
+        /// 车间Id
+        /// </summary>
+        public int WorkshopId { get; set; }
+        /// <summary>
         /// 计划号
         /// </summary>
         public string Product { get; set; }
@@ -31,11 +35,11 @@ namespace ApiManagement.Models.SmartFactoryModel
         /// <summary>
         /// 设备日产能
         /// </summary>
-        public int DeviceNumber { get; set; }
+        public int DeviceCapacity { get; set; }
         /// <summary>
         /// 人员日产能
         /// </summary>
-        public int OperatorNumber { get; set; }
+        public int OperatorCapacity { get; set; }
     }
 
     public class SmartProcessCraft
@@ -70,9 +74,8 @@ namespace ApiManagement.Models.SmartFactoryModel
         [JsonIgnore]
         public List<string> ProcessCodesList { get; set; } = new List<string>();
         public string ProcessCodes => ProcessCodesList.Join();
-        public List<SmartProductProcessDetail> ProductProcesses { get; set; } = new List<SmartProductProcessDetail>();
-
-        public List<SmartProductCapacityDetail> ProductCapacities { get; set; } = new List<SmartProductCapacityDetail>();
+        public List<SmartProductProcessDetail> Processes { get; set; } = new List<SmartProductProcessDetail>();
+        public List<SmartProductCapacityDetail> Capacities { get; set; } = new List<SmartProductCapacityDetail>();
 
     }
 

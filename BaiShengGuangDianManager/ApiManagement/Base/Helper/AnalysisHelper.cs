@@ -22,17 +22,12 @@ namespace ApiManagement.Base.Helper
     /// </summary>
     public class AnalysisHelper
     {
-        public AnalysisHelper()
-        {
-            Init();
-        }
 #if DEBUG
 #else
         private static readonly string Debug = "Debug";
         private static Timer _timer2S;
         private static Timer _timer10S;
         private static Timer _timer60S;
-        private static Timer _script;
 #endif
         private static int _dealLength = 500;
         //public static MonitoringKanBan MonitoringKanBan;
@@ -45,7 +40,7 @@ namespace ApiManagement.Base.Helper
         /// DeviceId
         /// </summary>
         public static Dictionary<int, MonitoringKanBanDevice> MonitoringKanBanDeviceDic = new Dictionary<int, MonitoringKanBanDevice>();
-        public void Init()
+        public static void Init()
         {
             try
             {

@@ -1,51 +1,68 @@
-﻿using ApiManagement.Models.BaseModel;
-using System;
+﻿using System;
 
 namespace ApiManagement.Models.SmartFactoryModel
 {
-    public class SmartProductCapacity : CommonBase, ICloneable
+    //public class SmartProductCapacity : CommonBase, ICloneable
+    public class SmartProductCapacity : SmartCapacityList, ICloneable
     {
+        /// <summary>
+        /// 车间Id
+        /// </summary>
+        public int WorkshopId { get; set; }
         /// <summary>
         /// 计划号id
         /// </summary>
         public int ProductId { get; set; }
-        /// <summary>
-        /// 标准流程id
-        /// </summary>
-        public int ProcessId { get; set; }
+        ///// <summary>
+        ///// 标准流程id
+        ///// </summary>
+        //public int ProcessId { get; set; }
         /// <summary>
         /// 合格率
         /// </summary>
+        [Obsolete("废弃")]
         public decimal Rate { get; set; }
         /// <summary>
         /// 工时
         /// </summary>
+        [Obsolete("废弃")]
         public int Day { get; set; }
         /// <summary>
         /// 工时
         /// </summary>
+        [Obsolete("废弃")]
         public int Hour { get; set; }
         /// <summary>
         /// 工时
         /// </summary>
+        [Obsolete("废弃")]
         public int Min { get; set; }
         /// <summary>
         /// 工时
         /// </summary>
+        [Obsolete("废弃")]
         public int Sec { get; set; }
-
         /// <summary>
         /// 日最大产能 该日产能为末道工序最大产能
         /// </summary>
+        [Obsolete("废弃")]
         public int Number { get; set; }
+        ///// <summary>
+        ///// 设备日产能
+        ///// </summary>
+        //public int DeviceNumber { get; set; }
+        ///// <summary>
+        ///// 人员日产能
+        ///// </summary>
+        //public int OperatorNumber { get; set; }
         /// <summary>
         /// 设备日产能
         /// </summary>
-        public int DeviceNumber { get; set; }
+        public int DeviceCapacity { get; set; }
         /// <summary>
         /// 人员日产能
         /// </summary>
-        public int OperatorNumber { get; set; }
+        public int OperatorCapacity { get; set; }
 
         public SmartProductCapacityError Error { get; set; } = SmartProductCapacityError.正常;
 
@@ -57,10 +74,10 @@ namespace ApiManagement.Models.SmartFactoryModel
 
     public class SmartProductCapacityDetail : SmartProductCapacity
     {
-        /// <summary>
-        /// 产能id
-        /// </summary>
-        public int CapacityId { get; set; }
+        ///// <summary>
+        ///// 产能id
+        ///// </summary>
+        //public int CapacityId { get; set; }
         /// <summary>
         /// 标准流程id
         /// </summary>

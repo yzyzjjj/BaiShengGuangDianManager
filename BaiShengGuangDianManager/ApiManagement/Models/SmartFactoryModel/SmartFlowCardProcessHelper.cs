@@ -10,8 +10,8 @@ namespace ApiManagement.Models.SmartFactoryModel
         {
             Table = "t_flow_card_process";
             InsertSql =
-                "INSERT INTO `t_flow_card_process` (`CreateUserId`, `MarkedDateTime`, `FlowCardId`, `ProcessId`, `ProcessorId`, `Before`) " +
-                "VALUES (@CreateUserId, @MarkedDateTime, @FlowCardId, @ProcessId, @ProcessorId, @Before);";
+                "INSERT INTO `t_flow_card_process` (`CreateUserId`, `MarkedDateTime`, `WorkshopId`, `FlowCardId`, `ProcessId`, `ProcessorId`, `Before`) " +
+                "VALUES (@CreateUserId, @MarkedDateTime, @WorkshopId, @FlowCardId, @ProcessId, @ProcessorId, @Before);";
             UpdateSql = "UPDATE `t_flow_card_process` SET `MarkedDateTime` = @MarkedDateTime, `State` = @State, " +
                         "`StartTime` = IF(@StartTime='0001-01-01 00:00:00', `StartTime`, @StartTime), " +
                         "`EndTime` = IF(@EndTime='0001-01-01 00:00:00', `EndTime`, @EndTime), " +
@@ -19,6 +19,29 @@ namespace ApiManagement.Models.SmartFactoryModel
         }
         public static readonly SmartFlowCardProcessHelper Instance = new SmartFlowCardProcessHelper();
         #region Get
+        /// <summary>
+        /// 菜单
+        /// </summary>
+        /// <param name="id"></param>
+        /// <param name="wId"></param>
+        /// <param name="fId"></param>
+        /// <returns></returns>
+        public static IEnumerable<SmartFlowCardProcessDetail> GetDetail(int id = 0, int wId = 0, int fId = 0)
+        {
+            var sql = $"SELECT a.*, b.Process, IFNULL(c.`Name`, '') Processor, IFNULL(d.`Code`, '') `DeviceCode` FROM `t_flow_card_process` a " +
+                      $"JOIN (SELECT a.Id, b.Process FROM `t_product_process` a " +
+                      $"JOIN (SELECT a.Id, b.Process FROM `t_process_code_category_process` a " +
+                      $"JOIN `t_process` b ON a.ProcessId = b.Id) b ON a.ProcessId = b.Id) b ON a.ProcessId = b.Id " +
+                      $"LEFT JOIN `t_user` c ON a.ProcessorId = c.Id " +
+                      $"LEFT JOIN `t_device` d ON a.DeviceId = d.Id " +
+                      $"WHERE " +
+                      $"{(id == 0 ? "" : "a.Id = @id AND ")}" +
+                      $"{(wId == 0 ? "" : "a.WorkshopId = @wId AND ")}" +
+                      $"{(fId == 0 ? "" : "a.FlowCardId = @fId AND ")}" +
+                      $"a.MarkedDelete = 0 " +
+                      "ORDER BY a.FlowCardId, a.Id";
+            return ServerConfig.ApiDb.Query<SmartFlowCardProcessDetail>(sql, new { id, fId });
+        }
         /// <summary>
         /// 通过流程卡id获取流程卡流程
         /// </summary>

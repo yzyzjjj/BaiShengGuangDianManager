@@ -1,23 +1,20 @@
-﻿using ApiManagement.Base.Server;
+﻿using ApiManagement.Base.Helper;
 using ApiManagement.Models.BaseModel;
 using ApiManagement.Models.SmartFactoryModel;
 using Microsoft.AspNetCore.Mvc;
 using ModelBase.Base.EnumConfig;
 using ModelBase.Base.Utils;
 using ModelBase.Models.Result;
-using ServiceStack;
 using System;
 using System.Collections.Generic;
 using System.Linq;
-using ApiManagement.Base.Helper;
 
 namespace ApiManagement.Controllers.SmartFactoryController.OperatorFolder
 {
     /// <summary>
     /// 
     /// </summary>
-    [Microsoft.AspNetCore.Mvc.Route("api/[controller]")]
-    [ApiController]
+    [Microsoft.AspNetCore.Mvc.Route("api/[controller]"), ApiController]
     public class SmartOperatorController : ControllerBase
     {
         // GET: api/SmartOperator
@@ -25,6 +22,7 @@ namespace ApiManagement.Controllers.SmartFactoryController.OperatorFolder
         /// 
         /// </summary>
         /// <param name="qId"></param>
+        /// <param name="wId"></param>
         /// <param name="menu"></param>
         /// <param name="add"></param>
         /// <param name="number"></param>
@@ -35,77 +33,13 @@ namespace ApiManagement.Controllers.SmartFactoryController.OperatorFolder
         /// <param name="condition"> 0 等于  1 包含</param>
         /// <returns></returns>
         [HttpGet]
-        public DataResult GetSmartOperator([FromQuery]int qId, bool menu, bool add, string number, string name, int levelId, int processId, int condition, SmartOperatorState state)
+        public DataResult GetSmartOperator([FromQuery]bool menu, bool add, int qId, int wId, int levelId = -1,
+            int processId = -1, string number = "", string name = "", SmartOperatorState state = SmartOperatorState.全部, int condition = 0)
         {
             var result = new DataResult();
-            string sql;
-            if (menu && add)
-            {
-                sql = $"SELECT a.Id, a.`Name` FROM `accounts` a LEFT JOIN(SELECT * FROM `t_operator` WHERE MarkedDelete = 0) b ON a.Id = b.UserId " +
-                      $"WHERE a.MarkedDelete = 0 AND ISNULL(b.Id) ORDER BY b.ProcessId, b.Priority, a.Id;";
-            }
-            else if (menu)
-            {
-                sql = $"SELECT Id, `Name` FROM `t_operator` WHERE MarkedDelete = 0{(qId == 0 ? "" : " AND Id = @qId")} ORDER BY ProcessId, Priority, a.Id;";
-            }
-            else if (add)
-            {
-                sql = $"SELECT a.* FROM `accounts` a LEFT JOIN (SELECT * FROM `t_operator` WHERE MarkedDelete = 0) b ON a.Id = b.UserId " +
-                      $"WHERE a.MarkedDelete = 0 AND ISNULL(b.Id) ORDER BY b.ProcessId, b.Priority, a.Id;";
-            }
-            else
-            {
-                var paramList = new List<string>();
-                if (qId != 0)
-                {
-                    paramList.Add(" AND a.Id = @qId");
-                }
-                if (state != 0)
-                {
-                    paramList.Add(" AND a.State = @state");
-                }
-                if (!number.IsNullOrEmpty())
-                {
-                    if (condition == 0)
-                    {
-                        paramList.Add($" AND b.`Number` = @number");
-                    }
-                    else
-                    {
-                        number = $"%{number}%";
-                        paramList.Add($" AND b.`Number` LIKE @number");
-                    }
-                }
-                if (!name.IsNullOrEmpty())
-                {
-                    if (condition == 0)
-                    {
-                        paramList.Add($" AND b.`Name` = @name");
-                    }
-                    else
-                    {
-                        name = $"%{name}%";
-                        paramList.Add($" AND b.`Name` LIKE @name");
-                    }
-                }
-                if (levelId != 0)
-                {
-                    paramList.Add($" AND a.LevelId = @levelId");
-                }
-                if (processId != 0)
-                {
-                    paramList.Add($" AND a.ProcessId = @processId");
-                }
-                sql = $"SELECT a.*, b.`Number`, b.`Name`, b.`Account`, c.Process, d.`Level` FROM `t_operator` a " +
-                      $"JOIN `accounts` b ON a.UserId = b.Id " +
-                      $"JOIN `t_process` c ON a.ProcessId = c.Id " +
-                      $"JOIN `t_operator_level` d ON a.LevelId = d.Id " +
-                      $"WHERE a.MarkedDelete = 0{(paramList.Join(""))} ORDER BY a.ProcessId, a.Priority, a.Id;";
-            }
-
             result.datas.AddRange(menu
-                ? ServerConfig.ApiDb.Query<dynamic>(sql, new { qId })
-                : ServerConfig.ApiDb.Query<SmartOperatorDetail>(sql, new { qId, number, name, levelId, processId, state }));
+                ? SmartOperatorHelper.GetMenu(add, qId, wId, levelId, processId, number, name, state, condition)
+                : SmartOperatorHelper.GetDetail(add, qId, wId, levelId, processId, number, name, state, condition));
             if (qId != 0 && !result.datas.Any())
             {
                 result.errno = Error.SmartOperatorNotExist;
@@ -117,49 +51,65 @@ namespace ApiManagement.Controllers.SmartFactoryController.OperatorFolder
         /// <summary>
         /// 自增Id
         /// </summary>
-        /// <param name="smartOperators"></param>
+        /// <param name="operators"></param>
         /// <returns></returns>
         // PUT: api/SmartOperator/Id/5
         [HttpPut]
-        public Result PutSmartOperator([FromBody] IEnumerable<SmartOperator> smartOperators)
+        public Result PutSmartOperator([FromBody] IEnumerable<SmartOperator> operators)
         {
-            if (smartOperators == null || !smartOperators.Any())
+            if (operators == null || !operators.Any())
             {
                 return Result.GenError<Result>(Error.ParamError);
             }
 
-            var smartOperatorIds = smartOperators.Select(x => x.Id);
-            var data = SmartOperatorHelper.Instance.GetByIds<SmartOperator>(smartOperatorIds);
-            if (data.Count() != smartOperators.Count())
+            var ids = operators.Select(x => x.Id);
+            var cnt = SmartOperatorHelper.Instance.GetCountByIds(ids);
+            if (cnt != operators.Count())
             {
                 return Result.GenError<Result>(Error.SmartOperatorNotExist);
             }
-
-            var createUserId = Request.GetIdentityInformation();
             var markedDateTime = DateTime.Now;
-            foreach (var smartOperator in smartOperators)
+            foreach (var op in operators)
             {
-                smartOperator.CreateUserId = createUserId;
-                smartOperator.MarkedDateTime = markedDateTime;
+                op.MarkedDateTime = markedDateTime;
+                op.Remark = op.Remark ?? "";
             }
-            SmartOperatorHelper.Instance.Update(smartOperators);
-            WorkFlowHelper.Instance.OnSmartOperatorChanged(smartOperators);
+            SmartOperatorHelper.Instance.Update(operators);
+            WorkFlowHelper.Instance.OnSmartOperatorChanged(operators);
             return Result.GenError<Result>(Error.Success);
         }
 
         // POST: api/SmartOperator
         [HttpPost]
-        public Result PostSmartOperator([FromBody] IEnumerable<SmartOperator> smartOperators)
+        public Result PostSmartOperator([FromBody] IEnumerable<SmartOperator> operators)
         {
-            var createUserId = Request.GetIdentityInformation();
-            var markedDateTime = DateTime.Now;
-            foreach (var smartOperator in smartOperators)
+            if (operators == null || !operators.Any())
             {
-                smartOperator.CreateUserId = createUserId;
-                smartOperator.MarkedDateTime = markedDateTime;
+                return Result.GenError<Result>(Error.ParamError);
             }
-            SmartOperatorHelper.Instance.Add(smartOperators);
-            WorkFlowHelper.Instance.OnSmartOperatorChanged(smartOperators);
+            if (operators.Any(x => x.UserId == 0))
+            {
+                return Result.GenError<Result>(Error.SmartOperatorNotEmpty);
+            }
+
+            var wId = operators.FirstOrDefault()?.WorkshopId ?? 0;
+            var uIds = operators.Select(x => x.UserId.ToString());
+            if (SmartOperatorHelper.GetHaveSame(wId, uIds))
+            {
+                return Result.GenError<Result>(Error.SmartOperatorDuplicate);
+            }
+
+            var userId = Request.GetIdentityInformation();
+            var markedDateTime = DateTime.Now;
+            foreach (var op in operators)
+            {
+                op.CreateUserId = userId;
+                op.MarkedDateTime = markedDateTime;
+                op.Remark = op.Remark ?? "";
+            }
+
+            SmartOperatorHelper.Instance.Add(operators);
+            WorkFlowHelper.Instance.OnSmartOperatorChanged(operators);
             return Result.GenError<Result>(Error.Success);
         }
 

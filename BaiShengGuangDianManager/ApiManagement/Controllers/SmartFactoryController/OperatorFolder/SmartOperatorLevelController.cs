@@ -1,34 +1,37 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using ApiManagement.Base.Helper;
-using ApiManagement.Base.Server;
+﻿using ApiManagement.Base.Helper;
 using ApiManagement.Models.BaseModel;
 using ApiManagement.Models.SmartFactoryModel;
 using Microsoft.AspNetCore.Mvc;
 using ModelBase.Base.EnumConfig;
 using ModelBase.Base.Utils;
 using ModelBase.Models.Result;
+using ServiceStack;
+using System;
+using System.Collections.Generic;
+using System.Linq;
 
 namespace ApiManagement.Controllers.SmartFactoryController.OperatorFolder
 {
     /// <summary>
     /// 
     /// </summary>
-    [Route("api/[controller]")]
-    [ApiController]
+    [Microsoft.AspNetCore.Mvc.Route("api/[controller]"), ApiController]
     public class SmartOperatorLevelController : ControllerBase
     {
-        // GET: api/SmartOperatorLevel
+        /// <summary>
+        /// GET: api/SmartOperatorLevel
+        /// </summary>
+        /// <param name="qId">ID</param>
+        /// <param name="wId">车间ID</param>
+        /// <param name="menu">是否菜单</param>
+        /// <returns></returns>
         [HttpGet]
-        public DataResult GetSmartOperatorLevel([FromQuery]int qId, bool menu)
+        public DataResult GetSmartOperatorLevel([FromQuery]int qId, int wId, bool menu)
         {
             var result = new DataResult();
-            var sql = menu ? $"SELECT Id, `Level`, `Order` FROM `t_operator_level` WHERE MarkedDelete = 0{(qId == 0 ? "" : " AND Id = @qId")} ORDER BY `Order`;"
-                : $"SELECT * FROM `t_operator_level` WHERE MarkedDelete = 0{(qId == 0 ? "" : " AND Id = @qId")} ORDER BY `Order`;";
             result.datas.AddRange(menu
-                ? ServerConfig.ApiDb.Query<dynamic>(sql, new { qId })
-                : ServerConfig.ApiDb.Query<SmartOperatorLevel>(sql, new { qId }));
+                ? SmartOperatorLevelHelper.GetMenu(qId, wId)
+                : SmartOperatorLevelHelper.GetDetail(qId, wId));
             if (qId != 0 && !result.datas.Any())
             {
                 result.errno = Error.SmartOperatorLevelNotExist;
@@ -40,49 +43,84 @@ namespace ApiManagement.Controllers.SmartFactoryController.OperatorFolder
         /// <summary>
         /// 自增Id
         /// </summary>
-        /// <param name="smartOperatorLevels"></param>
+        /// <param name="operatorLevels"></param>
         /// <returns></returns>
         // PUT: api/SmartOperatorLevel/Id/5
         [HttpPut]
-        public Result PutSmartOperatorLevel([FromBody] IEnumerable<SmartOperatorLevel> smartOperatorLevels)
+        public Result PutSmartOperatorLevel([FromBody] IEnumerable<SmartOperatorLevel> operatorLevels)
         {
-            if (smartOperatorLevels == null || !smartOperatorLevels.Any())
+            if (operatorLevels == null || !operatorLevels.Any())
             {
                 return Result.GenError<Result>(Error.ParamError);
             }
+            if (operatorLevels.Any(x => x.Level.IsNullOrEmpty()))
+            {
+                return Result.GenError<Result>(Error.SmartOperatorLevelNotEmpty);
+            }
+            if (operatorLevels.GroupBy(x => x.Level).Any(y => y.Count() > 1))
+            {
+                return Result.GenError<Result>(Error.SmartOperatorLevelDuplicate);
+            }
 
-            var smartOperatorLevelIds = smartOperatorLevels.Select(x => x.Id);
-            var data = SmartOperatorLevelHelper.Instance.GetByIds<SmartOperatorLevel>(smartOperatorLevelIds);
-            if (data.Count() != smartOperatorLevels.Count())
+            var wId = operatorLevels.FirstOrDefault()?.WorkshopId ?? 0;
+            var sames = operatorLevels.Select(x => x.Level);
+            var ids = operatorLevels.Select(x => x.Id);
+            if (SmartOperatorLevelHelper.GetHaveSame(wId, sames, ids))
+            {
+                return Result.GenError<Result>(Error.SmartOperatorLevelIsExist);
+            }
+
+            var cnt = SmartOperatorLevelHelper.Instance.GetCountByIds(ids);
+            if (cnt != operatorLevels.Count())
             {
                 return Result.GenError<Result>(Error.SmartOperatorLevelNotExist);
             }
 
-            var createUserId = Request.GetIdentityInformation();
             var markedDateTime = DateTime.Now;
-            foreach (var smartOperatorLevel in smartOperatorLevels)
+            foreach (var operatorLevel in operatorLevels)
             {
-                smartOperatorLevel.CreateUserId = createUserId;
-                smartOperatorLevel.MarkedDateTime = markedDateTime;
+                operatorLevel.MarkedDateTime = markedDateTime;
+                operatorLevel.Remark = operatorLevel.Remark ?? "";
             }
-            SmartOperatorLevelHelper.Instance.Update(smartOperatorLevels);
-            WorkFlowHelper.Instance.OnSmartOperatorLevelChanged(smartOperatorLevels);
+            SmartOperatorLevelHelper.Instance.Update(operatorLevels);
+            WorkFlowHelper.Instance.OnSmartOperatorLevelChanged(operatorLevels);
             return Result.GenError<Result>(Error.Success);
         }
 
         // POST: api/SmartOperatorLevel
         [HttpPost]
-        public Result PostSmartOperatorLevel([FromBody] IEnumerable<SmartOperatorLevel> smartOperatorLevels)
+        public Result PostSmartOperatorLevel([FromBody] IEnumerable<SmartOperatorLevel> operatorLevels)
         {
-            var createUserId = Request.GetIdentityInformation();
-            var markedDateTime = DateTime.Now;
-            foreach (var smartOperatorLevel in smartOperatorLevels)
+            if (operatorLevels == null || !operatorLevels.Any())
             {
-                smartOperatorLevel.CreateUserId = createUserId;
-                smartOperatorLevel.MarkedDateTime = markedDateTime;
+                return Result.GenError<Result>(Error.ParamError);
             }
-            SmartOperatorLevelHelper.Instance.Add(smartOperatorLevels);
-            WorkFlowHelper.Instance.OnSmartOperatorLevelChanged(smartOperatorLevels);
+            if (operatorLevels.Any(x => x.Level.IsNullOrEmpty()))
+            {
+                return Result.GenError<Result>(Error.SmartOperatorLevelNotEmpty);
+            }
+            if (operatorLevels.GroupBy(x => x.Level).Any(y => y.Count() > 1))
+            {
+                return Result.GenError<Result>(Error.SmartOperatorLevelDuplicate);
+            }
+
+            var wId = operatorLevels.FirstOrDefault()?.WorkshopId ?? 0;
+            var sames = operatorLevels.Select(x => x.Level);
+            if (SmartOperatorLevelHelper.GetHaveSame(wId, sames))
+            {
+                return Result.GenError<Result>(Error.SmartOperatorLevelIsExist);
+            }
+
+            var userId = Request.GetIdentityInformation();
+            var markedDateTime = DateTime.Now;
+            foreach (var operatorLevel in operatorLevels)
+            {
+                operatorLevel.CreateUserId = userId;
+                operatorLevel.MarkedDateTime = markedDateTime;
+                operatorLevel.Remark = operatorLevel.Remark ?? "";
+            }
+            SmartOperatorLevelHelper.Instance.Add(operatorLevels);
+            WorkFlowHelper.Instance.OnSmartOperatorLevelChanged(operatorLevels);
             return Result.GenError<Result>(Error.Success);
         }
 

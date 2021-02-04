@@ -7,6 +7,10 @@ namespace ApiManagement.Models.SmartFactoryModel
     public class SmartFlowCardProcess : CommonBase
     {
         /// <summary>
+        /// 车间Id
+        /// </summary>
+        public int WorkshopId { get; set; }
+        /// <summary>
         /// 流程卡id
         /// </summary>
         public int FlowCardId { get; set; }

@@ -1,10 +1,10 @@
-﻿using ApiManagement.Base.Server;
-using ApiManagement.Models.BaseModel;
+﻿using ApiManagement.Models.BaseModel;
 using ApiManagement.Models.SmartFactoryModel;
 using Microsoft.AspNetCore.Mvc;
 using ModelBase.Base.EnumConfig;
 using ModelBase.Base.Utils;
 using ModelBase.Models.Result;
+using ServiceStack;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -14,18 +14,15 @@ namespace ApiManagement.Controllers.SmartFactoryController.ProcessFolder
     /// <summary>
     /// 
     /// </summary>
-    [Microsoft.AspNetCore.Mvc.Route("api/[controller]")]
-    [ApiController]
+    [Microsoft.AspNetCore.Mvc.Route("api/[controller]"), ApiController]
     public class SmartProcessCodeController : ControllerBase
     {
         // GET: api/SmartProcessCode
         [HttpGet]
-        public DataResult GetSmartProcessCode([FromQuery]int qId, int categoryId, bool menu)
+        public DataResult GetSmartProcessCode([FromQuery]int qId, int cId, int wId, bool menu)
         {
             var result = new DataResult();
-            var sql = $"SELECT a.*, IFNULL(b.Category, '') Category FROM t_process_code a JOIN t_process_code_category b ON a.CategoryId = b.Id " +
-                      $"WHERE a.MarkedDelete = 0{(qId == 0 ? "" : " AND a.Id = @qId")}{(categoryId == 0 ? "" : " AND a.CategoryId = @categoryId")} ORDER BY a.Id;";
-            var data = ServerConfig.ApiDb.Query<SmartProcessCodeDetail>(sql, new { qId, categoryId });
+            var data = SmartProcessCodeHelper.GetDetail(qId, cId, wId);
             if (menu)
             {
                 result.datas.AddRange(data.Select(x => new { x.Id, x.Code }));
@@ -35,11 +32,7 @@ namespace ApiManagement.Controllers.SmartFactoryController.ProcessFolder
                 var processIds = data.SelectMany(x => x.ProcessIdList).Distinct();
                 if (processIds.Any())
                 {
-                    var processList = ServerConfig.ApiDb.Query<SmartProcess>(
-                    "SELECT a.Id, b.Process FROM `t_process_code_category_process` a JOIN `t_process` b ON a.ProcessId = b.Id WHERE a.MarkedDelete = 0 AND b.MarkedDelete = 0 AND a.Id IN @processIds", new
-                    {
-                        processIds
-                    });
+                    var processList = SmartProcessCodeCategoryProcessHelper.GetProcess(processIds);
                     if (processList.Any())
                     {
                         foreach (var d in data)
@@ -68,44 +61,79 @@ namespace ApiManagement.Controllers.SmartFactoryController.ProcessFolder
 
         // PUT: api/SmartProcessCode
         [HttpPut]
-        public Result PutSmartProcessCode([FromBody] IEnumerable<SmartProcessCode> smartProcessCodes)
+        public Result PutSmartProcessCode([FromBody] IEnumerable<SmartProcessCode> processCodes)
         {
-            if (smartProcessCodes == null || !smartProcessCodes.Any())
+            if (processCodes == null || !processCodes.Any())
             {
                 return Result.GenError<Result>(Error.ParamError);
             }
+            if (processCodes.Any(x => x.Code.IsNullOrEmpty()))
+            {
+                return Result.GenError<Result>(Error.SmartProcessCodeNotEmpty);
+            }
+            if (processCodes.GroupBy(x => x.Code).Any(y => y.Count() > 1))
+            {
+                return Result.GenError<Result>(Error.SmartProcessCodeDuplicate);
+            }
 
-            var smartProcessCodeIds = smartProcessCodes.Select(x => x.Id);
-            var data = SmartProcessCodeHelper.Instance.GetByIds<SmartProcessCode>(smartProcessCodeIds);
-            if (data.Count() != smartProcessCodes.Count())
+            var cId = processCodes.FirstOrDefault()?.CategoryId ?? 0;
+            var sames = processCodes.Select(x => x.Code);
+            var ids = processCodes.Select(x => x.Id);
+            if (SmartProcessCodeHelper.GetHaveSame(cId, sames, ids))
+            {
+                return Result.GenError<Result>(Error.SmartProcessCodeIsExist);
+            }
+
+            var cnt = SmartProcessCodeHelper.Instance.GetCountByIds(ids);
+            if (cnt != processCodes.Count())
             {
                 return Result.GenError<Result>(Error.SmartProcessCodeNotExist);
             }
 
-            var createUserId = Request.GetIdentityInformation();
             var markedDateTime = DateTime.Now;
-            foreach (var smartProcessCode in smartProcessCodes)
+            foreach (var processCode in processCodes)
             {
-                smartProcessCode.CreateUserId = createUserId;
-                smartProcessCode.MarkedDateTime = markedDateTime;
+                processCode.MarkedDateTime = markedDateTime;
+                processCode.Remark = processCode.Remark ?? "";
             }
 
-            SmartProcessCodeHelper.Instance.Update(smartProcessCodes);
+            SmartProcessCodeHelper.Instance.Update(processCodes);
             return Result.GenError<Result>(Error.Success);
         }
 
         // POST: api/SmartProcessCode
         [HttpPost]
-        public Result PostSmartProcessCode([FromBody] IEnumerable<SmartProcessCode> smartProcessCodes)
+        public Result PostSmartProcessCode([FromBody] IEnumerable<SmartProcessCode> processCodes)
         {
-            var createUserId = Request.GetIdentityInformation();
-            var markedDateTime = DateTime.Now;
-            foreach (var smartProduct in smartProcessCodes)
+            if (processCodes == null || !processCodes.Any())
             {
-                smartProduct.CreateUserId = createUserId;
-                smartProduct.MarkedDateTime = markedDateTime;
+                return Result.GenError<Result>(Error.ParamError);
             }
-            SmartProcessCodeHelper.Instance.Add(smartProcessCodes);
+            if (processCodes.Any(x => x.Code.IsNullOrEmpty()))
+            {
+                return Result.GenError<Result>(Error.SmartProcessCodeNotEmpty);
+            }
+            if (processCodes.GroupBy(x => x.Code).Any(y => y.Count() > 1))
+            {
+                return Result.GenError<Result>(Error.SmartProcessCodeDuplicate);
+            }
+
+            var cId = processCodes.FirstOrDefault()?.CategoryId ?? 0;
+            var sames = processCodes.Select(x => x.Code);
+            if (SmartProcessCodeHelper.GetHaveSame(cId, sames))
+            {
+                return Result.GenError<Result>(Error.SmartProcessCodeIsExist);
+            }
+
+            var userId = Request.GetIdentityInformation();
+            var markedDateTime = DateTime.Now;
+            foreach (var processCode in processCodes)
+            {
+                processCode.CreateUserId = userId;
+                processCode.MarkedDateTime = markedDateTime;
+                processCode.Remark = processCode.Remark ?? "";
+            }
+            SmartProcessCodeHelper.Instance.Add(processCodes);
             return Result.GenError<Result>(Error.Success);
         }
 

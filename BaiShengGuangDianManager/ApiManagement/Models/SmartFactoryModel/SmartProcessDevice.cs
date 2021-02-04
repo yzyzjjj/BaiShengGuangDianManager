@@ -203,7 +203,8 @@ namespace ApiManagement.Models.SmartFactoryModel
                             SmartFlowCardProcessHelper.Instance.Update(process);
 
                             process.StartTime = StartTime;
-                            var log = new SmartFlowCardProcessLog(createUserId, now, process, qualified, unqualified);
+                            //todo
+                            var log = new SmartFlowCardProcessLog(0, createUserId, now, process, qualified, unqualified);
                             SmartFlowCardProcessLogHelper.Instance.Add(log);
                         }
                     }

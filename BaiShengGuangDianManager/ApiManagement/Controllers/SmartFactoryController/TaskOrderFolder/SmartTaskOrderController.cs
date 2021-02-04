@@ -1,5 +1,4 @@
-﻿using ApiManagement.Base.Server;
-using ApiManagement.Models.BaseModel;
+﻿using ApiManagement.Models.BaseModel;
 using ApiManagement.Models.SmartFactoryModel;
 using Microsoft.AspNetCore.Mvc;
 using ModelBase.Base.EnumConfig;
@@ -18,51 +17,55 @@ namespace ApiManagement.Controllers.SmartFactoryController.TaskOrderFolder
     [Microsoft.AspNetCore.Mvc.Route("api/[controller]"), ApiController]
     public class SmartTaskOrderController : ControllerBase
     {
-        // GET: api/SmartTaskOrder
+        /// <summary>
+        /// GET: api/SmartTaskOrder
+        /// </summary>
+        /// <param name="qId">ID</param>
+        /// <param name="wId">车间ID</param>
+        /// <param name="menu">是否菜单</param>
+        /// <returns></returns>
         [HttpGet]
-        public DataResult GetSmartTaskOrder([FromQuery]int qId, bool menu)
+        public DataResult GetSmartTaskOrder([FromQuery]int qId, int wId, bool menu)
         {
             var result = new DataResult();
-            var sql = menu ? $"SELECT Id, `TaskOrder` FROM `t_task_order` WHERE MarkedDelete = 0{(qId == 0 ? "" : " AND Id = @qId")} ORDER BY Id Desc;"
-                : $"SELECT c.*, b.*, a.* FROM t_task_order a JOIN t_work_order b ON a.WorkOrderId = b.Id JOIN t_product c ON a.ProductId = c.Id WHERE a.MarkedDelete = 0{(qId == 0 ? "" : " AND a.Id = @qId")} ORDER BY a.Id Desc;";
-            var data = ServerConfig.ApiDb.Query<SmartTaskOrderDetail>(sql, new { qId });
-            if (qId != 0 && !data.Any())
-            {
-                result.errno = Error.SmartTaskOrderNotExist;
-                return result;
-            }
-            if (qId != 0 && !menu)
-            {
-                var d = data.First();
-                if (d.State != SmartTaskOrderState.未加工)
-                {
-                    var flowCards = SmartFlowCardHelper.GetSmartFlowCardsByTaskOrderId(d.Id);
-                    var processes = SmartFlowCardProcessHelper.GetSmartFlowCardProcessesByFlowCardIds(flowCards.Select(x => x.Id));
-                    if (processes.Any())
-                    {
-                        var st = processes.Where(x => x.StartTime != default(DateTime)).Min(y => y.StartTime);
-                        var et = processes.Where(x => x.EndTime != default(DateTime)).Min(y => y.EndTime);
-                        if (d.State == SmartTaskOrderState.已完成 || d.State == SmartTaskOrderState.已取消)
-                        {
-                            d.Consume = (int)(et - st).TotalSeconds;
-                        }
-                        else
-                        {
-                            d.Consume = (int)(DateTime.Now - st).TotalSeconds;
-                        }
-                    }
-                }
-            }
             if (menu)
             {
-                result.datas.AddRange(data.Select(x => new
+                result.datas.AddRange(SmartTaskOrderHelper.GetMenu(qId, wId));
+                if (qId != 0 && !result.datas.Any())
                 {
-                    x.Id,
-                    x.TaskOrder
-                }));
+                    result.errno = Error.SmartTaskOrderNotExist;
+                }
             }
             else
             {
+                var data = SmartTaskOrderHelper.GetDetail(qId, wId);
+                if (qId != 0 && !data.Any())
+                {
+                    result.errno = Error.SmartTaskOrderNotExist;
+                    return result;
+                }
+                if (qId != 0 && !menu)
+                {
+                    var d = data.First();
+                    if (d.State != SmartTaskOrderState.未加工)
+                    {
+                        var flowCards = SmartFlowCardHelper.GetSmartFlowCardsByTaskOrderId(d.Id);
+                        var processes = SmartFlowCardProcessHelper.GetSmartFlowCardProcessesByFlowCardIds(flowCards.Select(x => x.Id));
+                        if (processes.Any())
+                        {
+                            var st = processes.Where(x => x.StartTime != default(DateTime)).Min(y => y.StartTime);
+                            var et = processes.Where(x => x.EndTime != default(DateTime)).Min(y => y.EndTime);
+                            if (d.State == SmartTaskOrderState.已完成 || d.State == SmartTaskOrderState.已取消)
+                            {
+                                d.Consume = (int)(et - st).TotalSeconds;
+                            }
+                            else
+                            {
+                                d.Consume = (int)(DateTime.Now - st).TotalSeconds;
+                            }
+                        }
+                    }
+                }
                 result.datas.AddRange(data);
             }
             return result;
@@ -70,44 +73,78 @@ namespace ApiManagement.Controllers.SmartFactoryController.TaskOrderFolder
 
         // PUT: api/SmartTaskOrder
         [HttpPut]
-        public Result PutSmartTaskOrder([FromBody] IEnumerable<SmartTaskOrder> smartTaskOrders)
+        public Result PutSmartTaskOrder([FromBody] IEnumerable<SmartTaskOrder> taskOrders)
         {
-            if (smartTaskOrders == null || !smartTaskOrders.Any())
+            if (taskOrders == null || !taskOrders.Any())
             {
                 return Result.GenError<Result>(Error.ParamError);
             }
+            if (taskOrders.Any(x => x.TaskOrder.IsNullOrEmpty()))
+            {
+                return Result.GenError<Result>(Error.SmartTaskOrderNotEmpty);
+            }
+            if (taskOrders.GroupBy(x => x.TaskOrder).Any(y => y.Count() > 1))
+            {
+                return Result.GenError<Result>(Error.SmartTaskOrderDuplicate);
+            }
 
-            var smartTaskOrderIds = smartTaskOrders.Select(x => x.Id);
-            var data = SmartTaskOrderHelper.Instance.GetByIds<SmartTaskOrder>(smartTaskOrderIds);
-            if (data.Count() != smartTaskOrders.Count())
+            var wId = taskOrders.FirstOrDefault()?.WorkshopId ?? 0;
+            var sames = taskOrders.Select(x => x.TaskOrder);
+            var ids = taskOrders.Select(x => x.Id);
+            if (SmartTaskOrderHelper.GetHaveSame(wId, sames, ids))
+            {
+                return Result.GenError<Result>(Error.SmartTaskOrderIsExist);
+            }
+
+            var cnt = SmartTaskOrderHelper.Instance.GetCountByIds(ids);
+            if (cnt != taskOrders.Count())
             {
                 return Result.GenError<Result>(Error.SmartTaskOrderNotExist);
             }
 
-            var createUserId = Request.GetIdentityInformation();
             var markedDateTime = DateTime.Now;
-            foreach (var smartTaskOrder in smartTaskOrders)
+            foreach (var taskOrder in taskOrders)
             {
-                smartTaskOrder.CreateUserId = createUserId;
-                smartTaskOrder.MarkedDateTime = markedDateTime;
+                taskOrder.MarkedDateTime = markedDateTime;
+                taskOrder.Remark = taskOrder.Remark ?? "";
             }
-
-            SmartTaskOrderHelper.Instance.Update(smartTaskOrders);
+            SmartTaskOrderHelper.Instance.Update(taskOrders);
             return Result.GenError<Result>(Error.Success);
         }
 
         // POST: api/SmartTaskOrder
         [HttpPost]
-        public Result PostSmartTaskOrder([FromBody] IEnumerable<SmartTaskOrder> smartTaskOrders)
+        public Result PostSmartTaskOrder([FromBody] IEnumerable<SmartTaskOrder> taskOrders)
         {
-            var createUserId = Request.GetIdentityInformation();
-            var markedDateTime = DateTime.Now;
-            foreach (var smartTaskOrder in smartTaskOrders)
+            if (taskOrders == null || !taskOrders.Any())
             {
-                smartTaskOrder.CreateUserId = createUserId;
-                smartTaskOrder.MarkedDateTime = markedDateTime;
+                return Result.GenError<Result>(Error.ParamError);
             }
-            SmartTaskOrderHelper.Instance.Add(smartTaskOrders);
+            if (taskOrders.Any(x => x.TaskOrder.IsNullOrEmpty()))
+            {
+                return Result.GenError<Result>(Error.SmartTaskOrderNotEmpty);
+            }
+            if (taskOrders.GroupBy(x => x.TaskOrder).Any(y => y.Count() > 1))
+            {
+                return Result.GenError<Result>(Error.SmartTaskOrderDuplicate);
+            }
+
+            var wId = taskOrders.FirstOrDefault()?.WorkshopId ?? 0;
+            var sames = taskOrders.Select(x => x.TaskOrder);
+            if (SmartTaskOrderHelper.GetHaveSame(wId, sames))
+            {
+                return Result.GenError<Result>(Error.SmartTaskOrderIsExist);
+            }
+
+            var userId = Request.GetIdentityInformation();
+            var markedDateTime = DateTime.Now;
+            foreach (var taskOrder in taskOrders)
+            {
+                taskOrder.CreateUserId = userId;
+                taskOrder.MarkedDateTime = markedDateTime;
+                taskOrder.Remark = taskOrder.Remark ?? "";
+            }
+            SmartTaskOrderHelper.Instance.Add(taskOrders);
             return Result.GenError<Result>(Error.Success);
         }
 
@@ -125,6 +162,7 @@ namespace ApiManagement.Controllers.SmartFactoryController.TaskOrderFolder
                 return Result.GenError<Result>(Error.SmartTaskOrderDuplicate);
             }
             var result = new SmartTaskOrderNeedWithOrderPreviewResult();
+            var wId = taskOrders.FirstOrDefault()?.WorkshopId ?? 0;
             if (taskOrders.Any())
             {
                 var tOrders = SmartTaskOrderHelper.Instance.GetByIds<SmartTaskOrderCapacity>(taskIds);
@@ -202,7 +240,7 @@ namespace ApiManagement.Controllers.SmartFactoryController.TaskOrderFolder
             //设备型号
             var deviceModels = SmartDeviceModelHelper.Instance.GetAll<SmartDeviceModel>();
             //设备型号数量
-            var deviceList = SmartDeviceHelper.GetNormalSmartDevices();
+            var deviceList = SmartDeviceHelper.GetNormalSmartDevices(wId);
             var modelCounts = deviceList.GroupBy(x => new { x.CategoryId, x.ModelId }).Select(y => new SmartDeviceModelCount
             {
                 CategoryId = y.Key.CategoryId,
@@ -212,14 +250,14 @@ namespace ApiManagement.Controllers.SmartFactoryController.TaskOrderFolder
             //人员等级
             var operatorLevels = SmartOperatorLevelHelper.Instance.GetAll<SmartOperatorLevel>();
             //人员等级数量
-            var operatorList = SmartOperatorHelper.GetNormalSmartOperators();
+            var operatorList = SmartOperatorHelper.GetNormalSmartOperators(wId);
             var operatorCounts = operatorList.GroupBy(x => new { x.ProcessId, x.LevelId }).Select(y => new SmartOperatorCount
             {
                 ProcessId = y.Key.ProcessId,
                 LevelId = y.Key.LevelId,
                 Count = y.Count()
             });
-            var taskNeeds = SmartTaskOrderNeedHelper.GetSmartTaskOrderNeedsByTaskOrderIds(taskIds);
+            var taskNeeds = SmartTaskOrderNeedHelper.GetSmartTaskOrderNeedsByTaskOrderIds(wId, taskIds);
 
             foreach (var task in taskOrders)
             {
@@ -267,7 +305,17 @@ namespace ApiManagement.Controllers.SmartFactoryController.TaskOrderFolder
                         target = target > doneTarget ? target - doneTarget : 0;
                     }
                     var pCapacity = pCapacities.FirstOrDefault(x => x.ProcessId == cList.ProcessId);
-                    var put = pCapacity.Rate != 0 ? (int)Math.Ceiling((target) * 100 / pCapacity.Rate) : 0;
+                    var rate = 0m;
+                    var y = pCapacity;
+                    if (y.DeviceList.Any())
+                    {
+                        rate = y.DeviceList.First().Rate;
+                    }
+                    else if (y.OperatorList.Any())
+                    {
+                        rate = y.OperatorList.First().Rate;
+                    }
+                    var put = rate != 0 ? (int)Math.Ceiling((target) * 100 / rate) : 0;
                     var newNeed = new SmartTaskOrderCapacityNeed
                     {
                         Id = cList.Id,
@@ -279,7 +327,7 @@ namespace ApiManagement.Controllers.SmartFactoryController.TaskOrderFolder
                         Target = target,
                         DoneTarget = doneTarget,
                         Stock = stock,
-                        Rate = pCapacity.Rate,
+                        Rate = rate,
                         Put = put,
                         HavePut = havePut,
                         Process = cList.Process,

@@ -13,6 +13,10 @@ namespace ApiManagement.Models.SmartFactoryModel
     /// </summary>
     public class SmartTaskOrderSchedule : SmartTaskOrderNeedDetail, ICloneable
     {
+        ///// <summary>
+        ///// 车间Id
+        ///// </summary>
+        //public int WorkshopId { get; set; }
         /// <summary>
         /// 0 设备 1 人员
         /// </summary>
@@ -200,7 +204,17 @@ namespace ApiManagement.Models.SmartFactoryModel
             PId = capacityList.PId;
             CategoryId = capacityList.CategoryId;
             Order = capacityList.Order;
-            Rate = productCapacity.Rate;
+            var rate = 0m;
+            var y = productCapacity;
+            if (y.DeviceList.Any())
+            {
+                rate = y.DeviceList.First().Rate;
+            }
+            else if (y.OperatorList.Any())
+            {
+                rate = y.OperatorList.First().Rate;
+            }
+            Rate = rate;
         }
     }
 

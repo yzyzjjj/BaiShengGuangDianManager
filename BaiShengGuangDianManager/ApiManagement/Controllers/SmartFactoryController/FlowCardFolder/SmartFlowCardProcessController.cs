@@ -1,5 +1,4 @@
 ﻿using ApiManagement.Base.Helper;
-using ApiManagement.Base.Server;
 using ApiManagement.Models.BaseModel;
 using ApiManagement.Models.SmartFactoryModel;
 using Microsoft.AspNetCore.Mvc;
@@ -22,20 +21,10 @@ namespace ApiManagement.Controllers.SmartFactoryController.FlowCardFolder
     {
         // GET: api/SmartFlowCardProcess
         [HttpGet]
-        public DataResult GetSmartFlowCardProcess([FromQuery]int qId, int flowCardId)
+        public DataResult GetSmartFlowCardProcess([FromQuery]int qId, int wId, int flowCardId)
         {
             var result = new DataResult();
-            var sql = $"SELECT a.*, b.Process, IFNULL(c.`Name`, '') Processor, IFNULL(d.`Code`, '') `DeviceCode` FROM `t_flow_card_process` a " +
-                      $"JOIN (SELECT a.Id, b.Process FROM `t_product_process` a " +
-                      $"JOIN (SELECT a.Id, b.Process FROM `t_process_code_category_process` a " +
-                      $"JOIN `t_process` b ON a.ProcessId = b.Id) b ON a.ProcessId = b.Id) b ON a.ProcessId = b.Id " +
-                      $"LEFT JOIN `t_user` c ON a.ProcessorId = c.Id " +
-                      $"LEFT JOIN `t_device` d ON a.DeviceId = d.Id " +
-                      $"WHERE a.MarkedDelete = 0 " +
-                      $"{(qId == 0 ? "" : " AND a.Id = @qId ")}" +
-                      $"{(flowCardId == 0 ? "" : " AND a.FlowCardId = @flowCardId ")}" +
-                      "ORDER BY a.FlowCardId, a.Id";
-            result.datas.AddRange(ServerConfig.ApiDb.Query<SmartFlowCardProcessDetail>(sql, new { qId, flowCardId }));
+            result.datas.AddRange(SmartFlowCardProcessHelper.GetDetail(qId, wId, flowCardId));
             if (qId != 0 && !result.datas.Any())
             {
                 result.errno = Error.SmartFlowCardProcessNotExist;
@@ -46,83 +35,84 @@ namespace ApiManagement.Controllers.SmartFactoryController.FlowCardFolder
 
         // PUT: api/SmartFlowCardProcess
         [HttpPut]
-        public Result PutSmartFlowCardProcess([FromBody] IEnumerable<SmartFlowCardProcess> smartFlowCardProcesses)
+        public Result PutSmartFlowCardProcess([FromBody] IEnumerable<SmartFlowCardProcess> flowCardProcesses)
         {
-            if (smartFlowCardProcesses == null || !smartFlowCardProcesses.Any())
+            if (flowCardProcesses == null || !flowCardProcesses.Any())
             {
                 return Result.GenError<Result>(Error.ParamError);
             }
 
-            var smartFlowCardProcessIds = smartFlowCardProcesses.Select(x => x.Id);
-            var data = SmartFlowCardProcessHelper.Instance.GetByIds<SmartFlowCardProcess>(smartFlowCardProcessIds);
-            if (data.Count() != smartFlowCardProcesses.Count())
+            var flowCardProcessIds = flowCardProcesses.Select(x => x.Id);
+            var data = SmartFlowCardProcessHelper.Instance.GetByIds<SmartFlowCardProcess>(flowCardProcessIds);
+            if (data.Count() != flowCardProcesses.Count())
             {
                 return Result.GenError<Result>(Error.SmartFlowCardProcessNotExist);
             }
 
             var createUserId = Request.GetIdentityInformation();
             var markedDateTime = DateTime.Now;
-            foreach (var smartFlowCardProcess in smartFlowCardProcesses)
+            foreach (var flowCardProcess in flowCardProcesses)
             {
-                smartFlowCardProcess.CreateUserId = createUserId;
-                smartFlowCardProcess.MarkedDateTime = markedDateTime;
+                flowCardProcess.CreateUserId = createUserId;
+                flowCardProcess.MarkedDateTime = markedDateTime;
             }
 
-            SmartFlowCardProcessHelper.Instance.Update(smartFlowCardProcesses);
-            WorkFlowHelper.Instance.OnSmartFlowCardProcessChanged(smartFlowCardProcesses);
+            SmartFlowCardProcessHelper.Instance.Update(flowCardProcesses);
+            WorkFlowHelper.Instance.OnSmartFlowCardProcessChanged(flowCardProcesses);
             return Result.GenError<Result>(Error.Success);
         }
 
         /// <summary>
         /// 录入
         /// </summary>
-        /// <param name="smartFlowCardProcess"></param>
+        /// <param name="flowCardProcess"></param>
         /// <returns></returns>
         // HttpPost: api/SmartFlowCardProcess/Report
         [HttpPost("Report")]
-        public Result ReportSmartFlowCardProcess([FromBody] SmartFlowCardProcess smartFlowCardProcess)
+        public Result ReportSmartFlowCardProcess([FromBody] SmartFlowCardProcess flowCardProcess)
         {
-            var process = SmartFlowCardProcessHelper.Instance.Get<SmartFlowCardProcess>(smartFlowCardProcess.Id);
+            var process = SmartFlowCardProcessHelper.Instance.Get<SmartFlowCardProcess>(flowCardProcess.Id);
             if (process == null)
             {
                 return Result.GenError<Result>(Error.SmartFlowCardProcessNotExist);
             }
 
-            var createUserId = Request.GetIdentityInformation();
+            var userId = Request.GetIdentityInformation();
             var markedDateTime = DateTime.Now;
-            smartFlowCardProcess.CreateUserId = createUserId;
-            smartFlowCardProcess.MarkedDateTime = markedDateTime;
+            var wId = flowCardProcess.WorkshopId;
+            flowCardProcess.CreateUserId = userId;
+            flowCardProcess.MarkedDateTime = markedDateTime;
 
             process.Count++;
-            process.Qualified += smartFlowCardProcess.Qualified;
-            process.Unqualified += smartFlowCardProcess.Unqualified;
-            process.ProcessorId = smartFlowCardProcess.ProcessorId;
-            process.DeviceId = smartFlowCardProcess.DeviceId;
-            SmartFlowCardProcessHelper.Instance.Update(smartFlowCardProcess);
-            SmartFlowCardProcessLogHelper.Instance.Add(new SmartFlowCardProcessLog(createUserId, markedDateTime, process, process.Qualified, process.Unqualified));
-            WorkFlowHelper.Instance.OnSmartFlowCardProcessChanged(new List<SmartFlowCardProcess> { smartFlowCardProcess });
+            process.Qualified += flowCardProcess.Qualified;
+            process.Unqualified += flowCardProcess.Unqualified;
+            process.ProcessorId = flowCardProcess.ProcessorId;
+            process.DeviceId = flowCardProcess.DeviceId;
+            SmartFlowCardProcessHelper.Instance.Update(flowCardProcess);
+            SmartFlowCardProcessLogHelper.Instance.Add(new SmartFlowCardProcessLog(wId, userId, markedDateTime, process, process.Qualified, process.Unqualified));
+            WorkFlowHelper.Instance.OnSmartFlowCardProcessChanged(new List<SmartFlowCardProcess> { flowCardProcess });
             return Result.GenError<Result>(Error.Success);
         }
 
         // POST: api/SmartFlowCardProcess
         [HttpPost]
-        public object PostSmartFlowCardProcess([FromBody] IEnumerable<SmartFlowCardProcess> smartFlowCardProcesses)
+        public object PostSmartFlowCardProcess([FromBody] IEnumerable<SmartFlowCardProcess> flowCardProcesses)
         {
-            if (smartFlowCardProcesses == null || !smartFlowCardProcesses.Any())
+            if (flowCardProcesses == null || !flowCardProcesses.Any())
             {
                 return Result.GenError<Result>(Error.ParamError);
             }
 
             var createUserId = Request.GetIdentityInformation();
             var markedDateTime = DateTime.Now;
-            foreach (var smartFlowCardProcess in smartFlowCardProcesses)
+            foreach (var flowCardProcess in flowCardProcesses)
             {
-                smartFlowCardProcess.CreateUserId = createUserId;
-                smartFlowCardProcess.MarkedDateTime = markedDateTime;
+                flowCardProcess.CreateUserId = createUserId;
+                flowCardProcess.MarkedDateTime = markedDateTime;
             }
 
-            SmartFlowCardProcessHelper.Instance.Update(smartFlowCardProcesses);
-            WorkFlowHelper.Instance.OnSmartFlowCardProcessChanged(smartFlowCardProcesses);
+            SmartFlowCardProcessHelper.Instance.Update(flowCardProcesses);
+            WorkFlowHelper.Instance.OnSmartFlowCardProcessChanged(flowCardProcesses);
             return Result.GenError<Result>(Error.Success);
         }
 

@@ -18,6 +18,16 @@ namespace ApiManagement.Models.SmartFactoryModel
         }
         public static readonly SmartProductProcessHelper Instance = new SmartProductProcessHelper();
         #region Get
+
+        public static IEnumerable<SmartProductProcessDetail> GetDetail(int pId, IEnumerable<int> pcIds)
+        {
+            return ServerConfig.ApiDb.Query<SmartProductProcessDetail>(
+                "SELECT a.*, b.Process FROM `t_product_process` a " +
+                "JOIN (SELECT a.Id, b.Process FROM `t_process_code_category_process` a JOIN `t_process` b ON a.ProcessId = b.Id) b ON a.ProcessId = b.Id " +
+                "WHERE a.ProductId = @pId AND a.ProcessCodeId IN @pcIds AND a.MarkedDelete = 0 ORDER BY a.ProcessCodeId"
+                , new { pId, pcIds });
+        }
+
         public static IEnumerable<SmartProductProcess> GetSmartProductProcesses(IEnumerable<int> productIds)
         {
             return ServerConfig.ApiDb.Query<SmartProductProcess>(

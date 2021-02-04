@@ -1,10 +1,10 @@
-﻿using ApiManagement.Base.Server;
-using ApiManagement.Models.BaseModel;
+﻿using ApiManagement.Models.BaseModel;
 using ApiManagement.Models.SmartFactoryModel;
 using Microsoft.AspNetCore.Mvc;
 using ModelBase.Base.EnumConfig;
 using ModelBase.Base.Utils;
 using ModelBase.Models.Result;
+using ServiceStack;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -14,19 +14,23 @@ namespace ApiManagement.Controllers.SmartFactoryController.ProcessFolder
     /// <summary>
     /// 
     /// </summary>
-    [Route("api/[controller]"), ApiController]
+    [Microsoft.AspNetCore.Mvc.Route("api/[controller]"), ApiController]
     public class SmartProcessCodeCategoryController : ControllerBase
     {
-        // GET: api/SmartProcessCodeCategory
+        /// <summary>
+        /// GET: api/SmartProcessCodeCategory
+        /// </summary>
+        /// <param name="qId">流程编号类型ID</param>
+        /// <param name="wId">车间ID</param>
+        /// <param name="menu">是否菜单</param>
+        /// <returns></returns>
         [HttpGet]
-        public DataResult GetSmartProcessCodeCategory([FromQuery]int qId, bool menu)
+        public DataResult GetSmartProcessCodeCategory([FromQuery]int qId, int wId, bool menu)
         {
             var result = new DataResult();
-            var sql = menu ? $"SELECT Id, `Category` FROM `t_process_code_category` WHERE MarkedDelete = 0{(qId == 0 ? "" : " AND Id = @qId")};"
-                : $"SELECT a.*, IFNULL(b.List, '') List FROM `t_process_code_category` a LEFT JOIN (SELECT ProcessCodeCategoryId, GROUP_CONCAT(Process ORDER BY a.`Order`) List FROM `t_process_code_category_process` a JOIN `t_process` b ON a.ProcessId = b.Id WHERE a.MarkedDelete = 0 GROUP BY ProcessCodeCategoryId) b ON a.Id = b.ProcessCodeCategoryId WHERE MarkedDelete = 0{(qId == 0 ? "" : " AND a.Id = @qId")};";
             result.datas.AddRange(menu
-                ? ServerConfig.ApiDb.Query<dynamic>(sql, new { qId })
-                : ServerConfig.ApiDb.Query<SmartProcessCodeCategory>(sql, new { qId }));
+                ? SmartProcessCodeCategoryHelper.GetMenu(qId, wId)
+                : SmartProcessCodeCategoryHelper.GetDetail(qId, wId));
             if (qId != 0 && !result.datas.Any())
             {
                 result.errno = Error.SmartProcessCodeCategoryNotExist;
@@ -37,53 +41,80 @@ namespace ApiManagement.Controllers.SmartFactoryController.ProcessFolder
 
         // PUT: api/SmartProcessCodeCategory
         [HttpPut]
-        public Result PutSmartProcessCodeCategory([FromBody] IEnumerable<SmartProcessCodeCategoryDetail> smartProcessCodeCategories)
+        public Result PutSmartProcessCodeCategory([FromBody] IEnumerable<SmartProcessCodeCategoryDetail> processCodeCategories)
         {
-            if (smartProcessCodeCategories == null || !smartProcessCodeCategories.Any())
+            if (processCodeCategories == null || !processCodeCategories.Any())
             {
                 return Result.GenError<Result>(Error.ParamError);
             }
+            if (processCodeCategories.Any(x => x.Category.IsNullOrEmpty()))
+            {
+                return Result.GenError<Result>(Error.SmartProcessCodeCategoryNotEmpty);
+            }
+            if (processCodeCategories.GroupBy(x => x.Category).Any(y => y.Count() > 1))
+            {
+                return Result.GenError<Result>(Error.SmartProcessCodeCategoryDuplicate);
+            }
 
-            var smartProcessCodeCategoryIds = smartProcessCodeCategories.Select(x => x.Id);
-            var data = SmartProcessCodeCategoryHelper.Instance.GetByIds<SmartProcessCodeCategory>(smartProcessCodeCategoryIds);
-            if (data.Count() != smartProcessCodeCategories.Count())
+            var wId = processCodeCategories.FirstOrDefault()?.WorkshopId ?? 0;
+            var sames = processCodeCategories.Select(x => x.Category);
+            var ids = processCodeCategories.Select(x => x.Id);
+            if (SmartProcessCodeCategoryHelper.GetHaveSame(wId, sames, ids))
+            {
+                return Result.GenError<Result>(Error.SmartProcessCodeCategoryIsExist);
+            }
+
+            var cnt = SmartProcessCodeCategoryHelper.Instance.GetCountByIds(ids);
+            if (cnt != processCodeCategories.Count())
+            {
+                return Result.GenError<Result>(Error.SmartProcessCodeCategoryNotExist);
+            }
+            var processCodeCategoryIds = processCodeCategories.Select(x => x.Id);
+            var data = SmartProcessCodeCategoryHelper.Instance.GetByIds<SmartProcessCodeCategory>(processCodeCategoryIds);
+            if (data.Count() != processCodeCategories.Count())
             {
                 return Result.GenError<Result>(Error.SmartProcessCodeCategoryNotExist);
             }
 
-            var createUserId = Request.GetIdentityInformation();
+            var userId = Request.GetIdentityInformation();
             var markedDateTime = DateTime.Now;
             var add = new List<SmartProcessCodeCategoryProcess>();
             var update = new List<SmartProcessCodeCategoryProcess>();
-            var exist =
-                ServerConfig.ApiDb.Query<SmartProcessCodeCategoryProcess>("SELECT* FROM `t_process_code_category_process` WHERE MarkedDelete = 0 AND ProcessCodeCategoryId IN @Id;",
-                    new { Id = smartProcessCodeCategories.Select(x => x.Id) });
-            foreach (var smartProcessCodeCategory in smartProcessCodeCategories)
+            var exist = SmartProcessCodeCategoryProcessHelper.GetDetailByCategoryId(processCodeCategories.Select(x => x.Id));
+            foreach (var processCodeCategory in processCodeCategories)
             {
-                smartProcessCodeCategory.CreateUserId = createUserId;
-                smartProcessCodeCategory.MarkedDateTime = markedDateTime;
-                var categoryProcesses = exist.Where(x => x.ProcessCodeCategoryId == smartProcessCodeCategory.Id);
-                if (smartProcessCodeCategory.Processes != null && smartProcessCodeCategory.Processes.Any())
+                processCodeCategory.CreateUserId = userId;
+                processCodeCategory.MarkedDateTime = markedDateTime;
+                processCodeCategory.Remark = processCodeCategory.Remark ?? "";
+                processCodeCategory.Processes = processCodeCategory.Processes.Select(x =>
                 {
-                    add.AddRange(smartProcessCodeCategory.Processes.Where(x => x.Id == 0 && categoryProcesses.FirstOrDefault(a => a.Order == x.Order && a.ProcessId == x.ProcessId) == null)
+                    x.ProcessCodeCategoryId = processCodeCategory.Id;
+                    return x;
+                });
+                var categoryProcesses = exist.Where(x => x.ProcessCodeCategoryId == processCodeCategory.Id);
+                if (processCodeCategory.Processes != null && processCodeCategory.Processes.Any())
+                {
+                    add.AddRange(processCodeCategory.Processes.Where(x => x.Id == 0 && categoryProcesses.FirstOrDefault(a => a.Order == x.Order && a.ProcessId == x.ProcessId) == null)
                         .Select(y =>
                           {
-                              y.CreateUserId = createUserId;
+                              y.CreateUserId = userId;
                               y.MarkedDateTime = markedDateTime;
-                              y.ProcessCodeCategoryId = smartProcessCodeCategory.Id;
+                              y.ProcessCodeCategoryId = processCodeCategory.Id;
                               return y;
                           }));
 
-                    update.AddRange(smartProcessCodeCategory.Processes.Where(x => categoryProcesses.Any(y => y.Id == x.Id) 
-                                                                                  || (x.Id == 0 && categoryProcesses.FirstOrDefault(a => a.Order == x.Order && a.ProcessId == x.ProcessId) != null)).Select(z =>
-                    {
-                        var first = categoryProcesses.FirstOrDefault(a => a.Order == z.Order && a.ProcessId == z.ProcessId);
-                        z.Id = (int) first?.Id;
-                        z.MarkedDateTime = markedDateTime;
-                        return z;
-                    }));
+                    update.AddRange(processCodeCategory.Processes
+                        .Where(x => categoryProcesses.Any(y => y.Id == x.Id)
+                                    && (ClassExtension.HaveChange(categoryProcesses.First(y => y.Id == x.Id), x))).Select(z =>
+                                    //|| (x.Id == 0 && categoryProcesses.FirstOrDefault(a => a.Order == x.Order && a.ProcessId == x.ProcessId) != null)).Select(z =>
+                                    {
+                                        var first = categoryProcesses.First(a => a.Id == z.Id);
+                                        z.Id = first.Id;
+                                        z.MarkedDateTime = markedDateTime;
+                                        return z;
+                                    }));
 
-                    update.AddRange(categoryProcesses.Where(x => smartProcessCodeCategory.Processes.All(y => y.Id != x.Id)).Select(z =>
+                    update.AddRange(categoryProcesses.Where(x => processCodeCategory.Processes.All(y => y.Id != x.Id)).Select(z =>
                     {
                         z.MarkedDateTime = markedDateTime;
                         z.MarkedDelete = true;
@@ -103,51 +134,64 @@ namespace ApiManagement.Controllers.SmartFactoryController.ProcessFolder
             }
             if (add.Any())
             {
-                ServerConfig.ApiDb.Execute(
-                    "INSERT INTO `t_process_code_category_process` (`CreateUserId`, `MarkedDateTime`, `ProcessCodeCategoryId`, `Order`, `ProcessId`) " +
-                    "VALUES (@CreateUserId, @MarkedDateTime, @ProcessCodeCategoryId, @Order, @ProcessId);",
-                    add);
+                SmartProcessCodeCategoryProcessHelper.Instance.Add<SmartProcessCodeCategoryProcess>(add);
             }
 
             if (update.Any())
             {
-                ServerConfig.ApiDb.Execute(
-                    "UPDATE `t_process_code_category_process` SET `MarkedDateTime` = @MarkedDateTime, `MarkedDelete` = @MarkedDelete, `Order` = @Order, `ProcessId` = @ProcessId WHERE `Id` = @Id;", update);
+                SmartProcessCodeCategoryProcessHelper.Instance.Update<SmartProcessCodeCategoryProcess>(update);
             }
 
-            SmartProcessCodeCategoryHelper.Instance.Update(smartProcessCodeCategories);
+            SmartProcessCodeCategoryHelper.Instance.Update(processCodeCategories);
             return Result.GenError<Result>(Error.Success);
         }
 
         // POST: api/SmartProcessCodeCategory
         [HttpPost]
-        public Result PostSmartProcessCodeCategory([FromBody] IEnumerable<SmartProcessCodeCategoryDetail> smartProcessCodeCategories)
+        public Result PostSmartProcessCodeCategory([FromBody] IEnumerable<SmartProcessCodeCategoryDetail> processCodeCategories)
         {
-            var createUserId = Request.GetIdentityInformation();
-            var markedDateTime = DateTime.Now;
-            foreach (var smartProcessCodeCategory in smartProcessCodeCategories)
+            if (processCodeCategories == null || !processCodeCategories.Any())
             {
-                smartProcessCodeCategory.CreateUserId = createUserId;
-                smartProcessCodeCategory.MarkedDateTime = markedDateTime;
+                return Result.GenError<Result>(Error.ParamError);
             }
-            SmartProcessCodeCategoryHelper.Instance.Add(smartProcessCodeCategories);
+            if (processCodeCategories.Any(x => x.Category.IsNullOrEmpty()))
+            {
+                return Result.GenError<Result>(Error.SmartProcessCodeCategoryNotEmpty);
+            }
 
-            var newCategories = smartProcessCodeCategories.Select(x => x.Category);
-            var categories = SmartProcessCodeCategoryHelper.GetSmartProcessCodeCategoriesByCategories(newCategories);
+            var wId = processCodeCategories.FirstOrDefault()?.WorkshopId ?? 0;
+            var sames = processCodeCategories.Select(x => x.Category);
+            if (SmartProcessCodeCategoryHelper.GetHaveSame(wId, sames))
+            {
+                return Result.GenError<Result>(Error.SmartProcessCodeCategoryDuplicate);
+            }
 
-            var processes = smartProcessCodeCategories.SelectMany(x => x.Processes);
+            var userId = Request.GetIdentityInformation();
+            var markedDateTime = DateTime.Now;
+            foreach (var processCodeCategory in processCodeCategories)
+            {
+                processCodeCategory.CreateUserId = userId;
+                processCodeCategory.MarkedDateTime = markedDateTime;
+                processCodeCategory.Remark = processCodeCategory.Remark ?? "";
+            }
+            SmartProcessCodeCategoryHelper.Instance.Add(processCodeCategories);
+
+            var newCategories = processCodeCategories.Select(x => x.Category);
+            var categories = SmartProcessCodeCategoryHelper.GetDetail(newCategories);
+
+            var processes = processCodeCategories.SelectMany(x => x.Processes);
             if (processes.Any())
             {
-                foreach (var smartProcessCodeCategory in smartProcessCodeCategories)
+                foreach (var processCodeCategory in processCodeCategories)
                 {
-                    if (smartProcessCodeCategory.Processes != null && smartProcessCodeCategory.Processes.Any())
+                    if (processCodeCategory.Processes != null && processCodeCategory.Processes.Any())
                     {
-                        var categoryId = categories.FirstOrDefault(x => x.Category == smartProcessCodeCategory.Category)?.Id ?? 0;
-                        foreach (var process in smartProcessCodeCategory.Processes)
+                        var categoryId = categories.FirstOrDefault(x => x.Category == processCodeCategory.Category)?.Id ?? 0;
+                        foreach (var process in processCodeCategory.Processes)
                         {
-                            process.ProcessCodeCategoryId = categoryId;
-                            process.CreateUserId = createUserId;
+                            process.CreateUserId = userId;
                             process.MarkedDateTime = markedDateTime;
+                            process.ProcessCodeCategoryId = categoryId;
                         }
                     }
                 }

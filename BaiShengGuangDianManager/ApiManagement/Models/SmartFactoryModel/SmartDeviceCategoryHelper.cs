@@ -1,7 +1,6 @@
 ﻿using ApiManagement.Models.BaseModel;
+using System;
 using System.Collections.Generic;
-using ApiManagement.Base.Server;
-using ModelBase.Models.Result;
 using System.Linq;
 
 namespace ApiManagement.Models.SmartFactoryModel
@@ -15,28 +14,59 @@ namespace ApiManagement.Models.SmartFactoryModel
                 "INSERT INTO `t_device_category` (`CreateUserId`, `MarkedDateTime`, `WorkshopId`, `Category`, `Remark`) " +
                 "VALUES (@CreateUserId, @MarkedDateTime, @WorkshopId, @Category, @Remark);";
             UpdateSql = "UPDATE `t_device_category` SET `MarkedDateTime` = @MarkedDateTime, `Category` = @Category, `Remark` = @Remark WHERE `Id` = @Id;";
+
+            SameField = "Category";
+            MenuFields.AddRange(new[] { "Id", "Category" });
         }
         public static readonly SmartDeviceCategoryHelper Instance = new SmartDeviceCategoryHelper();
         #region Get
-        public static IEnumerable<SmartDeviceCategory> GetSmartDeviceCategory(int id, int wId)
-        {
-            var sql = $"SELECT * FROM `t_device_category` " +
-                      $"WHERE{(id == 0 ? "" : " Id = @qId AND ")}{(wId == 0 ? "" : " WorkshopId = @wId AND ")}MarkedDelete = 0;";
-
-            return ServerConfig.ApiDb.Query<SmartDeviceCategory>(sql, new { id, wId });
-        }
         /// <summary>
         /// 菜单
         /// </summary>
         /// <param name="id"></param>
         /// <param name="wId"></param>
         /// <returns></returns>
-        public static IEnumerable<dynamic> GetSmartDeviceCategoryMenu(int id, int wId)
+        public static IEnumerable<dynamic> GetMenu(int id = 0, int wId = 0)
         {
-            var sql = $"SELECT Id, `Category` FROM `t_device_category` " +
-                      $"WHERE{(id == 0 ? "" : " Id = @qId AND ")}{(wId == 0 ? "" : " WorkshopId = @wId AND ")}MarkedDelete = 0;";
+            var args = new List<Tuple<string, string, dynamic>>();
+            if (id != 0)
+            {
+                args.Add(new Tuple<string, string, dynamic>("Id", "=", id));
+            }
 
-            return ServerConfig.ApiDb.Query<SmartDeviceCategory>(sql, new { id, wId }).Select(x => new { x.Id, x.Category });
+            if (wId != 0)
+            {
+                args.Add(new Tuple<string, string, dynamic>("WorkshopId", "=", wId));
+            }
+
+            return Instance.CommonGet<SmartDeviceCategory>(args, true).Select(x => new { x.Id, x.Category });
+        }
+        public static IEnumerable<SmartDeviceCategory> GetDetail(int id = 0, int wId = 0)
+        {
+            var args = new List<Tuple<string, string, dynamic>>();
+            if (id != 0)
+            {
+                args.Add(new Tuple<string, string, dynamic>("Id", "=", id));
+            }
+
+            if (wId != 0)
+            {
+                args.Add(new Tuple<string, string, dynamic>("WorkshopId", "=", wId));
+            }
+            return Instance.CommonGet<SmartDeviceCategory>(args);
+        }
+        public static bool GetHaveSame(int wId, IEnumerable<string> sames, IEnumerable<int> ids = null)
+        {
+            var args = new List<Tuple<string, string, dynamic>>
+            {
+                new Tuple<string, string, dynamic>("WorkshopId", "=", wId),
+                new Tuple<string, string, dynamic>("Category", "IN", sames)
+            };
+            if (ids != null)
+            {
+                args.Add(new Tuple<string, string, dynamic>("Id", "NOT IN", ids));
+            }
+            return Instance.CommonHaveSame(args);
         }
         #endregion
 

@@ -15,11 +15,11 @@ namespace ApiManagement.Base.Helper
     /// </summary>
     public class WorkFlowHelper
     {
+        public static WorkFlowHelper Instance;
         public WorkFlowHelper()
         {
-            Init();
+            Register();
         }
-        public static readonly WorkFlowHelper Instance = new WorkFlowHelper();
 
         #region 创建
         /// <summary>
@@ -183,7 +183,12 @@ namespace ApiManagement.Base.Helper
         }
         #endregion
 
-        public void Init()
+        public static void Init()
+        {
+            Instance = Instance ?? new WorkFlowHelper();
+        }
+
+        public void Register()
         {
             BillNeedUpdate += (o, args) =>
             {
@@ -454,8 +459,7 @@ namespace ApiManagement.Base.Helper
                 var taskOrderIds = flowCards.GroupBy(x => x.TaskOrderId).Select(y => y.Key);
                 var processCodeCategoryIds = flowCards.GroupBy(x => x.ProcessCodeId).Select(y => y.Key);
                 var processes =
-                    SmartProcessCodeCategoryProcessHelper
-                        .GetSmartProcessCodeCategoryProcessesByProcessCodeCategoryIds(processCodeCategoryIds);
+                    SmartProcessCodeCategoryProcessHelper.GetDetailByCategoryId(processCodeCategoryIds);
                 var existTaskOrderLines = ServerConfig.ApiDb
                     .Query<SmartLineTaskOrder>(
                         "SELECT TaskOrderId, ProcessCodeCategoryId FROM `t_line_task_order` " +
@@ -544,20 +548,20 @@ namespace ApiManagement.Base.Helper
 
             SmartOperatorLevelChanged += (o, operatorLevels) =>
             {
-                if (operatorLevels == null || !operatorLevels.Any())
-                {
-                    return;
-                }
+                //if (operatorLevels == null || !operatorLevels.Any())
+                //{
+                //    return;
+                //}
 
-                var levels =
-                    SmartOperatorLevelHelper.Instance.GetAll<SmartOperatorLevel>().OrderBy(x => x.Order).ThenBy(y => y.Id);
+                //var levels =
+                //    SmartOperatorLevelHelper.Instance.GetAll<SmartOperatorLevel>().OrderBy(x => x.Order).ThenBy(y => y.Id);
 
-                for (var i = 0; i < levels.Count(); i++)
-                {
-                    levels.ElementAt(i).Order = i;
-                }
+                //for (var i = 0; i < levels.Count(); i++)
+                //{
+                //    levels.ElementAt(i).Order = i;
+                //}
 
-                ServerConfig.ApiDb.Execute("UPDATE `t_operator_level` SET `Order` = @Order WHERE `Id` = @Id;", levels);
+                //ServerConfig.ApiDb.Execute("UPDATE `t_operator_level` SET `Order` = @Order WHERE `Id` = @Id;", levels);
             };
 
             SmartCapacityListChanged += (o, capacityLists) =>
@@ -797,45 +801,42 @@ namespace ApiManagement.Base.Helper
                     smartLines.Values);
             };
 
-            SmartProductCapacityNeedUpdate += (o, smartProducts) =>
+            SmartProductCapacityNeedUpdate += (o, products) =>
             {
-                if (smartProducts == null || !smartProducts.Any())
+                if (products == null || !products.Any())
                 {
                     return;
                 }
 
-                var productsIds = smartProducts.Select(x => x.Id);
-                smartProducts = SmartProductHelper.Instance.GetByIds<SmartProduct>(productsIds);
-                var capacityIds = smartProducts.Select(x => x.CapacityId);
+                var productsIds = products.Select(x => x.Id);
+                products = SmartProductHelper.Instance.GetByIds<SmartProduct>(productsIds);
+                var capacityIds = products.Select(x => x.CapacityId);
                 var capacities = SmartCapacityListHelper.GetSmartCapacityListsWithOrder(capacityIds);
                 var productCapacities = SmartProductCapacityHelper.GetSmartProductCapacities(productsIds).Select(
                     x =>
                     {
-                        x.DeviceNumber = 0;
-                        x.OperatorNumber = 0;
-                        x.Number = 0;
+                        x.DeviceCapacity = 0;
+                        x.OperatorCapacity = 0;
+                        //x.Number = 0;
                         return x;
                     });
 
                 var modelIds = capacities.SelectMany(x => x.DeviceList).Select(y => y.ModelId).Distinct();
-                var modelCount = SmartDeviceModelHelper.GetNormalModelCount(modelIds);
+                var modelCount = SmartDeviceHelper.GetNormalDeviceModelCount(modelIds);
 
                 var processIds = capacities.Select(x => x.ProcessId).Distinct();
                 var operatorCount = SmartOperatorHelper.GetNormalOperatorCount(processIds);
 
                 var smartProductCapacities = new List<SmartProductCapacity>();
-                foreach (var smartProduct in smartProducts)
+                foreach (var product in products)
                 {
-                    smartProduct.Number = 0;
-                    smartProduct.DeviceNumber = 0;
-                    smartProduct.OperatorNumber = 0;
-                    var productId = smartProduct.Id;
-                    var capacityId = smartProduct.CapacityId;
+                    product.Number = 0;
+                    product.DeviceCapacity = 0;
+                    product.OperatorCapacity = 0;
+                    var productId = product.Id;
+                    var capacityId = product.CapacityId;
                     var capacityList = capacities.Where(x => x.CapacityId == capacityId);
                     var pCapacities = productCapacities.Where(x => x.ProductId == productId);
-                    smartProduct.DeviceNumber = 0;
-                    smartProduct.OperatorNumber = 0;
-                    smartProduct.Number = 0;
                     for (var i = 0; i < capacityList.Count(); i++)
                     {
                         var l = capacityList.ElementAt(i);
@@ -862,13 +863,22 @@ namespace ApiManagement.Base.Helper
                             op.Count = operatorCount.FirstOrDefault(x => (int)x.ProcessId == l.PId && (int)x.LevelId == op.LevelId) != null
                                 ? (int)operatorCount.FirstOrDefault(x => (int)x.ProcessId == l.PId && (int)x.LevelId == op.LevelId).Count : 0;
                         }
+                        var rate = 0m;
+                        if (l.DeviceList.Any())
+                        {
+                            rate = l.DeviceList.First().Rate;
+                        }
+                        else if (l.OperatorList.Any())
+                        {
+                            rate = l.OperatorList.First().Rate;
+                        }
                         var operatorCapacity = operators.Sum(x => x.Total);
                         if (i == 0)
                         {
                             deviceCapacity = l.CategoryId == 0 ? operatorCapacity : deviceCapacity;
-                            smartProduct.DeviceNumber = (int)Math.Floor(deviceCapacity * pc.Rate / 100);
-                            smartProduct.OperatorNumber = (int)Math.Floor(operatorCapacity * pc.Rate / 100);
-                            smartProduct.Number = Math.Max(smartProduct.DeviceNumber, smartProduct.OperatorNumber);
+                            product.DeviceCapacity = (int)Math.Floor(deviceCapacity * rate / 100);
+                            product.OperatorCapacity = (int)Math.Floor(operatorCapacity * rate / 100);
+                            product.Number = Math.Max(product.DeviceCapacity, product.OperatorCapacity);
                         }
                         else
                         {
@@ -880,25 +890,25 @@ namespace ApiManagement.Base.Helper
                             //var operatorNumber = Math.Min(operatorCapacity, smartProduct.OperatorNumber);
                             deviceCapacity = l.CategoryId == 0 ? operatorCapacity : deviceCapacity;
                             //上道工序合格品数量 > 当前工序最大产能
-                            var tDeviceCapacity = smartProduct.DeviceNumber > deviceCapacity
-                                 ? (int)Math.Floor(deviceCapacity * pc.Rate / 100)
-                                 : (int)Math.Floor(smartProduct.DeviceNumber * pc.Rate / 100);
+                            var tDeviceCapacity = product.DeviceCapacity > deviceCapacity
+                                 ? (int)Math.Floor(deviceCapacity * rate / 100)
+                                 : (int)Math.Floor(product.DeviceCapacity * rate / 100);
                             //上道工序合格品数量 > 当前工序最大产能
-                            var tOperatorCapacity = smartProduct.OperatorNumber > operatorCapacity
-                                 ? (int)Math.Floor(operatorCapacity * pc.Rate / 100)
-                                 : (int)Math.Floor(smartProduct.OperatorNumber * pc.Rate / 100);
+                            var tOperatorCapacity = product.OperatorCapacity > operatorCapacity
+                                 ? (int)Math.Floor(operatorCapacity * rate / 100)
+                                 : (int)Math.Floor(product.OperatorCapacity * rate / 100);
 
                             //pc.DeviceNumber = tDeviceCapacity;
                             //pc.OperatorNumber = tOperatorCapacity;
                             //pc.Number = Math.Max(smartProduct.DeviceNumber, smartProduct.OperatorNumber);
 
-                            smartProduct.DeviceNumber = tDeviceCapacity;
-                            smartProduct.OperatorNumber = tOperatorCapacity;
-                            smartProduct.Number = Math.Max(smartProduct.DeviceNumber, smartProduct.OperatorNumber);
+                            product.DeviceCapacity = tDeviceCapacity;
+                            product.OperatorCapacity = tOperatorCapacity;
+                            product.Number = Math.Max(product.DeviceCapacity, product.OperatorCapacity);
                         }
-                        pc.DeviceNumber = smartProduct.DeviceNumber;
-                        pc.OperatorNumber = smartProduct.OperatorNumber;
-                        pc.Number = smartProduct.Number;
+                        pc.DeviceCapacity = product.DeviceCapacity;
+                        pc.OperatorCapacity = product.OperatorCapacity;
+                        //pc.Number = smartProduct.Number;
                         var f = false;
                         if (deviceCapacity == 0 && operatorCapacity == 0)
                         {
@@ -906,7 +916,7 @@ namespace ApiManagement.Base.Helper
                             pc.Error = SmartProductCapacityError.产能未设置;
                         }
 
-                        if (pc.Rate == 0)
+                        if (rate == 0)
                         {
                             f = true;
                             pc.Error = SmartProductCapacityError.合格率未设置;
@@ -921,8 +931,18 @@ namespace ApiManagement.Base.Helper
                     }
                 }
                 smartProductCapacities.AddRange(productCapacities.Where(x => smartProductCapacities.All(y => y.Id != x.Id)));
-                ServerConfig.ApiDb.Execute("UPDATE `t_product` SET `Number` = @Number, `DeviceNumber` = @DeviceNumber, `OperatorNumber` = @OperatorNumber WHERE `Id` = @Id;", smartProducts);
-                ServerConfig.ApiDb.Execute("UPDATE `t_product_capacity` SET `Number` = @Number, `DeviceNumber` = @DeviceNumber, `OperatorNumber` = @OperatorNumber, `Error` = @Error WHERE `Id` = @Id;", smartProductCapacities);
+
+                var args = new List<string>
+                {
+                    "Number", "DeviceCapacity", "OperatorCapacity"
+                };
+                var cons = new List<string>
+                {
+                    "Id"
+                };
+                SmartProductHelper.Instance.CommonUpdate(args, cons, products);
+                args.Add("Error");
+                SmartProductCapacityHelper.Instance.CommonUpdate(args, cons, smartProductCapacities);
 
                 OnTaskOrderArrangeChanged();
             };

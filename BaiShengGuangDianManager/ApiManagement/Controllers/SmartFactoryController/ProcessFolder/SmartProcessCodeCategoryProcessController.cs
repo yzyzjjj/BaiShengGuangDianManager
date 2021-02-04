@@ -1,5 +1,4 @@
-﻿using ApiManagement.Base.Server;
-using ApiManagement.Models.BaseModel;
+﻿using ApiManagement.Models.BaseModel;
 using ApiManagement.Models.SmartFactoryModel;
 using Microsoft.AspNetCore.Mvc;
 using ModelBase.Base.EnumConfig;
@@ -14,21 +13,15 @@ namespace ApiManagement.Controllers.SmartFactoryController.ProcessFolder
     /// <summary>
     /// 
     /// </summary>
-    [Route("api/[controller]")]
-    [ApiController]
+    [Microsoft.AspNetCore.Mvc.Route("api/[controller]"), ApiController]
     public class SmartProcessCodeCategoryProcessController : ControllerBase
     {
         // GET: api/SmartProcessCodeCategoryProcess
         [HttpGet]
-        public DataResult GetSmartProcessCodeCategoryProcess([FromQuery]int qId, int categoryId)
+        public DataResult GetSmartProcessCodeCategoryProcess([FromQuery]int qId, int cId)
         {
             var result = new DataResult();
-            var sql =
-                $"SELECT a.*, b.Process, b.Remark FROM `t_process_code_category_process` a JOIN `t_process` b ON a.ProcessId = b.Id WHERE a.MarkedDelete = 0 AND b.MarkedDelete = 0" +
-                $"{(qId == 0 ? "" : " AND a.Id = @qId")}" +
-                $"{(categoryId == 0 ? "" : " AND ProcessCodeCategoryId = @categoryId")}" +
-                $" ORDER BY `Order`;";
-            result.datas.AddRange(ServerConfig.ApiDb.Query<SmartProcessCodeCategoryProcessDetail>(sql, new { qId, categoryId }));
+            result.datas.AddRange(SmartProcessCodeCategoryProcessHelper.GetDetail(qId, cId));
             if (qId != 0 && !result.datas.Any())
             {
                 result.errno = Error.SmartProcessCodeCategoryProcessNotExist;
@@ -39,44 +32,44 @@ namespace ApiManagement.Controllers.SmartFactoryController.ProcessFolder
 
         // PUT: api/SmartProcessCodeCategoryProcess
         [HttpPut]
-        public Result PutSmartProcessCodeCategoryProcess([FromBody] IEnumerable<SmartProcessCodeCategoryProcess> smartProcessCodeCategoryProcesses)
+        public Result PutSmartProcessCodeCategoryProcess([FromBody] IEnumerable<SmartProcessCodeCategoryProcess> processCodeCategoryProcesses)
         {
-            if (smartProcessCodeCategoryProcesses == null || !smartProcessCodeCategoryProcesses.Any())
+            if (processCodeCategoryProcesses == null || !processCodeCategoryProcesses.Any())
             {
                 return Result.GenError<Result>(Error.ParamError);
             }
-            var smartProcessCodeCategoryProcessIds = smartProcessCodeCategoryProcesses.Select(x => x.Id);
+            var smartProcessCodeCategoryProcessIds = processCodeCategoryProcesses.Select(x => x.Id);
             var data = SmartProcessCodeCategoryProcessHelper.Instance.GetByIds<SmartProcessCodeCategoryProcess>(smartProcessCodeCategoryProcessIds);
-            if (data.Count() != smartProcessCodeCategoryProcesses.Count())
+            if (data.Count() != processCodeCategoryProcesses.Count())
             {
                 return Result.GenError<Result>(Error.SmartProcessCodeCategoryProcessNotExist);
             }
 
             var createUserId = Request.GetIdentityInformation();
             var markedDateTime = DateTime.Now;
-            foreach (var smartProcessCodeCategory in smartProcessCodeCategoryProcesses)
+            foreach (var processCodeCategory in processCodeCategoryProcesses)
             {
-                smartProcessCodeCategory.CreateUserId = createUserId;
-                smartProcessCodeCategory.MarkedDateTime = markedDateTime;
+                processCodeCategory.CreateUserId = createUserId;
+                processCodeCategory.MarkedDateTime = markedDateTime;
             }
 
-            SmartProcessCodeCategoryProcessHelper.Instance.Update(smartProcessCodeCategoryProcesses);
+            SmartProcessCodeCategoryProcessHelper.Instance.Update(processCodeCategoryProcesses);
             return Result.GenError<Result>(Error.Success);
         }
 
         // POST: api/SmartProcessCodeCategoryProcess
         [HttpPost]
-        public Result PostSmartProcessCodeCategoryProcess([FromBody] IEnumerable<SmartProcessCodeCategoryProcess> smartProcessCodeCategories)
+        public Result PostSmartProcessCodeCategoryProcess([FromBody] IEnumerable<SmartProcessCodeCategoryProcess> processCodeCategoryProcesses)
         {
-            var createUserId = Request.GetIdentityInformation();
+            var userId = Request.GetIdentityInformation();
             var markedDateTime = DateTime.Now;
-            foreach (var smartProcessCodeCategory in smartProcessCodeCategories)
+            foreach (var processCodeCategory in processCodeCategoryProcesses)
             {
-                smartProcessCodeCategory.CreateUserId = createUserId;
-                smartProcessCodeCategory.MarkedDateTime = markedDateTime;
+                processCodeCategory.CreateUserId = userId;
+                processCodeCategory.MarkedDateTime = markedDateTime;
             }
 
-            SmartProcessCodeCategoryProcessHelper.Instance.Add(smartProcessCodeCategories);
+            SmartProcessCodeCategoryProcessHelper.Instance.Add(processCodeCategoryProcesses);
             return Result.GenError<Result>(Error.Success);
         }
 

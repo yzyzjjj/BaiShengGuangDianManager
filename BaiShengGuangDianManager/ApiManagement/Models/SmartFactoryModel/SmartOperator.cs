@@ -3,6 +3,10 @@
     public class SmartOperator : SmartAccount
     {
         /// <summary>
+        /// 车间Id
+        /// </summary>
+        public int WorkshopId { get; set; }
+        /// <summary>
         /// 用户Id
         /// </summary>
         public int UserId { get; set; }

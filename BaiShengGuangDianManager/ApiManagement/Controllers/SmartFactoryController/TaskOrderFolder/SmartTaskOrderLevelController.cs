@@ -1,10 +1,10 @@
-﻿using ApiManagement.Base.Server;
-using ApiManagement.Models.BaseModel;
+﻿using ApiManagement.Models.BaseModel;
 using ApiManagement.Models.SmartFactoryModel;
 using Microsoft.AspNetCore.Mvc;
 using ModelBase.Base.EnumConfig;
 using ModelBase.Base.Utils;
 using ModelBase.Models.Result;
+using ServiceStack;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -14,20 +14,23 @@ namespace ApiManagement.Controllers.SmartFactoryController.TaskOrderFolder
     /// <summary>
     /// 
     /// </summary>
-    [Route("api/[controller]")]
-    [ApiController]
+    [Microsoft.AspNetCore.Mvc.Route("api/[controller]"), ApiController]
     public class SmartTaskOrderLevelController : ControllerBase
     {
-        // GET: api/SmartTaskOrderLevel
+        /// <summary>
+        /// GET: api/SmartTaskOrderLevel
+        /// </summary>
+        /// <param name="qId">ID</param>
+        /// <param name="wId">车间ID</param>
+        /// <param name="menu">是否菜单</param>
+        /// <returns></returns>
         [HttpGet]
-        public DataResult GetSmartTaskOrderLevel([FromQuery]int qId, bool menu)
+        public DataResult GetSmartTaskOrderLevel([FromQuery]int qId, int wId, bool menu)
         {
             var result = new DataResult();
-            var sql = menu ? $"SELECT Id, `Level`, `Order` FROM `t_task_order_level` WHERE MarkedDelete = 0{(qId == 0 ? "" : " AND Id = @qId")} ORDER BY `Order`;"
-                : $"SELECT * FROM `t_task_order_level` WHERE MarkedDelete = 0{(qId == 0 ? "" : " AND Id = @qId")} ORDER BY `Order`;";
             result.datas.AddRange(menu
-                ? ServerConfig.ApiDb.Query<dynamic>(sql, new { qId })
-                : ServerConfig.ApiDb.Query<SmartTaskOrderLevel>(sql, new { qId }));
+                ? SmartTaskOrderLevelHelper.GetMenu(qId, wId)
+                : SmartTaskOrderLevelHelper.GetDetail(qId, wId));
             if (qId != 0 && !result.datas.Any())
             {
                 result.errno = Error.SmartTaskOrderLevelNotExist;
@@ -39,60 +42,82 @@ namespace ApiManagement.Controllers.SmartFactoryController.TaskOrderFolder
         /// <summary>
         /// 自增Id
         /// </summary>
-        /// <param name="smartTaskOrderLevels"></param>
+        /// <param name="taskOrderLevels"></param>
         /// <returns></returns>
         // PUT: api/SmartTaskOrderLevel/Id/5
         [HttpPut]
-        public Result PutSmartTaskOrderLevel([FromBody] IEnumerable<SmartTaskOrderLevel> smartTaskOrderLevels)
+        public Result PutSmartTaskOrderLevel([FromBody] IEnumerable<SmartTaskOrderLevel> taskOrderLevels)
         {
-            if (smartTaskOrderLevels == null || !smartTaskOrderLevels.Any())
+            if (taskOrderLevels == null || !taskOrderLevels.Any())
             {
                 return Result.GenError<Result>(Error.ParamError);
+            }
+            if (taskOrderLevels.Any(x => x.Level.IsNullOrEmpty()))
+            {
+                return Result.GenError<Result>(Error.SmartTaskOrderLevelNotEmpty);
+            }
+            if (taskOrderLevels.GroupBy(x => x.Level).Any(y => y.Count() > 1))
+            {
+                return Result.GenError<Result>(Error.SmartTaskOrderLevelDuplicate);
             }
 
-            if (smartTaskOrderLevels.Any(x => x.Order == 0))
+            var wId = taskOrderLevels.FirstOrDefault()?.WorkshopId ?? 0;
+            var sames = taskOrderLevels.Select(x => x.Level);
+            var ids = taskOrderLevels.Select(x => x.Id);
+            if (SmartTaskOrderLevelHelper.GetHaveSame(wId, sames, ids))
             {
-                return Result.GenError<Result>(Error.ParamError);
+                return Result.GenError<Result>(Error.SmartTaskOrderLevelIsExist);
             }
-            var smartTaskOrderLevelIds = smartTaskOrderLevels.Select(x => x.Id);
-            var data = SmartTaskOrderLevelHelper.Instance.GetByIds<SmartTaskOrderLevel>(smartTaskOrderLevelIds);
-            if (data.Count() != smartTaskOrderLevels.Count())
+
+            var cnt = SmartTaskOrderLevelHelper.Instance.GetCountByIds(ids);
+            if (cnt != taskOrderLevels.Count())
             {
                 return Result.GenError<Result>(Error.SmartTaskOrderLevelNotExist);
             }
 
-            if(data.Any(x => x.Order == 0))
-            {
-                return Result.GenError<Result>(Error.ParamError);
-            }
-
-            var createUserId = Request.GetIdentityInformation();
             var markedDateTime = DateTime.Now;
-            foreach (var smartTaskOrderLevel in smartTaskOrderLevels)
+            foreach (var taskOrderLevel in taskOrderLevels)
             {
-                smartTaskOrderLevel.CreateUserId = createUserId;
-                smartTaskOrderLevel.MarkedDateTime = markedDateTime;
+                taskOrderLevel.MarkedDateTime = markedDateTime;
+                taskOrderLevel.Remark = taskOrderLevel.Remark ?? "";
             }
-            SmartTaskOrderLevelHelper.Instance.Update(smartTaskOrderLevels);
+            SmartTaskOrderLevelHelper.Instance.Update(taskOrderLevels);
             return Result.GenError<Result>(Error.Success);
         }
 
         // POST: api/SmartTaskOrderLevel
         [HttpPost]
-        public Result PostSmartTaskOrderLevel([FromBody] IEnumerable<SmartTaskOrderLevel> smartTaskOrderLevels)
+        public Result PostSmartTaskOrderLevel([FromBody] IEnumerable<SmartTaskOrderLevel> operatorLevels)
         {
-            if (smartTaskOrderLevels.Any(x => x.Order == 0))
+            if (operatorLevels == null || !operatorLevels.Any())
             {
                 return Result.GenError<Result>(Error.ParamError);
             }
-            var createUserId = Request.GetIdentityInformation();
-            var markedDateTime = DateTime.Now;
-            foreach (var smartTaskOrderLevel in smartTaskOrderLevels)
+            if (operatorLevels.Any(x => x.Level.IsNullOrEmpty()))
             {
-                smartTaskOrderLevel.CreateUserId = createUserId;
-                smartTaskOrderLevel.MarkedDateTime = markedDateTime;
+                return Result.GenError<Result>(Error.SmartTaskOrderLevelNotEmpty);
             }
-            SmartTaskOrderLevelHelper.Instance.Add(smartTaskOrderLevels);
+            if (operatorLevels.GroupBy(x => x.Level).Any(y => y.Count() > 1))
+            {
+                return Result.GenError<Result>(Error.SmartTaskOrderLevelDuplicate);
+            }
+
+            var wId = operatorLevels.FirstOrDefault()?.WorkshopId ?? 0;
+            var sames = operatorLevels.Select(x => x.Level);
+            if (SmartTaskOrderLevelHelper.GetHaveSame(wId, sames))
+            {
+                return Result.GenError<Result>(Error.SmartTaskOrderLevelIsExist);
+            }
+
+            var userId = Request.GetIdentityInformation();
+            var markedDateTime = DateTime.Now;
+            foreach (var operatorLevel in operatorLevels)
+            {
+                operatorLevel.CreateUserId = userId;
+                operatorLevel.MarkedDateTime = markedDateTime;
+                operatorLevel.Remark = operatorLevel.Remark ?? "";
+            }
+            SmartTaskOrderLevelHelper.Instance.Add(operatorLevels);
             return Result.GenError<Result>(Error.Success);
         }
 

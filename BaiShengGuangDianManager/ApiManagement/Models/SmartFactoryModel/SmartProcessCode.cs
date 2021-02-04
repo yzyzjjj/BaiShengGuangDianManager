@@ -9,6 +9,10 @@ namespace ApiManagement.Models.SmartFactoryModel
     public class SmartProcessCode : CommonBase
     {
         /// <summary>
+        /// 车间Id
+        /// </summary>
+        public int WorkshopId { get; set; }
+        /// <summary>
         /// 流程编号
         /// </summary>
         public string Code { get; set; }

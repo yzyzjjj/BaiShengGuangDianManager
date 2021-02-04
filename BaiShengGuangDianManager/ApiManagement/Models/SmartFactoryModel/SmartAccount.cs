@@ -1,7 +1,7 @@
-﻿using System;
-using ApiManagement.Models.BaseModel;
+﻿using ApiManagement.Models.BaseModel;
 using Newtonsoft.Json;
 using ServiceStack;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 
@@ -82,9 +82,9 @@ namespace ApiManagement.Models.SmartFactoryModel
         public string MaxProductionRole { get; set; }
         public string Permissions { get; set; }
         [JsonIgnore]
-        public IEnumerable<int> PermissionsList => Permissions.Split(',').Select(int.Parse).Distinct();
+        public IEnumerable<int> PermissionsList => Permissions.IsNullOrEmpty() ? new List<int>() : Permissions.Split(',').Select(int.Parse).Distinct();
         [JsonIgnore]
-        public IEnumerable<int> DeviceIdsList => DeviceIds.Split(',').Select(int.Parse).Distinct();
+        public IEnumerable<int> DeviceIdsList => DeviceIds.IsNullOrEmpty() ? new List<int>() : DeviceIds.Split(',').Select(int.Parse).Distinct();
         /// <summary>
         /// 是否为系统默认账号
         /// </summary>
@@ -93,6 +93,6 @@ namespace ApiManagement.Models.SmartFactoryModel
         /// <summary>
         /// 备注
         /// </summary>
-        public bool Remark { get; set; }
+        public string Remark { get; set; }
     }
 }

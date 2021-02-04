@@ -1,5 +1,4 @@
 ﻿using ApiManagement.Base.Helper;
-using ApiManagement.Base.Server;
 using ApiManagement.Models.BaseModel;
 using ApiManagement.Models.SmartFactoryModel;
 using Microsoft.AspNetCore.Mvc;
@@ -7,6 +6,7 @@ using Microsoft.EntityFrameworkCore.Internal;
 using ModelBase.Base.EnumConfig;
 using ModelBase.Base.Utils;
 using ModelBase.Models.Result;
+using ServiceStack;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -16,132 +16,130 @@ namespace ApiManagement.Controllers.SmartFactoryController.FlowCardFolder
     /// <summary>
     /// 
     /// </summary>
-    [Route("api/[controller]"), ApiController]
+    [Microsoft.AspNetCore.Mvc.Route("api/[controller]"), ApiController]
     public class SmartFlowCardController : ControllerBase
     {
         // GET: api/SmartFlowCard
         [HttpGet]
-        public DataResult GetSmartFlowCard([FromQuery]int qId, int productId, int taskOrderId, bool menu, DateTime startTime, DateTime endTime)
+        public DataResult GetSmartFlowCard([FromQuery]int wId, int qId, int productId, int taskOrderId, bool menu, DateTime startTime, DateTime endTime)
         {
             var result = new DataResult();
-            var sql = menu ? $"SELECT Id, `FlowCard` FROM `t_flow_card` WHERE MarkedDelete = 0{(qId == 0 ? "" : " AND Id = @qId")};"
-                : $"SELECT a.*, b.TaskOrder, b.ProductId, b.Product, c.`Code` ProcessCode FROM `t_flow_card` a " +
-                  $"LEFT JOIN (SELECT a.*, b.Product FROM `t_task_order` a JOIN `t_product` b ON a.ProductId = b.Id WHERE 1 = 1{(productId == 0 ? "" : " AND a.ProductId = @productId")}) b ON a.TaskOrderId = b.Id " +
-                  $"JOIN `t_process_code` c ON a.ProcessCodeId = c.Id  " +
-                  $"WHERE a.MarkedDelete = 0" +
-                  $"{(qId == 0 ? "" : " AND a.Id = @qId")}" +
-                  $"{(taskOrderId == 0 ? "" : " AND a.TaskOrderId = @taskOrderId")}" +
-                  $"{(startTime == default(DateTime) ? "" : " AND a.CreateTime >= @startTime")}" +
-                  $"{(endTime == default(DateTime) ? "" : " AND a.CreateTime <= @endTime")};";
-            var data = ServerConfig.ApiDb.Query<SmartFlowCardDetail>(sql, new { qId, productId, taskOrderId, startTime, endTime });
-
-            if (qId != 0 && !data.Any())
-            {
-                result.errno = Error.SmartFlowCardNotExist;
-                return result;
-            }
-            if (qId != 0 && !menu)
-            {
-                var d = data.First();
-                if (d.State != SmartFlowCardState.未加工)
-                {
-                    var processes = SmartFlowCardProcessHelper.GetSmartFlowCardProcessesByFlowCardId(d.Id);
-                    if (processes.Any())
-                    {
-                        var st = processes.First().StartTime;
-                        var etMax = processes.Where(x => x.EndTime != default(DateTime)).Min(y => y.EndTime);
-                        if (d.State == SmartFlowCardState.已完成)
-                        {
-                            var et = processes.Last().EndTime;
-                            d.Consume = (int)(et - st).TotalSeconds;
-                        }
-                        else if (d.State == SmartFlowCardState.已取消)
-                        {
-                            d.Consume = (int)(etMax - st).TotalSeconds;
-                        }
-                        else
-                        {
-                            d.Consume = (int)(DateTime.Now - st).TotalSeconds;
-                        }
-
-                        var last = processes.LastOrDefault(x => x.Before != 0);
-                        if (last != null)
-                        {
-
-                            d.Done = last.Qualified + last.Unqualified;
-                            d.Left = last.Before - d.Done;
-                        }
-                    }
-                }
-            }
             if (menu)
             {
-                result.datas.AddRange(data.Select(x => new
-                {
-                    x.Id,
-                    x.FlowCard
-                }));
+                result.datas.AddRange(SmartFlowCardHelper.GetMenu(qId, wId));
             }
             else
             {
+                var data = SmartFlowCardHelper.GetDetail(startTime, endTime, qId, wId, taskOrderId, productId);
+                if (qId != 0 && !menu)
+                {
+                    var d = data.First();
+                    if (d.State != SmartFlowCardState.未加工)
+                    {
+                        var processes = SmartFlowCardProcessHelper.GetSmartFlowCardProcessesByFlowCardId(d.Id);
+                        if (processes.Any())
+                        {
+                            var st = processes.First().StartTime;
+                            var etMax = processes.Where(x => x.EndTime != default(DateTime)).Min(y => y.EndTime);
+                            if (d.State == SmartFlowCardState.已完成)
+                            {
+                                var et = processes.Last().EndTime;
+                                d.Consume = (int)(et - st).TotalSeconds;
+                            }
+                            else if (d.State == SmartFlowCardState.已取消)
+                            {
+                                d.Consume = (int)(etMax - st).TotalSeconds;
+                            }
+                            else
+                            {
+                                d.Consume = (int)(DateTime.Now - st).TotalSeconds;
+                            }
+
+                            var last = processes.LastOrDefault(x => x.Before != 0);
+                            if (last != null)
+                            {
+
+                                d.Done = last.Qualified + last.Unqualified;
+                                d.Left = last.Before - d.Done;
+                            }
+                        }
+                    }
+                }
                 result.datas.AddRange(data);
+            }
+
+            if (qId != 0 && !result.datas.Any())
+            {
+                result.errno = Error.SmartFlowCardNotExist;
             }
             return result;
         }
 
         // PUT: api/SmartFlowCard
         [HttpPut]
-        public Result PutSmartFlowCard([FromBody] IEnumerable<SmartFlowCard> smartFlowCards)
+        public Result PutSmartFlowCard([FromBody] IEnumerable<SmartFlowCard> flowCards)
         {
-            if (smartFlowCards == null || !smartFlowCards.Any())
+            if (flowCards == null || !flowCards.Any())
             {
                 return Result.GenError<Result>(Error.ParamError);
             }
-
-            var smartFlowCardIds = smartFlowCards.Select(x => x.Id);
-            var data = SmartFlowCardHelper.Instance.GetByIds<SmartFlowCard>(smartFlowCardIds);
-            if (data.Count() != smartFlowCards.Count())
+            if (flowCards.Any(x => x.FlowCard.IsNullOrEmpty()))
             {
-                return Result.GenError<Result>(Error.SmartFlowCardProcessNotExist);
+                return Result.GenError<Result>(Error.SmartFlowCardNotEmpty);
+            }
+            if (flowCards.GroupBy(x => x.FlowCard).Any(y => y.Count() > 1))
+            {
+                return Result.GenError<Result>(Error.SmartFlowCardDuplicate);
             }
 
-            var createUserId = Request.GetIdentityInformation();
+            var wId = flowCards.FirstOrDefault()?.WorkshopId ?? 0;
+            var sames = flowCards.Select(x => x.FlowCard);
+            var ids = flowCards.Select(x => x.Id);
+            if (SmartFlowCardHelper.GetHaveSame(wId, sames, ids))
+            {
+                return Result.GenError<Result>(Error.SmartFlowCardIsExist);
+            }
+
+            var cnt = SmartFlowCardHelper.Instance.GetCountByIds(ids);
+            if (cnt != flowCards.Count())
+            {
+                return Result.GenError<Result>(Error.SmartFlowCardNotExist);
+            }
+
             var markedDateTime = DateTime.Now;
-            foreach (var smartProcess in smartFlowCards)
+            foreach (var operatorLevel in flowCards)
             {
-                smartProcess.CreateUserId = createUserId;
-                smartProcess.MarkedDateTime = markedDateTime;
+                operatorLevel.MarkedDateTime = markedDateTime;
+                operatorLevel.Remark = operatorLevel.Remark ?? "";
             }
-
-            SmartFlowCardHelper.Instance.Update(smartFlowCards);
+            SmartFlowCardHelper.Instance.Update(flowCards);
+            WorkFlowHelper.Instance.OnSmartFlowCardChanged(flowCards);
             return Result.GenError<Result>(Error.Success);
         }
 
         // POST: api/SmartFlowCard
         [HttpPost]
-        public object PostSmartFlowCard([FromBody] IEnumerable<SmartFlowCard> smartFlowCards)
+        public object PostSmartFlowCard([FromBody] IEnumerable<SmartFlowCard> flowCards)
         {
-            if (smartFlowCards == null || !smartFlowCards.Any())
+            if (flowCards == null || !flowCards.Any())
             {
                 return Result.GenError<Result>(Error.ParamError);
             }
-            if (smartFlowCards.Count(x => x.Number <= 0) > 1)
+
+            if (flowCards.Count(x => x.Number <= 0) > 1)
             {
                 return Result.GenError<Result>(Error.SmartFlowCardNumberError);
             }
-            if (smartFlowCards.GroupBy(x => x.TaskOrderId).Count() > 1)
+
+            var wId = flowCards.First().WorkshopId;
+            var taskOrderId = flowCards.First().TaskOrderId;
+            if (flowCards.GroupBy(x => x.ProcessCodeId).Count() > 1)
             {
                 return Result.GenError<Result>(Error.ParamError);
             }
+            var processCodeId = flowCards.First().ProcessCodeId;
 
-            var taskOrderId = smartFlowCards.First().TaskOrderId;
-            if (smartFlowCards.GroupBy(x => x.ProcessCodeId).Count() > 1)
-            {
-                return Result.GenError<Result>(Error.ParamError);
-            }
-            var processCodeId = smartFlowCards.First().ProcessCodeId;
-
-            var thisTotal = smartFlowCards.Sum(x => x.Number);
+            var thisTotal = flowCards.Sum(x => x.Number);
 
             var taskOrder = SmartTaskOrderHelper.Instance.Get<SmartTaskOrder>(taskOrderId);
             if (taskOrder == null)
@@ -163,36 +161,38 @@ namespace ApiManagement.Controllers.SmartFactoryController.FlowCardFolder
             var batch = SmartFlowCardHelper.GetSmartFlowCardBatch(taskOrderId);
             batch++;
 
-            var count = smartFlowCards.Count();
-            var createUserId = Request.GetIdentityInformation();
+            var count = flowCards.Count();
+            var userId = Request.GetIdentityInformation();
             var markedDateTime = DateTime.Now;
-            var flowCards = CodeHelper.GenCodes(CodeType.流程卡, count, markedDateTime).ToArray();
+            var fcs = CodeHelper.GenCodes(CodeType.流程卡, count, markedDateTime).ToArray();
             var i = 0;
-            foreach (var smartFlowCard in smartFlowCards)
+            foreach (var flowCard in flowCards)
             {
-                smartFlowCard.CreateUserId = createUserId;
-                smartFlowCard.MarkedDateTime = markedDateTime;
-                smartFlowCard.CreateTime = markedDateTime;
-                smartFlowCard.FlowCard = flowCards[i];
-                smartFlowCard.Batch = batch;
+                flowCard.CreateUserId = userId;
+                flowCard.MarkedDateTime = markedDateTime;
+                flowCard.CreateTime = markedDateTime;
+                flowCard.FlowCard = fcs[i];
+                flowCard.Batch = batch;
+                flowCard.Remark = flowCard.Remark ?? "";
                 i++;
             }
-            SmartFlowCardHelper.Instance.Add(smartFlowCards);
+            SmartFlowCardHelper.Instance.Add(flowCards);
             var addFlowCards = SmartFlowCardHelper.GetSmartFlowCardsByBatch(taskOrderId, batch);
 
             var smartFlowCardProcesses = new List<SmartFlowCardProcess>();
             i = 0;
             foreach (var smartFlowCard in addFlowCards)
             {
-                var newSmartFlowCard = smartFlowCards.ElementAt(i);
+                var newSmartFlowCard = flowCards.ElementAt(i);
                 smartFlowCard.ProcessorId = newSmartFlowCard.ProcessorId;
                 var t = true;
                 foreach (var process in processes)
                 {
                     var flowCardProcess = new SmartFlowCardProcess
                     {
-                        CreateUserId = createUserId,
+                        CreateUserId = userId,
                         MarkedDateTime = markedDateTime,
+                        WorkshopId = wId,
                         FlowCardId = smartFlowCard.Id,
                         ProcessId = process.Id,
                     };
@@ -236,14 +236,14 @@ namespace ApiManagement.Controllers.SmartFactoryController.FlowCardFolder
         public Result DeleteSmartFlowCard([FromBody] BatchDelete batchDelete)
         {
             var ids = batchDelete.ids;
-            var smartFlowCards = SmartFlowCardHelper.Instance.GetByIds<SmartFlowCard>(ids);
-            if (!smartFlowCards.Any() || smartFlowCards.Count() != ids.Count())
+            var flowCards = SmartFlowCardHelper.Instance.GetByIds<SmartFlowCard>(ids);
+            if (!flowCards.Any() || flowCards.Count() != ids.Count())
             {
                 return Result.GenError<Result>(Error.SmartFlowCardProcessNotExist);
             }
             SmartFlowCardHelper.Instance.Delete(ids);
             SmartFlowCardProcessHelper.DeleteByFlowCardIs(ids);
-            WorkFlowHelper.Instance.OnSmartFlowCardChanged(smartFlowCards);
+            WorkFlowHelper.Instance.OnSmartFlowCardChanged(flowCards);
             return Result.GenError<Result>(Error.Success);
         }
     }

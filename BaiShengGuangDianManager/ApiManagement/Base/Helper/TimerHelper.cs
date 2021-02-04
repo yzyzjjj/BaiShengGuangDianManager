@@ -23,10 +23,6 @@ namespace ApiManagement.Base.Helper
 {
     public class TimerHelper
     {
-        public TimerHelper()
-        {
-            Init();
-        }
         private static readonly string Debug = "Debug";
         private static string _url = ServerConfig.ErpUrl;
         private static string _urlFile = "http://192.168.1.100/lc/uploads/";
@@ -34,10 +30,10 @@ namespace ApiManagement.Base.Helper
 
 #if DEBUG
 #else
-        private static Timer _totalTimer;
+        //private static Timer _totalTimer;
 #endif
         private static CancellationTokenSource cts = new CancellationTokenSource();
-        public void Init()
+        public static void Init()
         {
             if (!RedisHelper.Exists(Debug))
             {

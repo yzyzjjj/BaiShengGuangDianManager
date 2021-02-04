@@ -1,10 +1,10 @@
-﻿using ApiManagement.Base.Server;
-using ApiManagement.Models.BaseModel;
+﻿using ApiManagement.Models.BaseModel;
 using ApiManagement.Models.SmartFactoryModel;
 using Microsoft.AspNetCore.Mvc;
 using ModelBase.Base.EnumConfig;
 using ModelBase.Base.Utils;
 using ModelBase.Models.Result;
+using ServiceStack;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -14,20 +14,23 @@ namespace ApiManagement.Controllers.SmartFactoryController.ProcessFolder
     /// <summary>
     /// 
     /// </summary>
-    [Microsoft.AspNetCore.Mvc.Route("api/[controller]")]
-    [ApiController]
+    [Microsoft.AspNetCore.Mvc.Route("api/[controller]"), ApiController]
     public class SmartProcessController : ControllerBase
     {
-        // GET: api/SmartProcess
+        /// <summary>
+        /// GET: api/SmartProcess
+        /// </summary>
+        /// <param name="qId">流程ID</param>
+        /// <param name="wId">车间ID</param>
+        /// <param name="menu">是</param>
+        /// <returns></returns>
         [HttpGet]
-        public DataResult GetSmartProcess([FromQuery]int qId, bool menu)
+        public DataResult GetSmartProcess([FromQuery]int qId, int wId, bool menu)
         {
             var result = new DataResult();
-            var sql = menu ? $"SELECT Id, `Process`, `Order` FROM `t_process` WHERE MarkedDelete = 0{(qId == 0 ? "" : " AND Id = @qId")} ORDER BY `Order`;"
-                : $"SELECT a.*, IFNULL(b.Category, '') DeviceCategory FROM `t_process` a LEFT JOIN t_device_category b ON a.DeviceCategoryId = b.Id WHERE a.MarkedDelete = 0{(qId == 0 ? "" : " AND a.Id = @qId")} ORDER BY `Order`;";
             result.datas.AddRange(menu
-                ? ServerConfig.ApiDb.Query<dynamic>(sql, new { qId })
-                : ServerConfig.ApiDb.Query<SmartProcessDetail>(sql, new { qId }));
+                ? SmartProcessHelper.GetMenu(qId, wId)
+                : SmartProcessHelper.GetDetail(qId, wId));
             if (qId != 0 && !result.datas.Any())
             {
                 result.errno = Error.SmartProcessNotExist;
@@ -38,44 +41,82 @@ namespace ApiManagement.Controllers.SmartFactoryController.ProcessFolder
 
         // PUT: api/SmartProcess
         [HttpPut]
-        public Result PutSmartProcess([FromBody] IEnumerable<SmartProcess> smartProcesses)
+        public Result PutSmartProcess([FromBody] IEnumerable<SmartProcess> processes)
         {
-            if (smartProcesses == null || !smartProcesses.Any())
+            if (processes == null || !processes.Any())
             {
                 return Result.GenError<Result>(Error.ParamError);
             }
+            if (processes.Any(x => x.Process.IsNullOrEmpty()))
+            {
+                return Result.GenError<Result>(Error.SmartProcessNotEmpty);
+            }
+            if (processes.GroupBy(x => x.Process).Any(y => y.Count() > 1))
+            {
+                return Result.GenError<Result>(Error.SmartProcessDuplicate);
+            }
 
-            var smartProcessIds = smartProcesses.Select(x => x.Id);
-            var data = SmartProcessHelper.Instance.GetByIds<SmartProcess>(smartProcessIds);
-            if (data.Count() != smartProcesses.Count())
+            var wId = processes.FirstOrDefault()?.WorkshopId ?? 0;
+            var cIds = processes.Select(x => x.DeviceCategoryId);
+            var sames = processes.Select(x => x.Process);
+            var ids = processes.Select(x => x.Id);
+            if (SmartProcessHelper.GetHaveSame(wId, cIds, sames, ids))
+            {
+                return Result.GenError<Result>(Error.SmartProcessIsExist);
+            }
+
+            var cnt = SmartProcessHelper.Instance.GetCountByIds(ids);
+            if (cnt != processes.Count())
             {
                 return Result.GenError<Result>(Error.SmartProcessNotExist);
             }
 
-            var createUserId = Request.GetIdentityInformation();
             var markedDateTime = DateTime.Now;
-            foreach (var smartProcess in smartProcesses)
+            foreach (var process in processes)
             {
-                smartProcess.CreateUserId = createUserId;
-                smartProcess.MarkedDateTime = markedDateTime;
+                process.MarkedDateTime = markedDateTime;
+                process.Remark = process.Remark ?? "";
             }
 
-            SmartProcessHelper.Instance.Update(smartProcesses);
+            SmartProcessHelper.Instance.Update(processes);
             return Result.GenError<Result>(Error.Success);
         }
 
         // POST: api/SmartProcess
         [HttpPost]
-        public Result PostSmartProcess([FromBody] IEnumerable<SmartProcess> smartProcesses)
+        public Result PostSmartProcess([FromBody] IEnumerable<SmartProcess> processes)
         {
-            var createUserId = Request.GetIdentityInformation();
-            var markedDateTime = DateTime.Now;
-            foreach (var smartProcess in smartProcesses)
+            if (processes == null || !processes.Any())
             {
-                smartProcess.CreateUserId = createUserId;
-                smartProcess.MarkedDateTime = markedDateTime;
+                return Result.GenError<Result>(Error.ParamError);
             }
-            SmartProcessHelper.Instance.Add(smartProcesses);
+            if (processes.Any(x => x.Process.IsNullOrEmpty()))
+            {
+                return Result.GenError<Result>(Error.SmartProcessNotEmpty);
+            }
+            if (processes.GroupBy(x => x.Process).Any(y => y.Count() > 1))
+            {
+                return Result.GenError<Result>(Error.SmartProcessDuplicate);
+            }
+
+            var wId = processes.FirstOrDefault()?.WorkshopId ?? 0;
+            var cIds = processes.Select(x => x.DeviceCategoryId);
+            var sames = processes.Select(x => x.Process);
+            if (SmartProcessHelper.GetHaveSame(wId, cIds, sames))
+            {
+                return Result.GenError<Result>(Error.SmartProcessIsExist);
+            }
+
+            var userId = Request.GetIdentityInformation();
+            var markedDateTime = DateTime.Now;
+            foreach (var process in processes)
+            {
+                process.CreateUserId = userId;
+                process.MarkedDateTime = markedDateTime;
+                process.Remark = process.Remark ?? "";
+            }
+
+            SmartProcessHelper.Instance.Add(processes);
             return Result.GenError<Result>(Error.Success);
         }
 

@@ -1,10 +1,10 @@
-﻿using ApiManagement.Base.Server;
-using ApiManagement.Models.BaseModel;
+﻿using ApiManagement.Models.BaseModel;
 using ApiManagement.Models.SmartFactoryModel;
 using Microsoft.AspNetCore.Mvc;
 using ModelBase.Base.EnumConfig;
 using ModelBase.Base.Utils;
 using ModelBase.Models.Result;
+using ServiceStack;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -14,21 +14,24 @@ namespace ApiManagement.Controllers.SmartFactoryController.DeviceFolder
     /// <summary>
     /// 
     /// </summary>
-    [Route("api/[controller]")]
-    [ApiController]
+    [Microsoft.AspNetCore.Mvc.Route("api/[controller]"), ApiController]
     public class SmartDeviceModelController : ControllerBase
     {
-        // GET: api/SmartDeviceModel
+        /// <summary>
+        /// GET: api/SmartDeviceModel
+        /// </summary>
+        /// <param name="qId">设备型号ID</param>
+        /// <param name="cId">设备类型ID</param>
+        /// <param name="wId">车间ID</param>
+        /// <param name="menu">是否菜单</param>
+        /// <returns></returns>
         [HttpGet]
-        public DataResult GetSmartDeviceModel([FromQuery]int qId, int categoryId, bool menu)
+        public DataResult GetSmartDeviceModel([FromQuery]int qId, int cId, int wId, bool menu)
         {
             var result = new DataResult();
-            var sql = menu ? $"SELECT Id, `Model` FROM `t_device_model` WHERE MarkedDelete = 0{(qId == 0 ? "" : " AND Id = @qId")}{(categoryId == 0 ? "" : " AND CategoryId = @categoryId")};"
-                : $"SELECT a.*, b.`Category` FROM `t_device_model` a JOIN `t_device_category` b ON a.CategoryId = b.Id " +
-                  $"WHERE a.MarkedDelete = 0{(qId == 0 ? "" : " AND a.Id = @qId")}{(categoryId == 0 ? "" : " AND CategoryId = @categoryId")};";
             result.datas.AddRange(menu
-                ? ServerConfig.ApiDb.Query<dynamic>(sql, new { qId, categoryId })
-                : ServerConfig.ApiDb.Query<SmartDeviceModelDetail>(sql, new { qId, categoryId }));
+                ? SmartDeviceModelHelper.GetMenu(qId, cId, wId)
+                : SmartDeviceModelHelper.GetDetail(qId, cId, wId));
             if (qId != 0 && !result.datas.Any())
             {
                 result.errno = Error.SmartDeviceModelNotExist;
@@ -39,41 +42,80 @@ namespace ApiManagement.Controllers.SmartFactoryController.DeviceFolder
 
         // PUT: api/SmartDeviceModel
         [HttpPut]
-        public Result PutSmartDeviceModel([FromBody] IEnumerable<SmartDeviceModel> smartDeviceModels)
+        public Result PutSmartDeviceModel([FromBody] IEnumerable<SmartDeviceModel> deviceModels)
         {
-            if (smartDeviceModels == null || !smartDeviceModels.Any())
+            if (deviceModels == null || !deviceModels.Any())
             {
                 return Result.GenError<Result>(Error.ParamError);
             }
-            var smartDeviceModelIds = smartDeviceModels.Select(x => x.Id);
-            var data = SmartDeviceModelHelper.Instance.GetByIds<SmartDeviceModel>(smartDeviceModelIds);
-            if (data.Count() != smartDeviceModels.Count())
+            if (deviceModels.Any(x => x.Model.IsNullOrEmpty()))
+            {
+                return Result.GenError<Result>(Error.SmartDeviceModelNotEmpty);
+            }
+            if (deviceModels.GroupBy(x => x.Model).Any(y => y.Count() > 1))
+            {
+                return Result.GenError<Result>(Error.SmartDeviceModelDuplicate);
+            }
+            var cId = deviceModels.FirstOrDefault()?.CategoryId ?? 0;
+            var sames = deviceModels.Select(x => x.Model);
+            var ids = deviceModels.Select(x => x.Id);
+            if (SmartDeviceModelHelper.GetHaveSame(cId, sames, ids))
+            {
+                return Result.GenError<Result>(Error.SmartDeviceModelIsExist);
+            }
+            var oldModels = SmartDeviceModelHelper.Instance.GetByIds<SmartDeviceModel>(ids);
+            if (oldModels.Count() != deviceModels.Count())
             {
                 return Result.GenError<Result>(Error.SmartDeviceModelNotExist);
             }
-            var createUserId = Request.GetIdentityInformation();
+            var updates = new List<Tuple<int, int>>();
             var markedDateTime = DateTime.Now;
-            foreach (var SmartDeviceModel in smartDeviceModels)
+            foreach (var model in deviceModels)
             {
-                SmartDeviceModel.CreateUserId = createUserId;
-                SmartDeviceModel.MarkedDateTime = markedDateTime;
+                model.MarkedDateTime = markedDateTime;
+                model.Remark = model.Remark ?? "";
+                var first = oldModels.FirstOrDefault(x => x.Id == model.Id);
+                if (first != null && first.CategoryId != model.CategoryId)
+                {
+                    updates.Add(new Tuple<int, int>(model.Id, model.CategoryId));
+                }
             }
-            SmartDeviceModelHelper.Instance.Update(smartDeviceModels);
+            SmartDeviceModelHelper.Instance.Update(deviceModels);
+            SmartDeviceHelper.UpdateSmartDeviceCategory(updates);
             return Result.GenError<Result>(Error.Success);
         }
 
         // POST: api/SmartDeviceModel
         [HttpPost]
-        public Result PostSmartDeviceModel([FromBody] IEnumerable<SmartDeviceModel> smartDeviceModels)
+        public Result PostSmartDeviceModel([FromBody] IEnumerable<SmartDeviceModel> deviceModels)
         {
-            var createUserId = Request.GetIdentityInformation();
-            var markedDateTime = DateTime.Now;
-            foreach (var smartDeviceModel in smartDeviceModels)
+            if (deviceModels == null || !deviceModels.Any())
             {
-                smartDeviceModel.CreateUserId = createUserId;
-                smartDeviceModel.MarkedDateTime = markedDateTime;
+                return Result.GenError<Result>(Error.ParamError);
             }
-            SmartDeviceModelHelper.Instance.Add(smartDeviceModels);
+            if (deviceModels.Any(x => x.Model.IsNullOrEmpty()))
+            {
+                return Result.GenError<Result>(Error.SmartDeviceModelNotEmpty);
+            }
+            if (deviceModels.GroupBy(x => x.Model).Any(y => y.Count() > 1))
+            {
+                return Result.GenError<Result>(Error.SmartDeviceModelDuplicate);
+            }
+            var cId = deviceModels.FirstOrDefault()?.CategoryId ?? 0;
+            var sames = deviceModels.Select(x => x.Model);
+            if (SmartDeviceModelHelper.GetHaveSame(cId, sames))
+            {
+                return Result.GenError<Result>(Error.SmartDeviceModelIsExist);
+            }
+            var userId = Request.GetIdentityInformation();
+            var markedDateTime = DateTime.Now;
+            foreach (var model in deviceModels)
+            {
+                model.CreateUserId = userId;
+                model.MarkedDateTime = markedDateTime;
+                model.Remark = model.Remark ?? "";
+            }
+            SmartDeviceModelHelper.Instance.Add(deviceModels);
             return Result.GenError<Result>(Error.Success);
         }
 

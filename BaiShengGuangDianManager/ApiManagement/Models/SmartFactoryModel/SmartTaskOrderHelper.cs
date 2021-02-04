@@ -12,81 +12,135 @@ namespace ApiManagement.Models.SmartFactoryModel
         {
             Table = "t_task_order";
             InsertSql =
-                "INSERT INTO `t_task_order` (`CreateUserId`, `MarkedDateTime`, `TaskOrder`, `WorkOrderId`, `ProductId`, `Target`, `DeliveryTime`, `Remark`) " +
-                "VALUES (@CreateUserId, @MarkedDateTime, @TaskOrder, @WorkOrderId, @ProductId, @Target, @DeliveryTime, @Remark);";
+                "INSERT INTO `t_task_order` (`CreateUserId`, `MarkedDateTime`, `WorkshopId`, `TaskOrder`, `WorkOrderId`, `ProductId`, `Target`, `DeliveryTime`, `Remark`) " +
+                "VALUES (@CreateUserId, @MarkedDateTime, @WorkshopId, @TaskOrder, @WorkOrderId, @ProductId, @Target, @DeliveryTime, @Remark);";
             UpdateSql = "UPDATE `t_task_order` SET `MarkedDateTime` = @MarkedDateTime, `TaskOrder` = @TaskOrder, " +
                         "`WorkOrderId` = @WorkOrderId, `ProductId` = @ProductId, `Target` = @Target, `DeliveryTime` = @DeliveryTime, `Remark` = @Remark WHERE `Id` = @Id;";
+
+            SameField = "TaskOrder";
+            MenuFields.AddRange(new[] { "Id", "TaskOrder" });
         }
         public static readonly SmartTaskOrderHelper Instance = new SmartTaskOrderHelper();
         #region Get
-        public static IEnumerable<SmartTaskOrder> GetSmartTaskOrdersByWorkOrderId(int workOrderId)
+        /// <summary>
+        /// 菜单 "Id", "`Level`", "`Order`"
+        /// </summary>
+        /// <param name="id"></param>
+        /// <param name="wId"></param>
+        /// <returns></returns>
+        public static IEnumerable<dynamic> GetMenu(int id = 0, int wId = 0)
         {
-            return ServerConfig.ApiDb.Query<SmartTaskOrder>("SELECT * FROM `t_task_order` WHERE MarkedDelete = 0 AND WorkOrderId = @workOrderId;", new { workOrderId });
+            var args = new List<Tuple<string, string, dynamic>>();
+            if (id != 0)
+            {
+                args.Add(new Tuple<string, string, dynamic>("Id", "=", id));
+            }
+            if (wId != 0)
+            {
+                args.Add(new Tuple<string, string, dynamic>("WorkshopId", "=", wId));
+            }
+            return Instance.CommonGet<SmartTaskOrder>(args, true).Select(x => new { x.Id, x.TaskOrder }).OrderByDescending(x => x.Id);
+        }
+        public static IEnumerable<SmartTaskOrderDetail> GetDetail(int id = 0, int wId = 0)
+        {
+            return ServerConfig.ApiDb.Query<SmartTaskOrderDetail>(
+                $"SELECT c.*, b.*, a.* FROM t_task_order a JOIN t_work_order b ON a.WorkOrderId = b.Id JOIN t_product c ON a.ProductId = c.Id " +
+                $"WHERE {(id == 0 ? "" : "a.Id = @id AND ")}" +
+                $"{(wId == 0 ? "" : "a.WorkshopId = @wId AND ")}" +
+                $"a.MarkedDelete = 0 ORDER BY a.Id Desc;", new { id, wId });
+        }
+        public static bool GetHaveSame(int wId, IEnumerable<string> sames, IEnumerable<int> ids = null)
+        {
+            var args = new List<Tuple<string, string, dynamic>>
+            {
+                new Tuple<string, string, dynamic>("WorkshopId", "=", wId),
+                new Tuple<string, string, dynamic>("TaskOrder", "IN", sames)
+            };
+            if (ids != null)
+            {
+                args.Add(new Tuple<string, string, dynamic>("Id", "NOT IN", ids));
+            }
+            return Instance.CommonHaveSame(args);
+        }
+        public static IEnumerable<SmartTaskOrder> GetDetailByWorkOrderId(int workOrderId)
+        {
+            var args = new List<Tuple<string, string, dynamic>>
+            {
+                new Tuple<string, string, dynamic>("WorkOrderId", "=", workOrderId),
+            };
+            return Instance.CommonGet<SmartTaskOrder>(args);
         }
 
-        public static IEnumerable<SmartTaskOrder> GetSmartTaskOrdersByWorkOrderIds(IEnumerable<int> workOrderIds)
+        public static IEnumerable<SmartTaskOrder> GetDetailByWorkOrderIds(IEnumerable<int> workOrderIds)
         {
-            return ServerConfig.ApiDb.Query<SmartTaskOrder>("SELECT * FROM `t_task_order` WHERE MarkedDelete = 0 AND WorkOrderId IN @workOrderIds;", new { workOrderIds });
+            var args = new List<Tuple<string, string, dynamic>>
+            {
+                new Tuple<string, string, dynamic>("WorkOrderId", "IN", workOrderIds),
+            };
+            return Instance.CommonGet<SmartTaskOrder>(args);
         }
         /// <summary>
         /// 获取本次排程任务单信息
         /// </summary>
+        /// <param name="wId"></param>
         /// <param name="taskOrderIds"></param>
         /// <returns></returns>
-        public static IEnumerable<SmartTaskOrder> GetWillArrangedSmartTaskOrders(IEnumerable<int> taskOrderIds)
+        public static IEnumerable<SmartTaskOrder> GetWillArrangedSmartTaskOrders(int wId, IEnumerable<int> taskOrderIds)
         {
             return ServerConfig.ApiDb.Query<SmartTaskOrder>(
-                $"SELECT a.*, IFNULL(b.`Order`, 0) `Order` FROM `t_task_order` a LEFT JOIN `t_task_order_level` b ON a.LevelId = b.Id WHERE a.Id IN @taskOrderIds AND a.State NOT IN @State AND a.MarkedDelete = 0 ORDER BY b.`Order`, a.Id;",
-                new { State = new[] { SmartTaskOrderState.已完成, SmartTaskOrderState.已取消, SmartTaskOrderState.暂停中 }, taskOrderIds });
+                $"SELECT a.*, IFNULL(b.`Order`, 0) `Order` FROM `t_task_order` a LEFT JOIN `t_task_order_level` b ON a.LevelId = b.Id " +
+                $"WHERE a.Id IN @taskOrderIds AND a.State NOT IN @State AND a.WorkshopId = @wId AND a.MarkedDelete = 0 ORDER BY b.`Order`, a.Id;",
+                new { wId, State = new[] { SmartTaskOrderState.已完成, SmartTaskOrderState.已取消, SmartTaskOrderState.暂停中 }, taskOrderIds });
         }
-        public static IEnumerable<SmartTaskOrder> GetArrangedButNotDoneSmartTaskOrders(DateTime deliveryTime = default(DateTime))
-        {
-            return ServerConfig.ApiDb.Query<SmartTaskOrder>(
-                $"SELECT a.*, b.`Order` FROM `t_task_order` a JOIN `t_task_order_level` b ON a.LevelId = b.Id WHERE a.Arranged = 1 AND a.State NOT IN @State AND a.MarkedDelete = 0 ORDER BY b.`Order`, a.Id;",
-                new { State = new[] { SmartTaskOrderState.已完成, SmartTaskOrderState.已取消, SmartTaskOrderState.暂停中 } });
-        }
-        /// <summary>
-        /// 获取截止日期前的任务单
-        /// </summary>
-        /// <param name="deliveryTime"></param>
-        /// <param name="all"></param>
-        /// <returns></returns>
-        public static IEnumerable<SmartTaskOrder> GetAllArrangedButNotDoneSmartTaskOrders(DateTime deliveryTime = default(DateTime), bool all = false)
+        public static IEnumerable<SmartTaskOrder> GetArrangedButNotDoneSmartTaskOrders(int wId, DateTime deliveryTime = default(DateTime))
         {
             return ServerConfig.ApiDb.Query<SmartTaskOrder>(
                 $"SELECT a.*, b.`Order` FROM `t_task_order` a JOIN `t_task_order_level` b ON a.LevelId = b.Id " +
-                $"WHERE a.Arranged = 1{(deliveryTime != default(DateTime) ? " AND a.DeliveryTime <= @deliveryTime" : "")} AND a.State NOT IN @State AND a.MarkedDelete = 0 ORDER BY b.`Order`, a.Id;",
-                new { deliveryTime, State = all ? new[] { SmartTaskOrderState.已完成, SmartTaskOrderState.已取消, SmartTaskOrderState.暂停中 } : new[] { SmartTaskOrderState.已取消, SmartTaskOrderState.暂停中 } });
+                $"WHERE a.Arranged = 1 AND a.State NOT IN @State AND a.WorkshopId = @wId AND a.MarkedDelete = 0 ORDER BY b.`Order`, a.Id;",
+                new { wId, State = new[] { SmartTaskOrderState.已完成, SmartTaskOrderState.已取消, SmartTaskOrderState.暂停中 } });
         }
         /// <summary>
         /// 获取截止日期前的任务单
         /// </summary>
+        /// <param name="wId"></param>
         /// <param name="deliveryTime"></param>
         /// <param name="all"></param>
         /// <returns></returns>
-        public static IEnumerable<SmartTaskOrderDetail> GetAllArrangedButNotDoneSmartTaskOrderDetails(DateTime deliveryTime = default(DateTime), bool all = false)
+        public static IEnumerable<SmartTaskOrder> GetAllArrangedButNotDoneSmartTaskOrders(int wId, DateTime deliveryTime = default(DateTime), bool all = false)
         {
-            return ServerConfig.ApiDb.Query<SmartTaskOrderDetail>(
-                $"SELECT a.*, b.`Order`, c.Product, c.CapacityId, c.CategoryId FROM `t_task_order` a JOIN `t_task_order_level` b ON a.LevelId = b.Id JOIN t_product c ON a.ProductId = c.Id " +
-                $"WHERE a.Arranged = 1{(deliveryTime != default(DateTime) ? " AND a.DeliveryTime <= @deliveryTime" : "")} AND a.State NOT IN @State AND a.MarkedDelete = 0 ORDER BY b.`Order`, a.Id;",
-                new { deliveryTime, State = all ? new[] { SmartTaskOrderState.已完成, SmartTaskOrderState.已取消, SmartTaskOrderState.暂停中 } : new[] { SmartTaskOrderState.已取消, SmartTaskOrderState.暂停中 } });
+            return ServerConfig.ApiDb.Query<SmartTaskOrder>(
+                $"SELECT a.*, b.`Order` FROM `t_task_order` a JOIN `t_task_order_level` b ON a.LevelId = b.Id " +
+                $"WHERE a.Arranged = 1{(deliveryTime != default(DateTime) ? " AND a.DeliveryTime <= @deliveryTime" : "")} AND a.State NOT IN @State AND a.WorkshopId = @wId AND a.MarkedDelete = 0 ORDER BY b.`Order`, a.Id;",
+                new { wId, deliveryTime, State = all ? new[] { SmartTaskOrderState.已完成, SmartTaskOrderState.已取消, SmartTaskOrderState.暂停中 } : new[] { SmartTaskOrderState.已取消, SmartTaskOrderState.暂停中 } });
         }
         /// <summary>
         /// 获取截止日期前的任务单
         /// </summary>
-        /// <param name="taskOrderIds"></param>
+        /// <param name="wId"></param>
+        /// <param name="deliveryTime"></param>
+        /// <param name="all"></param>
         /// <returns></returns>
-        public static IEnumerable<SmartTaskOrderDetail> GetAllArrangedButNotDoneSmartTaskOrderDetails(IEnumerable<int> taskOrderIds)
+        public static IEnumerable<SmartTaskOrderDetail> GetAllArrangedButNotDoneSmartTaskOrderDetails(int wId, DateTime deliveryTime = default(DateTime), bool all = false)
         {
             return ServerConfig.ApiDb.Query<SmartTaskOrderDetail>(
                 $"SELECT a.*, b.`Order`, c.Product, c.CapacityId, c.CategoryId FROM `t_task_order` a JOIN `t_task_order_level` b ON a.LevelId = b.Id JOIN t_product c ON a.ProductId = c.Id " +
-                $"WHERE a.Arranged = 1 AND a.Id IN @taskOrderIds AND a.MarkedDelete = 0 ORDER BY b.`Order`, a.Id;",
-                new { taskOrderIds });
+                $"WHERE a.Arranged = 1{(deliveryTime != default(DateTime) ? " AND a.DeliveryTime <= @deliveryTime" : "")} AND a.State NOT IN @State AND a.WorkshopId = @wId AND a.MarkedDelete = 0 " +
+                $"ORDER BY b.`Order`, a.Id;",
+                new { wId, deliveryTime, State = all ? new[] { SmartTaskOrderState.已完成, SmartTaskOrderState.已取消, SmartTaskOrderState.暂停中 } : new[] { SmartTaskOrderState.已取消, SmartTaskOrderState.暂停中 } });
         }
-
-        public static int GetSmartTaskOrderBatch()
+        /// <summary>
+        /// 获取截止日期前的任务单
+        /// </summary>
+        /// <param name="wId"></param>
+        /// <param name="taskOrderIds"></param>
+        /// <returns></returns>
+        public static IEnumerable<SmartTaskOrderDetail> GetAllArrangedButNotDoneSmartTaskOrderDetails(int wId, IEnumerable<int> taskOrderIds)
         {
-            return ServerConfig.ApiDb.Query<int>("SELECT Id FROM `t_task_order_batch` ORDER BY Id DESC LIMIT 1;").FirstOrDefault();
+            return ServerConfig.ApiDb.Query<SmartTaskOrderDetail>(
+                $"SELECT a.*, b.`Order`, c.Product, c.CapacityId, c.CategoryId FROM `t_task_order` a JOIN `t_task_order_level` b ON a.LevelId = b.Id JOIN t_product c ON a.ProductId = c.Id " +
+                $"WHERE a.Arranged = 1 AND a.Id IN @taskOrderIds AND a.WorkshopId = @wId AND a.MarkedDelete = 0 " +
+                $"ORDER BY b.`Order`, a.Id;",
+                new { wId, taskOrderIds });
         }
         #endregion
 

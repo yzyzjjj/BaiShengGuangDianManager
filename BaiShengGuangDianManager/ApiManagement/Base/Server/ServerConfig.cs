@@ -24,6 +24,13 @@ namespace ApiManagement.Base.Server
             GlobalConfig.LoadGlobalConfig();
             SmartAccountHelper.Init(configuration);
             RedisHelper.Init(configuration);
+            AnalysisHelper.Init();
+            FlowCardHelper.Init();
+            WarningHelper.Init();
+            WorkFlowHelper.Init();
+            SimulateHelper.Init();
+            ScheduleHelper.Init();
+            TimerHelper.Init();
             Loads = new Dictionary<string, Action>
             {
                 //{PermissionHelper.TableName, PermissionHelper.LoadConfig},

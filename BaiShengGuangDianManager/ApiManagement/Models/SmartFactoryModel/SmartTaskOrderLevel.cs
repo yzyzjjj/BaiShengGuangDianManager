@@ -5,6 +5,10 @@ namespace ApiManagement.Models.SmartFactoryModel
     public class SmartTaskOrderLevel : CommonBase
     {
         /// <summary>
+        /// 车间Id
+        /// </summary>
+        public int WorkshopId { get; set; }
+        /// <summary>
         /// 任务等级
         /// </summary>
         public string Level { get; set; }

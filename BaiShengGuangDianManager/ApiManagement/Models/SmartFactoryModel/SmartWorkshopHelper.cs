@@ -9,16 +9,17 @@ namespace ApiManagement.Models.SmartFactoryModel
         private SmartWorkshopHelper()
         {
             Table = "t_workshop";
-            SameField = "Workshop";
             InsertSql =
                 "INSERT INTO `t_workshop` (`CreateUserId`, `MarkedDateTime`, `Workshop`, `Remark`) " +
                 "VALUES (@CreateUserId, @MarkedDateTime, @Workshop, @Remark);";
             UpdateSql = "UPDATE `t_workshop` SET `MarkedDateTime` = @MarkedDateTime, `Workshop` = @Workshop, `Remark` = @Remark WHERE `Id` = @Id;";
-            MenuFields.AddRange(new[] { "`Id`", "`Workshop`" });
+
+            SameField = "Workshop";
+            MenuFields.AddRange(new[] { "Id", "Workshop" });
         }
         public static readonly SmartWorkshopHelper Instance = new SmartWorkshopHelper();
         #region Get
-        public static IEnumerable<dynamic> GetSmartWorkshopSimple(int id)
+        public static IEnumerable<dynamic> GetMenu(int id)
         {
             return Instance.CommonGet<SmartWorkshop>(id, true).Select(x => new { x.Id, x.Workshop });
         }

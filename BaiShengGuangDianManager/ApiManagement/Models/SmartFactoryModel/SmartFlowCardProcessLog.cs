@@ -9,6 +9,7 @@ namespace ApiManagement.Models.SmartFactoryModel
         /// <summary>
         /// 
         /// </summary>
+        /// <param name="wId"></param>
         /// <param name="createUserId"></param>
         /// <param name="markedDateTime"></param>
         /// <param name="processId">流程id</param>
@@ -20,10 +21,10 @@ namespace ApiManagement.Models.SmartFactoryModel
         /// <param name="count">加工次数</param>
         /// <param name="qualified">合格</param>
         /// <param name="unqualified">不合格</param>
-        public SmartFlowCardProcessLog(string createUserId, DateTime markedDateTime, int processId, int processorId, int deviceId,
+        public SmartFlowCardProcessLog(int wId, string createUserId, DateTime markedDateTime, int processId, int processorId, int deviceId,
             DateTime startTime, DateTime endTime, int before, int count, int qualified, int unqualified)
         {
-            CreateUserId = createUserId;
+            WorkshopId = wId;
             MarkedDateTime = markedDateTime;
             ProcessId = processId;
             ProcessorId = processorId;
@@ -36,8 +37,9 @@ namespace ApiManagement.Models.SmartFactoryModel
             Unqualified = unqualified;
         }
 
-        public SmartFlowCardProcessLog(string createUserId, DateTime markedDateTime, SmartFlowCardProcess process, int qualified, int unqualified)
+        public SmartFlowCardProcessLog(int wId, string createUserId, DateTime markedDateTime, SmartFlowCardProcess process, int qualified, int unqualified)
         {
+            WorkshopId = wId;
             CreateUserId = createUserId;
             MarkedDateTime = markedDateTime;
             ProcessId = process.Id;
@@ -49,6 +51,10 @@ namespace ApiManagement.Models.SmartFactoryModel
             Qualified = qualified;
             Unqualified = unqualified;
         }
+        /// <summary>
+        /// 车间Id
+        /// </summary>
+        public int WorkshopId { get; set; }
         /// <summary>
         /// 计划号流程卡id
         /// </summary>

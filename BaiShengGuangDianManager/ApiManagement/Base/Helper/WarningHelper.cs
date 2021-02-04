@@ -8,8 +8,11 @@ using ServiceStack;
 using System;
 using System.Collections.Generic;
 using System.Linq;
-using System.Threading;
 using WarningInterval = ApiManagement.Models.Warning.WarningInterval;
+#if DEBUG
+#else
+using System.Threading;
+#endif
 
 namespace ApiManagement.Base.Helper
 {
@@ -18,10 +21,6 @@ namespace ApiManagement.Base.Helper
     /// </summary>
     public class WarningHelper
     {
-        public WarningHelper()
-        {
-            Init();
-        }
         private static readonly string Debug = "Debug";
         public static List<string> 生产数据字段 = new List<string> { "加工数", "合格数", "裂片数", "合格率(%)", "次品率(%)" };
         public static Dictionary<string, int> 生产数据字段Dic = 生产数据字段.ToDictionary(x => x, x => 生产数据字段.IndexOf(x));
@@ -53,7 +52,7 @@ namespace ApiManagement.Base.Helper
 #endif
         private static int _dealLength = 500;
         private static DateTime _startTime = DateTime.Today;
-        public void Init()
+        public static void Init()
         {
             try
             {

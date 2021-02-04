@@ -11,6 +11,10 @@ namespace ApiManagement.Models.SmartFactoryModel
     public class SmartTaskOrderNeed : CommonBase
     {
         /// <summary>
+        /// 车间Id
+        /// </summary>
+        public int WorkshopId { get; set; }
+        /// <summary>
         /// 批号
         /// </summary>
         public int Batch { get; set; }

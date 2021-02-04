@@ -20,23 +20,23 @@ namespace ApiManagement.Controllers.SmartFactoryController.ScheduleFolder
     {
         // Post: api/SmartSchedule/PutAndWarehouse
         [HttpGet("PutAndWarehouse")]
-        public object GetArrangedTaskOrderPutAndWarehouse([FromQuery]DateTime startTime, DateTime endTime, DateTime deliveryTime, bool all)
+        public object GetArrangedTaskOrderPutAndWarehouse([FromQuery]int wId, DateTime startTime, DateTime endTime, DateTime deliveryTime, bool all)
         {
             var result = new SmartTaskOrderNeedOrderTimeResult();
             if (startTime == default(DateTime) || endTime == default(DateTime))
             {
                 return result;
             }
-            var schedules = SmartTaskOrderScheduleHelper.GetSmartTaskOrderSchedule(startTime, endTime);
-            var tasks = SmartTaskOrderHelper.GetAllArrangedButNotDoneSmartTaskOrderDetails(deliveryTime, all);
+            var schedules = SmartTaskOrderScheduleHelper.GetSmartTaskOrderSchedule(wId, startTime, endTime);
+            var tasks = SmartTaskOrderHelper.GetAllArrangedButNotDoneSmartTaskOrderDetails(wId, deliveryTime, all);
             var taskIds = tasks.Select(x => x.Id).Concat(schedules.Select(y => y.TaskOrderId)).Distinct();
             if (!taskIds.Any())
             {
                 return result;
             }
 
-            tasks = SmartTaskOrderHelper.GetAllArrangedButNotDoneSmartTaskOrderDetails(taskIds);
-            var taskNeeds = SmartTaskOrderNeedHelper.GetSmartTaskOrderNeedsByTaskOrderIds(taskIds, true);
+            tasks = SmartTaskOrderHelper.GetAllArrangedButNotDoneSmartTaskOrderDetails(wId, taskIds);
+            var taskNeeds = SmartTaskOrderNeedHelper.GetSmartTaskOrderNeedsByTaskOrderIds(wId, taskIds, true);
             var orders = taskNeeds.GroupBy(y => new { y.PId, y.Order, y.Process, y.CategoryId }).Select(z => new SmartTaskOrderNeedWithOrder
             {
                 Id = z.Key.PId,
@@ -49,9 +49,9 @@ namespace ApiManagement.Controllers.SmartFactoryController.ScheduleFolder
             result.Orders.AddRange(orders.OrderBy(z => z.Order));
 
             //设备型号数量
-            var deviceList = SmartDeviceHelper.GetNormalSmartDevices();
+            var deviceList = SmartDeviceHelper.GetNormalSmartDevices(wId);
             //人员等级数量
-            var operatorList = SmartOperatorHelper.GetNormalSmartOperators();
+            var operatorList = SmartOperatorHelper.GetNormalSmartOperators(wId);
             var modelCount = deviceList.GroupBy(x => new { x.CategoryId }).Select(y => new SmartDeviceModelCount
             {
                 CategoryId = y.Key.CategoryId,
@@ -129,7 +129,7 @@ namespace ApiManagement.Controllers.SmartFactoryController.ScheduleFolder
             });
             result.datas.AddRange(ts.OrderBy(x => x.DeliveryTime).ThenBy(x => x.ArrangedTime));
 
-            var indexes = SmartTaskOrderScheduleIndexHelper.GetSmartTaskOrderScheduleIndex(startTime, endTime).ToList();
+            var indexes = SmartTaskOrderScheduleIndexHelper.GetSmartTaskOrderScheduleIndex(wId, startTime, endTime).ToList();
             var arrangeIndexes = new List<SmartTaskOrderScheduleIndex>();
             foreach (var order in result.Orders)
             {
@@ -170,7 +170,7 @@ namespace ApiManagement.Controllers.SmartFactoryController.ScheduleFolder
 
         // Post: api/SmartSchedule/Put/Detail
         [HttpGet("Put/Detail")]
-        public object GetArrangedTaskOrderPutDetail([FromQuery]int id, int taskOrderId, int pId)
+        public object GetArrangedTaskOrderPutDetail([FromQuery]int wId, int id, int taskOrderId, int pId)
         {
             var result = new DataResult();
             IEnumerable<SmartTaskOrderSchedulePutInfoResult> data = null;
@@ -179,16 +179,17 @@ namespace ApiManagement.Controllers.SmartFactoryController.ScheduleFolder
                 var sql = $"SELECT a.ProcessTime, a.TaskOrderId, b.TaskOrder, a.ProductId, a.ProductType, a.Put, a.HavePut, a.Devices, a.Operators " +
                              $"FROM `t_task_order_schedule` a " +
                              $"JOIN `t_task_order` b ON a.TaskOrderId = b.Id " +
-                             $"WHERE a.Id = @id;";
+                             $"WHERE a.Id = @id AND a.WorkshopId = @wId;";
                 data = ServerConfig.ApiDb.Query<SmartTaskOrderSchedulePutInfoResult>(sql, new
                 {
+                    wId,
                     id,
                     taskOrderId
                 });
             }
             else if (taskOrderId != 0 && pId != 0)
             {
-                data = SmartTaskOrderScheduleHelper.GetSmartTaskOrderSchedule(taskOrderId, pId).Select(x => new SmartTaskOrderSchedulePutInfoResult
+                data = SmartTaskOrderScheduleHelper.GetSmartTaskOrderSchedule(wId, taskOrderId, pId).Select(x => new SmartTaskOrderSchedulePutInfoResult
                 {
                     ProcessTime = x.ProcessTime,
                     ProductType = x.ProductType,
@@ -266,7 +267,7 @@ namespace ApiManagement.Controllers.SmartFactoryController.ScheduleFolder
 
         // Post: api/SmartSchedule/Warehouse/Detail
         [HttpGet("Warehouse/Detail")]
-        public object GetArrangedTaskOrderWarehouseDetail([FromQuery]int id, int taskOrderId, int pId)
+        public object GetArrangedTaskOrderWarehouseDetail([FromQuery]int wId, int id, int taskOrderId, int pId)
         {
             var result = new DataResult();
             var sql = string.Empty;
@@ -277,16 +278,17 @@ namespace ApiManagement.Controllers.SmartFactoryController.ScheduleFolder
                     $"SELECT a.ProcessTime, a.TaskOrderId, b.TaskOrder, a.ProductType, a.Target, a.DoneTarget " +
                     $"FROM `t_task_order_schedule` a " +
                     $"JOIN `t_task_order` b ON a.TaskOrderId = b.Id " +
-                    $"WHERE a.Id = @id;";
+                    $"WHERE a.Id = @id AND a.WorkshopId = @wId;";
                 data = ServerConfig.ApiDb.Query<SmartTaskOrderScheduleWarehouseInfoResult>(sql, new
                 {
+                    wId,
                     id,
                     taskOrderId
                 });
             }
             else if (taskOrderId != 0 && pId != 0)
             {
-                data = SmartTaskOrderScheduleHelper.GetSmartTaskOrderSchedule(taskOrderId, pId).Select(x => new SmartTaskOrderScheduleWarehouseInfoResult
+                data = SmartTaskOrderScheduleHelper.GetSmartTaskOrderSchedule(wId, taskOrderId, pId).Select(x => new SmartTaskOrderScheduleWarehouseInfoResult
                 {
                     ProcessTime = x.ProcessTime,
                     TaskOrderId = x.TaskOrderId,
@@ -307,20 +309,20 @@ namespace ApiManagement.Controllers.SmartFactoryController.ScheduleFolder
 
         // Post: api/SmartSchedule/Put/Detail
         [HttpGet("Put/Index")]
-        public object GetArrangedTaskOrderPutIndex([FromQuery]DateTime time, int pId)
+        public object GetArrangedTaskOrderPutIndex([FromQuery] int wId, DateTime time, int pId)
         {
             var result = new DataResult();
             var data =
-                SmartTaskOrderScheduleIndexHelper.GetSmartTaskOrderScheduleIndex(time, default(DateTime), pId)
+                SmartTaskOrderScheduleIndexHelper.GetSmartTaskOrderScheduleIndex(wId, time, default(DateTime), pId)
                     .Select(ClassExtension.ParentCopyToChild<SmartTaskOrderScheduleIndex, SmartTaskOrderScheduleIndexDetail>).Where(x => x.Index > 0).ToList();
             if (!data.Any())
             {
                 return result;
             }
             //设备型号数量
-            var deviceList = SmartDeviceHelper.GetNormalSmartDevices();
+            var deviceList = SmartDeviceHelper.GetNormalSmartDevices(wId);
             //人员等级数量
-            var operatorList = SmartOperatorHelper.GetNormalSmartOperators();
+            var operatorList = SmartOperatorHelper.GetNormalSmartOperators(wId);
             var modelCount = deviceList.GroupBy(x => new { x.CategoryId, x.ModelId }).Select(y => new SmartDeviceModelCount
             {
                 CategoryId = y.Key.CategoryId,
@@ -344,6 +346,7 @@ namespace ApiManagement.Controllers.SmartFactoryController.ScheduleFolder
                     {
                         data.Add(new SmartTaskOrderScheduleIndexDetail
                         {
+                            WorkshopId = wId,
                             ProductType = productType,
                             ProcessTime = time,
                             PId = pId,
@@ -361,6 +364,7 @@ namespace ApiManagement.Controllers.SmartFactoryController.ScheduleFolder
                     {
                         data.Add(new SmartTaskOrderScheduleIndexDetail
                         {
+                            WorkshopId = wId,
                             ProductType = productType,
                             ProcessTime = time,
                             PId = pId,
@@ -387,7 +391,7 @@ namespace ApiManagement.Controllers.SmartFactoryController.ScheduleFolder
 
         // Post: api/SmartSchedule/ArrangedTaskOrder
         [HttpGet("ArrangedTaskOrder")]
-        public object GetArrangedTaskOrder([FromQuery] int page, int limit = 30)
+        public object GetArrangedTaskOrder([FromQuery]int wId, int page, int limit = 30)
         {
             page = page < 0 ? 0 : page;
             limit = limit < 0 ? 30 : limit;
@@ -404,8 +408,9 @@ namespace ApiManagement.Controllers.SmartFactoryController.ScheduleFolder
             result.datas.AddRange(ServerConfig.ApiDb.Query<SmartTaskOrderDetailLevel>($"SELECT a.*, b.Product, c.Level FROM `t_task_order` a " +
                                                                                         $"JOIN `t_product` b ON a.ProductId = b.Id " +
                                                                                         $"JOIN `t_task_order_level` c ON a.LevelId = c.Id " +
-                                                                                        $"WHERE Arranged = 1 AND a.MarkedDelete = 0 ORDER BY FIELD(State,  {state}), StartTime, EndTime, DeliveryTime LIMIT @page, @limit;", new
+                                                                                        $"WHERE Arranged = 1 AND a.MarkedDelete = 0 AND a.WorkshopId = @wId ORDER BY FIELD(State,  {state}), StartTime, EndTime, DeliveryTime LIMIT @page, @limit;", new
                                                                                         {
+                                                                                            wId,
                                                                                             page,
                                                                                             limit
                                                                                         }));
@@ -413,34 +418,37 @@ namespace ApiManagement.Controllers.SmartFactoryController.ScheduleFolder
             result.Count = ServerConfig.ApiDb.Query<int>($"SELECT COUNT(1) FROM `t_task_order` a " +
                                                                                       $"JOIN `t_product` b ON a.ProductId = b.Id " +
                                                                                       $"JOIN `t_task_order_level` c ON a.LevelId = c.Id " +
-                                                                                      $"WHERE Arranged = 1 AND a.MarkedDelete = 0;").FirstOrDefault();
+                                                                                      $"WHERE Arranged = 1 AND a.WorkshopId = @wId AND a.MarkedDelete = 0;", new { wId }).FirstOrDefault();
             return result;
         }
 
         // Post: api/SmartSchedule/NotArrangedTaskOrder
         [HttpGet("NotArrangedTaskOrder")]
-        public object GetSmartScheduleNotArranged([FromQuery] int page, int limit = 30)
+        public object GetSmartScheduleNotArranged([FromQuery]int wId, int page, int limit = 30)
         {
             var result = new SmartResult();
             result.datas.AddRange(ServerConfig.ApiDb.Query<SmartTaskOrderDetailProduct>($"SELECT a.*, b.Product FROM `t_task_order` a " +
                                                                                         $"JOIN `t_product` b ON a.ProductId = b.Id " +
                                                                                         //$"WHERE Arranged = 0 AND a.MarkedDelete = 0 Order By StartTime, EndTime, DeliveryTime LIMIT @page, @limit;", new
-                                                                                        $"WHERE Arranged = 0 AND a.MarkedDelete = 0 Order By Id Desc LIMIT @page, @limit;", new
+                                                                                        $"WHERE Arranged = 0 AND a.WorkshopId = @wId AND a.MarkedDelete = 0 Order By Id Desc LIMIT @page, @limit;", new
                                                                                         {
+                                                                                            wId,
                                                                                             page,
                                                                                             limit
                                                                                         }));
             result.Count = ServerConfig.ApiDb.Query<int>($"SELECT COUNT(1) FROM `t_task_order` a " +
                                                          $"JOIN `t_product` b ON a.ProductId = b.Id " +
-                                                         $"WHERE Arranged = 0 AND a.MarkedDelete = 0;").FirstOrDefault();
+                                                         $"WHERE Arranged = 0 AND a.WorkshopId = @wId AND a.MarkedDelete = 0;", new { wId }).FirstOrDefault();
 
             return result;
         }
 
         // Post: api/SmartSchedule/Preview
         [HttpPost("Preview")]
-        public object PostSmartSchedulePreview([FromBody]IEnumerable<SmartTaskOrderPreview> taskOrders)
+        public object PostSmartSchedulePreview([FromBody]SmartTaskOrderArrangeParam arrange)
         {
+            var taskOrders = arrange.Previews;
+            var wId = arrange.WorkshopId;
             if (taskOrders == null)
             {
                 return Result.GenError<Result>(Error.ParamError);
@@ -493,11 +501,11 @@ namespace ApiManagement.Controllers.SmartFactoryController.ScheduleFolder
             {
                 return result;
             }
-            var otherTasks = SmartTaskOrderHelper.GetArrangedButNotDoneSmartTaskOrders();
+            var otherTasks = SmartTaskOrderHelper.GetArrangedButNotDoneSmartTaskOrders(wId);
             if (otherTasks.Any())
             {
                 taskIds = otherTasks.Select(x => x.Id);
-                var taskNeeds = SmartTaskOrderNeedHelper.GetSmartTaskOrderNeedsByTaskOrderIds(taskIds);
+                var taskNeeds = SmartTaskOrderNeedHelper.GetSmartTaskOrderNeedsByTaskOrderIds(wId, taskIds);
                 foreach (var otherTask in otherTasks)
                 {
                     var aTask = allTasks.FirstOrDefault(x => x.Id == otherTask.Id);
@@ -610,7 +618,18 @@ namespace ApiManagement.Controllers.SmartFactoryController.ScheduleFolder
                     }
 
                     var pCapacity = pCapacities.FirstOrDefault(x => x.ProcessId == list.ProcessId);
-                    var put = pCapacity.Rate != 0 ? (int)Math.Ceiling((target) * 100 / pCapacity.Rate) : 0;
+                    var rate = 0m;
+                    var y = pCapacity;
+                    if (y.DeviceList.Any())
+                    {
+                        rate = y.DeviceList.First().Rate;
+                    }
+                    else if (y.OperatorList.Any())
+                    {
+                        rate = y.OperatorList.First().Rate;
+                    }
+
+                    var put = rate != 0 ? (int)Math.Ceiling((target) * 100 / rate) : 0;
                     data[task.Id].Needs.Insert(0, new SmartTaskOrderNeedDetail
                     {
                         TaskOrderId = task.Id,
@@ -620,7 +639,7 @@ namespace ApiManagement.Controllers.SmartFactoryController.ScheduleFolder
                         Target = target,
                         DoneTarget = doneTarget,
                         Stock = stock,
-                        Rate = pCapacity.Rate,
+                        Rate = rate,
                         Put = put,
                         HavePut = havePut,
                         Process = list.Process,
@@ -650,6 +669,7 @@ namespace ApiManagement.Controllers.SmartFactoryController.ScheduleFolder
                 return Result.GenError<Result>(Error.ParamError);
             }
 
+            var wId = taskOrders.FirstOrDefault()?.WorkshopId ?? 0;
             var taskIds = taskOrders.GroupBy(x => x.Id).Select(y => y.Key);
             if (taskIds.Count() != taskOrders.Count())
             {
@@ -684,8 +704,10 @@ namespace ApiManagement.Controllers.SmartFactoryController.ScheduleFolder
         /// <returns></returns>
         // Post: api/SmartSchedule/CostDay
         [HttpPost("CostDay")]
-        public object PostSmartScheduleCostDay([FromBody]IEnumerable<SmartTaskOrderConfirm> taskOrders)
+        public object PostSmartScheduleCostDay([FromBody]SmartTaskOrderArrangeParam arrange)
         {
+            var taskOrders = arrange.Confirms;
+            var wId = arrange.WorkshopId;
             if (taskOrders == null || !taskOrders.Any())
             {
                 return Result.GenError<Result>(Error.ParamError);
@@ -697,7 +719,7 @@ namespace ApiManagement.Controllers.SmartFactoryController.ScheduleFolder
 
             var today = DateTime.Today;
             var schedules = new List<SmartTaskOrderScheduleDetail>();
-            var costDays = ScheduleHelper.ArrangeSchedule(ref taskOrders, ref schedules, out var indexes);
+            var costDays = ScheduleHelper.ArrangeSchedule(wId, ref taskOrders, ref schedules, out var indexes);
             var eStartTime = costDays.Any() ? costDays.Min(x => x.EstimatedStartTime) : today;
             if (eStartTime == default(DateTime))
             {
@@ -887,18 +909,22 @@ namespace ApiManagement.Controllers.SmartFactoryController.ScheduleFolder
         /// <returns></returns>
         // Post: api/SmartSchedule/Confirm
         [HttpPost("Confirm")]
-        public object PostSmartScheduleConfirm([FromBody]SmartTaskOrderArrange arrange)
+        public object PostSmartScheduleConfirm([FromBody]SmartTaskOrderArrangeParam arrange)
         {
-            if (arrange == null)
+            var taskOrders = arrange.Confirms;
+            if (taskOrders == null || !taskOrders.Any())
             {
-                arrange = new SmartTaskOrderArrange();
+                return Result.GenError<Result>(Error.ParamError);
+            }
+            if (taskOrders.Any(x => !x.Needs.Any()))
+            {
+                return Result.GenError<Result>(Error.SmartScheduleNeedLost);
             }
 
-            var createUserId = Request.GetIdentityInformation();
+            var userId = Request.GetIdentityInformation();
             var markedDateTime = DateTime.Now;
             var schedules = new List<SmartTaskOrderScheduleDetail>();
-            var tasks = arrange.TaskOrders.Select(x => x);
-            var costDays = ScheduleHelper.ArrangeSchedule(ref tasks, ref schedules, out _, true, createUserId, markedDateTime);
+            var costDays = ScheduleHelper.ArrangeSchedule(arrange.WorkshopId, ref taskOrders, ref schedules, out _, true, userId, markedDateTime);
             WorkFlowHelper.Instance.OnTaskOrderArrangeChanged();
             return Result.GenError<Result>(Error.Success);
         }

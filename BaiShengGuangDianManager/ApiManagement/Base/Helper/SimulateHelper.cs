@@ -1,7 +1,6 @@
 ﻿using ApiManagement.Base.Server;
 using ApiManagement.Models.SmartFactoryModel;
 using ModelBase.Base.Utils;
-using Newtonsoft.Json;
 using ServiceStack;
 using System;
 using System.Collections.Generic;
@@ -17,10 +16,6 @@ namespace ApiManagement.Base.Helper
     /// </summary>
     public class SimulateHelper
     {
-        public SimulateHelper()
-        {
-            //Init();
-        }
         public static List<DeviceStateWeight> 故障_暂停概率 = new List<DeviceStateWeight>
         {
             new DeviceStateWeight( SmartDeviceOperateState.未加工, 500),
@@ -46,7 +41,7 @@ namespace ApiManagement.Base.Helper
             new RateWeight( 0, 200),
         };
 
-        private const string RedisPre = "Schedule";
+        private static string RedisPre = "Schedule";
         /// <summary>
         /// 最近一次排程时间
         /// </summary>
@@ -57,14 +52,13 @@ namespace ApiManagement.Base.Helper
         private static string ProcessorLockKey = $"{RedisPre}:ProcessorLock";
         //private static List<SmartProcessDevice> _devices;
         private static List<SmartProcessor> _processors = new List<SmartProcessor>();
-        public static readonly SimulateHelper Instance = new SimulateHelper();
 
 #if DEBUG
 #else
         private static Timer _simulateTimer;
 #endif
-        
-        public void Init()
+
+        public static void Init()
         {
             //            if (!RedisHelper.Exists(StateKey))
             //            {
@@ -86,7 +80,7 @@ namespace ApiManagement.Base.Helper
             //            doProcess.Start();
         }
 
-        private void NeedArrange(object obj)
+        private static void NeedArrange(object obj)
         {
             if (RedisHelper.SetIfNotExist(DateLock, DateTime.Now.ToStrx()))
             {
@@ -103,7 +97,7 @@ namespace ApiManagement.Base.Helper
             }
         }
 
-        public void InitDevice()
+        public static void InitDevice()
         {
             var devices = new List<SmartProcessDevice>();
             var deviceList = SmartDeviceHelper.Instance.GetAll<SmartDevice>();
@@ -146,7 +140,7 @@ namespace ApiManagement.Base.Helper
             }
         }
 
-        public void InitProcessor()
+        public static void InitProcessor()
         {
             var users = SmartAccountHelper.Instance.GetAll<SmartAccount>();
             var processorList = RedisHelper.Get<List<SmartProcessor>>(ProcessorKey);
@@ -174,7 +168,7 @@ namespace ApiManagement.Base.Helper
             UpdateProcessors(_processors);
         }
 
-        private void Do()
+        private static void Do()
         {
             while (true)
             {
@@ -221,36 +215,36 @@ namespace ApiManagement.Base.Helper
             }
         }
 
-        private string GetDeviceKey(int categoryId)
+        private static string GetDeviceKey(int categoryId)
         {
             return $"{RedisPre}:Device{categoryId}";
         }
 
-        private string GetDeviceLockKey(int categoryId)
+        private static string GetDeviceLockKey(int categoryId)
         {
             return $"{RedisPre}:DeviceLock{categoryId}";
         }
 
-        private bool LockDevice(int categoryId, string op)
+        private static bool LockDevice(int categoryId, string op)
         {
             var deviceKey = GetDeviceLockKey(categoryId);
             return RedisHelper.SetIfNotExist(deviceKey, $"{DateTime.Now.ToStrx()}:{op}");
         }
-        private void UnLockDevice(int categoryId)
+        private static void UnLockDevice(int categoryId)
         {
             var deviceKey = GetDeviceLockKey(categoryId);
             RedisHelper.Remove(deviceKey);
         }
-        private bool LockProcessor(string op)
+        private static bool LockProcessor(string op)
         {
             return RedisHelper.SetIfNotExist(ProcessorLockKey, $"{DateTime.Now.ToStrx()}:{op}");
         }
-        private void UnLockProcessor()
+        private static void UnLockProcessor()
         {
             RedisHelper.Remove(ProcessorLockKey);
         }
 
-        public IEnumerable<SmartProcessDevice> Devices()
+        public static IEnumerable<SmartProcessDevice> Devices()
         {
             var devices = new List<SmartProcessDevice>();
             var categories = SmartDeviceCategoryHelper.Instance.GetAll<SmartDeviceCategory>();
@@ -268,7 +262,7 @@ namespace ApiManagement.Base.Helper
         /// 更新设备
         /// </summary>
         /// <returns></returns>
-        private void UpdateDevices(Dictionary<int, SmartProcessDevice> devices)
+        private static void UpdateDevices(Dictionary<int, SmartProcessDevice> devices)
         {
             foreach (var device in devices)
             {
@@ -281,7 +275,7 @@ namespace ApiManagement.Base.Helper
         /// 更新设备
         /// </summary>
         /// <returns></returns>
-        private void UpdateDevices(int categoryId, IEnumerable<SmartProcessDevice> devices)
+        private static void UpdateDevices(int categoryId, IEnumerable<SmartProcessDevice> devices)
         {
             var deviceKey = GetDeviceKey(categoryId);
             RedisHelper.SetForever(deviceKey, devices);
@@ -291,7 +285,7 @@ namespace ApiManagement.Base.Helper
         /// 更新加工人
         /// </summary>
         /// <returns></returns>
-        private void UpdateProcessors(IEnumerable<SmartProcessor> processors)
+        private static void UpdateProcessors(IEnumerable<SmartProcessor> processors)
         {
             RedisHelper.SetForever(ProcessorKey, processors);
         }
@@ -301,7 +295,7 @@ namespace ApiManagement.Base.Helper
         /// <param name="categoryId">设备类型id</param>
         /// <param name="deviceId">设备id</param>
         /// <returns></returns>
-        public SmartDeviceOperateState GetDeviceState(int categoryId, int deviceId)
+        public static SmartDeviceOperateState GetDeviceState(int categoryId, int deviceId)
         {
             var deviceKey = GetDeviceKey(categoryId);
             var devices = RedisHelper.Get<List<SmartProcessDevice>>(deviceKey);
@@ -332,7 +326,7 @@ namespace ApiManagement.Base.Helper
         /// 安排加工人
         /// </summary>
         /// <returns></returns>
-        private ScheduleState ArrangeProcess(string op, out int processorId)
+        private static ScheduleState ArrangeProcess(string op, out int processorId)
         {
             ScheduleState state;
             processorId = 0;
@@ -403,7 +397,7 @@ namespace ApiManagement.Base.Helper
         /// 释放加工人
         /// </summary>
         /// <returns></returns>
-        private void ReleaseProcess(int processorId)
+        private static void ReleaseProcess(int processorId)
         {
             var processor = _processors.FirstOrDefault(x => x.Id == processorId);
             if (processor != null)
@@ -440,7 +434,7 @@ namespace ApiManagement.Base.Helper
         /// 释放加工人
         /// </summary>
         /// <returns></returns>
-        private void ReleaseProcess(IEnumerable<int> processorIds)
+        private static void ReleaseProcess(IEnumerable<int> processorIds)
         {
             foreach (var processorId in processorIds)
             {
@@ -491,7 +485,7 @@ namespace ApiManagement.Base.Helper
         /// <param name="deviceId"></param>
         /// <param name="processorId"></param>
         /// <returns></returns>
-        private ScheduleState Arrange(int deviceCategoryId, int flowCardProcessId, int processNumber, int processCount, int totalSecond, out int deviceId, ref int processorId)
+        private static ScheduleState Arrange(int deviceCategoryId, int flowCardProcessId, int processNumber, int processCount, int totalSecond, out int deviceId, ref int processorId)
         {
             var state = 成功;
             deviceId = 0;
@@ -729,7 +723,7 @@ namespace ApiManagement.Base.Helper
         /// <param name="deviceCategoryId">设备类型id</param>
         /// <param name="state"></param>
         /// <returns></returns>
-        private void UpdateDeviceState(int deviceId, int deviceCategoryId, SmartDeviceOperateState state)
+        private static void UpdateDeviceState(int deviceId, int deviceCategoryId, SmartDeviceOperateState state)
         {
             while (LockDevice(deviceCategoryId, $"更新设备状态-{state}"))
             {
@@ -764,7 +758,7 @@ namespace ApiManagement.Base.Helper
         //    return results.FirstOrDefault() ?? "";
         //}
 
-        private void Simulate()
+        private static void Simulate()
         {
             var createUserId = "System";
             var markedDateTime = DateTime.Now;
@@ -867,7 +861,8 @@ namespace ApiManagement.Base.Helper
                                 }
                             }
                             var processor = SmartAccountHelper.GetSmartAccount(processDevice.ProcessorId)?.Account ?? "";
-                            var log = new SmartFlowCardProcessLog(processor, markedDateTime, processDevice, qualified, unqualified);
+                            //todo
+                            var log = new SmartFlowCardProcessLog(0, processor, markedDateTime, processDevice, qualified, unqualified);
                             SmartFlowCardProcessLogHelper.Instance.Add(log);
                             categroy0.Add(processDevice.Id);
                         }
