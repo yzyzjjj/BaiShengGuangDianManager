@@ -138,4 +138,10 @@
         产能未设置 = 1,
         合格率未设置 = 2,
     }
+    public enum SmartKanBanUnit
+    {
+        秒 = 0,
+        分 = 1,
+        小时 = 2,
+    }
 }

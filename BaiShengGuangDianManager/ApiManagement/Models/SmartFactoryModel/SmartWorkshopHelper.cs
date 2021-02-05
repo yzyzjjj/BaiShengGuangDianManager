@@ -30,6 +30,18 @@ namespace ApiManagement.Models.SmartFactoryModel
         #endregion
 
         #region Update
+        public static void UpdateWorkshopSet(SmartWorkshop workshop)
+        {
+            var args = new List<string>
+            {
+                "MarkedDateTime","Frequency","Unit"
+            };
+            var cons = new List<string>
+            {
+                "Id"
+            };
+            Instance.CommonUpdate(args, cons, workshop);
+        }
         #endregion
 
         #region Delete
