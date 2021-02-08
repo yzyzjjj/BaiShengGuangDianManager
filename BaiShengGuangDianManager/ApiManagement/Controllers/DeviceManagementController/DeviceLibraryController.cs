@@ -568,10 +568,10 @@ namespace ApiManagement.Controllers.DeviceManagementController
             deviceLibrary.CreateUserId = Request.GetIdentityInformation();
             deviceLibrary.MarkedDateTime = DateTime.Now;
             ServerConfig.ApiDb.Execute(
-                "UPDATE device_library SET `MarkedDateTime` = @MarkedDateTime, `MarkedDelete` = @MarkedDelete, `ModifyId` = @ModifyId, `Code` = @Code, " +
+                "UPDATE device_library SET `MarkedDateTime` = @MarkedDateTime, `Code` = @Code, " +
                 "`DeviceName` = @DeviceName, `MacAddress` = @MacAddress, `Ip` = @Ip, `Port` = @Port, `Identifier` = @Identifier, `DeviceModelId` = @DeviceModelId, `ScriptId` = @ScriptId, " +
                 "`FirmwareId` = @FirmwareId, `HardwareId` = @HardwareId, `ApplicationId` = @ApplicationId, `SiteId` = @SiteId, `Administrator` = @Administrator, " +
-                "`Remark` = @Remark WHERE `Id` = @Id;", deviceLibrary);
+                "`Remark` = @Remark, `Icon` = @Icon WHERE `Id` = @Id;", deviceLibrary);
 
             if (deviceLibrary.Ip != data.Ip || deviceLibrary.Port != data.Port)
             {
@@ -669,10 +669,10 @@ namespace ApiManagement.Controllers.DeviceManagementController
             deviceLibrary.CreateUserId = Request.GetIdentityInformation();
             deviceLibrary.MarkedDateTime = DateTime.Now;
             ServerConfig.ApiDb.Execute(
-                "UPDATE device_library SET `MarkedDateTime` = @MarkedDateTime, `MarkedDelete` = @MarkedDelete, `ModifyId` = @ModifyId, `Code` = @Code, " +
+                "UPDATE device_library SET `MarkedDateTime` = @MarkedDateTime, `Code` = @Code, " +
                 "`DeviceName` = @DeviceName, `MacAddress` = @MacAddress, `Ip` = @Ip, `Port` = @Port, `Identifier` = @Identifier, `ClassId` = @ClassId, `DeviceModelId` = @DeviceModelId, `ScriptId` = @ScriptId, " +
                 "`FirmwareId` = @FirmwareId, `HardwareId` = @HardwareId, `ApplicationId` = @ApplicationId, `SiteId` = @SiteId, `Administrator` = @Administrator, " +
-                "`Remark` = @Remark WHERE `Id` = @Id;", deviceLibrary);
+                "`Remark` = @Remark, `Icon` = @Icon WHERE `Id` = @Id;", deviceLibrary);
 
             if (deviceLibrary.Id != data.Id || deviceLibrary.Ip != data.Ip || deviceLibrary.Port != data.Port)
             {
@@ -761,9 +761,9 @@ namespace ApiManagement.Controllers.DeviceManagementController
             deviceLibrary.MarkedDateTime = DateTime.Now;
             var lastInsertId = ServerConfig.ApiDb.Query<int>(
               "INSERT INTO device_library (`CreateUserId`, `MarkedDateTime`, `MarkedDelete`, `ModifyId`, `Code`, `DeviceName`, `MacAddress`, `Ip`, `Port`, `Identifier`, `ClassId`, `DeviceModelId`, " +
-              "`ScriptId`, `FirmwareId`, `HardwareId`, `ApplicationId`, `SiteId`, `Administrator`, `Remark`) VALUES (@CreateUserId, @MarkedDateTime, @MarkedDelete, " +
+              "`ScriptId`, `FirmwareId`, `HardwareId`, `ApplicationId`, `SiteId`, `Administrator`, `Remark`, `Icon`) VALUES (@CreateUserId, @MarkedDateTime, @MarkedDelete, " +
               "@ModifyId, @Code, @DeviceName, @MacAddress, @Ip, @Port, @Identifier, @ClassId, @DeviceModelId, @ScriptId, @FirmwareId, @HardwareId, @ApplicationId, @SiteId, @Administrator, " +
-              "@Remark);SELECT LAST_INSERT_ID();",
+              "@Remark, @Icon);SELECT LAST_INSERT_ID();",
               deviceLibrary).FirstOrDefault();
 
             ServerConfig.ApiDb.Execute("INSERT INTO npc_proxy_link (`DeviceId`, `Instruction`) VALUES (@DeviceId, @Instruction);",

@@ -35,11 +35,11 @@ namespace ApiManagement.Models.SmartFactoryModel
         /// </summary>
         public int ProductId { get; set; }
         /// <summary>
-        /// 总目标产量
+        /// 计划产量
         /// </summary>
         public int Target { get; set; }
         /// <summary>
-        /// 目标投料数量
+        /// 计划投料数量
         /// </summary>
         public int Put { get; set; }
         /// <summary>

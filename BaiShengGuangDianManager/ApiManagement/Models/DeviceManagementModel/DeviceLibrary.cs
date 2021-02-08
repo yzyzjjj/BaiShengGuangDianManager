@@ -6,23 +6,73 @@ namespace ApiManagement.Models.DeviceManagementModel
 {
     public class DeviceLibrary : CommonBase
     {
+        /// <summary>
+        /// 设备编码或机台号
+        /// </summary>
         public string Code { get; set; }
+        /// <summary>
+        /// 设备名称
+        /// </summary>
         public string DeviceName { get; set; }
+        /// <summary>
+        /// 设备MAC地址
+        /// </summary>
         public string MacAddress { get; set; }
+        /// <summary>
+        /// 设备IP地址
+        /// </summary>
         public string Ip { get; set; }
+        /// <summary>
+        /// 设备端口
+        /// </summary>
         public int Port { get; set; }
+        /// <summary>
+        /// 设备唯一识别码
+        /// </summary>
         public string Identifier { get; set; }
+        /// <summary>
+        /// 设备分类
+        /// </summary>
         public int ClassId { get; set; }
+        /// <summary>
+        /// 设备型号编号
+        /// </summary>
         public int DeviceModelId { get; set; }
-        public int FirmwareId { get; set; }
-        public int HardwareId { get; set; }
-        public int ApplicationId { get; set; }
-        public int SiteId { get; set; }
+        /// <summary>
+        /// 流程脚本版本编号
+        /// </summary>
         public int ScriptId { get; set; }
+        /// <summary>
+        /// 设备固件版本编号
+        /// </summary>
+        public int FirmwareId { get; set; }
+        /// <summary>
+        /// 设备硬件版本编号
+        /// </summary>
+        public int HardwareId { get; set; }
+        /// <summary>
+        /// 应用层版本编号
+        /// </summary>
+        public int ApplicationId { get; set; }
+        /// <summary>
+        /// 设备所在场地编号
+        /// </summary>
+        public int SiteId { get; set; }
+        /// <summary>
+        /// 设备管理员用户编号
+        /// </summary>
         public string Administrator { get; set; }
+        /// <summary>
+        /// 备注
+        /// </summary>
+        public string Remark { get; set; }
+        /// <summary>
+        /// 图标
+        /// </summary>
+        public string Icon { get; set; }
+
         public string AdministratorName { get; set; }
         public string Phone { get; set; }
-        public string Remark { get; set; }
 
     }
 

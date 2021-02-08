@@ -92,7 +92,12 @@ namespace ApiManagement.Models.SmartFactoryModel
                 $"WHERE a.Id IN @taskOrderIds AND a.State NOT IN @State AND a.WorkshopId = @wId AND a.MarkedDelete = 0 ORDER BY b.`Order`, a.Id;",
                 new { wId, State = new[] { SmartTaskOrderState.已完成, SmartTaskOrderState.已取消, SmartTaskOrderState.暂停中 }, taskOrderIds });
         }
-        public static IEnumerable<SmartTaskOrder> GetArrangedButNotDoneSmartTaskOrders(int wId, DateTime deliveryTime = default(DateTime))
+        /// <summary>
+        /// 获取未完成任务单
+        /// </summary>
+        /// <param name="wId"></param>
+        /// <returns></returns>
+        public static IEnumerable<SmartTaskOrder> GetArrangedButNotDoneSmartTaskOrders(int wId)
         {
             return ServerConfig.ApiDb.Query<SmartTaskOrder>(
                 $"SELECT a.*, b.`Order` FROM `t_task_order` a JOIN `t_task_order_level` b ON a.LevelId = b.Id " +

@@ -32,7 +32,7 @@ namespace ApiManagement.Models.SmartFactoryModel
         public SmartTaskOrderState State { get; set; }
         public string StateStr => State.ToString();
         /// <summary>
-        /// 目标产量
+        /// 计划目标产量
         /// </summary>
         public int Target { get; set; }
         /// <summary>

@@ -144,4 +144,10 @@
         分 = 1,
         小时 = 2,
     }
+    public enum SmartKanBanError
+    {
+        正常 = 0,
+        合格率低 = 1,
+        影响交货 = 2,
+    }
 }

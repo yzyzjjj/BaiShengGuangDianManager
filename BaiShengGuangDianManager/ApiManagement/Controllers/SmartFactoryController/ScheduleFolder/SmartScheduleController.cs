@@ -18,6 +18,32 @@ namespace ApiManagement.Controllers.SmartFactoryController.ScheduleFolder
     [Microsoft.AspNetCore.Mvc.Route("api/[controller]"), ApiController]
     public class SmartScheduleController : ControllerBase
     {
+        // Post: api/SmartSchedule/KanBan
+        [HttpGet("KanBan")]
+        public object GetKanBan([FromQuery]int wId, int page)
+        {
+            var result = new SmartTaskOrderNeedWithOrderResult();
+            var workshop = SmartWorkshopHelper.Instance.Get<SmartWorkshop>(wId);
+            if (workshop == null)
+            {
+                return result;
+            }
+            page = page < 0 ? 0 : page;
+            var limit = workshop.Length < 0 ? 20 : workshop.Length;
+            var allData = SmartTaskOrderKanBanHelper.GetDetail(wId);
+            var data = allData.Skip(page * limit).Take(limit);
+            var orders = data.SelectMany(x => x.Needs).GroupBy(y => new { y.PId, y.Order, y.Process }).Select(z => new SmartTaskOrderNeedWithOrder
+            {
+                Id = z.Key.PId,
+                Process = z.Key.Process,
+                Order = z.Key.Order
+            });
+            result.Orders.AddRange(orders.OrderBy(z => z.Order));
+            result.datas.AddRange(data);
+            result.Count = allData.Count();
+            return result;
+        }
+
         // Post: api/SmartSchedule/PutAndWarehouse
         [HttpGet("PutAndWarehouse")]
         public object GetArrangedTaskOrderPutAndWarehouse([FromQuery]int wId, DateTime startTime, DateTime endTime, DateTime deliveryTime, bool all)

@@ -8,7 +8,6 @@ using ServiceStack;
 using System;
 using System.Collections.Generic;
 using System.Linq;
-using ModelBase.Models.ControllerBase;
 
 namespace ApiManagement.Controllers.SmartFactoryController.WorkshopFolder
 {
@@ -38,6 +37,35 @@ namespace ApiManagement.Controllers.SmartFactoryController.WorkshopFolder
                 return result;
             }
             return result;
+        }
+
+        // PUT: api/SmartWorkshop
+        [HttpPut("Set")]
+        public Result PutSmartWorkshopSet([FromBody] IEnumerable<SmartWorkshop> workshops)
+        {
+            if (workshops == null || !workshops.Any())
+            {
+                return Result.GenError<Result>(Error.ParamError);
+            }
+            if (workshops.Any(x => x.Frequency <= 0))
+            {
+                return Result.GenError<Result>(Error.SmartWorkshopFrequency0);
+            }
+
+            var ids = workshops.Select(x => x.Id);
+            var cnt = SmartWorkshopHelper.Instance.GetCountByIds(ids);
+            if (cnt != workshops.Count())
+            {
+                return Result.GenError<Result>(Error.SmartWorkshopNotExist);
+            }
+
+            var markedDateTime = DateTime.Now;
+            foreach (var workshop in workshops)
+            {
+                workshop.MarkedDateTime = markedDateTime;
+            }
+            SmartWorkshopHelper.UpdateWorkshopSet(workshops);
+            return Result.GenError<Result>(Error.Success);
         }
 
         // PUT: api/SmartWorkshop

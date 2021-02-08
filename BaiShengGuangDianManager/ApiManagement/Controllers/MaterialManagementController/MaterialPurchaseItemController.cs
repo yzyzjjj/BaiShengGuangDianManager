@@ -87,8 +87,13 @@ namespace ApiManagement.Controllers.MaterialManagementController
             return result;
         }
 
-
         // GET: api/MaterialPurchaseItem/?qId=0
+        /// <summary>
+        /// erp 获取物料入库信息
+        /// </summary>
+        /// <param name="ids"></param>
+        /// <param name="pIds"></param>
+        /// <returns></returns>
         [HttpGet("Infos")]
         public async Task<DataResult> GetMaterialPurchaseItemInfos([FromQuery] string ids, string pIds)
         {
@@ -119,6 +124,47 @@ namespace ApiManagement.Controllers.MaterialManagementController
             }
             return result;
         }
+
+        // GET: api/MaterialPurchaseItem/?qId=0
+        /// <summary>
+        /// erp 修改物料信息通知
+        /// </summary>
+        /// <param name="ids">物料id</param>
+        /// <param name="pIds">请购单id</param>
+        /// <returns></returns>
+        [HttpGet("Update")]
+        public Result UpdatePurchase([FromQuery] string ids, string pIds)
+        {
+            try
+            {
+                var purchases = new List<int>();
+                var idList = ids.IsNullOrEmpty() ? new List<int>() : ids.Split(",").Select(int.Parse);
+                var pIdList = pIds.IsNullOrEmpty() ? new List<int>() : pIds.Split(",").Select(int.Parse);
+                string sql;
+                if (idList.Any())
+                {
+                    sql = "SELECT PurchaseId FROM `material_purchase_item` WHERE ErpId IN @idList AND `MarkedDelete` = 0";
+                    purchases.AddRange(ServerConfig.ApiDb.Query<int>(sql, new { idList }));
+                }
+
+                if (pIdList.Any())
+                {
+                    sql = "SELECT Id FROM `material_purchase` WHERE ErpId IN @pIdList AND `MarkedDelete` = 0";
+                    purchases.AddRange(ServerConfig.ApiDb.Query<int>(sql, new { pIdList }));
+                }
+                if (purchases.Any())
+                {
+                    TimerHelper.ErpPurchaseFunc(purchases);
+                }
+            }
+            catch (Exception e)
+            {
+                Log.Error($"{ids?.Join() ?? ""}|{pIds?.Join() ?? ""}, {e}");
+                return Result.GenError<Result>(Error.Fail);
+            }
+            return Result.GenError<Result>(Error.Success);
+        }
+
         // PUT: api/MaterialPurchaseItem
         [HttpPut]
         public Result PutMaterialPurchaseItem([FromBody] IEnumerable<MaterialPurchaseItem> items)

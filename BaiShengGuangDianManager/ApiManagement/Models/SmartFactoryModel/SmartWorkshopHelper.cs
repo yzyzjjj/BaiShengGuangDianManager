@@ -30,17 +30,17 @@ namespace ApiManagement.Models.SmartFactoryModel
         #endregion
 
         #region Update
-        public static void UpdateWorkshopSet(SmartWorkshop workshop)
+        public static void UpdateWorkshopSet(IEnumerable<SmartWorkshop> workshops)
         {
             var args = new List<string>
             {
-                "MarkedDateTime","Frequency","Unit"
+                "MarkedDateTime","Frequency","Unit","Length"
             };
             var cons = new List<string>
             {
                 "Id"
             };
-            Instance.CommonUpdate(args, cons, workshop);
+            Instance.CommonUpdate(args, cons, workshops);
         }
         #endregion
 
