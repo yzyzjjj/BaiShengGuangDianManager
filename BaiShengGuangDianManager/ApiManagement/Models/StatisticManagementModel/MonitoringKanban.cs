@@ -1,18 +1,32 @@
 ﻿using ApiManagement.Models.BaseModel;
+using ApiManagement.Models.DeviceManagementModel;
 using ModelBase.Base.Utils;
 using Newtonsoft.Json;
 using ServiceStack;
 using System;
 using System.Collections.Generic;
+using System.ComponentModel;
 using System.Linq;
+using ModelBase.Models.Device;
 
 namespace ApiManagement.Models.StatisticManagementModel
 {
+    public enum MonitoringKanBanEnum
+    {
+        [Description("无")]
+        无 = 0,
+        [Description("设备详情看板")]
+        设备详情看板 = 1,
+        [Description("设备状态看板")]
+        设备状态看板 = 2
+    }
+
     public class MonitoringKanBan
     {
         public MonitoringKanBan()
         {
             ProductionList = new List<MonitoringProductionData>();
+            MSetData = new List<MonitoringSetData>();
         }
         //[JsonIgnore]
         //public bool Init = false;
@@ -24,7 +38,7 @@ namespace ApiManagement.Models.StatisticManagementModel
         /// <summary>
         /// 看板id
         /// </summary>
-        public int Type { get; set; } = 0;
+        public int Id { get; set; } = 0;
         /// <summary>
         /// 总设备数量
         /// </summary>
@@ -53,7 +67,6 @@ namespace ApiManagement.Models.StatisticManagementModel
         /// 日最大使用台数
         /// </summary>
         public int MaxUse { get; set; } = 0;
-
         /// <summary>
         /// 今日当前使用台数
         /// </summary>
@@ -84,10 +97,8 @@ namespace ApiManagement.Models.StatisticManagementModel
                 UseListStr = _useList.OrderBy(x => x).ToJson();
             }
         }
-
         [JsonIgnore]
         public string UseListStr { get; set; }
-
         /// <summary>
         /// 今日最大使用台数
         /// </summary>
@@ -118,10 +129,8 @@ namespace ApiManagement.Models.StatisticManagementModel
                 MaxUseListStr = _maxUseList.OrderBy(x => x).ToJson();
             }
         }
-
         [JsonIgnore]
         public string MaxUseListStr { get; set; }
-
         public List<string> UseCodeList { get; set; }
         /// <summary>
         /// 日最小使用台数
@@ -186,45 +195,54 @@ namespace ApiManagement.Models.StatisticManagementModel
         /// </summary>
         public List<MonitoringProductionData> ProductionList { get; set; }
         public string ProductionData => ProductionList.ToJSON();
-        public void Update(MonitoringKanBan monitoringKanban)
+        /// <summary>
+        /// 监控数据
+        /// </summary>
+        public List<MonitoringSetData> MSetData { get; set; }
+        public string VariableData => MSetData.Select(x => new
         {
-            Time = monitoringKanban.Time;
-            AllDevice = monitoringKanban.AllDevice;
-            NormalDevice = monitoringKanban.NormalDevice;
-            ProcessDevice = monitoringKanban.ProcessDevice;
-            FaultDevice = monitoringKanban.FaultDevice;
-            if (MaxUse < monitoringKanban.MaxUse)
+            x.Id,
+            Data = x.Data.Select(y => (MonitoringSetSingleData)y)
+        }).ToJSON();
+        public void Update(MonitoringKanBan monitoringKanBan)
+        {
+            Time = monitoringKanBan.Time;
+            AllDevice = monitoringKanBan.AllDevice;
+            NormalDevice = monitoringKanBan.NormalDevice;
+            ProcessDevice = monitoringKanBan.ProcessDevice;
+            FaultDevice = monitoringKanBan.FaultDevice;
+            if (MaxUse < monitoringKanBan.MaxUse)
             {
-                MaxUse = monitoringKanban.MaxUse;
+                MaxUse = monitoringKanBan.MaxUse;
             }
-            UseList = monitoringKanban.UseList;
-            UseCodeList = monitoringKanban.UseCodeList;
-            MaxUseList = monitoringKanban.MaxUseList;
+            UseList = monitoringKanBan.UseList;
+            UseCodeList = monitoringKanBan.UseCodeList;
+            MaxUseList = monitoringKanBan.MaxUseList;
             if (MinUse == 0)
             {
                 MinUse = MaxUse;
             }
-            if (MinUse > monitoringKanban.MinUse)
+            if (MinUse > monitoringKanBan.MinUse)
             {
-                MinUse = monitoringKanban.MinUse;
+                MinUse = monitoringKanBan.MinUse;
             }
-            if (MaxSimultaneousUseRate < monitoringKanban.MaxSimultaneousUseRate)
+            if (MaxSimultaneousUseRate < monitoringKanBan.MaxSimultaneousUseRate)
             {
-                MaxSimultaneousUseRate = monitoringKanban.MaxSimultaneousUseRate;
+                MaxSimultaneousUseRate = monitoringKanBan.MaxSimultaneousUseRate;
             }
             if (MinSimultaneousUseRate == 0)
             {
                 MinSimultaneousUseRate = MaxSimultaneousUseRate;
             }
-            if (MinSimultaneousUseRate > monitoringKanban.MinSimultaneousUseRate)
+            if (MinSimultaneousUseRate > monitoringKanBan.MinSimultaneousUseRate)
             {
-                MinSimultaneousUseRate = monitoringKanban.MinSimultaneousUseRate;
+                MinSimultaneousUseRate = monitoringKanBan.MinSimultaneousUseRate;
             }
 
-            SingleProcessRate = monitoringKanban.SingleProcessRate;
-            AllProcessRate = monitoringKanban.AllProcessRate;
-            RunTime = monitoringKanban.RunTime;
-            ProcessTime = monitoringKanban.ProcessTime;
+            SingleProcessRate = monitoringKanBan.SingleProcessRate;
+            AllProcessRate = monitoringKanBan.AllProcessRate;
+            RunTime = monitoringKanBan.RunTime;
+            ProcessTime = monitoringKanBan.ProcessTime;
         }
     }
 
@@ -233,9 +251,11 @@ namespace ApiManagement.Models.StatisticManagementModel
         public MonitoringKanBanDevice()
         {
             AllDevice = 1;
+            AnalysisData = new DeviceData();
         }
         public int DeviceId { get; set; }
         public string Code { get; set; }
+        public DeviceData AnalysisData { get; set; }
     }
     public class ProcessUseRate
     {
@@ -245,9 +265,41 @@ namespace ApiManagement.Models.StatisticManagementModel
     }
     public class MonitoringKanBanSet : CommonBase
     {
+        /// <summary>
+        /// 看板名
+        /// </summary>
         public string Name { get; set; }
         public bool IsShow { get; set; }
+        /// <summary>
+        /// 0
+        /// </summary>
+        public MonitoringKanBanEnum Type { get; set; }
         public string DeviceIds { get; set; }
+        /// <summary>
+        /// 顺序
+        /// </summary>
+        public int Order { get; set; }
+        /// <summary>
+        /// 刷新间隔(s)
+        /// </summary>
+        public int Second { get; set; }
+        /// <summary>
+        /// 单行显示数量
+        /// </summary>
+        public int Row { get; set; }
+        /// <summary>
+        /// 单列显示数量
+        /// </summary>
+        public int Col { get; set; }
+        /// <summary>
+        /// 每页显示条数
+        /// </summary>
+        public int Length => Row * Col;
+        /// <summary>
+        /// data_name_dictionary
+        /// </summary>
+        public string Variables { get; set; }
+
         public List<int> DeviceIdList
         {
             get
@@ -267,6 +319,72 @@ namespace ApiManagement.Models.StatisticManagementModel
                 return new List<int>();
             }
         }
-        public int Order { get; set; }
+        public List<DataNameDictionaryOrder> VariableList
+        {
+            get
+            {
+                var vl = new List<DataNameDictionaryOrder>();
+                try
+                {
+                    if (!Variables.IsNullOrEmpty())
+                    {
+                        vl.AddRange(JsonConvert.DeserializeObject<IEnumerable<DataNameDictionaryOrder>>(Variables));
+                    }
+                }
+                catch (Exception)
+                {
+                    // ignored
+                }
+
+                Variables = vl.Select(x => new { x.ScriptId, x.VariableTypeId, VariableName = x.VariableName ?? "", x.PointerAddress, x.Order }).ToJSON();
+                return vl;
+            }
+        }
+    }
+    public class MonitoringProductionData
+    {
+        public int DeviceId { get; set; }
+        public string Code { get; set; }
+        public DateTime Time { get; set; }
+        public int FaChu { get; set; }
+        public int HeGe { get; set; }
+        public int LiePian { get; set; }
+        public decimal Rate { get; set; }
+        public long ProcessTime { get; set; }
+    }
+    public class MonitoringSetData : DeviceLibraryDetail
+    {
+        public List<MonitoringSetSingleDataDetail> Data { get; set; } = new List<MonitoringSetSingleDataDetail>();
+    }
+
+    /// <summary>
+    /// 
+    /// </summary>
+    public class MonitoringSetSingleData
+    {
+        /// <summary>
+        /// 脚本Id
+        /// </summary>
+        public int Sid { get; set; }
+        /// <summary>
+        /// 变量类型
+        /// </summary>
+        public int Type { get; set; }
+        /// <summary>
+        /// 变量地址
+        /// </summary>
+        public int Add { get; set; }
+
+        /// <summary>
+        /// 变量值
+        /// </summary>
+        public string V { get; set; } = "";
+    }
+    public class MonitoringSetSingleDataDetail : MonitoringSetSingleData
+    {
+        /// <summary>
+        /// 表data_name_dictionary ，id
+        /// </summary>
+        public string VName { get; set; }
     }
 }

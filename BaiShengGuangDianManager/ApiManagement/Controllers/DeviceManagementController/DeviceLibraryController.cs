@@ -30,7 +30,7 @@ namespace ApiManagement.Controllers.DeviceManagementController
     {
         // GET: api/DeviceLibrary
         [HttpGet]
-        public DataResult GetDeviceLibrary([FromQuery] bool hard, bool work, string ids, int scriptId, int categoryId)
+        public DataResult GetDeviceLibrary([FromQuery] bool hard, bool work, string ids, int scriptId, int categoryId, bool state = true)
         {
             var idList = !ids.IsNullOrEmpty() ? ids.Split(",").Select(int.Parse) : new int[0];
             if (!hard)
@@ -71,50 +71,52 @@ namespace ApiManagement.Controllers.DeviceManagementController
                         $"{(idList.Any() ? " AND a.Id IN @idList" : "")}" +
                         $"{(scriptId != 0 ? " AND a.ScriptId = @scriptId" : "")}" +
                         $" ORDER BY a.Id;", new { idList, scriptId, categoryId }).ToDictionary(x => x.Id);
-
-                var faultDevices = ServerConfig.ApiDb.Query<dynamic>(
-                    $"SELECT * FROM (SELECT a.* FROM `fault_device_repair` a JOIN `device_library` b ON a.DeviceId = b.Id WHERE a.`State` != @state AND a.MarkedDelete = 0{(idList.Any() ? " AND a.Id IN @idList" : "")}{(scriptId != 0 ? " AND a.ScriptId = @scriptId" : "")} ORDER BY a.DeviceId, a.State DESC ) a GROUP BY DeviceCode;",
-                    new { state = RepairStateEnum.Complete, idList, scriptId });
-                foreach (var faultDevice in faultDevices)
+                if (state)
                 {
-                    var device = deviceLibraryDetails.Values.FirstOrDefault(x => x.Id == faultDevice.DeviceId);
-                    if (device != null)
+                    var faultDevices = ServerConfig.ApiDb.Query<dynamic>(
+                        $"SELECT * FROM (SELECT a.* FROM `fault_device_repair` a JOIN `device_library` b ON a.DeviceId = b.Id WHERE a.`State` != @state{(idList.Any() ? " AND a.DeviceId IN @idList" : "")}{(scriptId != 0 ? " AND a.ScriptId = @scriptId" : "")} AND a.MarkedDelete = 0 ORDER BY a.DeviceId, a.State DESC ) a GROUP BY DeviceCode;",
+                        new { state = RepairStateEnum.Complete, idList, scriptId });
+                    foreach (var faultDevice in faultDevices)
                     {
-                        device.RepairState = faultDevice.State;
-                    }
-                }
-
-                var url = ServerConfig.GateUrl + UrlMappings.Urls["deviceListGate"];
-                //向GateProxyLink请求数据
-                var resp = !idList.Any() ? HttpServer.Get(url) :
-                    HttpServer.Get(url, new Dictionary<string, string>
-                    {
-                        {"ids", idList.Join()}
-                    });
-                if (resp != "fail")
-                {
-                    try
-                    {
-                        var dataResult = JsonConvert.DeserializeObject<DeviceResult>(resp);
-                        if (dataResult.errno == Error.Success)
+                        var device = deviceLibraryDetails.Values.FirstOrDefault(x => x.Id == faultDevice.DeviceId);
+                        if (device != null)
                         {
-                            foreach (DeviceInfo deviceInfo in dataResult.datas)
+                            device.RepairState = faultDevice.State;
+                        }
+                    }
+
+                    var url = ServerConfig.GateUrl + UrlMappings.Urls["deviceListGate"];
+                    //向GateProxyLink请求数据
+                    var resp = !idList.Any() ? HttpServer.Get(url) :
+                        HttpServer.Get(url, new Dictionary<string, string>
+                        {
+                        {"ids", idList.Join()}
+                        });
+                    if (resp != "fail")
+                    {
+                        try
+                        {
+                            var dataResult = JsonConvert.DeserializeObject<DeviceResult>(resp);
+                            if (dataResult.errno == Error.Success)
                             {
-                                var deviceId = deviceInfo.DeviceId;
-                                if (deviceLibraryDetails.ContainsKey(deviceId))
+                                foreach (DeviceInfo deviceInfo in dataResult.datas)
                                 {
-                                    deviceLibraryDetails[deviceId].State = deviceInfo.State;
-                                    deviceLibraryDetails[deviceId].DeviceState = deviceInfo.DeviceState;
-                                    deviceLibraryDetails[deviceId].FlowCard = deviceInfo.FlowCard;
-                                    deviceLibraryDetails[deviceId].ProcessTime = deviceInfo.ProcessTime.IsNullOrEmpty() ? "0" : deviceInfo.ProcessTime;
-                                    deviceLibraryDetails[deviceId].LeftTime = deviceInfo.LeftTime.IsNullOrEmpty() ? "0" : deviceInfo.LeftTime;
+                                    var deviceId = deviceInfo.DeviceId;
+                                    if (deviceLibraryDetails.ContainsKey(deviceId))
+                                    {
+                                        deviceLibraryDetails[deviceId].State = deviceInfo.State;
+                                        deviceLibraryDetails[deviceId].DeviceState = deviceInfo.DeviceState;
+                                        deviceLibraryDetails[deviceId].FlowCard = deviceInfo.FlowCard;
+                                        deviceLibraryDetails[deviceId].ProcessTime = deviceInfo.ProcessTime.IsNullOrEmpty() ? "0" : deviceInfo.ProcessTime;
+                                        deviceLibraryDetails[deviceId].LeftTime = deviceInfo.LeftTime.IsNullOrEmpty() ? "0" : deviceInfo.LeftTime;
+                                    }
                                 }
                             }
                         }
-                    }
-                    catch (Exception e)
-                    {
-                        Log.Error($"{UrlMappings.Urls["deviceListGate"]} 返回：{resp},信息:{e.Message}");
+                        catch (Exception e)
+                        {
+                            Log.Error($"{UrlMappings.Urls["deviceListGate"]} 返回：{resp},信息:{e.Message}");
+                        }
                     }
                 }
 
@@ -167,7 +169,7 @@ namespace ApiManagement.Controllers.DeviceManagementController
                 return result;
             }
 
-            var faultDevice = ServerConfig.ApiDb.Query<dynamic>("SELECT a.* FROM `fault_device_repair` a JOIN `device_library` b ON a.DeviceId = b.Id WHERE a.`State` != @state AND a.MarkedDelete = 0 AND DeviceId = @DeviceId;",
+            var faultDevice = ServerConfig.ApiDb.Query<dynamic>("SELECT a.* FROM `fault_device_repair` a JOIN `device_library` b ON a.DeviceId = b.Id WHERE a.`State` != @state AND DeviceId = @DeviceId AND a.MarkedDelete = 0;",
                 new { DeviceId = data.Id, state = RepairStateEnum.Complete }).FirstOrDefault();
             if (faultDevice != null)
             {
@@ -229,7 +231,7 @@ namespace ApiManagement.Controllers.DeviceManagementController
                 result.errno = Error.DeviceNotExist;
                 return result;
             }
-            var faultDevice = ServerConfig.ApiDb.Query<dynamic>("SELECT a.* FROM `fault_device_repair` a JOIN `device_library` b ON a.DeviceId = b.Id WHERE a.`State` != @state AND a.MarkedDelete = 0 AND DeviceId = @DeviceId;",
+            var faultDevice = ServerConfig.ApiDb.Query<dynamic>("SELECT a.* FROM `fault_device_repair` a JOIN `device_library` b ON a.DeviceId = b.Id WHERE a.`State` != @state AND DeviceId = @DeviceId AND a.MarkedDelete = 0;",
                 new { DeviceId = data.Id, state = RepairStateEnum.Complete }).FirstOrDefault();
             if (faultDevice != null)
             {

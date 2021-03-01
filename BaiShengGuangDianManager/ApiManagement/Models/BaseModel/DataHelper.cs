@@ -110,6 +110,15 @@ namespace ApiManagement.Models.BaseModel
         /// <summary>
         /// 通过id批量获取数量
         /// </summary>
+        /// <param name="id"></param>
+        /// <returns></returns>
+        public int GetCountById(int id)
+        {
+            return ServerConfig.ApiDb.Query<int>($"SELECT COUNT(1) FROM `{Table}` WHERE `MarkedDelete` = 0 AND Id = @id;", new { id }).FirstOrDefault();
+        }
+        /// <summary>
+        /// 通过id批量获取数量
+        /// </summary>
         /// <param name="ids"></param>
         /// <returns></returns>
         public int GetCountByIds(IEnumerable<int> ids)

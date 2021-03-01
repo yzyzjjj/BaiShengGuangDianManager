@@ -1,4 +1,5 @@
-﻿using ApiManagement.Base.Server;
+﻿using ApiManagement.Base.Helper;
+using ApiManagement.Base.Server;
 using ApiManagement.Models.DeviceManagementModel;
 using Microsoft.AspNetCore.Mvc;
 using ModelBase.Base.EnumConfig;
@@ -9,7 +10,6 @@ using ServiceStack;
 using System;
 using System.Collections.Generic;
 using System.Linq;
-using ApiManagement.Base.Helper;
 
 namespace ApiManagement.Controllers.DeviceManagementController
 {
@@ -22,33 +22,49 @@ namespace ApiManagement.Controllers.DeviceManagementController
     {
         // GET: api/DataNameDictionary
         [HttpGet]
-        public DataResult GetDataNameDictionary()
+        public DataResult GetDataNameDictionary([FromQuery] int qId = 0, int sId = 0, string sIds = "")
         {
+            var sids =new List<int>();
+            if (!sIds.IsNullOrEmpty())
+            {
+                sids.AddRange(sIds.Split(",").Select(int.Parse));
+            }
             var result = new DataResult();
-            result.datas.AddRange(ServerConfig.ApiDb.Query<DataNameDictionary>("SELECT * FROM `data_name_dictionary` WHERE `MarkedDelete` = 0 ORDER BY ScriptId, PointerAddress;"));
-            return result;
-        }
-
-        /// <summary>
-        /// 自增Id
-        /// </summary>
-        /// <param name="id">自增Id</param>
-        /// <returns></returns>
-        // GET: api/DataNameDictionary/5
-        [HttpGet("{id}")]
-        public DataResult GetDataNameDictionary([FromRoute] int id)
-        {
-            var result = new DataResult();
-            var data =
-                ServerConfig.ApiDb.Query<DataNameDictionary>("SELECT * FROM `data_name_dictionary` WHERE Id = @id AND `MarkedDelete` = 0;", new { id }).FirstOrDefault();
-            if (data == null)
+            result.datas.AddRange(ServerConfig.ApiDb.Query<DataNameDictionary>(
+                $"SELECT * FROM `data_name_dictionary` " +
+                $"WHERE " +
+                $"{(qId != 0 ? "Id = @qId AND " : "")}" +
+                $"{(sId != 0 ? "ScriptId = @sId AND " : "")}" +
+                $"{(sids.Any() ? "ScriptId IN @sids AND " : "")} " +
+                $"`MarkedDelete` = 0 ORDER BY ScriptId, PointerAddress;", new { qId, sId, sids }));
+            if (qId != 0 && !result.datas.Any())
             {
                 result.errno = Error.DataNameDictionaryNotExist;
                 return result;
             }
-            result.datas.Add(data);
             return result;
         }
+
+        ///// <summary>
+        ///// 自增Id
+        ///// </summary>
+        ///// <param name="id">自增Id</param>
+        ///// <returns></returns>
+        //// GET: api/DataNameDictionary/5
+        //[HttpGet("{id}")]
+        //public DataResult GetDataNameDictionary([FromRoute] int id)
+        //{
+        //    var result = new DataResult();
+        //    var data =
+        //        ServerConfig.ApiDb.Query<DataNameDictionary>("SELECT * FROM `data_name_dictionary` WHERE Id = @id AND `MarkedDelete` = 0;", new { id }).FirstOrDefault();
+        //    if (data == null)
+        //    {
+        //        result.errno = Error.DataNameDictionaryNotExist;
+        //        return result;
+        //    }
+        //    result.datas.Add(data);
+        //    return result;
+        //}
 
         /// <summary>
         /// 脚本版本
@@ -104,9 +120,7 @@ namespace ApiManagement.Controllers.DeviceManagementController
             {
                 dataNameDictionary.MarkedDateTime = time;
             }
-            ServerConfig.ApiDb.Execute(
-                "UPDATE data_name_dictionary SET `MarkedDateTime` = @MarkedDateTime, `Precision` = @Precision WHERE `Id` = @Id;", dataNameDictionaries);
-
+            DataNameDictionaryHelper.Instance.Update(dataNameDictionaries);
             return Result.GenError<Result>(Error.Success);
         }
 
@@ -116,10 +130,7 @@ namespace ApiManagement.Controllers.DeviceManagementController
         {
             dataNameDictionary.CreateUserId = Request.GetIdentityInformation();
             dataNameDictionary.MarkedDateTime = DateTime.Now;
-            ServerConfig.ApiDb.Execute(
-                "INSERT INTO data_name_dictionary (`CreateUserId`, `MarkedDateTime`, `ScriptId`, `VariableTypeId`, `PointerAddress`, `VariableName`, `Remark`) " +
-                "VALUES (@CreateUserId, @MarkedDateTime, @ScriptId, @VariableTypeId, @PointerAddress, @VariableName, @Remark);",
-                dataNameDictionary);
+            DataNameDictionaryHelper.Instance.Add(dataNameDictionary);
             CheckScriptVersion(dataNameDictionary.ScriptId);
             return Result.GenError<Result>(Error.Success);
         }

@@ -1,5 +1,6 @@
 ﻿using Newtonsoft.Json;
 using System;
+using ModelBase.Models.Device;
 
 namespace ApiManagement.Models.StatisticManagementModel
 {

@@ -14,6 +14,7 @@ namespace ApiManagement.Models.StatisticManagementModel
         public DateTime Time { get; set; }
         public int DeviceId { get; set; }
         public string Code { get; set; }
+        public int ScriptId { get; set; }
         public int DeviceCategoryId { get; set; }
         public string CategoryName { get; set; }
         public int State { get; set; }

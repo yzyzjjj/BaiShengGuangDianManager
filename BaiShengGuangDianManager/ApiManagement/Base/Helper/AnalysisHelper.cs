@@ -22,42 +22,78 @@ namespace ApiManagement.Base.Helper
     /// </summary>
     public class AnalysisHelper
     {
-#if DEBUG
-#else
+
         private static readonly string Debug = "Debug";
         private static Timer _timer2S;
         private static Timer _timer10S;
         private static Timer _timer60S;
-#endif
+        /// <summary>
+        /// 设备状态
+        /// </summary>
+        public static int stateDId = 1;
+        /// <summary>
+        /// 总加工次数
+        /// </summary>
+        public static int processCountDId = 63;
+        /// <summary>
+        /// 总加工时间
+        /// </summary>
+        public static int processTimeDId = 64;
+        /// <summary>
+        /// 当前加工流程卡号
+        /// </summary>
+        public static int currentFlowCardDId = 6;
+        /// <summary>
+        /// 累积运行总时间
+        /// </summary>
+        public static int runTimeDId = 5;
+        /// <summary>
+        /// 设定工艺 起始地址  变量名带a
+        /// </summary>
+        public static int actProcessDid = 65;
+        /// <summary>
+        /// 工艺 8行6列
+        /// </summary>
+        public static int processCnt = 48;
+        /// <summary>
+        /// 设备常用脚本变量
+        /// </summary>
+        public static List<int> VariableNameIdList = new List<int>
+        {
+            stateDId,
+            processCountDId,
+            processTimeDId,
+            currentFlowCardDId,
+            runTimeDId
+        };
         private static int _dealLength = 500;
         //public static MonitoringKanBan MonitoringKanBan;
         //private static MonitoringKanBan _monitoringKanBan;
         /// <summary>
-        /// Type
+        /// Set Id
         /// </summary>
         public static Dictionary<int, MonitoringKanBan> MonitoringKanBanDic = new Dictionary<int, MonitoringKanBan>();
         /// <summary>
         /// DeviceId
         /// </summary>
         public static Dictionary<int, MonitoringKanBanDevice> MonitoringKanBanDeviceDic = new Dictionary<int, MonitoringKanBanDevice>();
+
         public static void Init()
         {
             try
             {
+                for (var i = 0; i < processCnt; i++)
+                {
+                    VariableNameIdList.Add(actProcessDid + i);
+                }
+
                 Script();
+
 #if DEBUG
                 Console.WriteLine("AnalysisHelper 调试模式已开启");
-                //var redisPre = "Analysis";
-                //var redisLock = $"{redisPre}:Lock";
-                //var idKey = $"{redisPre}:Id";
-                //var deviceKey = $"{redisPre}:Device";
-                //RedisHelper.Remove(redisLock);
-                //MonitoringKanBanDic.AddRange(ServerConfig.ApiDb.Query<MonitoringKanBan>("SELECT * FROM (SELECT * FROM `npc_monitoring_kanban` ORDER BY Date DESC) a GROUP BY a.Type;").ToDictionary(x => x.Type));
-                //MonitoringKanBanDeviceDic.AddRange(ServerConfig.ApiDb.Query<MonitoringKanBanDevice>("SELECT * FROM (SELECT * FROM `npc_monitoring_kanban_device` ORDER BY Date DESC) a GROUP BY a.DeviceId;").ToDictionary(x => x.DeviceId));
-
-                //_timer2S = new Timer(DoSth_2s, null, 10000, 2000);
 #else
                 Console.WriteLine("AnalysisHelper 发布模式已开启");
+#endif
                 if (!RedisHelper.Exists(Debug))
                 {
                     RedisHelper.SetForever(Debug, 0);
@@ -68,13 +104,12 @@ namespace ApiManagement.Base.Helper
                 var idKey = $"{redisPre}:Id";
                 var deviceKey = $"{redisPre}:Device";
                 RedisHelper.Remove(redisLock);
-                MonitoringKanBanDic.AddRange(ServerConfig.ApiDb.Query<MonitoringKanBan>("SELECT * FROM (SELECT * FROM `npc_monitoring_kanban` ORDER BY Date DESC) a GROUP BY a.Type;").ToDictionary(x => x.Type));
+                MonitoringKanBanDic.AddRange(ServerConfig.ApiDb.Query<MonitoringKanBan>("SELECT * FROM (SELECT * FROM `npc_monitoring_kanban` ORDER BY Date DESC) a GROUP BY a.Id;", null, 60).ToDictionary(x => x.Id));
                 MonitoringKanBanDeviceDic.AddRange(ServerConfig.ApiDb.Query<MonitoringKanBanDevice>("SELECT * FROM (SELECT * FROM `npc_monitoring_kanban_device` ORDER BY Date DESC) a GROUP BY a.DeviceId;").ToDictionary(x => x.DeviceId));
 
                 _timer2S = new Timer(DoSth_2s, null, 10000, 2000);
                 _timer10S = new Timer(DoSth_10s, null, 10000, 1000 * 10);
                 _timer60S = new Timer(DoSth_60s, null, 5000, 1000 * 60);
-#endif
             }
             catch (Exception e)
             {
@@ -451,12 +486,13 @@ namespace ApiManagement.Base.Helper
                     {
                         exceptDevices.AddRange(exceptDevicesStr.Split(",").Select(int.Parse));
                     }
+
                     var monitoringKanBanList = new List<MonitoringKanBan>();
                     var monitoringKanBanDeviceList = new List<MonitoringKanBanDevice>();
                     var monitoringProcesses = new List<MonitoringProcess>();
 
                     var allDeviceList = ServerConfig.ApiDb.Query<MonitoringProcess>(
-                        "SELECT b.*, c.DeviceCategoryId, c.CategoryName, a.`Code` FROM `device_library` a JOIN `npc_proxy_link` b ON a.Id = b.DeviceId JOIN (SELECT a.*, b.CategoryName FROM `device_model` a JOIN `device_category` b ON a.DeviceCategoryId = b.Id) c ON a.DeviceModelId = c.Id WHERE a.MarkedDelete = 0;");
+                        "SELECT b.*, c.DeviceCategoryId, c.CategoryName, a.`Code`, a.`ScriptId` FROM `device_library` a JOIN `npc_proxy_link` b ON a.Id = b.DeviceId JOIN (SELECT a.*, b.CategoryName FROM `device_model` a JOIN `device_category` b ON a.DeviceCategoryId = b.Id) c ON a.DeviceModelId = c.Id WHERE a.MarkedDelete = 0;");
 
                     foreach (var device in allDeviceList)
                     {
@@ -526,30 +562,6 @@ namespace ApiManagement.Base.Helper
                         if (endId > startId)
                         {
                             #region  加工记录
-                            //设备状态
-                            var stateDId = 1;
-                            //总加工次数
-                            var processCountDId = 63;
-                            //总加工时间
-                            var processTimeDId = 64;
-                            //当前加工流程卡号
-                            var currentFlowCardDId = 6;
-                            //累积运行总时间
-                            var runTimeDId = 5;
-                            var variableNameIdList = new List<int>
-                            {
-                                stateDId,
-                                processCountDId,
-                                processTimeDId,
-                                currentFlowCardDId,
-                                runTimeDId
-                            };
-                            var actProcessDid = 65;
-                            var processCnt = 48;
-                            for (var i = 0; i < processCnt; i++)
-                            {
-                                variableNameIdList.Add(actProcessDid + i);
-                            }
                             var existDeviceId = mData.GroupBy(x => x.DeviceId).Select(y => y.Key);
                             var deviceList = allDeviceList.Where(x => existDeviceId.Any(y => y == x.DeviceId)).ToDictionary(x => x.DeviceId);
                             if (RedisHelper.Exists(deviceKey))
@@ -570,30 +582,30 @@ namespace ApiManagement.Base.Helper
 
                             if (deviceList.Any())
                             {
-                                var scripts = mData.GroupBy(x => x.ScriptId).Select(x => x.Key).ToList();
-                                scripts.Add(0);
+                                var scriptIds = mData.GroupBy(x => x.ScriptId).Select(x => x.Key).ToList();
+                                scriptIds.Add(0);
                                 IEnumerable<UsuallyDictionary> usuallyDictionaries = null;
-                                if (scripts.Any())
+                                if (scriptIds.Any())
                                 {
                                     usuallyDictionaries = ServerConfig.ApiDb.Query<UsuallyDictionary>(
                                         "SELECT * FROM `usually_dictionary` WHERE ScriptId IN @ScriptId AND VariableNameId IN @VariableNameId;",
                                         new
                                         {
-                                            ScriptId = scripts,
-                                            VariableNameId = variableNameIdList,
+                                            ScriptId = scriptIds,
+                                            VariableNameId = VariableNameIdList,
                                         });
                                 }
 
-                                if (!variableNameIdList.All(x => usuallyDictionaries.Any(y => y.VariableNameId == x)))
+                                if (usuallyDictionaries == null || !VariableNameIdList.All(x => usuallyDictionaries.Any(y => y.VariableNameId == x)))
                                 {
-                                    Log.ErrorFormat("缺少变量配置:{0}", variableNameIdList.Where(x => usuallyDictionaries.All(y => y.VariableNameId != x)).ToJSON());
+                                    Log.ErrorFormat("缺少变量配置:{0}", VariableNameIdList.Where(x => usuallyDictionaries.All(y => y.VariableNameId != x)).ToJSON());
                                     RedisHelper.Remove(redisLock);
                                     return;
                                 }
                                 var uDies = new Dictionary<Tuple<int, int>, int>();
-                                foreach (var variableNameId in variableNameIdList)
+                                foreach (var variableNameId in VariableNameIdList)
                                 {
-                                    foreach (var script in scripts.Where(x => x != 0))
+                                    foreach (var script in scriptIds.Where(x => x != 0))
                                     {
                                         var udd = usuallyDictionaries.FirstOrDefault(x =>
                                             x.ScriptId == script && x.VariableNameId == variableNameId);
@@ -676,6 +688,7 @@ namespace ApiManagement.Base.Helper
                                         var analysisData = data.AnalysisData;
                                         if (analysisData != null)
                                         {
+                                            MonitoringKanBanDeviceDic[data.DeviceId].AnalysisData = analysisData;
                                             var uKey = new Tuple<int, int>(data.ScriptId, currentFlowCardDId);
                                             if (!uDies.ContainsKey(uKey))
                                             {
@@ -709,7 +722,7 @@ namespace ApiManagement.Base.Helper
                                                             ServerConfig.ApiDb
                                                                 .Query<FlowCardLibrary>(
                                                                     "SELECT * FROM `flowcard_library` WHERE Id = @Id;",
-                                                                    new {Id = currentFlowCardId}).FirstOrDefault();
+                                                                    new { Id = currentFlowCardId }).FirstOrDefault();
 
                                                         if (flowCard != null)
                                                         {
@@ -968,7 +981,7 @@ namespace ApiManagement.Base.Helper
                                             };
 
                                             monitoringProcess.Rate =
-                                                (decimal) monitoringProcess.Use * 100 / monitoringProcess.Total;
+                                                (decimal)monitoringProcess.Use * 100 / monitoringProcess.Total;
                                             monitoringProcesses.Add(monitoringProcess);
                                         }
                                     }
@@ -1050,16 +1063,17 @@ namespace ApiManagement.Base.Helper
             Task.Run(() =>
             {
                 ServerConfig.ApiDb.Execute(
-                    "INSERT INTO npc_monitoring_kanban (`Date`, `Time`, `Type`, `AllDevice`, `NormalDevice`, `ProcessDevice`, `IdleDevice`, `FaultDevice`, `ConnectErrorDevice`, `MaxUse`, `UseListStr`, " +
+                    "INSERT INTO npc_monitoring_kanban (`Date`, `Time`, `Id`, `AllDevice`, `NormalDevice`, `ProcessDevice`, `IdleDevice`, `FaultDevice`, `ConnectErrorDevice`, `MaxUse`, `UseListStr`, " +
                     "`MaxUseListStr`, `MaxUseRate`, `MinUse`, `MinUseRate`, `MaxSimultaneousUseRate`, `MinSimultaneousUseRate`, `SingleProcessRateStr`, `AllProcessRate`, `RunTime`, " +
-                    "`ProcessTime`, `IdleTime`, `FaChu`, `HeGe`, `LiePian`, `ProductionData`) VALUES (@Date, @Time, @Type, @AllDevice, @NormalDevice, @ProcessDevice, @IdleDevice, @FaultDevice, @ConnectErrorDevice, @MaxUse, @UseListStr, " +
+                    "`ProcessTime`, `IdleTime`, `FaChu`, `HeGe`, `LiePian`, `ProductionData`) " +
+                    "VALUES (@Date, @Time, @Id, @AllDevice, @NormalDevice, @ProcessDevice, @IdleDevice, @FaultDevice, @ConnectErrorDevice, @MaxUse, @UseListStr, " +
                     "@MaxUseListStr ,@MaxUseRate, @MinUse, @MinUseRate, @MaxSimultaneousUseRate, @MinSimultaneousUseRate, @SingleProcessRateStr, @AllProcessRate, @RunTime, @ProcessTime, " +
                     "@IdleTime, @FaChu, @HeGe, @LiePian, @ProductionData) " +
                     "ON DUPLICATE KEY UPDATE `Time` = @Time, `AllDevice` = @AllDevice, `NormalDevice` = @NormalDevice, `ProcessDevice` = @ProcessDevice, `IdleDevice` = @IdleDevice, " +
                     "`FaultDevice` = @FaultDevice, `ConnectErrorDevice` = @ConnectErrorDevice, `MaxUse` = @MaxUse, `MaxUseListStr` = @MaxUseListStr, `UseListStr` = @UseListStr, " +
                     "`MaxUseRate` = @MaxUseRate, `MinUse` = @MinUse, `MinUseRate` = @MinUseRate, `MaxSimultaneousUseRate` = @MaxSimultaneousUseRate, `MinSimultaneousUseRate` = @MinSimultaneousUseRate, " +
                     "`SingleProcessRateStr` = @SingleProcessRateStr, `AllProcessRate` = @AllProcessRate, `RunTime` = @RunTime, `ProcessTime` = @ProcessTime, `IdleTime` = @IdleTime, " +
-                    "`FaChu` = @FaChu, `HeGe` = @HeGe, `LiePian` = @LiePian, `ProductionData` = @ProductionData;"
+                    "`FaChu` = @FaChu, `HeGe` = @HeGe, `LiePian` = @LiePian, `ProductionData` = @ProductionData, `VariableData` = @VariableData;"
                     , monitoringKanBanList);
 
                 ServerConfig.ApiDb.Execute(
@@ -1083,10 +1097,11 @@ namespace ApiManagement.Base.Helper
 
         private static void UpdateKanBan(IEnumerable<MonitoringProcess> allDeviceList, DateTime time, bool haveData)
         {
-            var sets = ServerConfig.ApiDb.Query<MonitoringKanBanSet>("SELECT * FROM `npc_monitoring_kanban_set` WHERE MarkedDelete = 0;").ToList();
+            var sets = MonitoringKanBanSetHelper.Instance.GetAll<MonitoringKanBanSet>().ToList();
             sets.Add(new MonitoringKanBanSet
             {
                 Id = 0,
+                Type = MonitoringKanBanEnum.设备详情看板,
                 DeviceIds = allDeviceList.Select(x => x.DeviceId).Join()
             });
             foreach (var set in sets)
@@ -1096,11 +1111,13 @@ namespace ApiManagement.Base.Helper
                     MonitoringKanBanDic.Add(set.Id, new MonitoringKanBan
                     {
                         Time = time,
-                        Type = set.Id
+                        Id = set.Id
                     });
                 }
             }
 
+            var scriptIds = sets.SelectMany(x => x.VariableList.Select(y => y.ScriptId));
+            var dataNameDictionaries = scriptIds.Any() ? DataNameDictionaryHelper.GetDataNameDictionaryDetails(scriptIds) : new List<DataNameDictionaryDetail>();
             var removeTypes = MonitoringKanBanDic.Keys.Where(type => sets.All(x => x.Id != type)).ToList();
             foreach (var removeType in removeTypes)
             {
@@ -1143,13 +1160,13 @@ namespace ApiManagement.Base.Helper
 
                 for (var i = 0; i < MonitoringKanBanDic.Keys.Count; i++)
                 {
-                    var type = MonitoringKanBanDic.Keys.ElementAt(i);
-                    if (MonitoringKanBanDic[type].Time.InSameDay(time))
+                    var id = MonitoringKanBanDic.Keys.ElementAt(i);
+                    if (MonitoringKanBanDic[id].Time.InSameDay(time))
                     {
-                        MonitoringKanBanDic[type] = new MonitoringKanBan
+                        MonitoringKanBanDic[id] = new MonitoringKanBan
                         {
                             Time = time,
-                            Type = type
+                            Id = id
                         };
                     }
                 }
@@ -1159,65 +1176,136 @@ namespace ApiManagement.Base.Helper
             var validDate = MonitoringKanBanDeviceDic.Values.GroupBy(x => x.Date).Select(y => y.Key);
             foreach (var date in validDate)
             {
-                foreach (var type in MonitoringKanBanDic.Keys)
+                foreach (var id in MonitoringKanBanDic.Keys)
                 {
-                    var set = sets.FirstOrDefault(x => x.Id == type);
+                    var set = sets.FirstOrDefault(x => x.Id == id);
                     if (set != null)
                     {
                         var allDevice = MonitoringKanBanDeviceDic.Values.Where(x => set.DeviceIdList.Contains(x.DeviceId));
                         var validMonitoringKanBanDevice = allDevice.Where(x => Math.Abs((x.Time - time).TotalMinutes) <= 5
                                                                                && x.Time.InSameDay(date));
-                        MonitoringKanBanDic[type].Time = time;
-                        MonitoringKanBanDic[type].AllDevice = set.DeviceIdList.Count();
-                        MonitoringKanBanDic[type].NormalDevice =
-                            validMonitoringKanBanDevice.Sum(x => x.FaultDevice > 0 ? 0 : x.NormalDevice);
-                        MonitoringKanBanDic[type].ProcessDevice =
-                        validMonitoringKanBanDevice.Sum(x => x.FaultDevice > 0 ? 0 : x.ProcessDevice);
-                        MonitoringKanBanDic[type].FaultDevice =
-                            allDevice.Sum(x => x.FaultDevice);
-                        MonitoringKanBanDic[type].UseList = validMonitoringKanBanDevice.Where(x => x.FaultDevice == 0)
-                            .SelectMany(x => x.UseList).Distinct().ToList();
-                        MonitoringKanBanDic[type].MaxUseList = validMonitoringKanBanDevice.Where(x => x.FaultDevice == 0)
-                            .SelectMany(x => x.MaxUseList).Distinct().ToList();
-                        MonitoringKanBanDic[type].MaxUse = MonitoringKanBanDic[type].MaxUseList.Count;
-                        MonitoringKanBanDic[type].MinUse = MonitoringKanBanDic[type].MinUse == -1 ? MonitoringKanBanDic[type].MaxUse :
-                            (MonitoringKanBanDic[type].MinUse < MonitoringKanBanDic[type].MaxUse ? MonitoringKanBanDic[type].MinUse : MonitoringKanBanDic[type].MaxUse);
-                        MonitoringKanBanDic[type].MaxSimultaneousUseRate =
-                            MonitoringKanBanDic[type].MaxSimultaneousUseRate <
-                            MonitoringKanBanDic[type].ProcessDevice
-                                ? MonitoringKanBanDic[type].ProcessDevice
-                                : MonitoringKanBanDic[type].MaxSimultaneousUseRate;
-                        MonitoringKanBanDic[type].MinSimultaneousUseRate = MonitoringKanBanDic[type].MinSimultaneousUseRate == -1 ? MonitoringKanBanDic[type].MaxSimultaneousUseRate :
-                            (MonitoringKanBanDic[type].MinSimultaneousUseRate < MonitoringKanBanDic[type].MaxSimultaneousUseRate ? MonitoringKanBanDic[type].MinSimultaneousUseRate : MonitoringKanBanDic[type].MaxSimultaneousUseRate);
-                        MonitoringKanBanDic[type].SingleProcessRate = validMonitoringKanBanDevice.Where(x => x.FaultDevice == 0)
-                            .SelectMany(x => x.SingleProcessRate).ToList();
-                        MonitoringKanBanDic[type].RunTime = validMonitoringKanBanDevice.Sum(x => x.RunTime);
-                        MonitoringKanBanDic[type].ProcessTime = validMonitoringKanBanDevice.Sum(x => x.ProcessTime);
-                        MonitoringKanBanDic[type].AllProcessRate = validMonitoringKanBanDevice.Any()
-                            ? (MonitoringKanBanDic[type].ProcessTime * 1m / (set.DeviceIdList.Count() * 24 * 3600))
-                            .ToRound(4)
-                            : 0;
-                        MonitoringKanBanDic[type].UseCodeList = allDeviceList.OrderBy(x => x.DeviceId)
-                            .Where(x => MonitoringKanBanDic[type].UseList.Contains(x.DeviceId)).Select(x => x.Code)
-                            .ToList();
-
-                        MonitoringKanBanDic[type].FaChu = allDevice.Sum(x => x.FaChu);
-                        MonitoringKanBanDic[type].HeGe = allDevice.Sum(x => x.HeGe);
-                        MonitoringKanBanDic[type].LiePian = allDevice.Sum(x => x.LiePian);
-                        MonitoringKanBanDic[type].ProductionList = allDevice.Select(x => new MonitoringProductionData
+                        MonitoringKanBanDic[id].Time = time;
+                        if (set.Type == MonitoringKanBanEnum.设备详情看板)
                         {
-                            DeviceId = x.DeviceId,
-                            Code = x.Code,
-                            Time = x.Time,
-                            FaChu = x.FaChu,
-                            HeGe = x.HeGe,
-                            LiePian = x.LiePian,
-                            Rate = x.FaChu == 0 ? 0 : ((decimal)x.HeGe / x.FaChu).ToRound()
-                        }).ToList();
+                            #region 设备详情看板
+                            MonitoringKanBanDic[id].AllDevice = set.DeviceIdList.Count();
+                            MonitoringKanBanDic[id].NormalDevice =
+                                validMonitoringKanBanDevice.Sum(x => x.FaultDevice > 0 ? 0 : x.NormalDevice);
+                            MonitoringKanBanDic[id].ProcessDevice =
+                            validMonitoringKanBanDevice.Sum(x => x.FaultDevice > 0 ? 0 : x.ProcessDevice);
+                            MonitoringKanBanDic[id].FaultDevice =
+                                allDevice.Sum(x => x.FaultDevice);
+                            MonitoringKanBanDic[id].UseList = validMonitoringKanBanDevice.Where(x => x.FaultDevice == 0)
+                                .SelectMany(x => x.UseList).Distinct().ToList();
+                            MonitoringKanBanDic[id].MaxUseList = validMonitoringKanBanDevice.Where(x => x.FaultDevice == 0)
+                                .SelectMany(x => x.MaxUseList).Distinct().ToList();
+                            MonitoringKanBanDic[id].MaxUse = MonitoringKanBanDic[id].MaxUseList.Count;
+                            MonitoringKanBanDic[id].MinUse = MonitoringKanBanDic[id].MinUse == -1 ? MonitoringKanBanDic[id].MaxUse :
+                                (MonitoringKanBanDic[id].MinUse < MonitoringKanBanDic[id].MaxUse ? MonitoringKanBanDic[id].MinUse : MonitoringKanBanDic[id].MaxUse);
+                            MonitoringKanBanDic[id].MaxSimultaneousUseRate =
+                                MonitoringKanBanDic[id].MaxSimultaneousUseRate <
+                                MonitoringKanBanDic[id].ProcessDevice
+                                    ? MonitoringKanBanDic[id].ProcessDevice
+                                    : MonitoringKanBanDic[id].MaxSimultaneousUseRate;
+                            MonitoringKanBanDic[id].MinSimultaneousUseRate = MonitoringKanBanDic[id].MinSimultaneousUseRate == -1 ? MonitoringKanBanDic[id].MaxSimultaneousUseRate :
+                                (MonitoringKanBanDic[id].MinSimultaneousUseRate < MonitoringKanBanDic[id].MaxSimultaneousUseRate ? MonitoringKanBanDic[id].MinSimultaneousUseRate : MonitoringKanBanDic[id].MaxSimultaneousUseRate);
+                            MonitoringKanBanDic[id].SingleProcessRate = validMonitoringKanBanDevice.Where(x => x.FaultDevice == 0)
+                                .SelectMany(x => x.SingleProcessRate).ToList();
+                            MonitoringKanBanDic[id].RunTime = validMonitoringKanBanDevice.Sum(x => x.RunTime);
+                            MonitoringKanBanDic[id].ProcessTime = validMonitoringKanBanDevice.Sum(x => x.ProcessTime);
+                            MonitoringKanBanDic[id].AllProcessRate = validMonitoringKanBanDevice.Any()
+                                ? (MonitoringKanBanDic[id].ProcessTime * 1m / (set.DeviceIdList.Count() * 24 * 3600))
+                                .ToRound(4)
+                                : 0;
+                            MonitoringKanBanDic[id].UseCodeList = allDeviceList.OrderBy(x => x.DeviceId)
+                                .Where(x => MonitoringKanBanDic[id].UseList.Contains(x.DeviceId)).Select(x => x.Code)
+                                .ToList();
+
+                            MonitoringKanBanDic[id].FaChu = allDevice.Sum(x => x.FaChu);
+                            MonitoringKanBanDic[id].HeGe = allDevice.Sum(x => x.HeGe);
+                            MonitoringKanBanDic[id].LiePian = allDevice.Sum(x => x.LiePian);
+                            MonitoringKanBanDic[id].ProductionList = allDevice.Select(x => new MonitoringProductionData
+                            {
+                                DeviceId = x.DeviceId,
+                                Code = x.Code,
+                                Time = x.Time,
+                                FaChu = x.FaChu,
+                                HeGe = x.HeGe,
+                                LiePian = x.LiePian,
+                                Rate = x.FaChu == 0 ? 0 : ((decimal)x.HeGe / x.FaChu).ToRound()
+                            }).ToList();
+                            #endregion
+                        }
+                        else if (set.Type == MonitoringKanBanEnum.设备状态看板)
+                        {
+                            #region 设备状态看板
+                            var mSetData = new List<MonitoringSetData>();
+                            foreach (var deviceId in set.DeviceIdList)
+                            {
+                                var device = allDeviceList.FirstOrDefault(x => x.DeviceId == deviceId);
+                                if (device == null)
+                                {
+                                    continue;
+                                }
+
+                                var t = new MonitoringSetData { Id = deviceId, ScriptId = device.ScriptId };
+                                var deviceData = allDevice.FirstOrDefault(y => y.DeviceId == deviceId);
+                                var vs = set.VariableList.Where(v => v.ScriptId == device.ScriptId).OrderBy(x => x.Order);
+
+                                foreach (var x in vs)
+                                {
+                                    var dn = dataNameDictionaries.FirstOrDefault(d =>
+                                        d.VariableTypeId == x.VariableTypeId && d.PointerAddress == x.PointerAddress);
+
+                                    if (dn == null || (dn.VariableTypeId == 1 && (dn.VariableNameId == stateDId || dn.VariableNameId == currentFlowCardDId)))
+                                    {
+                                        continue;
+                                    }
+
+                                    var r = new MonitoringSetSingleDataDetail
+                                    {
+                                        Sid = x.ScriptId,
+                                        Type = x.VariableTypeId,
+                                        Add = x.PointerAddress,
+                                        VName = x.VariableName.IsNullOrEmpty() ? dn.VariableName ?? "" : x.VariableName,
+                                    };
+
+                                    if (deviceData != null)
+                                    {
+                                        List<int> bl = null;
+                                        switch (x.VariableTypeId)
+                                        {
+                                            case 1:
+                                                bl = deviceData.AnalysisData.vals;
+                                                break;
+                                            case 2:
+                                                bl = deviceData.AnalysisData.ins;
+                                                break;
+                                            case 3:
+                                                bl = deviceData.AnalysisData.outs;
+                                                break;
+                                        }
+                                        if (bl != null)
+                                        {
+                                            if (bl.Count > x.PointerAddress - 1)
+                                            {
+                                                var chu = Math.Pow(10, dn.Precision);
+                                                var v = (decimal)(bl.ElementAt(x.PointerAddress - 1) / chu);
+                                                r.V = v.ToString();
+                                            }
+                                        }
+                                    }
+                                    t.Data.Add(r);
+                                }
+                                mSetData.Add(t);
+                            }
+
+                            MonitoringKanBanDic[id].MSetData = mSetData;
+                            #endregion
+                        }
                     }
                 }
             }
-
             #endregion
         }
 
