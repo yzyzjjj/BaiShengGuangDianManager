@@ -85,17 +85,20 @@ namespace ApiManagement.Controllers.DeviceManagementController
                         }
                     }
 
-                    var url = ServerConfig.GateUrl + UrlMappings.Urls["deviceListGate"];
+                    ServerConfig.GateUrl = "http://192.168.1.142:61102";
+                    var url = ServerConfig.GateUrl + UrlMappings.Urls[UrlMappings.deviceListGate];
                     //向GateProxyLink请求数据
                     var resp = !idList.Any() ? HttpServer.Get(url) :
                         HttpServer.Get(url, new Dictionary<string, string>
                         {
-                        {"ids", idList.Join()}
+                            {"ids", idList.Join()}
                         });
                     if (resp != "fail")
                     {
                         try
                         {
+                            var scriptIds = deviceLibraryDetails.Values.Select(x => x.ScriptId);
+                            var dataNameDictionaries = scriptIds.Any() ? DataNameDictionaryHelper.GetDataNameDictionaryDetails(scriptIds) : new List<DataNameDictionaryDetail>();
                             var dataResult = JsonConvert.DeserializeObject<DeviceResult>(resp);
                             if (dataResult.errno == Error.Success)
                             {
@@ -106,16 +109,53 @@ namespace ApiManagement.Controllers.DeviceManagementController
                                     {
                                         deviceLibraryDetails[deviceId].State = deviceInfo.State;
                                         deviceLibraryDetails[deviceId].DeviceState = deviceInfo.DeviceState;
-                                        deviceLibraryDetails[deviceId].FlowCard = deviceInfo.FlowCard;
-                                        deviceLibraryDetails[deviceId].ProcessTime = deviceInfo.ProcessTime.IsNullOrEmpty() ? "0" : deviceInfo.ProcessTime;
-                                        deviceLibraryDetails[deviceId].LeftTime = deviceInfo.LeftTime.IsNullOrEmpty() ? "0" : deviceInfo.LeftTime;
+                                        //deviceLibraryDetails[deviceId].FlowCard = deviceInfo.FlowCard;
+                                        //deviceLibraryDetails[deviceId].ProcessTime = deviceInfo.ProcessTime.IsNullOrEmpty() ? "0" : deviceInfo.ProcessTime;
+                                        //deviceLibraryDetails[deviceId].LeftTime = deviceInfo.LeftTime.IsNullOrEmpty() ? "0" : deviceInfo.LeftTime;
+                                        var deviceData = deviceInfo.DeviceData;
+                                        var dn = dataNameDictionaries.FirstOrDefault(d => d.VariableNameId == AnalysisHelper.currentFlowCardDId);
+                                        if (dn != null && deviceData != null && deviceData.vals.Count > dn.PointerAddress - 1)
+                                        {
+                                            var chu = Math.Pow(10, dn.Precision);
+                                            var v = (decimal)(deviceData.vals.ElementAt(dn.PointerAddress - 1) / chu);
+                                            deviceLibraryDetails[deviceId].FlowCard = (v == -1 ? 0 : v).ToString();
+                                        }
+
+                                        dn = dataNameDictionaries.FirstOrDefault(d => d.VariableNameId == AnalysisHelper.processedTimeDId);
+                                        if (dn != null && deviceData != null && deviceData.vals.Count > dn.PointerAddress - 1)
+                                        {
+                                            var chu = Math.Pow(10, dn.Precision);
+                                            var v = (decimal)(deviceData.vals.ElementAt(dn.PointerAddress - 1) / chu);
+                                            deviceLibraryDetails[deviceId].ProcessTime = (v == -1 ? 0 : v).ToString();
+                                        }
+
+                                        dn = dataNameDictionaries.FirstOrDefault(d => d.VariableNameId == AnalysisHelper.leftProcessTimeDId);
+                                        if (dn != null && deviceData != null && deviceData.vals.Count > dn.PointerAddress - 1)
+                                        {
+                                            var chu = Math.Pow(10, dn.Precision);
+                                            var v = (decimal)(deviceData.vals.ElementAt(dn.PointerAddress - 1) / chu);
+                                            deviceLibraryDetails[deviceId].LeftTime = (v == -1 ? 0 : v).ToString();
+                                        }
                                     }
+                                }
+
+                                var fcs = deviceLibraryDetails.Values.Where(x => int.TryParse(x.FlowCard, out var id) && id > 0).Select(x => int.Parse(x.FlowCard));
+                                var flowCards = FlowCardHelper.Instance.GetAllByIds<FlowCard>(fcs);
+                                foreach (var (deviceId, device) in deviceLibraryDetails)
+                                {
+                                    FlowCard fc = null;
+                                    if (int.TryParse(device.FlowCard, out var id))
+                                    {
+                                        fc = flowCards.FirstOrDefault(x => x.Id == id);
+                                    }
+
+                                    deviceLibraryDetails[deviceId].FlowCard = fc?.FlowCardName ?? "";
                                 }
                             }
                         }
                         catch (Exception e)
                         {
-                            Log.Error($"{UrlMappings.Urls["deviceListGate"]} 返回：{resp},信息:{e.Message}");
+                            Log.Error($"{UrlMappings.Urls[UrlMappings.deviceListGate]},信息:{e}");
                         }
                     }
                 }
@@ -175,7 +215,7 @@ namespace ApiManagement.Controllers.DeviceManagementController
             {
                 data.RepairState = faultDevice.State;
             }
-            var url = ServerConfig.GateUrl + UrlMappings.Urls["deviceSingleGate"];
+            var url = ServerConfig.GateUrl + UrlMappings.Urls[UrlMappings.deviceSingleGate];
             //向GateProxyLink请求数据
             var resp = HttpServer.Get(url, new Dictionary<string, string>
             {
@@ -198,7 +238,7 @@ namespace ApiManagement.Controllers.DeviceManagementController
                 }
                 catch (Exception e)
                 {
-                    Log.Error($"{UrlMappings.Urls["deviceSingleGate"]} 返回：{resp},信息:{e.Message}");
+                    Log.Error($"{UrlMappings.Urls[UrlMappings.deviceSingleGate]},信息:{e}");
                 }
             }
 
@@ -238,7 +278,7 @@ namespace ApiManagement.Controllers.DeviceManagementController
                 data.RepairState = faultDevice.State;
             }
 
-            var url = ServerConfig.GateUrl + UrlMappings.Urls["deviceSingleGate"];
+            var url = ServerConfig.GateUrl + UrlMappings.Urls[UrlMappings.deviceSingleGate];
             //向GateProxyLink请求数据
             var resp = HttpServer.Get(url, new Dictionary<string, string>
             {
@@ -261,7 +301,7 @@ namespace ApiManagement.Controllers.DeviceManagementController
                 }
                 catch (Exception e)
                 {
-                    Log.Error($"{UrlMappings.Urls["deviceSingleGate"]} 返回：{resp},信息:{e.Message}");
+                    Log.Error($"{UrlMappings.Urls[UrlMappings.deviceSingleGate]},信息:{e}");
                 }
             }
 
@@ -329,7 +369,7 @@ namespace ApiManagement.Controllers.DeviceManagementController
             }
             var result = new DataResult();
 
-            var url = ServerConfig.GateUrl + UrlMappings.Urls["batchSendBackGate"];
+            var url = ServerConfig.GateUrl + UrlMappings.Urls[UrlMappings.batchSendBackGate];
             //向GateProxyLink请求数据
             var resp = HttpServer.Post(url, new Dictionary<string, string>{
                 {"devicesList",(new List<DeviceInfo>
@@ -486,103 +526,130 @@ namespace ApiManagement.Controllers.DeviceManagementController
                 }
                 catch (Exception e)
                 {
-                    Log.Error($"{UrlMappings.Urls["batchSendBackGate"]} 返回：{resp},信息:{e.Message}");
+                    Log.Error($"{UrlMappings.Urls[UrlMappings.batchSendBackGate]},信息:{e}");
                 }
             }
 
             return result;
         }
 
-        // PUT: api/DeviceLibrary/5
-        [HttpPut("{id}")]
-        public Result PutDeviceLibrary([FromRoute] int id, [FromBody] DeviceLibrary deviceLibrary)
+        // PUT: api/DeviceLibrary
+        [HttpPut]
+        public object PutDeviceLibrary([FromBody] IEnumerable<DeviceLibrary> deviceLibraries)
         {
+            if (deviceLibraries == null || !deviceLibraries.Any())
+            {
+                return Result.GenError<Result>(Error.ParamError);
+            }
+
+            if (deviceLibraries.Any(x => x.Code.IsNullOrEmpty()))
+            {
+                return Result.GenError<Result>(Error.DeviceCodeNotEmpty);
+            }
+
+            if (deviceLibraries.GroupBy(x => x.Code).Any(y => y.Count() > 1))
+            {
+                return Result.GenError<Result>(Error.DeviceIsExist);
+            }
+
+            if (deviceLibraries.Any(x => !IPAddress.TryParse(x.Ip, out _)))
+            {
+                return Result.GenError<Result>(Error.IpInvalid);
+            }
+            if (deviceLibraries.Any(x => x.Port < 0 || x.Port > 65535))
+            {
+                return Result.GenError<Result>(Error.PortInvalid);
+            }
+
+            if (deviceLibraries.GroupBy(x => new { x.Ip, x.Port }).Any(y => y.Count() > 1))
+            {
+                return Result.GenError<Result>(Error.IpPortIsExist);
+            }
+
+            var deviceIds = deviceLibraries.Select(x => x.Id);
             var data =
-                ServerConfig.ApiDb.Query<DeviceLibrary>("SELECT * FROM `device_library` WHERE Id = @id AND `MarkedDelete` = 0;", new { id }).FirstOrDefault();
-            if (data == null)
+                ServerConfig.ApiDb.Query<DeviceLibrary>("SELECT * FROM `device_library` WHERE Id IN @deviceIds AND `MarkedDelete` = 0;", new { deviceIds });
+            if (data.Count() != deviceLibraries.Count())
             {
                 return Result.GenError<Result>(Error.DeviceNotExist);
             }
+            var result = new DataResult();
+            var codes = deviceLibraries.Select(x => x.Code);
+            var ips = deviceLibraries.Select(x => x.Ip);
+            var ports = deviceLibraries.Select(x => x.Port);
 
+            var sames = DeviceLibraryHelper.GetHaveSameCode(0, codes, deviceIds);
+            if (sames.Any())
+            {
+                result.datas.AddRange(sames.Select(x => x.Code));
+                return Result.GenError<Result>(Error.IpPortIsExist);
+            }
+            sames = DeviceLibraryHelper.GetHaveSameIpPort(0, ips, ports, deviceIds);
+            if (sames.Any())
+            {
+                result.datas.AddRange(sames.Select(x => $"{x.Ip} - {x.Port}"));
+                return Result.GenError<Result>(Error.IpPortIsExist);
+            }
+
+            var deviceModelIds = deviceLibraries.Select(x => x.DeviceModelId);
             var cnt =
-                ServerConfig.ApiDb.Query<int>("SELECT COUNT(1) FROM `device_model` WHERE Id = @id AND `MarkedDelete` = 0;", new { id = deviceLibrary.DeviceModelId }).FirstOrDefault();
+                ServerConfig.ApiDb.Query<int>("SELECT COUNT(1) FROM `device_model` WHERE Id IN @deviceModelIds AND `MarkedDelete` = 0;", new { deviceModelIds }).FirstOrDefault();
             if (cnt == 0)
             {
                 return Result.GenError<Result>(Error.DeviceModelNotExist);
             }
-
+            var firmwareIds = deviceLibraries.Select(x => x.FirmwareId);
             cnt =
-                ServerConfig.ApiDb.Query<int>("SELECT COUNT(1) FROM `firmware_library` WHERE Id = @id AND `MarkedDelete` = 0;", new { id = deviceLibrary.FirmwareId }).FirstOrDefault();
+                ServerConfig.ApiDb.Query<int>("SELECT COUNT(1) FROM `firmware_library` WHERE Id IN @firmwareIds AND `MarkedDelete` = 0;", new { firmwareIds }).FirstOrDefault();
             if (cnt == 0)
             {
                 return Result.GenError<Result>(Error.FirmwareLibraryNotExist);
             }
-
+            var hardwareIds = deviceLibraries.Select(x => x.HardwareId);
             cnt =
-                ServerConfig.ApiDb.Query<int>("SELECT COUNT(1) FROM `hardware_library` WHERE Id = @id AND `MarkedDelete` = 0;", new { id = deviceLibrary.HardwareId }).FirstOrDefault();
+                ServerConfig.ApiDb.Query<int>("SELECT COUNT(1) FROM `hardware_library` WHERE Id IN @hardwareIds AND `MarkedDelete` = 0;", new { hardwareIds }).FirstOrDefault();
             if (cnt == 0)
             {
                 return Result.GenError<Result>(Error.HardwareLibraryNotExist);
             }
+            var applicationIds = deviceLibraries.Select(x => x.ApplicationId);
             cnt =
-                ServerConfig.ApiDb.Query<int>("SELECT COUNT(1) FROM `application_library` WHERE Id = @id AND `MarkedDelete` = 0;", new { id = deviceLibrary.ApplicationId }).FirstOrDefault();
+                ServerConfig.ApiDb.Query<int>("SELECT COUNT(1) FROM `application_library` WHERE Id IN @applicationIds AND `MarkedDelete` = 0;", new { applicationIds }).FirstOrDefault();
             if (cnt == 0)
             {
                 return Result.GenError<Result>(Error.ApplicationLibraryNotExist);
             }
+            var siteIds = deviceLibraries.Select(x => x.SiteId);
             cnt =
-                ServerConfig.ApiDb.Query<int>("SELECT COUNT(1) FROM `site` WHERE Id = @id AND `MarkedDelete` = 0;", new { id = deviceLibrary.SiteId }).FirstOrDefault();
+                ServerConfig.ApiDb.Query<int>("SELECT COUNT(1) FROM `site` WHERE Id IN @siteIds AND `MarkedDelete` = 0;", new { siteIds }).FirstOrDefault();
             if (cnt == 0)
             {
                 return Result.GenError<Result>(Error.SiteNotExist);
             }
+            var scriptIds = deviceLibraries.Select(x => x.ScriptId);
             cnt =
-                ServerConfig.ApiDb.Query<int>("SELECT COUNT(1) FROM `script_version` WHERE Id = @id AND `MarkedDelete` = 0;", new { id = deviceLibrary.ScriptId }).FirstOrDefault();
+                ServerConfig.ApiDb.Query<int>("SELECT COUNT(1) FROM `script_version` WHERE Id IN @scriptIds AND `MarkedDelete` = 0;", new { scriptIds }).FirstOrDefault();
             if (cnt == 0)
             {
                 return Result.GenError<Result>(Error.ScriptVersionNotExist);
             }
 
-            if (!IPAddress.TryParse(deviceLibrary.Ip, out _))
+            var markedDateTime = DateTime.Now;
+            foreach (var deviceLibrary in deviceLibraries)
             {
-                return Result.GenError<Result>(Error.IpInvalid);
+                deviceLibrary.MarkedDateTime = markedDateTime;
             }
+            DeviceLibraryHelper.Instance.Update(deviceLibraries);
 
-            if (deviceLibrary.Port < 0 || deviceLibrary.Port > 65535)
+            var updates = deviceLibraries.Where(x => data.Any(od => od.Id == x.Id) && data.First().Ip != x.Ip || data.First().Port != x.Port);
+            if (updates.Any())
             {
-                return Result.GenError<Result>(Error.PortInvalid);
-            }
-
-            cnt =
-                ServerConfig.ApiDb.Query<int>("SELECT COUNT(1) FROM `device_library` WHERE Ip = @Ip AND Port = @Port AND `MarkedDelete` = 0;", new
+                BatchHttpResponseErrAsync(updates.Select(x => new DeviceInfo
                 {
-                    deviceLibrary.Ip,
-                    deviceLibrary.Port
-                }).FirstOrDefault();
-            if (cnt > 0)
-            {
-                if (data.Ip != deviceLibrary.Ip || data.Port != deviceLibrary.Port)
-                {
-                    return Result.GenError<Result>(Error.IpPortIsExist);
-                }
-            }
-            deviceLibrary.Id = id;
-            deviceLibrary.CreateUserId = Request.GetIdentityInformation();
-            deviceLibrary.MarkedDateTime = DateTime.Now;
-            ServerConfig.ApiDb.Execute(
-                "UPDATE device_library SET `MarkedDateTime` = @MarkedDateTime, `Code` = @Code, " +
-                "`DeviceName` = @DeviceName, `MacAddress` = @MacAddress, `Ip` = @Ip, `Port` = @Port, `Identifier` = @Identifier, `DeviceModelId` = @DeviceModelId, `ScriptId` = @ScriptId, " +
-                "`FirmwareId` = @FirmwareId, `HardwareId` = @HardwareId, `ApplicationId` = @ApplicationId, `SiteId` = @SiteId, `Administrator` = @Administrator, " +
-                "`Remark` = @Remark, `Icon` = @Icon WHERE `Id` = @Id;", deviceLibrary);
-
-            if (deviceLibrary.Ip != data.Ip || deviceLibrary.Port != data.Port)
-            {
-                HttpResponseErrAsync(new DeviceInfo
-                {
-                    DeviceId = deviceLibrary.Id,
-                    Ip = deviceLibrary.Ip,
-                    Port = deviceLibrary.Port,
-                }, "batchUpdateDeviceGate", "PutDeviceLibrary");
+                    DeviceId = x.Id,
+                    Ip = x.Ip,
+                    Port = x.Port,
+                }), "batchUpdateDeviceGate", "PutDeviceLibrary");
             }
 
             return Result.GenError<Result>(Error.Success);
@@ -697,86 +764,116 @@ namespace ApiManagement.Controllers.DeviceManagementController
 
         // POST: api/DeviceLibrary
         [HttpPost]
-        public Result PostDeviceLibrary([FromBody] DeviceLibrary deviceLibrary)
+        public Result PostDeviceLibrary([FromBody]  IEnumerable<DeviceLibrary> deviceLibraries)
         {
-            var cnt =
-                ServerConfig.ApiDb.Query<int>("SELECT COUNT(1) FROM `device_library` WHERE Ip = @Ip AND Port = @Port AND `MarkedDelete` = 0;", new
-                {
-                    deviceLibrary.Ip,
-                    deviceLibrary.Port
-                }).FirstOrDefault();
-            if (cnt > 0)
+            if (deviceLibraries == null || !deviceLibraries.Any())
             {
-                return Result.GenError<Result>(Error.IpPortIsExist);
+                return Result.GenError<Result>(Error.ParamError);
             }
 
-            cnt =
-               ServerConfig.ApiDb.Query<int>("SELECT COUNT(1) FROM `device_model` WHERE Id = @id AND `MarkedDelete` = 0;", new { id = deviceLibrary.DeviceModelId }).FirstOrDefault();
-            if (cnt == 0)
+            if (deviceLibraries.Any(x => x.Code.IsNullOrEmpty()))
             {
-                return Result.GenError<Result>(Error.DeviceModelNotExist);
+                return Result.GenError<Result>(Error.DeviceCodeNotEmpty);
             }
 
-            cnt =
-                ServerConfig.ApiDb.Query<int>("SELECT COUNT(1) FROM `firmware_library` WHERE Id = @id AND `MarkedDelete` = 0;", new { id = deviceLibrary.FirmwareId }).FirstOrDefault();
-            if (cnt == 0)
+            if (deviceLibraries.GroupBy(x => x.Code).Any(y => y.Count() > 1))
             {
-                return Result.GenError<Result>(Error.FirmwareLibraryNotExist);
+                return Result.GenError<Result>(Error.DeviceIsExist);
             }
 
-            cnt =
-                ServerConfig.ApiDb.Query<int>("SELECT COUNT(1) FROM `hardware_library` WHERE Id = @id AND `MarkedDelete` = 0;", new { id = deviceLibrary.HardwareId }).FirstOrDefault();
-            if (cnt == 0)
-            {
-                return Result.GenError<Result>(Error.HardwareLibraryNotExist);
-            }
-            cnt =
-                ServerConfig.ApiDb.Query<int>("SELECT COUNT(1) FROM `application_library` WHERE Id = @id AND `MarkedDelete` = 0;", new { id = deviceLibrary.ApplicationId }).FirstOrDefault();
-            if (cnt == 0)
-            {
-                return Result.GenError<Result>(Error.ApplicationLibraryNotExist);
-            }
-            cnt =
-                ServerConfig.ApiDb.Query<int>("SELECT COUNT(1) FROM `site` WHERE Id = @id AND `MarkedDelete` = 0;", new { id = deviceLibrary.SiteId }).FirstOrDefault();
-            if (cnt == 0)
-            {
-                return Result.GenError<Result>(Error.SiteNotExist);
-            }
-            var scriptVersion =
-                ServerConfig.ApiDb.Query<ScriptVersion>("SELECT * FROM `script_version` WHERE Id = @id AND `MarkedDelete` = 0;", new { id = deviceLibrary.ScriptId }).FirstOrDefault();
-            if (scriptVersion == null)
-            {
-                return Result.GenError<Result>(Error.ScriptVersionNotExist);
-            }
-
-            if (!IPAddress.TryParse(deviceLibrary.Ip, out _))
+            if (deviceLibraries.Any(x => !IPAddress.TryParse(x.Ip, out _)))
             {
                 return Result.GenError<Result>(Error.IpInvalid);
             }
-
-            if (deviceLibrary.Port < 0 || deviceLibrary.Port > 65535)
+            if (deviceLibraries.Any(x => x.Port < 0 || x.Port > 65535))
             {
                 return Result.GenError<Result>(Error.PortInvalid);
             }
 
-            deviceLibrary.CreateUserId = Request.GetIdentityInformation();
-            deviceLibrary.MarkedDateTime = DateTime.Now;
-            var lastInsertId = ServerConfig.ApiDb.Query<int>(
-              "INSERT INTO device_library (`CreateUserId`, `MarkedDateTime`, `MarkedDelete`, `ModifyId`, `Code`, `DeviceName`, `MacAddress`, `Ip`, `Port`, `Identifier`, `ClassId`, `DeviceModelId`, " +
-              "`ScriptId`, `FirmwareId`, `HardwareId`, `ApplicationId`, `SiteId`, `Administrator`, `Remark`, `Icon`) VALUES (@CreateUserId, @MarkedDateTime, @MarkedDelete, " +
-              "@ModifyId, @Code, @DeviceName, @MacAddress, @Ip, @Port, @Identifier, @ClassId, @DeviceModelId, @ScriptId, @FirmwareId, @HardwareId, @ApplicationId, @SiteId, @Administrator, " +
-              "@Remark, @Icon);SELECT LAST_INSERT_ID();",
-              deviceLibrary).FirstOrDefault();
-
-            ServerConfig.ApiDb.Execute("INSERT INTO npc_proxy_link (`DeviceId`, `Instruction`) VALUES (@DeviceId, @Instruction);",
-                new { DeviceId = lastInsertId, Instruction = scriptVersion.HeartPacket, });
-
-            HttpResponseErrAsync(new DeviceInfo
+            if (deviceLibraries.GroupBy(x => new { x.Ip, x.Port }).Any(y => y.Count() > 1))
             {
-                DeviceId = lastInsertId,
-                Ip = deviceLibrary.Ip,
-                Port = deviceLibrary.Port,
-            }, "batchAddDeviceGate", "PostDeviceLibrary");
+                return Result.GenError<Result>(Error.IpPortIsExist);
+            }
+
+            var result = new DataResult();
+            var codes = deviceLibraries.Select(x => x.Code);
+            var ips = deviceLibraries.Select(x => x.Ip);
+            var ports = deviceLibraries.Select(x => x.Port);
+
+            var sames = DeviceLibraryHelper.GetHaveSameCode(0, codes);
+            if (sames.Any())
+            {
+                result.datas.AddRange(sames.Select(x => x.Code));
+                return Result.GenError<Result>(Error.IpPortIsExist);
+            }
+            sames = DeviceLibraryHelper.GetHaveSameIpPort(0, ips, ports);
+            if (sames.Any())
+            {
+                result.datas.AddRange(sames.Select(x => $"{x.Ip} - {x.Port}"));
+                return Result.GenError<Result>(Error.IpPortIsExist);
+            }
+
+            var deviceModelIds = deviceLibraries.Select(x => x.DeviceModelId);
+            var cnt =
+                ServerConfig.ApiDb.Query<int>("SELECT COUNT(1) FROM `device_model` WHERE Id IN @id AND `MarkedDelete` = 0;", new { deviceModelIds }).FirstOrDefault();
+            if (cnt == 0)
+            {
+                return Result.GenError<Result>(Error.DeviceModelNotExist);
+            }
+            var firmwareIds = deviceLibraries.Select(x => x.FirmwareId);
+            cnt =
+                ServerConfig.ApiDb.Query<int>("SELECT COUNT(1) FROM `firmware_library` WHERE Id IN @firmwareId AND `MarkedDelete` = 0;", new { FirmwareIds = firmwareIds }).FirstOrDefault();
+            if (cnt == 0)
+            {
+                return Result.GenError<Result>(Error.FirmwareLibraryNotExist);
+            }
+            var hardwareIds = deviceLibraries.Select(x => x.HardwareId);
+            cnt =
+                ServerConfig.ApiDb.Query<int>("SELECT COUNT(1) FROM `hardware_library` WHERE Id IN @hardwareIds AND `MarkedDelete` = 0;", new { hardwareIds }).FirstOrDefault();
+            if (cnt == 0)
+            {
+                return Result.GenError<Result>(Error.HardwareLibraryNotExist);
+            }
+            var applicationIds = deviceLibraries.Select(x => x.ApplicationId);
+            cnt =
+                ServerConfig.ApiDb.Query<int>("SELECT COUNT(1) FROM `application_library` WHERE Id IN @applicationIds AND `MarkedDelete` = 0;", new { applicationIds }).FirstOrDefault();
+            if (cnt == 0)
+            {
+                return Result.GenError<Result>(Error.ApplicationLibraryNotExist);
+            }
+            var siteIds = deviceLibraries.Select(x => x.SiteId);
+            cnt =
+                ServerConfig.ApiDb.Query<int>("SELECT COUNT(1) FROM `site` WHERE Id IN @siteIds AND `MarkedDelete` = 0;", new { siteIds }).FirstOrDefault();
+            if (cnt == 0)
+            {
+                return Result.GenError<Result>(Error.SiteNotExist);
+            }
+            var scriptIds = deviceLibraries.Select(x => x.ScriptId);
+            cnt =
+                ServerConfig.ApiDb.Query<int>("SELECT COUNT(1) FROM `script_version` WHERE Id IN @scriptIds AND `MarkedDelete` = 0;", new { scriptIds }).FirstOrDefault();
+            if (cnt == 0)
+            {
+                return Result.GenError<Result>(Error.ScriptVersionNotExist);
+            }
+
+            var createUserId = Request.GetIdentityInformation();
+            var markedDateTime = DateTime.Now;
+            foreach (var deviceLibrary in deviceLibraries)
+            {
+                deviceLibrary.CreateUserId = createUserId;
+                deviceLibrary.MarkedDateTime = markedDateTime;
+            }
+            DeviceLibraryHelper.Instance.Add(deviceLibraries);
+            var data = DeviceLibraryHelper.GetDetail(0, codes);
+
+            ServerConfig.ApiDb.Execute("INSERT INTO npc_proxy_link (`DeviceId`) VALUES (@DeviceId);", data.Select(x => new { DeviceId = x.Id }));
+
+            BatchHttpResponseErrAsync(data.Select(x => new DeviceInfo
+            {
+                DeviceId = x.Id,
+                Ip = x.Ip,
+                Port = x.Port,
+            }), "batchAddDeviceGate", "PostDeviceLibrary");
             return Result.GenError<Result>(Error.Success);
         }
 
@@ -794,7 +891,6 @@ namespace ApiManagement.Controllers.DeviceManagementController
             /// 流程卡id
             /// </summary>
             public int FlowCardId;
-
             public List<ProcessDataSimple> ProcessDatas;
         }
         // POST: api/DeviceLibrary/SetProcessStep
@@ -810,50 +906,14 @@ namespace ApiManagement.Controllers.DeviceManagementController
                 return Result.GenError<Result>(Error.DeviceNotExist);
             }
 
-            var url = ServerConfig.GateUrl + UrlMappings.Urls["deviceSingleGate"];
-            //向GateProxyLink请求数据
-            var resp = HttpServer.Get(url, new Dictionary<string, string>
-            {
-                { "id", processInfo.DeviceId.ToString()}
-            });
-            if (resp == "fail")
-            {
-                return Result.GenError<Result>(Error.ExceptionHappen);
-            }
-
-            try
-            {
-                var dataResult = JsonConvert.DeserializeObject<DeviceResult>(resp);
-                if (dataResult.errno == Error.Success)
-                {
-                    if (dataResult.datas.Any())
-                    {
-                        var deviceInfo = dataResult.datas.First();
-                        //if (deviceInfo.DeviceState != DeviceState.Waiting)
-                        //{
-                        //    return Result.GenError<Result>(deviceInfo.DeviceState == DeviceState.Processing ? Error.ProcessingNotSet : Error.DeviceStateErrorNotSet);
-                        //}
-                        if (deviceInfo.DeviceState != DeviceState.Waiting && deviceInfo.DeviceState != DeviceState.Processing)
-                        {
-                            return Result.GenError<Result>(Error.DeviceStateErrorNotSet);
-                        }
-                    }
-                }
-            }
-            catch (Exception e)
-            {
-                Log.Error($"{UrlMappings.Urls["deviceSingleGate"]} 返回：{resp},信息:{e.Message}");
-                return Result.GenError<Result>(Error.AnalysisFail);
-            }
-
-            var flowCard =
-                ServerConfig.ApiDb.Query<FlowCardLibraryDetail>("SELECT a.*, b.RawMateriaName, c.ProductionProcessName FROM `flowcard_library` a JOIN `raw_materia` b ON a.RawMateriaId = b.Id " +
-                                                                "JOIN `production_library` c ON a.ProductionProcessId = c.Id WHERE a.MarkedDelete = 0 AND a.Id = @id;", new { id = processInfo.FlowCardId }).FirstOrDefault();
+            //var flowCard =
+            //    ServerConfig.ApiDb.Query<FlowCardLibraryDetail>("SELECT a.*, b.RawMateriaName, c.ProductionProcessName FROM `flowcard_library` a JOIN `raw_materia` b ON a.RawMateriaId = b.Id " +
+            //                                                    "JOIN `production_library` c ON a.ProductionProcessId = c.Id WHERE a.MarkedDelete = 0 AND a.Id = @id;", new { id = processInfo.FlowCardId }).FirstOrDefault();
+            var flowCard = FlowCardHelper.Instance.Get<FlowCard>(processInfo.FlowCardId);
             if (flowCard == null)
             {
                 return Result.GenError<Result>(Error.FlowCardLibraryNotExist);
             }
-
 
             var messagePacket = new SetValMessagePacket();
             var key = new[]
@@ -992,14 +1052,61 @@ namespace ApiManagement.Controllers.DeviceManagementController
                     }
                 }
             }
-
+            //下次加工流程卡号
             var dictionaryId = 113;
             if (dictionaryIds.Any(x => x.Id == dictionaryId))
             {
                 messagePacket.Vals.Add(dictionaryIds.First(x => x.Id == dictionaryId).DictionaryId - 1, processInfo.FlowCardId);
             }
+
+            //下次加工流程卡号
+            if (processInfo.FlowCardId != 0)
+            {
+                dictionaryId = 119;
+                if (dictionaryIds.Any(x => x.Id == dictionaryId))
+                {
+                    messagePacket.Vals.Add(dictionaryIds.First(x => x.Id == dictionaryId).DictionaryId - 1, flowCard.ProductionProcessId);
+                }
+            }
+
+            var url = ServerConfig.GateUrl + UrlMappings.Urls[UrlMappings.deviceSingleGate];
+            //向GateProxyLink请求数据
+            var resp = HttpServer.Get(url, new Dictionary<string, string>
+            {
+                { "id", processInfo.DeviceId.ToString()}
+            });
+            if (resp == "fail")
+            {
+                return Result.GenError<Result>(Error.ExceptionHappen);
+            }
+
+            try
+            {
+                var dataResult = JsonConvert.DeserializeObject<DeviceResult>(resp);
+                if (dataResult.errno == Error.Success)
+                {
+                    if (dataResult.datas.Any())
+                    {
+                        var deviceInfo = dataResult.datas.First();
+                        //if (deviceInfo.DeviceState != DeviceState.Waiting)
+                        //{
+                        //    return Result.GenError<Result>(deviceInfo.DeviceState == DeviceState.Processing ? Error.ProcessingNotSet : Error.DeviceStateErrorNotSet);
+                        //}
+                        if (deviceInfo.DeviceState != DeviceState.Waiting && deviceInfo.DeviceState != DeviceState.Processing)
+                        {
+                            return Result.GenError<Result>(Error.DeviceStateErrorNotSet);
+                        }
+                    }
+                }
+            }
+            catch (Exception e)
+            {
+                Log.Error($"{UrlMappings.Urls[UrlMappings.deviceSingleGate]},信息:{e}");
+                return Result.GenError<Result>(Error.AnalysisFail);
+            }
+
             var msg = messagePacket.Serialize();
-            url = ServerConfig.GateUrl + UrlMappings.Urls["batchSendBackGate"];
+            url = ServerConfig.GateUrl + UrlMappings.Urls[UrlMappings.batchSendBackGate];
             //向GateProxyLink请求数据
             resp = HttpServer.Post(url, new Dictionary<string, string>{
                 { "devicesList", (new List<DeviceInfo>
@@ -1099,7 +1206,7 @@ namespace ApiManagement.Controllers.DeviceManagementController
                 return Result.GenError<Result>(Error.DeviceNotExist);
             }
 
-            var url = ServerConfig.GateUrl + UrlMappings.Urls["deviceSingleGate"];
+            var url = ServerConfig.GateUrl + UrlMappings.Urls[UrlMappings.deviceSingleGate];
             //向GateProxyLink请求数据
             var resp = HttpServer.Get(url, new Dictionary<string, string>
             {
@@ -1127,7 +1234,7 @@ namespace ApiManagement.Controllers.DeviceManagementController
             }
             catch (Exception e)
             {
-                Log.Error($"{UrlMappings.Urls["deviceSingleGate"]} 返回：{resp},信息:{e.Message}");
+                Log.Error($"{UrlMappings.Urls[UrlMappings.deviceSingleGate]},信息:{e}");
                 return Result.GenError<Result>(Error.AnalysisFail);
             }
 
@@ -1155,7 +1262,7 @@ namespace ApiManagement.Controllers.DeviceManagementController
             }
 
             var msg = messagePacket.Serialize();
-            url = ServerConfig.GateUrl + UrlMappings.Urls["batchSendBackGate"];
+            url = ServerConfig.GateUrl + UrlMappings.Urls[UrlMappings.batchSendBackGate];
             //向GateProxyLink请求数据
             resp = HttpServer.Post(url, new Dictionary<string, string>{
                 { "devicesList",(new List<DeviceInfo>
@@ -1317,7 +1424,7 @@ namespace ApiManagement.Controllers.DeviceManagementController
                     }
                     catch (Exception e)
                     {
-                        Log.Error($"{UrlMappings.Urls[mapKey]} 返回：{resp},信息:{e.Message}");
+                        Log.Error($"{UrlMappings.Urls[mapKey]},信息:{e}");
                     }
                 }
                 if (!leftInfos.Any())
@@ -1454,6 +1561,20 @@ namespace ApiManagement.Controllers.DeviceManagementController
                 DeviceId = data.Id,
             }, "batchDelDeviceGate", "DeleteDeviceLibrary");
             return Result.GenError<Result>(Error.Success);
+        }
+        private static void BatchHttpResponseErrAsync(IEnumerable<DeviceInfo> deviceInfos, string urlKey, string funName, Action callback = null)
+        {
+            var url = ServerConfig.GateUrl + UrlMappings.Urls[urlKey];
+            //向NpcProxyLink请求数据
+            HttpServer.PostAsync(url, new Dictionary<string, string>
+            {
+                { "devicesList", deviceInfos.ToJSON()
+                }
+            }, (resp, exp) =>
+            {
+                Log.DebugFormat("{0} Res:{1}", funName, resp);
+                callback?.Invoke();
+            });
         }
         private static void HttpResponseErrAsync(DeviceInfo deviceInfo, string urlKey, string funName, Action callback = null)
         {

@@ -1,6 +1,7 @@
 ﻿using ApiManagement.Base.Helper;
 using ApiManagement.Base.Server;
 using ApiManagement.Models.DeviceManagementModel;
+using ApiManagement.Models.FlowCardManagementModel;
 using ApiManagement.Models.RepairManagementModel;
 using ApiManagement.Models.StatisticManagementModel;
 using Microsoft.AspNetCore.Mvc;
@@ -9,13 +10,13 @@ using ModelBase.Base.HttpServer;
 using ModelBase.Base.Logger;
 using ModelBase.Base.UrlMappings;
 using ModelBase.Base.Utils;
+using ModelBase.Models.Device;
 using ModelBase.Models.Result;
 using Newtonsoft.Json;
 using ServiceStack;
 using System;
 using System.Collections.Generic;
 using System.Linq;
-using ModelBase.Models.Device;
 
 namespace ApiManagement.Controllers.StatisticManagementController
 {
@@ -60,12 +61,15 @@ namespace ApiManagement.Controllers.StatisticManagementController
             switch (set.Type)
             {
                 case MonitoringKanBanEnum.设备详情看板:
+                    var kanBan = AnalysisHelper.MonitoringKanBanDic.ContainsKey(qId)
+                        ? AnalysisHelper.MonitoringKanBanDic[qId]
+                        : new MonitoringKanBan();
                     return new
                     {
                         errno = 0,
                         errmsg = "成功",
-                        time = DateTime.Now,
-                        data = AnalysisHelper.MonitoringKanBanDic.ContainsKey(qId) ? AnalysisHelper.MonitoringKanBanDic[qId] : new MonitoringKanBan()
+                        time = kanBan?.Time ?? DateTime.Now,
+                        data = kanBan
                     };
                 case MonitoringKanBanEnum.设备状态看板:
                     {
@@ -103,7 +107,7 @@ namespace ApiManagement.Controllers.StatisticManagementController
                             }
                         }
 
-                        var url = ServerConfig.GateUrl + UrlMappings.Urls["deviceListGate"];
+                        var url = ServerConfig.GateUrl + UrlMappings.Urls[UrlMappings.deviceListGate];
                         //向GateProxyLink请求数据
                         var resp = !idList.Any() ? HttpServer.Get(url) :
                             HttpServer.Get(url, new Dictionary<string, string>
@@ -125,16 +129,13 @@ namespace ApiManagement.Controllers.StatisticManagementController
                                         {
                                             deviceLibraryDetails[deviceId].State = deviceInfo.State;
                                             deviceLibraryDetails[deviceId].DeviceState = deviceInfo.DeviceState;
-                                            deviceLibraryDetails[deviceId].FlowCard = deviceInfo.FlowCard;
-                                            deviceLibraryDetails[deviceId].ProcessTime = deviceInfo.ProcessTime.IsNullOrEmpty() ? "0" : deviceInfo.ProcessTime;
-                                            deviceLibraryDetails[deviceId].LeftTime = deviceInfo.LeftTime.IsNullOrEmpty() ? "0" : deviceInfo.LeftTime;
                                         }
                                     }
                                 }
                             }
                             catch (Exception e)
                             {
-                                Log.Error($"{UrlMappings.Urls["deviceListGate"]} 返回：{resp},信息:{e.Message}");
+                                Log.Error($"{UrlMappings.Urls[UrlMappings.deviceListGate]},信息:{e}");
                             }
                         }
 
@@ -209,32 +210,37 @@ namespace ApiManagement.Controllers.StatisticManagementController
                                 {
                                     r.V = device.DeviceStateStr;
                                 }
-                                else if (dn.VariableTypeId == 1 && dn.VariableNameId == AnalysisHelper.currentFlowCardDId)
-                                {
-                                    r.V = device.FlowCard ?? "";
-                                }
                                 else if (deviceData != null)
                                 {
                                     List<int> bl = null;
                                     switch (x.VariableTypeId)
                                     {
-                                        case 1:
-                                            bl = deviceData.vals;
-                                            break;
-                                        case 2:
-                                            bl = deviceData.ins;
-                                            break;
-                                        case 3:
-                                            bl = deviceData.outs;
-                                            break;
+                                        case 1: bl = deviceData.vals; break;
+                                        case 2: bl = deviceData.ins; break;
+                                        case 3: bl = deviceData.outs; break;
+                                        default: break;
                                     }
+
                                     if (bl != null)
                                     {
                                         if (bl.Count > x.PointerAddress - 1)
                                         {
                                             var chu = Math.Pow(10, dn.Precision);
                                             var v = (decimal)(bl.ElementAt(x.PointerAddress - 1) / chu);
-                                            r.V = v.ToString();
+                                            if (dn.VariableTypeId == 1 && (dn.VariableNameId == AnalysisHelper.currentFlowCardDId || dn.VariableNameId == AnalysisHelper.nextFlowCardDId))
+                                            {
+                                                var flowCard = FlowCardHelper.Instance.Get<FlowCard>((int)v);
+                                                r.V = flowCard?.FlowCardName ?? "";
+                                            }
+                                            else if (dn.VariableTypeId == 1 && dn.VariableNameId == AnalysisHelper.currentProductDId)
+                                            {
+                                                var production = ProductionHelper.Instance.Get<Production>((int)v);
+                                                r.V = production?.ProductionProcessName ?? "";
+                                            }
+                                            else
+                                            {
+                                                r.V = v.ToString();
+                                            }
                                         }
                                     }
                                 }
@@ -291,6 +297,11 @@ namespace ApiManagement.Controllers.StatisticManagementController
                 return Result.GenError<Result>(Error.MonitoringKanBanSetNotExist);
             }
 
+            if (set.UI <= 0)
+            {
+                return Result.GenError<Result>(Error.MonitoringKanBanSetSecondError);
+            }
+
             if (set.Second <= 0)
             {
                 return Result.GenError<Result>(Error.MonitoringKanBanSetSecondError);
@@ -327,6 +338,11 @@ namespace ApiManagement.Controllers.StatisticManagementController
         [HttpPost]
         public Result PostSet([FromBody] MonitoringKanBanSet set)
         {
+            if (set.UI <= 0)
+            {
+                return Result.GenError<Result>(Error.MonitoringKanBanSetSecondError);
+            }
+
             if (set.Second <= 0)
             {
                 return Result.GenError<Result>(Error.MonitoringKanBanSetSecondError);

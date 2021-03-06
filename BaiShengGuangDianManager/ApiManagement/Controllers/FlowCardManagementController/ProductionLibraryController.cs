@@ -53,7 +53,7 @@ namespace ApiManagement.Controllers.FlowCardManagementController
                     sql =
                         "SELECT a.*, IFNULL(b.FlowCardCount, 0) FlowCardCount, IFNULL(b.RawMaterialQuantity, 0) AllRawMaterialQuantity, IFNULL(c.RawMaterialQuantity, 0) RawMaterialQuantity, IFNULL(c.Complete, 0) Complete, IFNULL(c.QualifiedNumber, 0) QualifiedNumber FROM `production_library` a LEFT JOIN ( SELECT ProductionProcessId, COUNT(1) FlowCardCount, SUM(RawMaterialQuantity) RawMaterialQuantity FROM `flowcard_library` WHERE MarkedDelete = 0 GROUP BY ProductionProcessId ) b ON a.Id = b.ProductionProcessId LEFT JOIN ( SELECT a.ProductionProcessId, COUNT(1) Complete, SUM(a.QualifiedNumber) QualifiedNumber, SUM(a.RawMaterialQuantity) RawMaterialQuantity FROM ( SELECT * FROM ( SELECT b.ProductionProcessId, b.RawMaterialQuantity, FlowCardId, ProcessStepOrder, QualifiedNumber, ProcessTime FROM `flowcard_process_step` a JOIN `flowcard_library` b ON a.FlowCardId = b.Id WHERE a.MarkedDelete = 0 ORDER BY ProcessStepOrder DESC ) a GROUP BY a.FlowCardId ) a WHERE NOT ISNULL(a.ProcessTime) || a.ProcessTime = '0001-01-01 00:00:00' GROUP BY a.ProductionProcessId ) c ON a.Id = c.ProductionProcessId WHERE a.MarkedDelete = 0;";
                 }
-                var productionLibraryDetails = ServerConfig.ApiDb.Query<ProductionLibraryDetail>(sql, new
+                var productionLibraryDetails = ServerConfig.ApiDb.Query<ProductionDetail>(sql, new
                 {
                     ProductionProcessName = productionName,
                     StartTime = startTime,
@@ -76,7 +76,7 @@ namespace ApiManagement.Controllers.FlowCardManagementController
         {
             var result = new DataResult();
             var data =
-                ServerConfig.ApiDb.Query<ProductionLibraryDetail>("SELECT * FROM `production_library` WHERE MarkedDelete = 0 AND Id = @id ORDER BY Id;", new { id }).FirstOrDefault();
+                ServerConfig.ApiDb.Query<ProductionDetail>("SELECT * FROM `production_library` WHERE MarkedDelete = 0 AND Id = @id ORDER BY Id;", new { id }).FirstOrDefault();
             if (data == null)
             {
                 result.errno = Error.ProductionLibraryNotExist;
@@ -105,7 +105,7 @@ namespace ApiManagement.Controllers.FlowCardManagementController
         {
             var result = new DataResult();
             var data =
-                ServerConfig.ApiDb.Query<ProductionLibraryDetail>("SELECT * FROM `production_library` WHERE MarkedDelete = 0 AND ProductionProcessName = @productionProcessName;", new { productionProcessName }).FirstOrDefault();
+                ServerConfig.ApiDb.Query<ProductionDetail>("SELECT * FROM `production_library` WHERE MarkedDelete = 0 AND ProductionProcessName = @productionProcessName;", new { productionProcessName }).FirstOrDefault();
             if (data == null)
             {
                 result.errno = Error.ProductionLibraryNotExist;
@@ -134,10 +134,10 @@ namespace ApiManagement.Controllers.FlowCardManagementController
         /// <returns></returns>
         // PUT: api/ProductionLibrary/Id/5
         [HttpPut("Id/{id}")]
-        public Result PutProductionLibrary([FromRoute] int id, [FromBody] ProductionLibrary productionProcessLibrary)
+        public Result PutProductionLibrary([FromRoute] int id, [FromBody] Production productionProcessLibrary)
         {
             var data =
-                ServerConfig.ApiDb.Query<ProductionLibrary>("SELECT * FROM `production_library` WHERE Id = @id AND MarkedDelete = 0;", new { id }).FirstOrDefault();
+                ServerConfig.ApiDb.Query<Production>("SELECT * FROM `production_library` WHERE Id = @id AND MarkedDelete = 0;", new { id }).FirstOrDefault();
             if (data == null)
             {
                 return Result.GenError<Result>(Error.ProductionLibraryNotExist);
@@ -156,11 +156,8 @@ namespace ApiManagement.Controllers.FlowCardManagementController
             var createUserId = Request.GetIdentityInformation();
             var time = DateTime.Now;
             productionProcessLibrary.Id = id;
-            productionProcessLibrary.CreateUserId = createUserId;
             productionProcessLibrary.MarkedDateTime = time;
-            ServerConfig.ApiDb.Execute(
-                "UPDATE production_library SET `MarkedDateTime` = @MarkedDateTime, " +
-                "`MarkedDelete` = @MarkedDelete, `ModifyId` = @ModifyId, `ProductionProcessName` = @ProductionProcessName WHERE `Id` = @Id;", productionProcessLibrary);
+            ProductionHelper.Instance.Update(productionProcessLibrary);
             var productionProcessSpecifications = productionProcessLibrary.Specifications;
             if (productionProcessSpecifications.Any())
             {
@@ -234,10 +231,10 @@ namespace ApiManagement.Controllers.FlowCardManagementController
         /// <returns></returns>
         // PUT: api/ProductionLibrary/ProductionProcessName/5
         [HttpPut("ProductionProcessName/{productionProcessName}")]
-        public Result PutProductionLibrary([FromRoute] string productionProcessName, [FromBody] ProductionLibrary productionProcessLibrary)
+        public Result PutProductionLibrary([FromRoute] string productionProcessName, [FromBody] Production productionProcessLibrary)
         {
             var data =
-                ServerConfig.ApiDb.Query<ProductionLibrary>("SELECT `Id` FROM `production_library` WHERE ProductionProcessName = @productionProcessName AND MarkedDelete = 0;", new { productionProcessName }).FirstOrDefault();
+                ServerConfig.ApiDb.Query<Production>("SELECT `Id` FROM `production_library` WHERE ProductionProcessName = @productionProcessName AND MarkedDelete = 0;", new { productionProcessName }).FirstOrDefault();
             if (data == null)
             {
                 return Result.GenError<Result>(Error.ProductionLibraryNotExist);
@@ -257,11 +254,8 @@ namespace ApiManagement.Controllers.FlowCardManagementController
             var createUserId = Request.GetIdentityInformation();
             var time = DateTime.Now;
             productionProcessLibrary.Id = id;
-            productionProcessLibrary.CreateUserId = createUserId;
             productionProcessLibrary.MarkedDateTime = time;
-            ServerConfig.ApiDb.Execute(
-                "UPDATE production_library SET `MarkedDateTime` = @MarkedDateTime, " +
-                "`MarkedDelete` = @MarkedDelete, `ModifyId` = @ModifyId, `ProductionProcessName` = @ProductionProcessName WHERE `Id` = @Id;", productionProcessLibrary);
+            ProductionHelper.Instance.Update(productionProcessLibrary);
             var productionProcessSpecifications = productionProcessLibrary.Specifications;
             if (productionProcessSpecifications.Any())
             {
@@ -331,7 +325,7 @@ namespace ApiManagement.Controllers.FlowCardManagementController
 
         // POST: api/ProductionLibrary
         [HttpPost]
-        public Result PostProductionLibrary([FromBody] ProductionLibrary productionProcessLibrary)
+        public Result PostProductionLibrary([FromBody] Production productionProcessLibrary)
         {
             var cnt =
                 ServerConfig.ApiDb.Query<int>("SELECT COUNT(1) FROM `production_library` WHERE ProductionProcessName = @ProductionProcessName AND MarkedDelete = 0;", new { productionProcessLibrary.ProductionProcessName }).FirstOrDefault();
@@ -442,7 +436,7 @@ namespace ApiManagement.Controllers.FlowCardManagementController
         public Result DeleteProductionLibrary([FromRoute] string productionProcessName)
         {
             var data =
-                ServerConfig.ApiDb.Query<ProductionLibrary>("SELECT * FROM `production_library` WHERE ProductionProcessName = @productionProcessName AND MarkedDelete = 0;", new { productionProcessName }).FirstOrDefault();
+                ServerConfig.ApiDb.Query<Production>("SELECT * FROM `production_library` WHERE ProductionProcessName = @productionProcessName AND MarkedDelete = 0;", new { productionProcessName }).FirstOrDefault();
             if (data == null)
             {
                 return Result.GenError<Result>(Error.ProductionLibraryNotExist);

@@ -280,7 +280,11 @@ namespace ApiManagement.Models.StatisticManagementModel
         /// </summary>
         public int Order { get; set; }
         /// <summary>
-        /// 刷新间隔(s)
+        /// 界面刷新时间(s)
+        /// </summary>
+        public int UI { get; set; }
+        /// <summary>
+        /// 数据刷新间隔(s)
         /// </summary>
         public int Second { get; set; }
         /// <summary>

@@ -11,6 +11,7 @@ using ModelBase.Models.Control;
 using ServiceStack;
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
@@ -32,17 +33,33 @@ namespace ApiManagement.Base.Helper
         /// </summary>
         public static int stateDId = 1;
         /// <summary>
+        /// 已加工时间
+        /// </summary>
+        public static int processedTimeDId = 3;
+        /// <summary>
+        /// 剩余加工时间
+        /// </summary>
+        public static int leftProcessTimeDId = 4;
+        /// <summary>
         /// 总加工次数
         /// </summary>
         public static int processCountDId = 63;
         /// <summary>
         /// 总加工时间
         /// </summary>
-        public static int processTimeDId = 64;
+        public static int totalProcessTimeDId = 64;
         /// <summary>
         /// 当前加工流程卡号
         /// </summary>
         public static int currentFlowCardDId = 6;
+        /// <summary>
+        /// 流程卡号缓存 下次加工
+        /// </summary>
+        public static int nextFlowCardDId = 113;
+        /// <summary>
+        /// 当前加工计划号
+        /// </summary>
+        public static int currentProductDId = 114;
         /// <summary>
         /// 累积运行总时间
         /// </summary>
@@ -62,11 +79,11 @@ namespace ApiManagement.Base.Helper
         {
             stateDId,
             processCountDId,
-            processTimeDId,
+            totalProcessTimeDId,
             currentFlowCardDId,
             runTimeDId
         };
-        private static int _dealLength = 500;
+        private static int _dealLength = 1000;
         //public static MonitoringKanBan MonitoringKanBan;
         //private static MonitoringKanBan _monitoringKanBan;
         /// <summary>
@@ -86,8 +103,6 @@ namespace ApiManagement.Base.Helper
                 {
                     VariableNameIdList.Add(actProcessDid + i);
                 }
-
-                Script();
 
 #if DEBUG
                 Console.WriteLine("AnalysisHelper 调试模式已开启");
@@ -120,20 +135,21 @@ namespace ApiManagement.Base.Helper
         private static void DoSth_2s(object state)
         {
             Analysis();
-            AnalysisOther();
-            Delete();
         }
 
         private static void DoSth_10s(object state)
         {
+            AnalysisOther();
+            Delete();
             Fault();
             ProcessSum();
             ProcessTime();
+            Script();
         }
 
         private static void DoSth_60s(object state)
         {
-            UpdateProcessLog();
+            //UpdateProcessLog();
             //FlowCardReport();
         }
 
@@ -490,9 +506,10 @@ namespace ApiManagement.Base.Helper
                     var monitoringKanBanList = new List<MonitoringKanBan>();
                     var monitoringKanBanDeviceList = new List<MonitoringKanBanDevice>();
                     var monitoringProcesses = new List<MonitoringProcess>();
+                    var flowCardProcessStep = new List<FlowCardProcessStepDetail>();
 
                     var allDeviceList = ServerConfig.ApiDb.Query<MonitoringProcess>(
-                        "SELECT b.*, c.DeviceCategoryId, c.CategoryName, a.`Code`, a.`ScriptId` FROM `device_library` a JOIN `npc_proxy_link` b ON a.Id = b.DeviceId JOIN (SELECT a.*, b.CategoryName FROM `device_model` a JOIN `device_category` b ON a.DeviceCategoryId = b.Id) c ON a.DeviceModelId = c.Id WHERE a.MarkedDelete = 0;");
+                        "SELECT b.*, c.DeviceCategoryId, c.CategoryName, a.`Code`, a.`ScriptId` FROM `device_library` a JOIN `npc_proxy_link` b ON a.Id = b.DeviceId JOIN (SELECT a.*, b.CategoryName FROM `device_model` a JOIN `device_category` b ON a.DeviceCategoryId = b.Id) c ON a.DeviceModelId = c.Id WHERE a.MarkedDelete = 0;").ToList();
 
                     foreach (var device in allDeviceList)
                     {
@@ -547,7 +564,6 @@ namespace ApiManagement.Base.Helper
                                 FaultTime1 = minTime.DayBeginTime(),
                                 FaultTime2 = maxTime.DayEndTime(),
                             });
-
                         foreach (var faultDevice in faultDevices)
                         {
                             var deviceId = faultDevice.DeviceId;
@@ -563,7 +579,7 @@ namespace ApiManagement.Base.Helper
                         {
                             #region  加工记录
                             var existDeviceId = mData.GroupBy(x => x.DeviceId).Select(y => y.Key);
-                            var deviceList = allDeviceList.Where(x => existDeviceId.Any(y => y == x.DeviceId)).ToDictionary(x => x.DeviceId);
+                            var deviceList = allDeviceList.Where(x => existDeviceId.Any(y => y == x.DeviceId)).ToDictionary(x => x.DeviceId, x => (MonitoringProcess)x.Clone());
                             if (RedisHelper.Exists(deviceKey))
                             {
                                 var redisDeviceList = RedisHelper.Get<IEnumerable<RedisMonitoringProcess>>(deviceKey);
@@ -616,7 +632,6 @@ namespace ApiManagement.Base.Helper
                                         uDies.Add(new Tuple<int, int>(script, variableNameId), address);
                                     }
                                 }
-
                                 if (usuallyDictionaries != null && usuallyDictionaries.Any())
                                 {
                                     var firstNotInSameDay = false;
@@ -632,10 +647,11 @@ namespace ApiManagement.Base.Helper
                                         var sameDayDevice = containsDevice && deviceList[data.DeviceId].Time.InSameDay(time);
                                         if (!deviceList[data.DeviceId].Time.InSameDay(time))
                                         {
+                                            deviceList[data.DeviceId].Time = time;
                                             var monitoringProcess = new MonitoringProcess
                                             {
-                                                DeviceId = deviceList[data.DeviceId].DeviceId,
                                                 Time = deviceList[data.DeviceId].Time,
+                                                DeviceId = deviceList[data.DeviceId].DeviceId,
                                                 State = deviceList[data.DeviceId].State,
                                                 ProcessCount = deviceList[data.DeviceId].ProcessCount,
                                                 TotalProcessCount = deviceList[data.DeviceId].TotalProcessCount,
@@ -681,6 +697,7 @@ namespace ApiManagement.Base.Helper
                                             }
                                         }
                                         MonitoringKanBanDeviceDic[data.DeviceId].Time = time;
+                                        deviceList[data.DeviceId].Time = time;
                                         if (sameDayDevice)
                                         {
                                             MonitoringKanBanDeviceDic[data.DeviceId].NormalDevice = 1;
@@ -720,9 +737,9 @@ namespace ApiManagement.Base.Helper
                                                     {
                                                         var flowCard =
                                                             ServerConfig.ApiDb
-                                                                .Query<FlowCardLibrary>(
-                                                                    "SELECT * FROM `flowcard_library` WHERE Id = @Id;",
-                                                                    new { Id = currentFlowCardId }).FirstOrDefault();
+                                                                .Query<FlowCard>(
+                                                                    "SELECT Id, FlowCardName FROM `flowcard_library` WHERE Id = @currentFlowCardId;",
+                                                                    new { currentFlowCardId }).FirstOrDefault();
 
                                                         if (flowCard != null)
                                                         {
@@ -735,21 +752,19 @@ namespace ApiManagement.Base.Helper
                                                                         DeviceId = data.DeviceId
                                                                     });
                                                             currentFlowCard = flowCard.FlowCardName;
-                                                            flowCardProcessStepDetail =
-                                                                flowCardProcessStepDetails.FirstOrDefault();
+                                                            flowCardProcessStepDetail = flowCardProcessStepDetails.FirstOrDefault();
                                                             if (flowCardProcessStepDetail != null)
                                                             {
                                                                 sql = string.Empty;
                                                                 //开始加工
                                                                 if (bStart)
                                                                 {
-                                                                    if (flowCardProcessStepDetail.ProcessTime ==
-                                                                        default(DateTime))
+                                                                    if (flowCardProcessStepDetail.ProcessTime == default(DateTime))
                                                                     {
-                                                                        flowCardProcessStepDetail.ProcessTime =
-                                                                            data.SendTime;
-                                                                        sql =
-                                                                            "UPDATE flowcard_process_step SET `ProcessTime` = @ProcessTime WHERE `Id` = @Id;";
+                                                                        flowCardProcessStepDetail.ProcessTime = data.SendTime;
+                                                                        flowCardProcessStep.Add(flowCardProcessStepDetail);
+                                                                        //sql =
+                                                                        //    "UPDATE flowcard_process_step SET `ProcessTime` = @ProcessTime WHERE `Id` = @Id;";
                                                                     }
                                                                 }
 
@@ -758,18 +773,18 @@ namespace ApiManagement.Base.Helper
                                                                 {
                                                                     //if (flowCardProcessStepDetail.ProcessEndTime == default(DateTime))
                                                                     //{
-                                                                    flowCardProcessStepDetail.ProcessEndTime =
-                                                                        data.SendTime;
-                                                                    sql =
-                                                                        "UPDATE flowcard_process_step SET `ProcessEndTime` = @ProcessEndTime WHERE `Id` = @Id;";
+                                                                    flowCardProcessStepDetail.ProcessEndTime = data.SendTime;
+                                                                    flowCardProcessStep.Add(flowCardProcessStepDetail);
+                                                                    //sql =
+                                                                    //    "UPDATE flowcard_process_step SET `ProcessEndTime` = @ProcessEndTime WHERE `Id` = @Id;";
                                                                     //}
                                                                 }
 
-                                                                if (sql != string.Empty)
-                                                                {
-                                                                    ServerConfig.ApiDb.Execute(sql,
-                                                                        flowCardProcessStepDetail);
-                                                                }
+                                                                //if (sql != string.Empty)
+                                                                //{
+                                                                //    ServerConfig.ApiDb.Execute(sql,
+                                                                //        flowCardProcessStepDetail);
+                                                                //}
                                                             }
                                                         }
                                                     }
@@ -909,7 +924,7 @@ namespace ApiManagement.Base.Helper
                                             }
 
                                             //总加工时间
-                                            actAddress = uDies[new Tuple<int, int>(data.ScriptId, processTimeDId)] - 1;
+                                            actAddress = uDies[new Tuple<int, int>(data.ScriptId, totalProcessTimeDId)] - 1;
                                             if (actAddress >= 0 && analysisData.vals.Count > actAddress)
                                             {
                                                 var totalProcessTime = analysisData.vals[actAddress];
@@ -993,13 +1008,27 @@ namespace ApiManagement.Base.Helper
                             {
                                 x.DeviceId,
                                 x.State,
-                                x.Time
+                                x.Time,
+                                TimeStr = x.Time.ToStr()
                             }));
 
-                            ServerConfig.ApiDb.Execute(
+                            if (flowCardProcessStep.Any())
+                            {
+                                ServerConfig.ApiDb.Execute("UPDATE flowcard_process_step SET " +
+                                                           "`ProcessTime` = IF(@ProcessTime = '0001-01-01 00:00:00', `ProcessTime`, @ProcessTime)`" +
+                                                           "`ProcessEndTime` = IF(@ProcessEndTime = '0001-01-01 00:00:00', `ProcessEndTime`, @ProcessEndTime)`" +
+                                                           " WHERE `Id` = @Id;", flowCardProcessStep);
+                            }
+                            var updateDeviceList = deviceList.Values.Where(x =>
+                                allDeviceList.Any(y => y.DeviceId == x.DeviceId) &&
+                                x.HaveChange(allDeviceList.First(y => y.DeviceId == x.DeviceId)));
+                            if (updateDeviceList.Any())
+                            {
+                                ServerConfig.ApiDb.Execute(
                                 "UPDATE npc_proxy_link SET `Time` = @Time, `State` = @State, `ProcessCount` = @ProcessCount, `TotalProcessCount` = @TotalProcessCount, " +
                                 "`ProcessTime` = @ProcessTime, `TotalProcessTime` = @TotalProcessTime, `RunTime` = @RunTime, `TotalRunTime` = @TotalRunTime WHERE `DeviceId` = @DeviceId;",
-                                deviceList.Values);
+                                    updateDeviceList);
+                            }
                             RedisHelper.SetForever(idKey, endId);
                         }
 
@@ -1012,7 +1041,6 @@ namespace ApiManagement.Base.Helper
                         {"精抛机", new []{ "JingPaoTime", "JingPaoFaChu", "JingPaoHeGe", "JingPaoLiePian", "JingPaoDeviceId"}},
                         {"研磨机", new []{ "YanMoTime", "YanMoFaChu", "YanMoHeGe", "YanMoLiePian", "YanMoDeviceId"}},
                     };
-
 
                     foreach (var param in paramDic)
                     {
@@ -1342,7 +1370,7 @@ namespace ApiManagement.Base.Helper
                     }
 
                     var deviceCount = ServerConfig.ApiDb.Query<int>(
-                        "SELECT COUNT(1) FROM `device_library` a JOIN `npc_proxy_link` b ON a.Id = b.DeviceId WHERE a.MarkedDelete = 0;").FirstOrDefault();
+                        "SELECT COUNT(1) FROM `device_library` WHERE MarkedDelete = 0;").FirstOrDefault();
                     //"SELECT COUNT(1) FROM `device_library` a JOIN `npc_proxy_link` b ON a.Id = b.DeviceId WHERE a.MarkedDelete = 0 AND b.Monitoring = 1;").FirstOrDefault();
                     if (deviceCount <= 0)
                     {
@@ -1865,7 +1893,6 @@ namespace ApiManagement.Base.Helper
                 {
                     RedisHelper.SetExpireAt(redisLock, DateTime.Now.AddHours(1));
                     //设备状态
-                    var stateDId = 1;
                     var all = ServerConfig.ApiDb.Query<dynamic>("SELECT a.Id, a.DeviceId, a.StartTime, ScriptId FROM (SELECT a.Id, DeviceId, StartTime, ScriptId FROM `npc_monitoring_process_log` a JOIN `device_library` b ON a.DeviceId = b.Id WHERE ISNULL(EndTime) GROUP BY DeviceId ) a JOIN ( SELECT MAX(Id) Id, DeviceId FROM `npc_monitoring_process_log` GROUP BY DeviceId ) b ON a.DeviceId = b.DeviceId WHERE a.Id != b.Id;");
                     var deviceList = all.ToDictionary(x => x.DeviceId);
                     if (deviceList.Any())
@@ -1906,12 +1933,13 @@ namespace ApiManagement.Base.Helper
                             }).FirstOrDefault();
                             if (nextStartTime != default(DateTime))
                             {
+                                var cha = 10;
                                 var r = new List<MonitoringAnalysis>();
                                 DateTime sendTime1 = a.StartTime;
                                 var deal = false;
                                 while (true)
                                 {
-                                    var sendTime2 = sendTime1.AddMinutes(30);
+                                    var sendTime2 = sendTime1.AddMinutes(cha);
                                     if (sendTime2 >= nextStartTime)
                                     {
                                         sendTime2 = nextStartTime;
@@ -1920,13 +1948,13 @@ namespace ApiManagement.Base.Helper
                                     if (sendTime1 < sendTime2)
                                     {
                                         r.AddRange(ServerConfig.ApiDb.Query<MonitoringAnalysis>(
-                                            "SELECT * FROM `npc_monitoring_analysis` WHERE DeviceId = @DeviceId AND SendTime BETWEEN @SendTime1 AND @SendTime2 AND UserSend = 0;",
-                                                new
-                                                {
-                                                    DeviceId = a.DeviceId,
-                                                    SendTime1 = sendTime1,
-                                                    SendTime2 = sendTime2,
-                                                }, 120).OrderBy(x => x.SendTime));
+                                            "SELECT * FROM `npc_monitoring_analysis` WHERE DeviceId = @DeviceId AND UserSend = 0 AND SendTime BETWEEN @SendTime1 AND @SendTime2;",
+                                            new
+                                            {
+                                                DeviceId = a.DeviceId,
+                                                SendTime1 = sendTime1,
+                                                SendTime2 = sendTime2,
+                                            }, 120).OrderBy(x => x.SendTime));
                                     }
 
                                     if (deal)

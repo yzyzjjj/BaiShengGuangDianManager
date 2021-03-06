@@ -64,5 +64,19 @@ namespace ApiManagement.Models.StatisticManagementModel
         {
             return MemberwiseClone();
         }
+
+        public bool HaveChange(MonitoringProcess old)
+        {
+            //"UPDATE npc_proxy_link SET `Time` = @Time, `State` = @State, `ProcessCount` = @ProcessCount, `TotalProcessCount` = @TotalProcessCount, " +
+            //    "`ProcessTime` = @ProcessTime, `TotalProcessTime` = @TotalProcessTime, `RunTime` = @RunTime, `TotalRunTime` = @TotalRunTime WHERE `DeviceId` = @DeviceId;",
+            return Time != old.Time
+                   || State != old.State
+                   || ProcessCount != old.ProcessCount
+                   || TotalProcessCount != old.TotalProcessCount
+                   || ProcessTime != old.ProcessTime
+                   || TotalProcessTime != old.TotalProcessTime
+                   || RunTime != old.RunTime
+                   || TotalRunTime != old.TotalRunTime;
+        }
     }
 }

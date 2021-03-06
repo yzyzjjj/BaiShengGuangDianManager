@@ -745,7 +745,7 @@ namespace ApiManagement.Controllers.SmartFactoryController.ScheduleFolder
 
             var today = DateTime.Today;
             var schedules = new List<SmartTaskOrderScheduleDetail>();
-            var costDays = ScheduleHelper.ArrangeSchedule(wId, ref taskOrders, ref schedules, out var indexes);
+            var costDays = HScheduleHelper.ArrangeSchedule(wId, ref taskOrders, ref schedules, out var indexes);
             var eStartTime = costDays.Any() ? costDays.Min(x => x.EstimatedStartTime) : today;
             if (eStartTime == default(DateTime))
             {
@@ -950,7 +950,7 @@ namespace ApiManagement.Controllers.SmartFactoryController.ScheduleFolder
             var userId = Request.GetIdentityInformation();
             var markedDateTime = DateTime.Now;
             var schedules = new List<SmartTaskOrderScheduleDetail>();
-            var costDays = ScheduleHelper.ArrangeSchedule(arrange.WorkshopId, ref taskOrders, ref schedules, out _, true, userId, markedDateTime);
+            var costDays = HScheduleHelper.ArrangeSchedule(arrange.WorkshopId, ref taskOrders, ref schedules, out _, true, userId, markedDateTime);
             WorkFlowHelper.Instance.OnTaskOrderArrangeChanged();
             return Result.GenError<Result>(Error.Success);
         }

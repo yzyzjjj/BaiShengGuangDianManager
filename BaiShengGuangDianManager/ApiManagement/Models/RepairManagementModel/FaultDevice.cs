@@ -32,7 +32,7 @@ namespace ApiManagement.Models.RepairManagementModel
         /// <summary>
         /// 报修故障描述补充
         /// </summary>
-        public string Supplement { get; set; }
+        public string Supplement { get; set; } = "";
         /// <summary>
         /// 优先级
         /// </summary>

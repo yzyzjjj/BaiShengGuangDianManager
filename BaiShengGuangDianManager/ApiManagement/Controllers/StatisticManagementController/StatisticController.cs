@@ -84,10 +84,10 @@ namespace ApiManagement.Controllers.StatisticManagementController
 
                 var sql =
                     "SELECT Id, SendTime, `Data`, `DeviceId`, ScriptId FROM `npc_monitoring_analysis` WHERE DeviceId = @DeviceId AND SendTime >= @startTime AND SendTime <= @endTime ORDER BY SendTime";
-
+                var cha = 30;
                 var data = new List<MonitoringAnalysis>();
                 var tStartTime = startTime;
-                var tEndTime = tStartTime.AddMinutes(30);
+                var tEndTime = tStartTime.AddMinutes(cha);
                 var tasks = new List<Task<IEnumerable<MonitoringAnalysis>>>();
                 while (true)
                 {
@@ -109,7 +109,7 @@ namespace ApiManagement.Controllers.StatisticManagementController
                     }
 
                     tStartTime = tEndTime;
-                    tEndTime = tStartTime.AddMinutes(30);
+                    tEndTime = tStartTime.AddMinutes(cha);
                 }
                 //Task.WaitAll(tasks.ToArray());
                 foreach (var task in tasks)

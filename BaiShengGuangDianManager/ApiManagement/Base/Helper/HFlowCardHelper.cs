@@ -9,12 +9,14 @@ using ServiceStack;
 using System;
 using System.Collections.Generic;
 using System.Linq;
+#if !DEBUG
 using System.Threading;
+#endif
 using System.Web;
 
 namespace ApiManagement.Base.Helper
 {
-    public class FlowCardHelper
+    public class HFlowCardHelper
     {
 #if DEBUG
 #else
@@ -91,7 +93,7 @@ namespace ApiManagement.Base.Helper
 
             _isInsert = true;
             var sId =
-                ServerConfig.ApiDb.Query<int>("SELECT `FId` FROM `flowcard_library` ORDER BY FId DESC LIMIT 1;").FirstOrDefault();
+                ServerConfig.ApiDb.Query<int>("SELECT `FId` FROM `flowcard_library` ORDER BY FId DESC LIMIT 1;", 120).FirstOrDefault();
 
             var queryId1 = _id;
             var queryId2 = sId;
@@ -187,22 +189,22 @@ namespace ApiManagement.Base.Helper
                 rawMaterias = ServerConfig.ApiDb.Query<RawMateria>("SELECT * FROM `raw_materia` WHERE MarkedDelete = 0;").ToDictionary(x => x.RawMateriaName);
 
                 //计划号
-                var productionLibraries = ServerConfig.ApiDb.Query<ProductionLibrary>("SELECT * FROM `production_library` WHERE MarkedDelete = 0;").ToDictionary(x => x.ProductionProcessName);
+                var productionLibraries = ServerConfig.ApiDb.Query<Production>("SELECT * FROM `production_library` WHERE MarkedDelete = 0;").ToDictionary(x => x.ProductionProcessName);
                 var erpProductionLibraries = r.GroupBy(x => x.f_jhh);
                 var newProductionLibraries = erpProductionLibraries.Where(x => !productionLibraries.ContainsKey(x.Key));
-                var newPl = newProductionLibraries.Select(x => new ProductionLibrary
+                var newPl = newProductionLibraries.Select(x => new Production
                 {
                     CreateUserId = _createUserId,
                     MarkedDateTime = now,
                     ProductionProcessName = x.Key
                 });
-                var newPlTmp = new List<ProductionLibrary>();
+                var newPlTmp = new List<Production>();
                 newPlTmp.AddRange(newPl);
                 ServerConfig.ApiDb.Execute(
                     "INSERT INTO production_library (`CreateUserId`, `MarkedDateTime`, `MarkedDelete`, `ModifyId`, `ProductionProcessName`) " +
                     "VALUES (@CreateUserId, @MarkedDateTime, @MarkedDelete, @ModifyId, @ProductionProcessName);",
                     newPl);
-                productionLibraries = ServerConfig.ApiDb.Query<ProductionLibrary>("SELECT * FROM `production_library` WHERE MarkedDelete = 0;").ToDictionary(x => x.ProductionProcessName);
+                productionLibraries = ServerConfig.ApiDb.Query<Production>("SELECT * FROM `production_library` WHERE MarkedDelete = 0;").ToDictionary(x => x.ProductionProcessName);
 
                 //数据库计划号工序
                 var productionProcessStep = ServerConfig.ApiDb.Query<ProductionProcessStepDetail>("SELECT a.*, b.ProductionProcessName FROM `production_process_step` a JOIN `production_library` b ON a.ProductionProcessId = b.Id WHERE a.MarkedDelete = 0; ")
@@ -315,9 +317,10 @@ namespace ApiManagement.Base.Helper
                         });
                 }
 
-                var flowCardLibraries = ServerConfig.ApiDb.Query<FlowCardLibrary>("SELECT * FROM `flowcard_library` WHERE `MarkedDelete` = 0;").ToDictionary(x => x.FlowCardName);
+                var flowCardLibraries = ServerConfig.ApiDb.Query<FlowCard>("SELECT * FROM `flowcard_library` WHERE CreateTime > ADDDATE(NOW(), -30) AND  `MarkedDelete` = 0;").ToDictionary(x => x.FlowCardName);
+                //var flowCardLibraries = ServerConfig.ApiDb.Query<FlowCard>("SELECT * FROM `flowcard_library` WHERE `MarkedDelete` = 0;").ToDictionary(x => x.FlowCardName);
                 var newFlowCardLibraries = erpFlowCardLibraries.Where(x => !flowCardLibraries.ContainsKey(x.Key)).ToDictionary(x => x.Key, x => x.Value);
-                var newFc = newFlowCardLibraries.OrderBy(x => x.Value.f_id).Select(x => new FlowCardLibrary
+                var newFc = newFlowCardLibraries.OrderBy(x => x.Value.f_id).Select(x => new FlowCard
                 {
                     FId = x.Value.f_id,
                     CreateUserId = _createUserId,
@@ -332,17 +335,14 @@ namespace ApiManagement.Base.Helper
                     InboundNum = x.Value.f_rkxh,
                     Remarks = x.Value.f_note
                 });
-                var newFcTmp = new List<FlowCardLibrary>();
+                var newFcTmp = new List<FlowCard>();
                 newFcTmp.AddRange(newFc);
-                ServerConfig.ApiDb.Execute(
-                    "INSERT INTO flowcard_library (`CreateUserId`, `MarkedDateTime`, `MarkedDelete`, `ModifyId`, `FlowCardName`, `ProductionProcessId`, `RawMateriaId`, `RawMaterialQuantity`, `Sender`, `InboundNum`, `Remarks`, `Priority`, `CreateTime`, `FlowCardTypeId`, `FId`) " +
-                    "VALUES (@CreateUserId, @MarkedDateTime, @MarkedDelete, @ModifyId, @FlowCardName, @ProductionProcessId, @RawMateriaId, @RawMaterialQuantity, @Sender, @InboundNum, @Remarks, @Priority, @CreateTime, @FlowCardTypeId, @FId);",
-                    newFc);
+                FlowCardHelper.Instance.Add(newFc);
 
                 //流程卡更新
                 //todo
 
-                flowCardLibraries = ServerConfig.ApiDb.Query<FlowCardLibrary>("SELECT * FROM `flowcard_library` WHERE `MarkedDelete` = 0;").ToDictionary(x => x.FlowCardName);
+                flowCardLibraries = ServerConfig.ApiDb.Query<FlowCard>("SELECT * FROM `flowcard_library` WHERE CreateTime > ADDDATE(NOW(), -30) AND  `MarkedDelete` = 0;").ToDictionary(x => x.FlowCardName);
 
                 newFc = flowCardLibraries.Values.Where(x => newFcTmp.Any(y => y.FlowCardName == x.FlowCardName));
                 if (productionProcessStep.Any())
@@ -402,7 +402,7 @@ namespace ApiManagement.Base.Helper
                 ServerConfig.ApiDb.Query<int>("SELECT FId FROM `flowcard_library` WHERE FId != 0 AND DATE(CreateTime) = @Time ORDER BY CreateTime LIMIT 1;", new
                 {
                     Time = DateTime.Today.AddDays(-1)
-                }).FirstOrDefault();
+                }, 120).FirstOrDefault();
 
             if (sId != 0)
             {
@@ -452,12 +452,12 @@ namespace ApiManagement.Base.Helper
                 //var erpFlowCardLibraries = r.ToDictionary(x => $"{x.f_bz:d2}{x.f_lckh}");
                 var erpFlowCardLibraries = r.ToDictionary(x => x.f_lckh);
 
-                var flowCardLibraries = ServerConfig.ApiDb.Query<FlowCardLibrary>("SELECT * FROM `flowcard_library` WHERE `MarkedDelete` = 0 AND FID > @fid;", new
+                var flowCardLibraries = ServerConfig.ApiDb.Query<FlowCard>("SELECT * FROM `flowcard_library` WHERE `MarkedDelete` = 0 AND FID > @fid;", new
                 {
                     fid = id
                 });
 
-                var update = new List<FlowCardLibrary>();
+                var update = new List<FlowCard>();
                 foreach (var flowCardLibrary in flowCardLibraries)
                 {
                     if (erpFlowCardLibraries.ContainsKey(flowCardLibrary.FlowCardName))
@@ -527,7 +527,7 @@ namespace ApiManagement.Base.Helper
             try
             {
                 //计划号
-                var flowCardLibraries = ServerConfig.ApiDb.Query<FlowCardLibrary>("SELECT a.Id, a.FlowCardName, a.ProductionProcessId FROM `flowcard_library` a LEFT JOIN flowcard_process_step b ON a.Id = b.FlowCardId WHERE a.CreateTime > ADDDATE(NOW(), -30) AND a.MarkedDelete = 0 AND ISNULL(b.Id);", 60).ToDictionary(x => x.Id);
+                var flowCardLibraries = ServerConfig.ApiDb.Query<FlowCard>("SELECT a.Id, a.FlowCardName, a.ProductionProcessId FROM `flowcard_library` a LEFT JOIN flowcard_process_step b ON a.Id = b.FlowCardId WHERE a.CreateTime > ADDDATE(NOW(), -30) AND a.MarkedDelete = 0 AND ISNULL(b.Id);", 60).ToDictionary(x => x.Id);
                 if (flowCardLibraries.Any())
                 {
                     //数据库计划号工序
@@ -589,7 +589,7 @@ namespace ApiManagement.Base.Helper
 
             _isUpdateProductionProcessStep = true;
             //计划号
-            var productionLibraries = ServerConfig.ApiDb.Query<ProductionLibrary>("SELECT a.Id, a.ProductionProcessName FROM `production_library` a LEFT JOIN production_process_step b ON a.Id = b.ProductionProcessId WHERE a.MarkedDelete = 0 AND ISNULL(b.Id) ORDER BY a.Id;").ToDictionary(x => x.ProductionProcessName);
+            var productionLibraries = ServerConfig.ApiDb.Query<Production>("SELECT a.Id, a.ProductionProcessName FROM `production_library` a LEFT JOIN production_process_step b ON a.Id = b.ProductionProcessId WHERE a.MarkedDelete = 0 AND ISNULL(b.Id) ORDER BY a.Id;").ToDictionary(x => x.ProductionProcessName);
             if (productionLibraries.Any())
             {
                 var f = HttpServer.Get(_url, new Dictionary<string, string>
@@ -691,7 +691,7 @@ namespace ApiManagement.Base.Helper
                 var now = DateTime.Now;
                 _isUpdateProductionProcess = true;
                 //计划号
-                var productionLibraries = ServerConfig.ApiDb.Query<ProductionLibrary>("SELECT a.Id, ProductionProcessName FROM `production_library` a LEFT JOIN `process_management` b ON a.Id = b.ProductModels WHERE a.MarkedDelete = 0 AND ISNULL(b.Id) AND ProductionProcessName != '';");
+                var productionLibraries = ServerConfig.ApiDb.Query<Production>("SELECT a.Id, ProductionProcessName FROM `production_library` a LEFT JOIN `process_management` b ON a.Id = b.ProductModels WHERE a.MarkedDelete = 0 AND ISNULL(b.Id) AND ProductionProcessName != '';");
                 if (productionLibraries.Any())
                 {
                     try
@@ -743,7 +743,7 @@ namespace ApiManagement.Base.Helper
 
             _isUpdateProductionSpecification = true;
             //计划号
-            var productionLibraries = ServerConfig.ApiDb.Query<ProductionLibrary>("SELECT a.Id, a.ProductionProcessName FROM `production_library` a LEFT JOIN production_specification b ON a.Id = b.ProductionProcessId WHERE a.MarkedDelete = 0 AND ISNULL(b.Id) ORDER BY a.Id;").ToDictionary(x => x.ProductionProcessName);
+            var productionLibraries = ServerConfig.ApiDb.Query<Production>("SELECT a.Id, a.ProductionProcessName FROM `production_library` a LEFT JOIN production_specification b ON a.Id = b.ProductionProcessId WHERE a.MarkedDelete = 0 AND ISNULL(b.Id) ORDER BY a.Id;").ToDictionary(x => x.ProductionProcessName);
             if (productionLibraries.Any())
             {
                 var f = HttpServer.Get(_url, new Dictionary<string, string>

@@ -713,7 +713,7 @@ namespace ApiManagement.Controllers.MaterialManagementController
                   "JOIN ( SELECT a.*, b.Category FROM `material_name` a JOIN `material_category` b " +
                   "ON a.CategoryId = b.Id ) b ON a.NameId = b.Id ) b ON a.SupplierId = b.Id ) b ON a.SpecificationId = b.Id WHERE a.Id IN @Id;";
                 var data = ServerConfig.ApiDb.Query<MaterialManagementDetail>(sql, new { Id = logs.Select(x => x.BillId) });
-                MaterialHelper.InsertLog(logs.Select(x =>
+                HMaterialHelper.InsertLog(logs.Select(x =>
                 {
                     var d = data.FirstOrDefault(y => y.Id == x.BillId);
                     if (d != null)

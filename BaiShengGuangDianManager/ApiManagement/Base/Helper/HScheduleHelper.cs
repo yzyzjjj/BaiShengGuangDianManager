@@ -16,7 +16,7 @@ namespace ApiManagement.Base.Helper
     /// <summary>
     /// 生产排程
     /// </summary>
-    public class ScheduleHelper
+    public class HScheduleHelper
     {
 #if DEBUG
 #else

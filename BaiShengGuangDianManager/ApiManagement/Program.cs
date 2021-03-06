@@ -1,7 +1,9 @@
 ﻿using System;
 using Microsoft.AspNetCore;
 using Microsoft.AspNetCore.Hosting;
+#if !DEBUG
 using Microsoft.Extensions.Configuration;
+#endif
 
 namespace ApiManagement
 {

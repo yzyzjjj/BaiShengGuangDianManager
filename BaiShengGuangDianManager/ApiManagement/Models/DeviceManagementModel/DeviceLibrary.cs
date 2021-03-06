@@ -93,6 +93,10 @@ namespace ApiManagement.Models.DeviceManagementModel
         /// </summary>
         [JsonIgnore]
         public int RepairState { get; set; } = -1;
+        /// <summary>
+        /// 加工类型
+        /// </summary>
+        public ProcessType ProcessType { get; set; }
         [JsonIgnore]
         public SocketState State { get; set; } = SocketState.UnInit;
         public string StateStr => State == SocketState.Connected ? "连接正常" : "连接异常";
@@ -107,7 +111,7 @@ namespace ApiManagement.Models.DeviceManagementModel
                 {
                     switch (DeviceState)
                     {
-                        case DeviceState.Waiting: return "待加工";
+                        case DeviceState.Waiting: return "待机";
                         case DeviceState.Processing: return "加工中";
                         case DeviceState.UpgradeScript: return "流程升级中";
                         case DeviceState.UpgradeFirmware: return "固件升级中";
@@ -136,15 +140,38 @@ namespace ApiManagement.Models.DeviceManagementModel
         /// 当前加工流程卡号
         /// </summary>
         public string FlowCard { get; set; } = string.Empty;
-
         /// <summary>
-        /// 加工时间
+        /// 当前加工计划号
+        /// </summary>
+        public string Production { get; set; } = string.Empty;
+        /// <summary>
+        /// 已加工时间
         /// </summary>
         public string ProcessTime { get; set; }
         /// <summary>
         /// 剩余加工时间
         /// </summary>
         public string LeftTime { get; set; }
+    }
+
+    public enum ProcessType
+    {
+        /// <summary>
+        /// 无
+        /// </summary>
+        Default = 0,
+        /// <summary>
+        /// 加工
+        /// </summary>
+        Process,
+        /// <summary>
+        /// 洗盘
+        /// </summary>
+        Wash,
+        /// <summary>
+        /// 修盘
+        /// </summary>
+        Repair,
     }
 
 }

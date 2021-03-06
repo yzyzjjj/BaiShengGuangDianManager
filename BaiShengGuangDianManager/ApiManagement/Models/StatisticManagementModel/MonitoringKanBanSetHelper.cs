@@ -12,11 +12,11 @@ namespace ApiManagement.Models.StatisticManagementModel
             Table = "npc_monitoring_kanban_set";
 
             InsertSql =
-                "INSERT INTO `npc_monitoring_kanban_set` (`CreateUserId`, `MarkedDateTime`, `Name`, `IsShow`, `Type`, `DeviceIds`, `Order`, `Second`, `Row`, `Col`, `Variables`) " +
-                "VALUES (@CreateUserId, @MarkedDateTime, @Name, @IsShow, @Type, @DeviceIds, @Order, @Second, @Row, @Col, @Variables);";
+                "INSERT INTO `npc_monitoring_kanban_set` (`CreateUserId`, `MarkedDateTime`, `Name`, `IsShow`, `Type`, `DeviceIds`, `Order`, `UI`, `Second`, `Row`, `Col`, `Variables`) " +
+                "VALUES (@CreateUserId, @MarkedDateTime, @Name, @IsShow, @Type, @DeviceIds, @Order, @UI, @Second, @Row, @Col, @Variables);";
             UpdateSql =
                 "UPDATE `npc_monitoring_kanban_set` SET `MarkedDateTime` = @MarkedDateTime, `Name` = @Name, `IsShow` = @IsShow, " +
-                    "`DeviceIds` = @DeviceIds, `Order` = @Order, `Second` = @Second, `Row` = @Row, `Row` = @Row, `Col` = @Col, `Variables` = @Variables WHERE `Id` = @Id;";
+                    "`DeviceIds` = @DeviceIds, `Order` = @Order, `UI` = @UI, `Second` = @Second, `Row` = @Row, `Row` = @Row, `Col` = @Col, `Variables` = @Variables WHERE `Id` = @Id;";
 
             SameField = "Name";
             MenuFields.AddRange(new[] { "Id", "Name", "Type" });

@@ -4,7 +4,7 @@ using ApiManagement.Models.MaterialManagementModel;
 
 namespace ApiManagement.Base.Helper
 {
-    public class MaterialHelper
+    public class HMaterialHelper
     {
         public static void InsertLog(MaterialLog materialLog)
         {

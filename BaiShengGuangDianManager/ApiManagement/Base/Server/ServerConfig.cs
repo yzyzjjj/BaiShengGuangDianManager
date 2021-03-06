@@ -25,11 +25,11 @@ namespace ApiManagement.Base.Server
             SmartAccountHelper.Init(configuration);
             RedisHelper.Init(configuration);
             AnalysisHelper.Init();
-            FlowCardHelper.Init();
+            HFlowCardHelper.Init();
             WarningHelper.Init();
             WorkFlowHelper.Init();
             SimulateHelper.Init();
-            ScheduleHelper.Init();
+            HScheduleHelper.Init();
             TimerHelper.Init();
             Loads = new Dictionary<string, Action>
             {

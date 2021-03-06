@@ -8,13 +8,16 @@ namespace ApiManagement.Models.FlowCardManagementModel
     /// <summary>
     /// 计划号
     /// </summary>
-    public class ProductionLibrary : CommonBase
+    public class Production : CommonBase
     {
+        /// <summary>
+        /// 计划号
+        /// </summary>
         public string ProductionProcessName { get; set; }
         public List<ProductionSpecification> Specifications = new List<ProductionSpecification>();
         public List<ProductionProcessStep> ProcessSteps = new List<ProductionProcessStep>();
     }
-    public class ProductionLibraryDetail : ProductionLibrary
+    public class ProductionDetail : Production
     {
         /// <summary>
         /// 总流程卡数
