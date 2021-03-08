@@ -219,7 +219,13 @@ namespace ApiManagement.Controllers.MaterialManagementController
         [HttpPost("Increase")]
         public object IncreaseMaterialPurchaseItem([FromBody] IEnumerable<MaterialPurchaseItem> materialPurchaseItems)
         {
-            if (materialPurchaseItems == null || !materialPurchaseItems.Any() || materialPurchaseItems.All(x => x.Count <= 0))
+            if (materialPurchaseItems == null)
+            {
+                return Result.GenError<Result>(Error.MaterialPurchaseItemNotExist);
+            }
+
+            materialPurchaseItems = materialPurchaseItems.Where(x => x.Count > 0);
+            if (!materialPurchaseItems.Any())
             {
                 return Result.GenError<Result>(Error.MaterialPurchaseItemNotExist);
             }

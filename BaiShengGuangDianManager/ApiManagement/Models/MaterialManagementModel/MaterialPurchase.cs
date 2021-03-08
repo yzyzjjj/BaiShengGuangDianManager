@@ -236,7 +236,7 @@ namespace ApiManagement.Models.MaterialManagementModel
 
         public string Invoice { get; set; }
         [IgnoreChange]
-        public decimal TaxTate
+        public decimal TaxRate
         {
             get
             {
@@ -358,7 +358,7 @@ namespace ApiManagement.Models.MaterialManagementModel
         /// <summary>
         ///  税率
         /// </summary>
-        public decimal Tax { get; set; }
+        public decimal TaxRate { get; set; }
         /// <summary>
         /// 采购单号
         /// </summary>
