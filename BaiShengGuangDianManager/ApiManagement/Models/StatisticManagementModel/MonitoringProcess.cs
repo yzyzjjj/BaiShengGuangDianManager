@@ -1,4 +1,5 @@
 ﻿using System;
+using ApiManagement.Models.DeviceManagementModel;
 
 namespace ApiManagement.Models.StatisticManagementModel
 {
@@ -18,7 +19,26 @@ namespace ApiManagement.Models.StatisticManagementModel
         public int DeviceCategoryId { get; set; }
         public string CategoryName { get; set; }
         public int State { get; set; }
+        /// <summary>
+        /// 加工类型
+        /// </summary>
+        public ProcessType ProcessType { get; set; }
+        /// <summary>
+        /// 开始时间
+        /// </summary>
+        public DateTime StartTime { get; set; }
+        /// <summary>
+        /// 结束时间
+        /// </summary>
+        public DateTime EndTime { get; set; }
+        /// <summary>
+        /// 当前流程卡
+        /// </summary>
         public int FlowCardId { get; set; }
+        /// <summary>
+        /// 当前流程卡
+        /// </summary>
+        public string FlowCard { get; set; }
         /// <summary>
         /// 今日加工次数
         /// </summary>

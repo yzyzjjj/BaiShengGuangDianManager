@@ -153,25 +153,4 @@ namespace ApiManagement.Models.DeviceManagementModel
         /// </summary>
         public string LeftTime { get; set; }
     }
-
-    public enum ProcessType
-    {
-        /// <summary>
-        /// 无
-        /// </summary>
-        Default = 0,
-        /// <summary>
-        /// 加工
-        /// </summary>
-        Process,
-        /// <summary>
-        /// 洗盘
-        /// </summary>
-        Wash,
-        /// <summary>
-        /// 修盘
-        /// </summary>
-        Repair,
-    }
-
 }

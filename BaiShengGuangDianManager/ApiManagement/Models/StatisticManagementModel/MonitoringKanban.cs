@@ -97,8 +97,9 @@ namespace ApiManagement.Models.StatisticManagementModel
                 UseListStr = _useList.OrderBy(x => x).ToJson();
             }
         }
+
         [JsonIgnore]
-        public string UseListStr { get; set; }
+        public string UseListStr { get; set; } = "[]";
         /// <summary>
         /// 今日最大使用台数
         /// </summary>
@@ -130,7 +131,7 @@ namespace ApiManagement.Models.StatisticManagementModel
             }
         }
         [JsonIgnore]
-        public string MaxUseListStr { get; set; }
+        public string MaxUseListStr { get; set; } = "[]";
         public List<string> UseCodeList { get; set; }
         /// <summary>
         /// 日最小使用台数
