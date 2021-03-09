@@ -177,6 +177,20 @@ namespace ApiManagement.Controllers.StatisticManagementController
                                 deviceData = dataResult.datas.First(d => d.Id == device.Id).DeviceData;
                             }
 
+                            //if (device.RepairState != -1 && device.State != SocketState.Connected)
+                            //{
+                            //    deviceLibraryDetails[deviceId].in
+                            //}
+                            //else
+                            //{
+                            //    FlowCard fc = null;
+                            //    if (int.TryParse(device.FlowCard, out var id))
+                            //    {
+                            //        fc = flowCards.FirstOrDefault(x => x.Id == id);
+                            //    }
+                            //    deviceLibraryDetails[deviceId].FlowCard = fc?.FlowCardName ?? "";
+                            //}
+
                             foreach (var x in vs)
                             {
                                 var dn = dataNameDictionaries.FirstOrDefault(d =>
