@@ -77,6 +77,11 @@ namespace ApiManagement.Models.BaseModel
         /// <returns></returns>
         public IEnumerable<T> GetByIds<T>(IEnumerable<int> ids) where T : CommonBase
         {
+            if (ids == null || !ids.Any())
+            {
+                return new List<T>();
+            }
+
             return ServerConfig.ApiDb.Query<T>($"SELECT * FROM `{Table}` WHERE `MarkedDelete` = 0 AND Id IN @ids;", new { ids });
         }
         /// <summary>
@@ -87,6 +92,11 @@ namespace ApiManagement.Models.BaseModel
         /// <returns></returns>
         public IEnumerable<T> GetAllByIds<T>(IEnumerable<int> ids) where T : CommonBase
         {
+            if (ids == null || !ids.Any())
+            {
+                return new List<T>();
+            }
+
             return ServerConfig.ApiDb.Query<T>($"SELECT * FROM `{Table}` WHERE Id IN @ids;", new { ids });
         }
         /// <summary>
@@ -123,6 +133,11 @@ namespace ApiManagement.Models.BaseModel
         /// <returns></returns>
         public int GetCountByIds(IEnumerable<int> ids)
         {
+            if (ids == null || !ids.Any())
+            {
+                return 0;
+            }
+
             return ServerConfig.ApiDb.Query<int>($"SELECT COUNT(1) FROM `{Table}` WHERE `MarkedDelete` = 0 AND Id IN @ids;", new { ids }).FirstOrDefault();
         }
         /// <summary>

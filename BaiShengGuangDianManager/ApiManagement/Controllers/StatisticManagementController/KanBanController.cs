@@ -177,6 +177,20 @@ namespace ApiManagement.Controllers.StatisticManagementController
                                 deviceData = dataResult.datas.First(d => d.Id == device.Id).DeviceData;
                             }
 
+                            //if (device.RepairState != -1 && device.State != SocketState.Connected)
+                            //{
+                            //    deviceLibraryDetails[deviceId].in
+                            //}
+                            //else
+                            //{
+                            //    FlowCard fc = null;
+                            //    if (int.TryParse(device.FlowCard, out var id))
+                            //    {
+                            //        fc = flowCards.FirstOrDefault(x => x.Id == id);
+                            //    }
+                            //    deviceLibraryDetails[deviceId].FlowCard = fc?.FlowCardName ?? "";
+                            //}
+
                             foreach (var x in vs)
                             {
                                 var dn = dataNameDictionaries.FirstOrDefault(d =>
@@ -227,7 +241,7 @@ namespace ApiManagement.Controllers.StatisticManagementController
                                         {
                                             var chu = Math.Pow(10, dn.Precision);
                                             var v = (decimal)(bl.ElementAt(x.PointerAddress - 1) / chu);
-                                            if (dn.VariableTypeId == 1 && (dn.VariableNameId == AnalysisHelper.currentFlowCardDId || dn.VariableNameId == AnalysisHelper.nextFlowCardDId))
+                                            if (dn.VariableTypeId == 1 && (dn.VariableNameId == AnalysisHelper.flowCardDId || dn.VariableNameId == AnalysisHelper.nextFlowCardDId))
                                             {
                                                 var flowCard = FlowCardHelper.Instance.Get<FlowCard>((int)v);
                                                 r.V = flowCard?.FlowCardName ?? "";

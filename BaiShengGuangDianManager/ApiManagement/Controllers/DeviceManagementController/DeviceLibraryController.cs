@@ -114,49 +114,37 @@ namespace ApiManagement.Controllers.DeviceManagementController
                                         //deviceLibraryDetails[deviceId].ProcessTime = deviceInfo.ProcessTime.IsNullOrEmpty() ? "0" : deviceInfo.ProcessTime;
                                         //deviceLibraryDetails[deviceId].LeftTime = deviceInfo.LeftTime.IsNullOrEmpty() ? "0" : deviceInfo.LeftTime;
                                         var deviceData = deviceInfo.DeviceData;
-                                        var dn = dataNameDictionaries.FirstOrDefault(d => d.VariableNameId == AnalysisHelper.washFlagDId);
-                                        if (dn != null && deviceData != null && deviceData.vals.Count > dn.PointerAddress - 1)
+                                        if (AnalysisHelper.GetValue(deviceData, dataNameDictionaries, deviceInfo.ScriptId, AnalysisHelper.washFlagDId, out var v))
                                         {
-                                            var chu = Math.Pow(10, dn.Precision);
-                                            var v  = (decimal)(deviceData.vals.ElementAt(dn.PointerAddress - 1) / chu);
-                                            if (v > 0) deviceLibraryDetails[deviceId].ProcessType = ProcessType.Wash;
+                                            if (v > 0)
+                                            {
+                                                deviceLibraryDetails[deviceId].ProcessType = ProcessType.Wash;
+                                            }
                                         }
-                                        dn = dataNameDictionaries.FirstOrDefault(d => d.VariableNameId == AnalysisHelper.repairFlagDId);
-                                        if (dn != null && deviceData != null && deviceData.vals.Count > dn.PointerAddress - 1)
+                                        if (AnalysisHelper.GetValue(deviceData, dataNameDictionaries, deviceInfo.ScriptId, AnalysisHelper.repairFlagDId, out v))
                                         {
-                                            var chu = Math.Pow(10, dn.Precision);
-                                            var v = (decimal)(deviceData.vals.ElementAt(dn.PointerAddress - 1) / chu);
-                                            if (v > 0) deviceLibraryDetails[deviceId].ProcessType = ProcessType.Repair;
+                                            if (v > 0)
+                                            {
+                                                deviceLibraryDetails[deviceId].ProcessType = ProcessType.Repair;
+                                            }
                                         }
-                                        dn = dataNameDictionaries.FirstOrDefault(d => d.VariableNameId == AnalysisHelper.processFlagDId);
-                                        if (dn != null && deviceData != null && deviceData.vals.Count > dn.PointerAddress - 1)
+                                        if (AnalysisHelper.GetValue(deviceData, dataNameDictionaries, deviceInfo.ScriptId, AnalysisHelper.processFlagDId, out v))
                                         {
-                                            var chu = Math.Pow(10, dn.Precision);
-                                            var v = (decimal)(deviceData.vals.ElementAt(dn.PointerAddress - 1) / chu);
-                                            if (v > 0) deviceLibraryDetails[deviceId].ProcessType = ProcessType.Process;
+                                            if (v > 0)
+                                            {
+                                                deviceLibraryDetails[deviceId].ProcessType = ProcessType.Process;
+                                            }
                                         }
-
-                                        dn = dataNameDictionaries.FirstOrDefault(d => d.VariableNameId == AnalysisHelper.currentFlowCardDId);
-                                        if (dn != null && deviceData != null && deviceData.vals.Count > dn.PointerAddress - 1)
+                                        if (AnalysisHelper.GetValue(deviceData, dataNameDictionaries, deviceInfo.ScriptId, AnalysisHelper.flowCardDId, out v))
                                         {
-                                            var chu = Math.Pow(10, dn.Precision);
-                                            var v = (decimal)(deviceData.vals.ElementAt(dn.PointerAddress - 1) / chu);
                                             deviceLibraryDetails[deviceId].FlowCard = (v == -1 ? 0 : v).ToString();
                                         }
-
-                                        dn = dataNameDictionaries.FirstOrDefault(d => d.VariableNameId == AnalysisHelper.processedTimeDId);
-                                        if (dn != null && deviceData != null && deviceData.vals.Count > dn.PointerAddress - 1)
+                                        if (AnalysisHelper.GetValue(deviceData, dataNameDictionaries, deviceInfo.ScriptId, AnalysisHelper.processedTimeDId, out v))
                                         {
-                                            var chu = Math.Pow(10, dn.Precision);
-                                            var v = (decimal)(deviceData.vals.ElementAt(dn.PointerAddress - 1) / chu);
                                             deviceLibraryDetails[deviceId].ProcessTime = (v == -1 ? 0 : v).ToString();
                                         }
-
-                                        dn = dataNameDictionaries.FirstOrDefault(d => d.VariableNameId == AnalysisHelper.leftProcessTimeDId);
-                                        if (dn != null && deviceData != null && deviceData.vals.Count > dn.PointerAddress - 1)
+                                        if (AnalysisHelper.GetValue(deviceData, dataNameDictionaries, deviceInfo.ScriptId, AnalysisHelper.leftProcessTimeDId, out v))
                                         {
-                                            var chu = Math.Pow(10, dn.Precision);
-                                            var v = (decimal)(deviceData.vals.ElementAt(dn.PointerAddress - 1) / chu);
                                             deviceLibraryDetails[deviceId].LeftTime = (v == -1 ? 0 : v).ToString();
                                         }
                                     }

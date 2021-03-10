@@ -8,6 +8,7 @@ using Microsoft.EntityFrameworkCore.Internal;
 using ModelBase.Base.Logger;
 using ModelBase.Base.Utils;
 using ModelBase.Models.Control;
+using ModelBase.Models.Device;
 using ServiceStack;
 using System;
 using System.Collections.Generic;
@@ -50,7 +51,7 @@ namespace ApiManagement.Base.Helper
         /// <summary>
         /// 当前加工流程卡号
         /// </summary>
-        public static int currentFlowCardDId = 6;
+        public static int flowCardDId = 6;
         /// <summary>
         /// 流程卡号缓存 下次加工
         /// </summary>
@@ -67,6 +68,10 @@ namespace ApiManagement.Base.Helper
         /// 设定工艺 起始地址  变量名带a
         /// </summary>
         public static int actProcessDid = 65;
+        /// <summary>
+        /// 工艺 单行数据个数
+        /// </summary>
+        public static int actProcessDidCount = 6;
         /// <summary>
         /// 工艺 8行6列
         /// </summary>
@@ -91,7 +96,7 @@ namespace ApiManagement.Base.Helper
             stateDId,
             processCountDId,
             totalProcessTimeDId,
-            currentFlowCardDId,
+            flowCardDId,
             runTimeDId
         };
         private static int _dealLength = 1000;
@@ -145,7 +150,10 @@ namespace ApiManagement.Base.Helper
 
         private static void DoSth_2s(object state)
         {
+            //var t = Stopwatch.StartNew();
             Analysis();
+            //t.Stop();
+            //Console.WriteLine(t.ElapsedMilliseconds);
         }
 
         private static void DoSth_10s(object state)
@@ -508,6 +516,7 @@ namespace ApiManagement.Base.Helper
                         RedisHelper.SetForever(exceptDeviceKey, "");
                     }
                     var exceptDevicesStr = RedisHelper.Get<string>(exceptDeviceKey);
+                    //需要读取真实的流程卡的设备列表
                     var exceptDevices = new List<int>();
                     if (!exceptDevicesStr.IsNullOrEmpty())
                     {
@@ -519,39 +528,77 @@ namespace ApiManagement.Base.Helper
                     var monitoringProcesses = new List<MonitoringProcess>();
                     var flowCardProcessStep = new List<FlowCardProcessStepDetail>();
 
-                    var allDeviceList = ServerConfig.ApiDb.Query<MonitoringProcess>(
-                        "SELECT b.*, c.DeviceCategoryId, c.CategoryName, a.`Code`, a.`ScriptId` FROM `device_library` a JOIN `npc_proxy_link` b ON a.Id = b.DeviceId JOIN (SELECT a.*, b.CategoryName FROM `device_model` a JOIN `device_category` b ON a.DeviceCategoryId = b.Id) c ON a.DeviceModelId = c.Id WHERE a.MarkedDelete = 0;").ToList();
-
-                    foreach (var device in allDeviceList)
+                    //var allDeviceList = ServerConfig.ApiDb.Query<MonitoringProcess>(
+                    //    "SELECT b.*, c.DeviceCategoryId, c.CategoryName, a.`Code`, a.`ScriptId` FROM `device_library` a " +
+                    //    "JOIN `npc_proxy_link` b ON a.Id = b.DeviceId " +
+                    //    "JOIN (SELECT a.*, b.CategoryName FROM `device_model` a " +
+                    //    "JOIN `device_category` b ON a.DeviceCategoryId = b.Id) c ON a.DeviceModelId = c.Id WHERE a.MarkedDelete = 0;").ToList();
+                    var allDeviceList = new Dictionary<int, MonitoringProcess>();
+                    if (RedisHelper.Exists(deviceKey))
                     {
-                        if (!MonitoringKanBanDeviceDic.ContainsKey(device.DeviceId))
+                        allDeviceList.AddRange(ServerConfig.ApiDb.Query<MonitoringProcess>(
+                            "SELECT a.Id DeviceId, c.DeviceCategoryId, c.CategoryName, a.`Code`, a.`ScriptId` FROM `device_library` a " +
+                            "JOIN (SELECT a.*, b.CategoryName FROM `device_model` a " +
+                            "JOIN `device_category` b ON a.DeviceCategoryId = b.Id) c ON a.DeviceModelId = c.Id WHERE a.MarkedDelete = 0;").ToDictionary(x => x.DeviceId));
+
+                        var redisDeviceList = RedisHelper.Get<IEnumerable<MonitoringProcess>>(deviceKey);
+                        if (redisDeviceList != null)
                         {
-                            MonitoringKanBanDeviceDic.Add(device.DeviceId, new MonitoringKanBanDevice
+                            foreach (var redisDevice in redisDeviceList)
+                            {
+                                var deviceId = redisDevice.DeviceId;
+                                //var dev = allDeviceList.FirstOrDefault(x => x.DeviceId == deviceId);
+                                if (allDeviceList.ContainsKey(deviceId))
+                                {
+                                    var device = allDeviceList[deviceId];
+                                    redisDevice.DeviceCategoryId = device.DeviceCategoryId;
+                                    redisDevice.CategoryName = device.CategoryName;
+                                    redisDevice.Code = device.Code;
+                                    redisDevice.ScriptId = device.ScriptId;
+                                    allDeviceList[deviceId] = redisDevice;
+                                }
+                            }
+                        }
+                    }
+                    else
+                    {
+                        allDeviceList.AddRange(ServerConfig.ApiDb.Query<MonitoringProcess>(
+                            "SELECT b.*, c.DeviceCategoryId, c.CategoryName, a.`Code`, a.`ScriptId` FROM `device_library` a " +
+                            "JOIN `npc_proxy_link` b ON a.Id = b.DeviceId " +
+                            "JOIN (SELECT a.*, b.CategoryName FROM `device_model` a " +
+                            "JOIN `device_category` b ON a.DeviceCategoryId = b.Id) c ON a.DeviceModelId = c.Id WHERE a.MarkedDelete = 0;").ToDictionary(x => x.DeviceId));
+                    }
+
+                    MonitoringKanBanDeviceDic = MonitoringKanBanDeviceDic.Where(x => allDeviceList.ContainsKey(x.Key)).ToDictionary(y => y.Key, y => y.Value);
+                    foreach (var (deviceId, device) in allDeviceList)
+                    {
+                        if (!MonitoringKanBanDeviceDic.ContainsKey(deviceId))
+                        {
+                            MonitoringKanBanDeviceDic.Add(deviceId, new MonitoringKanBanDevice
                             {
                                 Time = now,
                                 Code = device.Code,
-                                DeviceId = device.DeviceId,
+                                DeviceId = deviceId,
                                 AllDevice = 1
                             });
                         }
                         else
                         {
-                            MonitoringKanBanDeviceDic[device.DeviceId].Code = device.Code;
+                            MonitoringKanBanDeviceDic[deviceId].Code = device.Code;
                         }
+                        MonitoringKanBanDeviceDic[deviceId].FaultDevice = 0;
                     }
 
-                    var removeDeviceId =
-                        MonitoringKanBanDeviceDic.Keys.Where(deviceId =>
-                            allDeviceList.All(x => x.DeviceId != deviceId)).ToList();
-                    foreach (var deviceId in removeDeviceId)
-                    {
-                        MonitoringKanBanDeviceDic.Remove(deviceId);
-                    }
+                    //var removeDeviceId = MonitoringKanBanDeviceDic.Keys.Where(deviceId => !allDeviceList.ContainsKey(deviceId)).ToList();
+                    //foreach (var deviceId in removeDeviceId)
+                    //{
+                    //    MonitoringKanBanDeviceDic.Remove(deviceId);
+                    //}
 
-                    foreach (var key in MonitoringKanBanDeviceDic.Keys)
-                    {
-                        MonitoringKanBanDeviceDic[key].FaultDevice = 0;
-                    }
+                    //foreach (var key in MonitoringKanBanDeviceDic.Keys)
+                    //{
+                    //    MonitoringKanBanDeviceDic[key].FaultDevice = 0;
+                    //}
 
                     var startId = RedisHelper.Get<int>(idKey);
                     var mData = ServerConfig.ApiDb.Query<MonitoringData>(
@@ -584,34 +631,19 @@ namespace ApiManagement.Base.Helper
                             }
                         }
 
-                        mData = mData.OrderBy(x => x.SendTime);
+                        mData = mData.OrderBy(x => x.SendTime).ToList();
                         var endId = mData.Last().Id;
                         if (endId > startId)
                         {
                             #region  加工记录
                             var existDeviceId = mData.GroupBy(x => x.DeviceId).Select(y => y.Key);
-                            var deviceList = allDeviceList.Where(x => existDeviceId.Any(y => y == x.DeviceId)).ToDictionary(x => x.DeviceId, x => (MonitoringProcess)x.Clone());
-                            if (RedisHelper.Exists(deviceKey))
-                            {
-                                var redisDeviceList = RedisHelper.Get<IEnumerable<RedisMonitoringProcess>>(deviceKey);
-                                if (redisDeviceList != null)
-                                {
-                                    foreach (var device in redisDeviceList)
-                                    {
-                                        if (deviceList.ContainsKey(device.DeviceId))
-                                        {
-                                            deviceList[device.DeviceId].State = device.State;
-                                            deviceList[device.DeviceId].Time = device.Time;
-                                        }
-                                    }
-                                }
-                            }
-
+                            var deviceList = allDeviceList.Where(x => existDeviceId.Any(y => y == x.Key)).ToDictionary(y => y.Key, y => (MonitoringProcess)y.Value);
                             if (deviceList.Any())
                             {
                                 var scriptIds = mData.GroupBy(x => x.ScriptId).Select(x => x.Key).ToList();
                                 scriptIds.Add(0);
-                                IEnumerable<UsuallyDictionary> usuallyDictionaries = null;
+                                //IEnumerable<UsuallyDictionary> usuallyDictionaries = null;
+                                IEnumerable<DataNameDictionaryDetail> dataNameDictionaries = null;
                                 if (scriptIds.Any())
                                 {
                                     //usuallyDictionaries = ServerConfig.ApiDb.Query<UsuallyDictionary>(
@@ -621,29 +653,33 @@ namespace ApiManagement.Base.Helper
                                     //        ScriptId = scriptIds,
                                     //        VariableNameId = VariableNameIdList,
                                     //    });
-                                    usuallyDictionaries = UsuallyDictionaryHelper.GetUsuallyDictionaries(scriptIds, VariableNameIdList);
+                                    dataNameDictionaries = scriptIds.Any() ? DataNameDictionaryHelper.GetDataNameDictionaryDetails(scriptIds) : new List<DataNameDictionaryDetail>();
+                                    //usuallyDictionaries = UsuallyDictionaryHelper.GetUsuallyDictionaries(scriptIds, VariableNameIdList);
                                 }
 
-                                if (usuallyDictionaries == null || !usuallyDictionaries.Any() || !VariableNameIdList.All(x => usuallyDictionaries.Any(y => y.VariableNameId == x)))
+                                if (dataNameDictionaries == null
+                                   || !dataNameDictionaries.Any()
+                                   || !VariableNameIdList.All(x => dataNameDictionaries.Any(y => y.VariableNameId == x)))
                                 {
-                                    Log.Error($"缺少变量配置:{VariableNameIdList.Where(x => usuallyDictionaries.All(y => y.VariableNameId != x)).ToJSON()}");
+                                    Log.Error($"缺少变量配置:{VariableNameIdList.Where(x => dataNameDictionaries.All(y => y.VariableNameId != x)).ToJSON()}");
                                     RedisHelper.Remove(redisLock);
                                     return;
                                 }
-                                var uDies = new Dictionary<Tuple<int, int>, int>();
-                                foreach (var variableNameId in VariableNameIdList)
-                                {
-                                    foreach (var script in scriptIds.Where(x => x != 0))
-                                    {
-                                        var udd = usuallyDictionaries.FirstOrDefault(x =>
-                                            x.ScriptId == script && x.VariableNameId == variableNameId);
-                                        var address =
-                                            udd?.DictionaryId ?? usuallyDictionaries.First(x =>
-                                               x.ScriptId == 0 && x.VariableNameId == variableNameId).DictionaryId;
+                                //var uDies = new Dictionary<Tuple<int, int>, int>();
+                                //uDies.AddRange(usuallyDictionaries.ToDictionary(x => new Tuple<int, int>(x.ScriptId, x.VariableNameId), x => x.DictionaryId));
+                                //foreach (var variableNameId in VariableNameIdList)
+                                //{
+                                //    foreach (var script in scriptIds.Where(x => x != 0))
+                                //    {
+                                //        var udd = usuallyDictionaries.FirstOrDefault(x =>
+                                //            x.ScriptId == script && x.VariableNameId == variableNameId);
+                                //        var address =
+                                //            udd?.DictionaryId ?? usuallyDictionaries.First(x =>
+                                //               x.ScriptId == 0 && x.VariableNameId == variableNameId).DictionaryId;
 
-                                        uDies.Add(new Tuple<int, int>(script, variableNameId), address);
-                                    }
-                                }
+                                //        uDies.Add(new Tuple<int, int>(script, variableNameId), address);
+                                //    }
+                                //}
                                 var firstNotInSameDay = false;
                                 foreach (var data in mData)
                                 {
@@ -652,12 +688,12 @@ namespace ApiManagement.Base.Helper
                                         continue;
                                     }
 
+                                    var deviceId = data.DeviceId;
                                     var time = data.SendTime.NoMillisecond();
                                     var containsDevice = MonitoringKanBanDeviceDic.ContainsKey(data.DeviceId);
                                     var sameDayDevice = containsDevice && deviceList[data.DeviceId].Time.InSameDay(time);
                                     if (!deviceList[data.DeviceId].Time.InSameDay(time))
                                     {
-                                        deviceList[data.DeviceId].Time = time;
                                         var monitoringProcess = new MonitoringProcess
                                         {
                                             Time = deviceList[data.DeviceId].Time,
@@ -669,17 +705,18 @@ namespace ApiManagement.Base.Helper
                                             TotalProcessTime = deviceList[data.DeviceId].TotalProcessTime,
                                             RunTime = deviceList[data.DeviceId].RunTime,
                                             TotalRunTime = deviceList[data.DeviceId].TotalRunTime,
-                                            Use = allDeviceList.Count(x => Math.Abs((x.Time - time).TotalMinutes) <= 3 && x.State == 1),
+                                            Use = allDeviceList.Values.Count(x => Math.Abs((x.Time - time).TotalMinutes) <= 3 && x.State == 1),
                                             Total = allDeviceList.Count(),
                                         };
 
+                                        deviceList[data.DeviceId].Time = time;
                                         monitoringProcess.Rate = (decimal)monitoringProcess.Use * 100 / monitoringProcess.Total;
                                         monitoringProcesses.Add(monitoringProcess);
 
                                         if (!firstNotInSameDay)
                                         {
                                             firstNotInSameDay = true;
-                                            UpdateKanBan(allDeviceList, deviceList[data.DeviceId].Time, true);
+                                            UpdateKanBan(allDeviceList.Values, deviceList[data.DeviceId].Time, true);
                                             monitoringKanBanDeviceList.AddRange(MonitoringKanBanDeviceDic.Values);
                                             monitoringKanBanList.AddRange(MonitoringKanBanDic.Values);
                                         }
@@ -716,38 +753,86 @@ namespace ApiManagement.Base.Helper
                                     if (analysisData != null)
                                     {
                                         MonitoringKanBanDeviceDic[data.DeviceId].AnalysisData = analysisData;
-                                        var uKey = new Tuple<int, int>(data.ScriptId, currentFlowCardDId);
-                                        if (!uDies.ContainsKey(uKey))
+                                        var lastProcessType = deviceList[data.DeviceId].ProcessType;
+                                        var thisProcessType = ProcessType.Default;
+
+                                        //洗盘按钮
+                                        if (GetValue(analysisData, dataNameDictionaries, data.ScriptId, washFlagDId, out var v))
                                         {
-                                            continue;
+                                            if (v > 0)
+                                            {
+                                                thisProcessType = ProcessType.Wash;
+                                            }
+                                        }
+                                        //修盘按钮
+                                        if (GetValue(analysisData, dataNameDictionaries, data.ScriptId, repairFlagDId, out v))
+                                        {
+                                            if (v > 0)
+                                            {
+                                                thisProcessType = ProcessType.Repair;
+                                            }
+                                        }
+                                        //加工工艺按钮
+                                        if (GetValue(analysisData, dataNameDictionaries, data.ScriptId, processFlagDId, out v))
+                                        {
+                                            if (v > 0)
+                                            {
+                                                thisProcessType = ProcessType.Process;
+                                            }
                                         }
 
-                                        var actAddress = uDies[uKey] - 1;
                                         var currentFlowCardId = 0;
                                         var currentFlowCard = "";
-                                        FlowCardProcessStepDetail flowCardProcessStepDetail = null;
-                                        if (actAddress >= 0 && analysisData.vals.Count > actAddress)
+                                        //流程卡
+                                        if (!exceptDevices.Contains(data.DeviceId))
                                         {
-                                            currentFlowCardId = analysisData.vals[actAddress];
-                                            currentFlowCard = currentFlowCardId.ToString();
+                                            currentFlowCardId = 0;
+                                        }
+                                        else
+                                        {
+                                            if (GetValue(analysisData, dataNameDictionaries, data.ScriptId, flowCardDId, out v))
+                                            {
+                                                currentFlowCardId = (int)v;
+                                                currentFlowCard = currentFlowCardId.ToString();
+                                            }
                                         }
 
-                                        var lastProcessType = deviceList[data.DeviceId].ProcessType;
-                                        //状态
-                                        actAddress = uDies[new Tuple<int, int>(data.ScriptId, stateDId)] - 1;
-                                        if (actAddress >= 0 && analysisData.vals.Count > actAddress)
+                                        //当前工艺数据
+                                        var processData = new Dictionary<int, decimal[]>();
+                                        for (var i = 0; i < processCnt; i++)
                                         {
-                                            var v = analysisData.vals[actAddress];
-                                            //开始加工
-                                            var bStart = deviceList[data.DeviceId].State == 0 && v > 0;
-                                            //停止加工
-                                            var bEnd = deviceList[data.DeviceId].State == 1 && v == 0;
-                                            if (currentFlowCardId != 0)
+                                            if (GetValue(analysisData, dataNameDictionaries, data.ScriptId, actProcessDid + i, out v))
                                             {
-                                                if (bStart || bEnd)
+                                                currentFlowCard = currentFlowCardId.ToString();
+                                            }
+
+                                            var key = i / actProcessDidCount + 1;
+                                            if (!processData.ContainsKey(key))
+                                            {
+                                                processData.Add(key, new decimal[actProcessDidCount]);
+                                            }
+
+                                            var index = i % 6;
+                                            processData[key][index] = v;
+                                        }
+
+                                        //状态
+                                        if (GetValue(analysisData, dataNameDictionaries, data.ScriptId, stateDId, out var stateValue))
+                                        {
+                                            FlowCardProcessStepDetail flowCardProcessStepDetail = null;
+                                            //开始加工时
+                                            var bStart = deviceList[data.DeviceId].State == 0 && stateValue > 0;
+                                            //停止加工时
+                                            var bEnd = deviceList[data.DeviceId].State == 1 && stateValue == 0;
+                                            //持续使用时
+                                            var bUsing = deviceList[data.DeviceId].State == 1 && stateValue > 0;
+                                            if (bUsing)
+                                            {
+                                                if (lastProcessType != thisProcessType)
                                                 {
                                                     if (lastProcessType == ProcessType.Wash)
                                                     {
+
 
                                                     }
                                                     else if (lastProcessType == ProcessType.Wash)
@@ -756,98 +841,40 @@ namespace ApiManagement.Base.Helper
                                                     }
                                                     else
                                                     {
-                                                        var flowCard = ServerConfig.ApiDb.Query<FlowCard>("SELECT Id, FlowCardName FROM `flowcard_library` WHERE Id = @currentFlowCardId;",
-                                                                new { currentFlowCardId }).FirstOrDefault();
-
-                                                        if (flowCard != null)
+                                                        ServerConfig.ApiDb.Execute(
+                                                        "INSERT INTO `npc_monitoring_process_log` (`DeviceId`, `StartTime`, `FlowCardId`, `FlowCard`, `ProcessorId`, `ProcessData`, `RequirementMid`) " +
+                                                        "VALUES(@DeviceId, @StartTime, @FlowCardId, @FlowCard, @ProcessorId, @ProcessData, @RequirementMid) ON DUPLICATE KEY UPDATE `DeviceId` = @DeviceId;",
+                                                        new MonitoringProcessLog
                                                         {
-                                                            var flowCardProcessStepDetails =
-                                                                ServerConfig.ApiDb.Query<FlowCardProcessStepDetail>(
-                                                                    "SELECT a.* FROM `flowcard_process_step` a JOIN `device_process_step` b ON a.ProcessStepId = b.Id WHERE b.IsSurvey = 0 AND a.FlowCardId = @FlowCardId AND a.DeviceId = @DeviceId;",
-                                                                    new
-                                                                    {
-                                                                        FlowCardId = flowCard.Id,
-                                                                        DeviceId = data.DeviceId
-                                                                    });
-                                                            currentFlowCard = flowCard.FlowCardName;
-                                                            flowCardProcessStepDetail = flowCardProcessStepDetails.FirstOrDefault();
-                                                            if (flowCardProcessStepDetail != null)
-                                                            {
-                                                                //sql = string.Empty;
-                                                                //开始加工
-                                                                if (bStart)
-                                                                {
-                                                                    if (flowCardProcessStepDetail.ProcessTime == default(DateTime))
-                                                                    {
-                                                                        flowCardProcessStepDetail.ProcessTime = data.SendTime;
-                                                                        flowCardProcessStep.Add(flowCardProcessStepDetail);
-                                                                        //sql =
-                                                                        //    "UPDATE flowcard_process_step SET `ProcessTime` = @ProcessTime WHERE `Id` = @Id;";
-                                                                    }
-                                                                }
-
-                                                                //停止加工
-                                                                if (bEnd)
-                                                                {
-                                                                    //if (flowCardProcessStepDetail.ProcessEndTime == default(DateTime))
-                                                                    //{
-                                                                    flowCardProcessStepDetail.ProcessEndTime = data.SendTime;
-                                                                    flowCardProcessStep.Add(flowCardProcessStepDetail);
-                                                                    //sql =
-                                                                    //    "UPDATE flowcard_process_step SET `ProcessEndTime` = @ProcessEndTime WHERE `Id` = @Id;";
-                                                                    //}
-                                                                }
-
-                                                                //if (sql != string.Empty)
-                                                                //{
-                                                                //    ServerConfig.ApiDb.Execute(sql,
-                                                                //        flowCardProcessStepDetail);
-                                                                //}
-                                                            }
+                                                            DeviceId = data.DeviceId,
+                                                            StartTime = time,
+                                                            FlowCardId = currentFlowCardId,
+                                                            FlowCard = currentFlowCard,
+                                                            ProcessorId = flowCardProcessStepDetail?.ProcessorId ?? 0,
+                                                            ProcessData = processData.ToJson(),
+                                                            RequirementMid =
+                                                                flowCardProcessStepDetail?.ProcessStepRequirementMid ??
+                                                                0,
+                                                        });
+                                                        if (sameDayDevice)
+                                                        {
+                                                            MonitoringKanBanDeviceDic[data.DeviceId].ProcessDevice = 1;
                                                         }
                                                     }
+                                                    //if (sameDayDevice)
+                                                    //{
+                                                    //    MonitoringKanBanDeviceDic[data.DeviceId].NormalDevice = 1;
+                                                    //}
                                                 }
 
-                                                //else if (deviceList[data.DeviceId].State == v && currentFlowCardId != 0)
-                                                //{
-                                                //    deviceList[data.DeviceId].FlowCardId = currentFlowCardId;
-                                                //}
-                                                deviceList[data.DeviceId].FlowCardId = currentFlowCardId;
-                                                if (MonitoringKanBanDeviceDic.ContainsKey(data.DeviceId))
-                                                {
-                                                    MonitoringKanBanDeviceDic[data.DeviceId].ProcessDevice =
-                                                        v > 0 ? 1 : 0;
-                                                }
                                             }
-
-                                            var processData = new Dictionary<int, int[]>();
-                                            ;
-                                            var pActAddress = uDies[new Tuple<int, int>(data.ScriptId, actProcessDid + processCnt - 1)] - 1;
-                                            if (analysisData.vals.Count >= pActAddress)
+                                            else
                                             {
-                                                for (var i = 0; i < processCnt; i++)
-                                                {
-                                                    pActAddress = uDies[new Tuple<int, int>(data.ScriptId, actProcessDid + i)] - 1;
-                                                    var pv = analysisData.vals[pActAddress];
 
-                                                    var key = i / 6 + 1;
-                                                    if (!processData.ContainsKey(key))
-                                                    {
-                                                        processData.Add(key, new int[6]);
-                                                    }
-
-                                                    var index = i % 6;
-                                                    processData[key][index] = pv;
-                                                }
                                             }
 
-                                            if (!exceptDevices.Contains(data.DeviceId))
-                                            {
-                                                currentFlowCardId = 0;
-                                            }
-
-                                            //开始加工
-                                            if (bStart)
+                                            //出现开始加工或者停止加工
+                                            if (bStart || bEnd)
                                             {
                                                 if (lastProcessType == ProcessType.Wash)
                                                 {
@@ -859,26 +886,119 @@ namespace ApiManagement.Base.Helper
                                                 }
                                                 else
                                                 {
-                                                    ServerConfig.ApiDb.Execute(
-                                                    "INSERT INTO `npc_monitoring_process_log` (`DeviceId`, `StartTime`, `FlowCardId`, `FlowCard`, `ProcessorId`, `ProcessData`, `RequirementMid`) " +
-                                                    "VALUES(@DeviceId, @StartTime, @FlowCardId, @FlowCard, @ProcessorId, @ProcessData, @RequirementMid) ON DUPLICATE KEY UPDATE `DeviceId` = @DeviceId;",
-                                                    new MonitoringProcessLog
-                                                    {
-                                                        DeviceId = data.DeviceId,
-                                                        StartTime = time,
-                                                        FlowCardId = currentFlowCardId,
-                                                        FlowCard = currentFlowCard,
-                                                        ProcessorId = flowCardProcessStepDetail?.ProcessorId ?? 0,
-                                                        ProcessData = processData.ToJson(),
-                                                        RequirementMid =
-                                                            flowCardProcessStepDetail?.ProcessStepRequirementMid ??
-                                                            0,
-                                                    });
+                                                    #region 更新流程卡工序
 
-                                                if (sameDayDevice)
-                                                {
-                                                    MonitoringKanBanDeviceDic[data.DeviceId].ProcessDevice = 1;
+                                                    if (currentFlowCardId != 0)
+                                                    {
+                                                        //else if (deviceList[data.DeviceId].State == v && currentFlowCardId != 0)
+                                                        //{
+                                                        //    deviceList[data.DeviceId].FlowCardId = currentFlowCardId;
+                                                        //}
+                                                        deviceList[data.DeviceId].FlowCardId = currentFlowCardId;
+                                                        if (MonitoringKanBanDeviceDic.ContainsKey(data.DeviceId))
+                                                        {
+                                                            MonitoringKanBanDeviceDic[data.DeviceId].ProcessDevice =
+                                                                v > 0 ? 1 : 0;
+                                                        }
+                                                    }
+                                                    var flowCard = ServerConfig.ApiDb.Query<FlowCard>("SELECT Id, FlowCardName FROM `flowcard_library` WHERE Id = @currentFlowCardId;",
+                                                            new { currentFlowCardId }).FirstOrDefault();
+
+                                                    if (flowCard != null)
+                                                    {
+                                                        var flowCardProcessStepDetails =
+                                                            ServerConfig.ApiDb.Query<FlowCardProcessStepDetail>(
+                                                                "SELECT a.* FROM `flowcard_process_step` a JOIN `device_process_step` b ON a.ProcessStepId = b.Id WHERE b.IsSurvey = 0 AND a.FlowCardId = @FlowCardId AND a.DeviceId = @DeviceId;",
+                                                                new
+                                                                {
+                                                                    FlowCardId = flowCard.Id,
+                                                                    DeviceId = data.DeviceId
+                                                                });
+                                                        currentFlowCard = flowCard.FlowCardName;
+                                                        flowCardProcessStepDetail = flowCardProcessStepDetails.FirstOrDefault();
+                                                        if (flowCardProcessStepDetail != null)
+                                                        {
+                                                            //sql = string.Empty;
+                                                            //开始加工
+                                                            if (bStart)
+                                                            {
+                                                                if (flowCardProcessStepDetail.ProcessTime == default(DateTime))
+                                                                {
+                                                                    flowCardProcessStepDetail.ProcessTime = data.SendTime;
+                                                                    flowCardProcessStep.Add(flowCardProcessStepDetail);
+                                                                    //sql =
+                                                                    //    "UPDATE flowcard_process_step SET `ProcessTime` = @ProcessTime WHERE `Id` = @Id;";
+                                                                }
+                                                            }
+
+                                                            //停止加工
+                                                            if (bEnd)
+                                                            {
+                                                                //if (flowCardProcessStepDetail.ProcessEndTime == default(DateTime))
+                                                                //{
+                                                                flowCardProcessStepDetail.ProcessEndTime = data.SendTime;
+                                                                flowCardProcessStep.Add(flowCardProcessStepDetail);
+                                                                //sql =
+                                                                //    "UPDATE flowcard_process_step SET `ProcessEndTime` = @ProcessEndTime WHERE `Id` = @Id;";
+                                                                //}
+                                                            }
+
+                                                            //if (sql != string.Empty)
+                                                            //{
+                                                            //    ServerConfig.ApiDb.Execute(sql,
+                                                            //        flowCardProcessStepDetail);
+                                                            //}
+                                                        }
+                                                    }
+
+
+
+                                                    #endregion
                                                 }
+                                            }
+
+                                            //开始加工
+                                            if (bStart)
+                                            {
+                                                if (lastProcessType != thisProcessType)
+                                                {
+                                                    if (lastProcessType == ProcessType.Wash)
+                                                    {
+
+
+                                                    }
+                                                    else if (lastProcessType == ProcessType.Wash)
+                                                    {
+
+                                                    }
+                                                    else
+                                                    {
+                                                        ServerConfig.ApiDb.Execute(
+                                                        "INSERT INTO `npc_monitoring_process_log` (`DeviceId`, `StartTime`, `FlowCardId`, `FlowCard`, `ProcessorId`, `ProcessData`, `RequirementMid`) " +
+                                                        "VALUES(@DeviceId, @StartTime, @FlowCardId, @FlowCard, @ProcessorId, @ProcessData, @RequirementMid) ON DUPLICATE KEY UPDATE `DeviceId` = @DeviceId;",
+                                                        new MonitoringProcessLog
+                                                        {
+                                                            DeviceId = data.DeviceId,
+                                                            StartTime = time,
+                                                            FlowCardId = currentFlowCardId,
+                                                            FlowCard = currentFlowCard,
+                                                            ProcessorId = flowCardProcessStepDetail?.ProcessorId ?? 0,
+                                                            ProcessData = processData.ToJson(),
+                                                            RequirementMid =
+                                                                flowCardProcessStepDetail?.ProcessStepRequirementMid ??
+                                                                0,
+                                                        });
+                                                        if (sameDayDevice)
+                                                        {
+                                                            MonitoringKanBanDeviceDic[data.DeviceId].ProcessDevice = 1;
+                                                        }
+                                                    }
+                                                    //if (sameDayDevice)
+                                                    //{
+                                                    //    MonitoringKanBanDeviceDic[data.DeviceId].NormalDevice = 1;
+                                                    //}
+                                                }
+
                                             }
 
                                             //停止加工
@@ -897,34 +1017,24 @@ namespace ApiManagement.Base.Helper
                                                 }
                                             }
 
-                                            if (v > 0)
+                                            //值大于0为使用中
+                                            if (stateValue > 0)
                                             {
-                                                if (!MonitoringKanBanDeviceDic[data.DeviceId].UseList
-                                                    .Contains(data.DeviceId))
+                                                if (!MonitoringKanBanDeviceDic[data.DeviceId].UseList.Contains(data.DeviceId))
                                                 {
-                                                    MonitoringKanBanDeviceDic[data.DeviceId].UseList
-                                                        .Add(data.DeviceId);
+                                                    MonitoringKanBanDeviceDic[data.DeviceId].UseList.Add(data.DeviceId);
                                                 }
 
-                                                if (!MonitoringKanBanDeviceDic[data.DeviceId].MaxUseList
-                                                    .Contains(data.DeviceId))
+                                                if (!MonitoringKanBanDeviceDic[data.DeviceId].MaxUseList.Contains(data.DeviceId))
                                                 {
-                                                    MonitoringKanBanDeviceDic[data.DeviceId].MaxUseList
-                                                        .Add(data.DeviceId);
+                                                    MonitoringKanBanDeviceDic[data.DeviceId].MaxUseList.Add(data.DeviceId);
                                                 }
 
                                                 MonitoringKanBanDeviceDic[data.DeviceId].ProcessDevice = 1;
                                             }
-
-                                            if (v == 0)
+                                            else
                                             {
-                                                if (MonitoringKanBanDeviceDic[data.DeviceId].UseList
-                                                    .Contains(data.DeviceId))
-                                                {
-                                                    MonitoringKanBanDeviceDic[data.DeviceId].UseList
-                                                        .Remove(data.DeviceId);
-                                                }
-
+                                                MonitoringKanBanDeviceDic[data.DeviceId].UseList.RemoveAll(x => x == data.DeviceId);
                                                 MonitoringKanBanDeviceDic[data.DeviceId].ProcessDevice = 0;
                                             }
 
@@ -932,52 +1042,44 @@ namespace ApiManagement.Base.Helper
                                         }
 
                                         //总加工次数
-                                        actAddress = uDies[new Tuple<int, int>(data.ScriptId, processCountDId)] - 1;
-                                        if (actAddress >= 0 && analysisData.vals.Count > actAddress)
+                                        if (GetValue(analysisData, dataNameDictionaries, data.ScriptId, processCountDId, out var totalProcessCount))
                                         {
-                                            var totalProcessCount = analysisData.vals[actAddress];
                                             if (deviceList[data.DeviceId].TotalProcessCount < totalProcessCount)
                                             {
                                                 deviceList[data.DeviceId].ProcessCount +=
-                                                    totalProcessCount - deviceList[data.DeviceId].TotalProcessCount;
+                                                    (int)totalProcessCount - deviceList[data.DeviceId].TotalProcessCount;
                                             }
 
-                                            deviceList[data.DeviceId].TotalProcessCount = totalProcessCount;
+                                            deviceList[data.DeviceId].TotalProcessCount = (int)totalProcessCount;
                                         }
 
                                         //总加工时间
-                                        actAddress = uDies[new Tuple<int, int>(data.ScriptId, totalProcessTimeDId)] - 1;
-                                        if (actAddress >= 0 && analysisData.vals.Count > actAddress)
+                                        if (GetValue(analysisData, dataNameDictionaries, data.ScriptId, totalProcessTimeDId, out var totalProcessTime))
                                         {
-                                            var totalProcessTime = analysisData.vals[actAddress];
                                             if (deviceList[data.DeviceId].TotalProcessTime < totalProcessTime)
                                             {
                                                 deviceList[data.DeviceId].ProcessTime +=
-                                                    totalProcessTime - deviceList[data.DeviceId].TotalProcessTime;
+                                                    (int)totalProcessTime - deviceList[data.DeviceId].TotalProcessTime;
                                             }
-
-                                            deviceList[data.DeviceId].TotalProcessTime = totalProcessTime;
+                                            deviceList[data.DeviceId].TotalProcessTime = (int)totalProcessTime;
                                         }
 
                                         //总运行时间
-                                        actAddress = uDies[new Tuple<int, int>(data.ScriptId, runTimeDId)] - 1;
-                                        if (actAddress >= 0 && analysisData.vals.Count > actAddress)
+                                        if (GetValue(analysisData, dataNameDictionaries, data.ScriptId, runTimeDId, out var totalRunTime))
                                         {
-                                            var totalRunTime = analysisData.vals[actAddress];
                                             if (deviceList[data.DeviceId].TotalRunTime < totalRunTime)
                                             {
                                                 deviceList[data.DeviceId].RunTime +=
-                                                    totalRunTime - deviceList[data.DeviceId].TotalRunTime;
+                                                    (int)totalRunTime - deviceList[data.DeviceId].TotalRunTime;
                                             }
-
-                                            deviceList[data.DeviceId].TotalRunTime = totalRunTime;
+                                            deviceList[data.DeviceId].TotalRunTime = (int)totalRunTime;
                                         }
 
                                         var rate = MonitoringKanBanDeviceDic[data.DeviceId].SingleProcessRate
                                             .FirstOrDefault(x => x.Id == data.DeviceId);
-                                        var device = allDeviceList.FirstOrDefault(x => x.DeviceId == data.DeviceId);
-                                        if (device != null)
+                                        if (allDeviceList.ContainsKey(data.DeviceId))
                                         {
+                                            var device = allDeviceList[data.DeviceId];
                                             var ProcessTime =
                                                 device.Time.InSameDay(MonitoringKanBanDeviceDic[data.DeviceId].Time)
                                                     ? device.ProcessTime
@@ -1012,7 +1114,7 @@ namespace ApiManagement.Base.Helper
                                             TotalProcessTime = deviceList[data.DeviceId].TotalProcessTime,
                                             RunTime = deviceList[data.DeviceId].RunTime,
                                             TotalRunTime = deviceList[data.DeviceId].TotalRunTime,
-                                            Use = allDeviceList.Count(x =>
+                                            Use = allDeviceList.Values.Count(x =>
                                                 Math.Abs((x.Time - time).TotalMinutes) <= 3 && x.State == 1),
                                             Total = allDeviceList.Count(),
                                         };
@@ -1025,14 +1127,6 @@ namespace ApiManagement.Base.Helper
                             }
                             #endregion
 
-                            RedisHelper.SetForever(deviceKey, deviceList.Values.Select(x => new
-                            {
-                                x.DeviceId,
-                                x.State,
-                                x.Time,
-                                TimeStr = x.Time.ToStr()
-                            }));
-
                             if (flowCardProcessStep.Any())
                             {
                                 ServerConfig.ApiDb.Execute("UPDATE flowcard_process_step SET " +
@@ -1040,16 +1134,32 @@ namespace ApiManagement.Base.Helper
                                                            "`ProcessEndTime` = IF(@ProcessEndTime = '0001-01-01 00:00:00', `ProcessEndTime`, @ProcessEndTime)`" +
                                                            " WHERE `Id` = @Id;", flowCardProcessStep);
                             }
-                            var updateDeviceList = deviceList.Values.Where(x =>
-                                allDeviceList.Any(y => y.DeviceId == x.DeviceId) &&
-                                x.HaveChange(allDeviceList.First(y => y.DeviceId == x.DeviceId)));
-                            if (updateDeviceList.Any())
+                            if (deviceList.Any())
                             {
-                                ServerConfig.ApiDb.Execute(
-                                "UPDATE npc_proxy_link SET `Time` = @Time, `State` = @State, `ProcessCount` = @ProcessCount, `TotalProcessCount` = @TotalProcessCount, " +
-                                "`ProcessTime` = @ProcessTime, `TotalProcessTime` = @TotalProcessTime, `RunTime` = @RunTime, `TotalRunTime` = @TotalRunTime WHERE `DeviceId` = @DeviceId;",
-                                    updateDeviceList);
+                                Task.Run(() =>
+                                {
+                                    ServerConfig.ApiDb.Execute(
+                                        "UPDATE npc_proxy_link SET `Time` = @Time, `State` = @State, `ProcessCount` = @ProcessCount, `TotalProcessCount` = @TotalProcessCount, " +
+                                        "`ProcessTime` = @ProcessTime, `TotalProcessTime` = @TotalProcessTime, `RunTime` = @RunTime, `TotalRunTime` = @TotalRunTime WHERE `DeviceId` = @DeviceId;",
+                                        deviceList.Values);
+                                });
                             }
+
+                            //RedisHelper.SetForever(deviceKey, deviceList.Values.Select(x => new
+                            RedisHelper.SetForever(deviceKey, allDeviceList.Values.OrderBy(x => x.DeviceId).Select(x => new
+                            {
+                                x.Time,
+                                TimeStr = x.Time.ToStr(),
+                                x.Code,
+                                x.DeviceId,
+                                x.ProcessCount,
+                                x.TotalProcessCount,
+                                x.ProcessTime,
+                                x.TotalProcessTime,
+                                x.RunTime,
+                                x.TotalRunTime,
+                            }));
+
                             RedisHelper.SetForever(idKey, endId);
                         }
 
@@ -1065,7 +1175,7 @@ namespace ApiManagement.Base.Helper
 
                     foreach (var param in paramDic)
                     {
-                        var devices = allDeviceList.Where(x => x.CategoryName.Contains(param.Key));
+                        var devices = allDeviceList.Values.Where(x => x.CategoryName.Contains(param.Key));
                         if (devices.Any())
                         {
                             var category = param.Value;
@@ -1092,7 +1202,7 @@ namespace ApiManagement.Base.Helper
                         }
                     }
 
-                    UpdateKanBan(allDeviceList, kanBanTime, mData.Any());
+                    UpdateKanBan(allDeviceList.Values, kanBanTime, mData.Any());
                     monitoringKanBanDeviceList.AddRange(MonitoringKanBanDeviceDic.Values);
                     monitoringKanBanList.AddRange(MonitoringKanBanDic.Values);
 
@@ -1105,6 +1215,30 @@ namespace ApiManagement.Base.Helper
                 }
                 RedisHelper.Remove(redisLock);
             }
+        }
+
+        public static bool GetValue(DeviceData deviceData, IEnumerable<DataNameDictionaryDetail> dataNameDictionaries, int scriptId, int dId, out decimal v)
+        {
+            var dn = dataNameDictionaries.FirstOrDefault(d => d.ScriptId == scriptId && d.VariableNameId == dId);
+            if (deviceData == null && dn != null)
+            {
+                List<int> bl = null;
+                switch (dn.VariableTypeId)
+                {
+                    case 1: bl = deviceData.vals; break;
+                    case 2: bl = deviceData.ins; break;
+                    case 3: bl = deviceData.outs; break;
+                }
+
+                if (bl != null && dn.PointerAddress > 0 && bl.Count > dn.PointerAddress - 1)
+                {
+                    var chu = Math.Pow(10, dn.Precision);
+                    v = (decimal)(bl.ElementAt(dn.PointerAddress - 1) / chu);
+                }
+            }
+
+            v = 0;
+            return false;
         }
 
         private static void InsertAnalysis(IEnumerable<MonitoringProcess> monitoringProcesses, IEnumerable<MonitoringKanBan> monitoringKanBanList, IEnumerable<MonitoringKanBanDevice> monitoringKanBanDeviceList)
@@ -1306,7 +1440,7 @@ namespace ApiManagement.Base.Helper
                                     var dn = dataNameDictionaries.FirstOrDefault(d =>
                                         d.VariableTypeId == x.VariableTypeId && d.PointerAddress == x.PointerAddress);
 
-                                    if (dn == null || (dn.VariableTypeId == 1 && (dn.VariableNameId == stateDId || dn.VariableNameId == currentFlowCardDId)))
+                                    if (dn == null || (dn.VariableTypeId == 1 && (dn.VariableNameId == stateDId || dn.VariableNameId == flowCardDId)))
                                     {
                                         continue;
                                     }
