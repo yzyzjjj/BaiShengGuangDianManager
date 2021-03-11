@@ -4,14 +4,17 @@ using Microsoft.Extensions.Configuration;
 using ModelBase.Base.Dapper;
 using ModelBase.Base.Logger;
 using ModelBase.Base.Utils;
+using ModelBase.Models.Server;
 using System;
 using System.Collections.Generic;
+using System.Linq;
 
 namespace ApiManagement.Base.Server
 {
     public class ServerConfig
     {
         public static DataBase ApiDb;
+        public static DataBase DataReadDb;
         public static string GateUrl;
         public static string ErpUrl;
         public static string IsSetProcessDataKey = "IsSetProcessDataKey";
@@ -19,6 +22,17 @@ namespace ApiManagement.Base.Server
         public static void Init(IConfiguration configuration)
         {
             ApiDb = new DataBase(configuration.GetConnectionString("ApiDb"));
+            Loads = new Dictionary<string, Action>
+            {
+                //{PermissionHelper.TableName, PermissionHelper.LoadConfig},
+                {"ReadDB", LoadDateBase},
+            };
+
+            foreach (var action in Loads.Values)
+            {
+                action();
+            }
+
             GateUrl = configuration.GetAppSettings<string>("GateUrl");
             ErpUrl = configuration.GetAppSettings<string>("ErpUrl");
             GlobalConfig.LoadGlobalConfig();
@@ -31,15 +45,6 @@ namespace ApiManagement.Base.Server
             SimulateHelper.Init();
             HScheduleHelper.Init();
             TimerHelper.Init();
-            Loads = new Dictionary<string, Action>
-            {
-                //{PermissionHelper.TableName, PermissionHelper.LoadConfig},
-            };
-
-            foreach (var action in Loads.Values)
-            {
-                action();
-            }
             if (!RedisHelper.Exists(IsSetProcessDataKey))
             {
                 RedisHelper.SetForever(IsSetProcessDataKey, 1);
@@ -68,6 +73,18 @@ namespace ApiManagement.Base.Server
                     Loads[tableName]();
                 }
             }
+        }
+
+        private static void LoadDateBase()
+        {
+            var dbs = ApiDb.Query<ServerDataBase>("SELECT * FROM `management_database`;");
+            var dataRead = dbs.Where(x => x.Type == DataBaseType.Data && x.Read);
+            if (dataRead.Count() != 1)
+            {
+                throw new Exception($"LoadDateBase Read DataBase, {dataRead.Count()}!!!");
+            }
+
+            DataReadDb = new DataBase(dataRead.First().DataBase);
         }
     }
 }

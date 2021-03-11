@@ -96,7 +96,7 @@ namespace ApiManagement.Controllers.StatisticManagementController
                         tEndTime = endTime;
                     }
 
-                    var task = ServerConfig.ApiDb.QueryAsync<MonitoringAnalysis>(sql, new
+                    var task = ServerConfig.DataReadDb.QueryAsync<MonitoringAnalysis>(sql, new
                     {
                         requestBody.DeviceId,
                         startTime = tStartTime,
@@ -291,7 +291,7 @@ namespace ApiManagement.Controllers.StatisticManagementController
             //    IEnumerable<MonitoringAnalysis> data;
             //    if (requestBody.Compare == 0)
             //    {
-            //        data = ServerConfig.ApiDb.Query<MonitoringAnalysis>(sql, new
+            //        data = ServerConfig.DataReadDb.Query<MonitoringAnalysis>(sql, new
             //        {
             //            DeviceId = requestBody.DeviceId,
             //            startTime,
@@ -300,7 +300,7 @@ namespace ApiManagement.Controllers.StatisticManagementController
             //    }
             //    else
             //    {
-            //        data = ServerConfig.ApiDb.Query<MonitoringAnalysis>(sql, new
+            //        data = ServerConfig.DataReadDb.Query<MonitoringAnalysis>(sql, new
             //        {
             //            DeviceId = requestBody.DeviceId.Split(","),
             //            startTime,
@@ -419,7 +419,7 @@ namespace ApiManagement.Controllers.StatisticManagementController
                     default: return Result.GenError<Result>(Error.ParamError);
                 }
 
-                var data1 = ServerConfig.ApiDb.Query<MonitoringAnalysis>(sql, new
+                var data1 = ServerConfig.DataReadDb.Query<MonitoringAnalysis>(sql, new
                 {
                     DeviceId = requestBody.DeviceId,
                     startTime,
@@ -463,7 +463,7 @@ namespace ApiManagement.Controllers.StatisticManagementController
                     default: return Result.GenError<Result>(Error.ParamError);
                 }
 
-                var data2 = ServerConfig.ApiDb.Query<MonitoringAnalysis>(sql, new
+                var data2 = ServerConfig.DataReadDb.Query<MonitoringAnalysis>(sql, new
                 {
                     DeviceId = requestBody.DeviceId,
                     startTime,
@@ -602,15 +602,15 @@ namespace ApiManagement.Controllers.StatisticManagementController
                         tEndTime = endTime;
                     }
 
-                    var task = Task.Factory.StartNew((Action)(() =>
+                    var task = Task.Factory.StartNew(() =>
                     {
-                        data.AddRange(ServerConfig.ApiDb.Query<MonitoringAnalysis>((string)sql, (object)(new
+                        data.AddRange(ServerConfig.DataReadDb.Query<MonitoringAnalysis>(sql, new
                         {
                             requestBody.DeviceId,
                             startTime,
                             endTime
-                        }), (int?)60));
-                    }));
+                        }, 60));
+                    });
                     tasks.Add(task);
                     if (tEndTime == endTime)
                     {
@@ -1762,7 +1762,7 @@ namespace ApiManagement.Controllers.StatisticManagementController
                         tEndTime = requestBody.EndTime.AddSeconds(1);
                     }
 
-                    var task = ServerConfig.ApiDb.QueryAsync<MonitoringAnalysis>(sql, new
+                    var task = ServerConfig.DataReadDb.QueryAsync<MonitoringAnalysis>(sql, new
                     {
                         requestBody.DeviceId,
                         startTime = tStartTime,

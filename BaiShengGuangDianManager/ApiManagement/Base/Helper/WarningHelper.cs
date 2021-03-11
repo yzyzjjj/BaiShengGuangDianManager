@@ -260,10 +260,10 @@ namespace ApiManagement.Base.Helper
                     var startId = RedisHelper.Get<int>(idKey);
                     if (startId == 0)
                     {
-                        startId = ServerConfig.ApiDb.Query<int>("SELECT Id FROM `npc_monitoring_analysis` WHERE SendTime <= @_startTime ORDER BY SendTime DESC LIMIT 1;", new { _startTime }).FirstOrDefault();
+                        startId = ServerConfig.DataReadDb.Query<int>("SELECT Id FROM `npc_monitoring_analysis` WHERE SendTime <= @_startTime ORDER BY SendTime DESC LIMIT 1;", new { _startTime }).FirstOrDefault();
                         RedisHelper.SetForever(idKey, startId);
                     }
-                    var mData = ServerConfig.ApiDb.Query<MonitoringData>(
+                    var mData = ServerConfig.DataReadDb.Query<MonitoringData>(
                         "SELECT * FROM `npc_monitoring_analysis` WHERE Id > @Id AND UserSend = 0 ORDER BY Id LIMIT @limit;", new
                         {
                             Id = startId,

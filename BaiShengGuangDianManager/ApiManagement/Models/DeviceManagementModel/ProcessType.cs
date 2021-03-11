@@ -10,7 +10,8 @@ namespace ApiManagement.Models.DeviceManagementModel
         /// <summary>
         /// 无
         /// </summary>
-        Default = 0,
+        [Description("待机")]
+        Idle = 0,
         /// <summary>
         /// 加工
         /// </summary>
@@ -26,5 +27,10 @@ namespace ApiManagement.Models.DeviceManagementModel
         /// </summary>
         [Description("修盘")]
         Repair,
+        /// <summary>
+        /// 换沙
+        /// </summary>
+        [Description("换沙")]
+        Sand,
     }
 }

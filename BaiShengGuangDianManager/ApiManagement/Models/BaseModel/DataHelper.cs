@@ -9,12 +9,13 @@ namespace ApiManagement.Models.BaseModel
 {
     public interface IDataHelper
     {
-        T Get<T>(int id) where T : CommonBase;
-        IEnumerable<T> GetByIds<T>(IEnumerable<int> ids) where T : CommonBase;
-        IEnumerable<T> GetAll<T>() where T : CommonBase;
-        IEnumerable<T> GetAllData<T>() where T : CommonBase;
-        int GetCountByIds(IEnumerable<int> ids);
-        int GetCountAll();
+        T Get<T>(int id, string querySql = "") where T : CommonBase;
+        //IEnumerable<T> GetByIds<T>(IEnumerable<int> ids) where T : CommonBase;
+        IEnumerable<T> GetByIds<T>(IEnumerable<int> ids, string querySql = "");
+        IEnumerable<T> GetAll<T>(string querySql = "") where T : CommonBase;
+        IEnumerable<T> GetAllData<T>(string querySql = "") where T : CommonBase;
+        int GetCountByIds(IEnumerable<int> ids, string querySql = "");
+        int GetCountAll(string querySql = "");
     }
     public abstract class DataHelper : IDataHelper
     {
@@ -44,6 +45,10 @@ namespace ApiManagement.Models.BaseModel
         /// </summary>
         //protected List<Tuple<string, string, dynamic>> QueryFields = new List<Tuple<string, string, dynamic>>();
         /// <summary>
+        /// 查询语句
+        /// </summary>
+        //protected string QuerySql = "";
+        /// <summary>
         /// 添加语句
         /// </summary>
         protected string InsertSql = "";
@@ -64,89 +69,112 @@ namespace ApiManagement.Models.BaseModel
         /// </summary>
         /// <typeparam name="T"></typeparam>
         /// <param name="id"></param>
+        /// <param name="querySql"></param>
         /// <returns></returns>
-        public T Get<T>(int id) where T : CommonBase
+        public T Get<T>(int id, string querySql = "") where T : CommonBase
         {
-            return ServerConfig.ApiDb.Query<T>($"SELECT * FROM `{Table}` WHERE `MarkedDelete` = 0 AND Id = @id;", new { id }).FirstOrDefault();
+            return ServerConfig.ApiDb.Query<T>(!querySql.IsNullOrEmpty() ? querySql : $"SELECT * FROM `{Table}` WHERE `MarkedDelete` = 0 AND Id = @id;", new { id }).FirstOrDefault();
         }
+        ///// <summary>
+        ///// 通过id批量获取
+        ///// </summary>
+        ///// <typeparam name="T"></typeparam>
+        ///// <param name="ids"></param>
+        ///// <returns></returns>
+        //public IEnumerable<T> GetByIds<T>(IEnumerable<int> ids) where T : CommonBase
+        //{
+        //    if (ids == null || !ids.Any())
+        //    {
+        //        return new List<T>();
+        //    }
+
+        //    return ServerConfig.ApiDb.Query<T>($"SELECT * FROM `{Table}` WHERE `MarkedDelete` = 0 AND Id IN @ids;", new { ids });
+        //}
         /// <summary>
         /// 通过id批量获取
         /// </summary>
         /// <typeparam name="T"></typeparam>
         /// <param name="ids"></param>
+        /// <param name="querySql"></param>
         /// <returns></returns>
-        public IEnumerable<T> GetByIds<T>(IEnumerable<int> ids) where T : CommonBase
+        public IEnumerable<T> GetByIds<T>(IEnumerable<int> ids, string querySql = "")
         {
             if (ids == null || !ids.Any())
             {
                 return new List<T>();
             }
 
-            return ServerConfig.ApiDb.Query<T>($"SELECT * FROM `{Table}` WHERE `MarkedDelete` = 0 AND Id IN @ids;", new { ids });
+            return ServerConfig.ApiDb.Query<T>(!querySql.IsNullOrEmpty() ? querySql : $"SELECT * FROM `{Table}` WHERE `MarkedDelete` = 0 AND Id IN @ids;", new { ids });
         }
         /// <summary>
         /// 通过id批量获取
         /// </summary>
         /// <typeparam name="T"></typeparam>
         /// <param name="ids"></param>
+        /// <param name="querySql"></param>
         /// <returns></returns>
-        public IEnumerable<T> GetAllByIds<T>(IEnumerable<int> ids) where T : CommonBase
+        public IEnumerable<T> GetAllByIds<T>(IEnumerable<int> ids, string querySql = "") where T : CommonBase
         {
             if (ids == null || !ids.Any())
             {
                 return new List<T>();
             }
 
-            return ServerConfig.ApiDb.Query<T>($"SELECT * FROM `{Table}` WHERE Id IN @ids;", new { ids });
+            return ServerConfig.ApiDb.Query<T>(!querySql.IsNullOrEmpty() ? querySql : $"SELECT * FROM `{Table}` WHERE Id IN @ids;", new { ids });
         }
         /// <summary>
         /// 获取所有数据
         /// </summary>
         /// <typeparam name="T"></typeparam>
+        /// <param name="querySql"></param>
         /// <returns></returns>
-        public IEnumerable<T> GetAll<T>() where T : CommonBase
+        public IEnumerable<T> GetAll<T>(string querySql = "") where T : CommonBase
         {
-            return ServerConfig.ApiDb.Query<T>($"SELECT * FROM `{Table}` WHERE `MarkedDelete` = 0;");
+            return ServerConfig.ApiDb.Query<T>(!querySql.IsNullOrEmpty() ? querySql : $"SELECT * FROM `{Table}` WHERE `MarkedDelete` = 0;");
         }
         /// <summary>
         /// 获取所有数据
         /// </summary>
         /// <typeparam name="T"></typeparam>
+        /// <param name="querySql"></param>
         /// <returns></returns>
-        public IEnumerable<T> GetAllData<T>() where T : CommonBase
+        public IEnumerable<T> GetAllData<T>(string querySql = "") where T : CommonBase
         {
-            return ServerConfig.ApiDb.Query<T>($"SELECT * FROM `{Table}`;");
+            return ServerConfig.ApiDb.Query<T>(!querySql.IsNullOrEmpty() ? querySql : $"SELECT * FROM `{Table}`;");
         }
         /// <summary>
         /// 通过id批量获取数量
         /// </summary>
         /// <param name="id"></param>
+        /// <param name="querySql"></param>
         /// <returns></returns>
-        public int GetCountById(int id)
+        public int GetCountById(int id, string querySql = "")
         {
-            return ServerConfig.ApiDb.Query<int>($"SELECT COUNT(1) FROM `{Table}` WHERE `MarkedDelete` = 0 AND Id = @id;", new { id }).FirstOrDefault();
+            return ServerConfig.ApiDb.Query<int>(!querySql.IsNullOrEmpty() ? querySql : $"SELECT COUNT(1) FROM `{Table}` WHERE `MarkedDelete` = 0 AND Id = @id;", new { id }).FirstOrDefault();
         }
         /// <summary>
         /// 通过id批量获取数量
         /// </summary>
         /// <param name="ids"></param>
+        /// <param name="querySql"></param>
         /// <returns></returns>
-        public int GetCountByIds(IEnumerable<int> ids)
+        public int GetCountByIds(IEnumerable<int> ids, string querySql = "")
         {
             if (ids == null || !ids.Any())
             {
                 return 0;
             }
 
-            return ServerConfig.ApiDb.Query<int>($"SELECT COUNT(1) FROM `{Table}` WHERE `MarkedDelete` = 0 AND Id IN @ids;", new { ids }).FirstOrDefault();
+            return ServerConfig.ApiDb.Query<int>(!querySql.IsNullOrEmpty() ? querySql : $"SELECT COUNT(1) FROM `{Table}` WHERE `MarkedDelete` = 0 AND Id IN @ids;", new { ids }).FirstOrDefault();
         }
         /// <summary>
         /// 获取总数量
+        /// <param name="querySql"></param>
         /// </summary>
         /// <returns></returns>
-        public int GetCountAll()
+        public int GetCountAll(string querySql = "")
         {
-            return ServerConfig.ApiDb.Query<int>($"SELECT COUNT(1) FROM `{Table}` WHERE `MarkedDelete` = 0;").FirstOrDefault();
+            return ServerConfig.ApiDb.Query<int>(!querySql.IsNullOrEmpty() ? querySql : $"SELECT COUNT(1) FROM `{Table}` WHERE `MarkedDelete` = 0;").FirstOrDefault();
         }
 
         #endregion
@@ -158,10 +186,11 @@ namespace ApiManagement.Models.BaseModel
         /// <typeparam name="T"></typeparam>
         /// <param name="id"></param>
         /// <param name="menu">菜单</param>
+        /// <param name="querySql"></param>
         /// <returns></returns>
-        public IEnumerable<T> CommonGet<T>(int id = 0, bool menu = false)
+        public IEnumerable<T> CommonGet<T>(int id = 0, bool menu = false, string querySql = "")
         {
-            return ServerConfig.ApiDb.Query<T>($"SELECT {(menu && MenuFields.Any() ? MenuFields.Select(x => $"`{x}`").Join(", ") : "*")} FROM `{Table}` WHERE{(id == 0 ? "" : " Id = @id AND ")}`MarkedDelete` = 0;", new { id });
+            return ServerConfig.ApiDb.Query<T>(!querySql.IsNullOrEmpty() ? querySql : $"SELECT {(menu && MenuFields.Any() ? MenuFields.Select(x => $"`{x}`").Join(", ") : "*")} FROM `{Table}` WHERE{(id == 0 ? "" : " Id = @id AND ")}`MarkedDelete` = 0;", new { id });
         }
         /// <summary>
         /// 多条件获取(通用接口) MenuFields  MenuQueryFields
@@ -307,7 +336,7 @@ namespace ApiManagement.Models.BaseModel
         /// </summary>
         /// <typeparam name="T"></typeparam>
         /// <param name="t"></param>
-        public void Add<T>(IEnumerable<T> t) where T : CommonBase
+        public void Add<T>(IEnumerable<T> t)
         {
             ServerConfig.ApiDb.Execute(InsertSql, t);
         }
@@ -329,7 +358,7 @@ namespace ApiManagement.Models.BaseModel
         /// </summary>
         /// <typeparam name="T"></typeparam>
         /// <param name="t"></param>
-        public void Update<T>(IEnumerable<T> t) where T : CommonBase
+        public void Update<T>(IEnumerable<T> t)
         {
             ServerConfig.ApiDb.Execute(UpdateSql, t);
         }

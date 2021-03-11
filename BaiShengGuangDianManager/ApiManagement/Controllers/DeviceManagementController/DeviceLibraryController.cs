@@ -30,10 +30,10 @@ namespace ApiManagement.Controllers.DeviceManagementController
     {
         // GET: api/DeviceLibrary
         [HttpGet]
-        public DataResult GetDeviceLibrary([FromQuery] bool hard, bool work, string ids, int scriptId, int categoryId, bool state = true)
+        public DataResult GetDeviceLibrary([FromQuery] bool detail, bool other, bool state, bool work, string ids, int scriptId, int categoryId)
         {
             var idList = !ids.IsNullOrEmpty() ? ids.Split(",").Select(int.Parse) : new int[0];
-            if (!hard)
+            if (!detail)
             {
                 var models = new List<int>();
                 if (categoryId != 0)
@@ -55,22 +55,43 @@ namespace ApiManagement.Controllers.DeviceManagementController
             else
             {
                 var result = new DataResult();
-                var deviceLibraryDetails = ServerConfig.ApiDb.Query<DeviceLibraryDetail>(
-                        "SELECT a.*, b.ModelName, b.DeviceCategoryId, b.CategoryName, c.FirmwareName, d.ApplicationName, e.HardwareName, f.SiteName, f.RegionDescription, " +
-                        "g.ScriptName, IFNULL(h.`Name`, '')  AdministratorName, i.`Class` FROM device_library a " +
-                        $"JOIN (SELECT a.*, b.CategoryName FROM device_model a JOIN device_category b ON a.DeviceCategoryId = b.Id " +
-                        $"{(categoryId != 0 ? "WHERE b.Id = @categoryId" : "")}) b ON a.DeviceModelId = b.Id " +
-                        "JOIN firmware_library c ON a.FirmwareId = c.Id " +
-                        "JOIN application_library d ON a.ApplicationId = d.Id " +
-                        "JOIN hardware_library e ON a.HardwareId = e.Id " +
-                        "JOIN site f ON a.SiteId = f.Id " +
-                        "JOIN script_version g ON a.ScriptId = g.Id " +
-                        "JOIN device_class i ON a.ClassId = i.Id " +
-                        "LEFT JOIN (SELECT * FROM(SELECT * FROM maintainer ORDER BY MarkedDelete)a GROUP BY a.Account) h ON a.Administrator = h.Account " +
-                        $"WHERE a.`MarkedDelete` = 0" +
-                        $"{(idList.Any() ? " AND a.Id IN @idList" : "")}" +
-                        $"{(scriptId != 0 ? " AND a.ScriptId = @scriptId" : "")}" +
-                        $" ORDER BY a.Id;", new { idList, scriptId, categoryId }).ToDictionary(x => x.Id);
+                var sql = "";
+                if (work)
+                {
+                    sql = "SELECT a.*, b.ModelName, b.DeviceCategoryId, b.CategoryName FROM device_library a " +
+                            $"JOIN (SELECT a.*, b.CategoryName FROM device_model a JOIN device_category b ON a.DeviceCategoryId = b.Id " +
+                            $"{(categoryId != 0 ? "WHERE b.Id = @categoryId" : "")}) b ON a.DeviceModelId = b.Id " +
+                            $"WHERE" +
+                            $"{(idList.Any() ? " a.Id IN @idList AND " : "")}" +
+                            $"{(scriptId != 0 ? " a.ScriptId = @scriptId AND " : "")}" +
+                            $" a.`MarkedDelete` = 0 ORDER BY a.Id;";
+                }
+                else
+                {
+                    sql = other ?
+                            "SELECT a.*, b.ModelName, b.DeviceCategoryId, b.CategoryName, c.FirmwareName, d.ApplicationName, e.HardwareName, f.SiteName, f.RegionDescription, " +
+                            "g.ScriptName, IFNULL(h.`Name`, '')  AdministratorName, i.`Class` FROM device_library a " +
+                            $"JOIN (SELECT a.*, b.CategoryName FROM device_model a JOIN device_category b ON a.DeviceCategoryId = b.Id " +
+                            $"{(categoryId != 0 ? "WHERE b.Id = @categoryId" : "")}) b ON a.DeviceModelId = b.Id " +
+                            "JOIN firmware_library c ON a.FirmwareId = c.Id " +
+                            "JOIN application_library d ON a.ApplicationId = d.Id " +
+                            "JOIN hardware_library e ON a.HardwareId = e.Id " +
+                            "JOIN site f ON a.SiteId = f.Id " +
+                            "JOIN script_version g ON a.ScriptId = g.Id " +
+                            "JOIN device_class i ON a.ClassId = i.Id " +
+                            "LEFT JOIN (SELECT * FROM(SELECT * FROM maintainer ORDER BY MarkedDelete)a GROUP BY a.Account) h ON a.Administrator = h.Account " +
+                            $"WHERE" +
+                            $"{(idList.Any() ? " a.Id IN @idList AND " : "")}" +
+                            $"{(scriptId != 0 ? " a.ScriptId = @scriptId AND " : "")}" +
+                            $" a.`MarkedDelete` = 0 ORDER BY a.Id;"
+                            : "SELECT * FROM device_library " +
+                              $"WHERE" +
+                              $"{(idList.Any() ? " Id IN @idList AND" : "")}" +
+                              $"{(scriptId != 0 ? " ScriptId = @scriptId AND" : "")}" +
+                              $" `MarkedDelete` = 0 ORDER BY Id;";
+
+                }
+                var deviceLibraryDetails = ServerConfig.ApiDb.Query<DeviceLibraryDetail>(sql, new { idList, scriptId, categoryId }).ToDictionary(x => x.Id);
                 if (state)
                 {
                     var faultDevices = ServerConfig.ApiDb.Query<dynamic>(
@@ -85,7 +106,7 @@ namespace ApiManagement.Controllers.DeviceManagementController
                         }
                     }
 
-                    ServerConfig.GateUrl = "http://192.168.1.142:61102";
+                    //ServerConfig.GateUrl = "http://192.168.1.142:61102";
                     var url = ServerConfig.GateUrl + UrlMappings.Urls[UrlMappings.deviceListGate];
                     //向GateProxyLink请求数据
                     var resp = !idList.Any() ? HttpServer.Get(url) :
@@ -107,6 +128,7 @@ namespace ApiManagement.Controllers.DeviceManagementController
                                     var deviceId = deviceInfo.DeviceId;
                                     if (deviceLibraryDetails.ContainsKey(deviceId))
                                     {
+                                        deviceInfo.ScriptId = deviceLibraryDetails[deviceId].ScriptId;
                                         deviceLibraryDetails[deviceId].State = deviceInfo.State;
                                         deviceLibraryDetails[deviceId].DeviceState = deviceInfo.DeviceState;
 

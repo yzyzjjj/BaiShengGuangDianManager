@@ -1,8 +1,7 @@
-﻿using System;
+﻿using ApiManagement.Models.BaseModel;
+using System;
 using System.Collections.Generic;
 using System.Linq;
-using ApiManagement.Base.Server;
-using ApiManagement.Models.BaseModel;
 
 namespace ApiManagement.Models.DeviceManagementModel
 {
@@ -69,11 +68,39 @@ namespace ApiManagement.Models.DeviceManagementModel
         //    }
         //    return Instance.CommonHaveSame(args);
         //}
-        public static IEnumerable<DataNameDictionaryDetail> GetDataNameDictionaryDetails(IEnumerable<int> scriptIds)
+        public static IEnumerable<DataNameDictionaryDetail> GetDataNameDictionaryDetails(IEnumerable<int> scriptIds, IEnumerable<int> variableNameIds = null)
         {
-            return ServerConfig.ApiDb.Query<DataNameDictionaryDetail>("SELECT a.*, IFNULL(b.VariableNameId, 0) VariableNameId FROM `data_name_dictionary` a " +
-                                                                      "LEFT JOIN usually_dictionary b ON a.ScriptId = b.ScriptId AND a.VariableTypeId = b.VariableTypeId AND a.PointerAddress = b.DictionaryId " +
-                                                                      "WHERE a.ScriptId IN @scriptIds AND a.MarkedDelete = 0;", new { scriptIds });
+            scriptIds = scriptIds.Distinct();
+            var usuallyDictionaries = UsuallyDictionaryHelper.GetUsuallyDictionaries(scriptIds, variableNameIds);
+            var args = new List<Tuple<string, string, dynamic>>();
+            if (scriptIds != null)
+            {
+                args.Add(new Tuple<string, string, dynamic>("ScriptId", "IN", scriptIds));
+            }
+            var dataNameDictionaries = Instance.CommonGet<DataNameDictionaryDetail>(args);
+            var res = new List<DataNameDictionaryDetail>();
+            var filter = variableNameIds != null && variableNameIds.Any();
+            foreach (var scriptId in scriptIds)
+            {
+                var dnds = dataNameDictionaries.Where(x => x.ScriptId == scriptId);
+                var uds = usuallyDictionaries.Where(x => x.ScriptId == scriptId);
+                foreach (var dnd in dnds)
+                {
+                    var ud = uds.FirstOrDefault(x => x.VariableTypeId == dnd.VariableTypeId && x.DictionaryId == dnd.PointerAddress);
+                    dnd.VariableNameId = ud?.VariableNameId ?? 0;
+                    if (filter)
+                    {
+                        if (!variableNameIds.Contains(dnd.VariableNameId))
+                        {
+                            continue;
+                        }
+                        res.Add(dnd);
+                        continue;
+                    }
+                    res.Add(dnd);
+                }
+            }
+            return res;
         }
         #endregion
 
