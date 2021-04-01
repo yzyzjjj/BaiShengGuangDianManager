@@ -74,16 +74,12 @@ namespace ApiManagement.Models.DeviceManagementModel
         //    }
         //    return Instance.CommonHaveSame(args);
         //}
-        public static IEnumerable<DeviceModel> GetHaveSameCode(int wId, IEnumerable<string> sames, IEnumerable<int> ids = null)
+        public static IEnumerable<DeviceModel> GetHaveSameCode(IEnumerable<string> sames, IEnumerable<int> ids = null)
         {
             var args = new List<Tuple<string, string, dynamic>>
             {
                 new Tuple<string, string, dynamic>("Code", "IN", sames)
             };
-            if (wId != 0)
-            {
-                args.Add(new Tuple<string, string, dynamic>("wId", "=", wId));
-            }
             if (ids != null)
             {
                 args.Add(new Tuple<string, string, dynamic>("Id", "NOT IN", ids));

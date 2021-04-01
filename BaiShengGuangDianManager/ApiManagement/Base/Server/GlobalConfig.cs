@@ -40,7 +40,7 @@ namespace ApiManagement.Base.Server
                 value
             });
 
-            RedisHelper.PublishToTable("", TableName);
+            RedisHelper.PublishToTable(TableName);
             LoadGlobalConfig();
         }
 
@@ -50,7 +50,7 @@ namespace ApiManagement.Base.Server
         /// <param name="tableName"></param>
         public static void RefreshCnfTable(string tableName)
         {
-            RedisHelper.PublishToTable("", tableName);
+            RedisHelper.PublishToTable(tableName);
         }
 
         /// <summary>

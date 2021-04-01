@@ -29,10 +29,10 @@ namespace ApiManagement.Controllers.WarningController
         public DataResult GetSet([FromQuery]int qId, WarningType type, WarningDataType dataType, bool first = false)
         {
             var result = new DataResult();
-            var r = ServerConfig.ApiDb.Query<WarningSet>(
+            var r = ServerConfig.ApiDb.Query<WarningSetWithItems>(
                 $"SELECT a.*, b.`Class` FROM `warning_set` a " +
                 $"JOIN `device_class` b ON a.ClassId = b.Id " +
-                $"WHERE a.`MarkedDelete` = 0 AND a.`Type` = @type AND a.`DataType` = @dataType{(qId == 0 ? "" : " AND a.Id = @qId")};", new { qId, type, dataType });
+                $"WHERE a.`MarkedDelete` = 0 AND a.`WarningType` = @type AND a.`DataType` = @dataType{(qId == 0 ? "" : " AND a.Id = @qId")};", new { qId, type, dataType });
 
             var d = new List<WarningSetItemDetail>();
             if (first && r.Any())
@@ -43,7 +43,7 @@ namespace ApiManagement.Controllers.WarningController
                 {
                     case WarningDataType.设备数据:
                         var scriptId = r.FirstNonDefault().ScriptId;
-                        sql = "SELECT a.VariableName, a.PointerAddress, a.VariableTypeId, b.*, a.Id DictionaryId " +
+                        sql = "SELECT b.*, a.VariableName Item, a.PointerAddress, a.VariableTypeId, a.Id DictionaryId " +
                               "FROM (SELECT * FROM `data_name_dictionary` WHERE ScriptId = @scriptId AND MarkedDelete = 0) a " +
                               "LEFT JOIN (SELECT * FROM `warning_set_item` WHERE SetId = @setId AND MarkedDelete = 0) b " +
                               "ON a.Id = b.DictionaryId ORDER BY a.VariableTypeId, a.PointerAddress;";
@@ -54,32 +54,20 @@ namespace ApiManagement.Controllers.WarningController
                         var s = ServerConfig.ApiDb.Query<WarningSetItemDetail>(sql, new { setId }).ToList();
                         foreach (var val in WarningHelper.生产数据字段)
                         {
-                            if (s.All(x => x.Item != val))
+                            if (s.All(x => x.ItemType != val.Item2))
                             {
                                 d.Add(new WarningSetItemDetail
                                 {
-                                    Item = val
+                                    Item = val.Item1,
+                                    ItemType = val.Item2
                                 });
                             }
                             else
                             {
-                                d.Add(s.First(x => x.Item == val));
+                                d.Add(s.First(x => x.Item == val.Item1));
                             }
-                        }
-                        foreach (var val in WarningHelper.生产数据汇总字段)
-                        {
-                            if (s.All(x => x.Item != val))
-                            {
-                                d.Add(new WarningSetItemDetail
-                                {
-                                    Item = val,
-                                    IsSum = true
-                                });
-                            }
-                            else
-                            {
-                                d.Add(s.First(x => x.Item == val));
-                            }
+
+                            d = d.OrderBy(x => WarningHelper.生产数据字段.FirstOrDefault(y => y.Item2 == x.ItemType)?.Item2).ToList();
                         }
                         break;
                     case WarningDataType.故障数据:
@@ -95,20 +83,12 @@ namespace ApiManagement.Controllers.WarningController
 
             if (r.Any())
             {
-                var device =
-                    ServerConfig.ApiDb.Query<DeviceLibrary>("SELECT `Id`, `Code` FROM `device_library` WHERE `MarkedDelete` = 0 AND `Id` IN @Id;"
-                        , new { Id = r.SelectMany(x => x.DeviceList).Distinct().ToList() });
-
-                var categories =
-                    ServerConfig.ApiDb.Query<DeviceCategory>("SELECT `Id`, `CategoryName` FROM `device_category` WHERE `MarkedDelete` = 0 AND `Id` IN @Id;"
-                        , new { Id = r.Select(x => x.CategoryId).Distinct().ToList() });
-
-                var script =
-                    ServerConfig.ApiDb.Query<ScriptVersion>("SELECT `Id`, `ScriptName` FROM `script_version` WHERE `MarkedDelete` = 0 AND `Id` IN @Id;"
-                        , new { Id = r.Select(x => x.ScriptId).Distinct().ToList() });
+                var device = DeviceLibraryHelper.GetMenus(r.SelectMany(x => x.DeviceList).Distinct()).OrderBy(x => x.Id);
+                var categories = DeviceCategoryHelper.GetMenus(r.Select(x => x.CategoryId).Distinct()).OrderBy(x => x.Id);
+                var script = ScriptVersionHelper.GetMenus(r.Select(x => x.ScriptId).Distinct()).OrderBy(x => x.Id);
                 foreach (var dd in r)
                 {
-                    dd.Code = device.Where(x => dd.DeviceList.Contains(x.Id)).Select(y => y.Code).Join();
+                    dd.CodeList = device.Where(x => dd.DeviceList.Contains(x.Id)).Select(y => new Tuple<int, string>(y.Id, y.Code));
                     dd.Script = script.FirstOrDefault(x => x.Id == dd.ScriptId)?.ScriptName ?? "";
                     dd.CategoryName = categories.FirstOrDefault(x => x.Id == dd.CategoryId)?.CategoryName ?? "";
                 }
@@ -133,12 +113,10 @@ namespace ApiManagement.Controllers.WarningController
         public DataResult GetSetItem([FromQuery]int sId, WarningDataType dataType, bool isNew = false)
         {
             var result = new DataResult();
-            WarningSet set = null;
+            WarningSetWithItems set = null;
             if (!isNew)
             {
-                set = ServerConfig.ApiDb
-                  .Query<WarningSet>("SELECT * FROM `warning_set` WHERE `MarkedDelete` = 0 AND Id = @sId;", new { sId })
-                  .FirstOrDefault();
+                set = WarningSetHelper.Instance.Get<WarningSetWithItems>(sId);
                 if (set == null)
                 {
                     return Result.GenError<DataResult>(Error.WarningSetNotExist);
@@ -150,11 +128,11 @@ namespace ApiManagement.Controllers.WarningController
             switch (dataType)
             {
                 case WarningDataType.设备数据:
-                    sql = "SELECT ScriptId, VariableName, PointerAddress, VariableTypeId, Id DictionaryId FROM `data_name_dictionary` WHERE ScriptId = @sId AND MarkedDelete = 0 ORDER BY VariableTypeId, PointerAddress;";
+                    sql = "SELECT ScriptId, VariableName Item, PointerAddress, VariableTypeId, Id DictionaryId FROM `data_name_dictionary` WHERE ScriptId = @sId AND MarkedDelete = 0 ORDER BY VariableTypeId, PointerAddress;";
                     if (!isNew)
                     {
                         scriptId = set.ScriptId;
-                        sql = "SELECT a.VariableName, a.PointerAddress, a.VariableTypeId, b.*, a.Id DictionaryId " +
+                        sql = "SELECT a.VariableName Item, a.PointerAddress, a.VariableTypeId, b.*, a.Id DictionaryId " +
                               "FROM (SELECT * FROM `data_name_dictionary` WHERE ScriptId = @scriptId AND MarkedDelete = 0) a " +
                               "LEFT JOIN (SELECT * FROM `warning_set_item` WHERE SetId = @setId AND MarkedDelete = 0) b " +
                               "ON a.Id = b.DictionaryId ORDER BY a.VariableTypeId, a.PointerAddress;";
@@ -166,46 +144,26 @@ namespace ApiManagement.Controllers.WarningController
                     {
                         result.datas.AddRange(WarningHelper.生产数据字段.Select(x => new WarningSetItem
                         {
-                            Item = x
-                        }));
-                        result.datas.AddRange(WarningHelper.生产数据汇总字段.Select(x => new WarningSetItem
-                        {
-                            Item = x,
-                            IsSum = true
+                            Item = x.Item1,
+                            ItemType = x.Item2
                         }));
                     }
                     else
                     {
-                        sql = "SELECT * FROM `warning_set_item` WHERE MarkedDelete = 0 AND SetId = @sId;";
-                        var d = ServerConfig.ApiDb.Query<WarningSetItem>(sql, new { sId }).ToList();
-
+                        var d = WarningSetItemHelper.GetWarningSetItemsBySetId(sId).ToList();
                         foreach (var val in WarningHelper.生产数据字段)
                         {
-                            if (d.All(x => x.Item != val))
+                            if (d.All(x => x.Item != val.Item1))
                             {
                                 result.datas.Add(new WarningSetItem
                                 {
-                                    Item = val
+                                    Item = val.Item1,
+                                    ItemType = val.Item2
                                 });
                             }
                             else
                             {
-                                result.datas.Add(d.First(x => x.Item == val));
-                            }
-                        }
-                        foreach (var val in WarningHelper.生产数据汇总字段)
-                        {
-                            if (d.All(x => x.Item != val))
-                            {
-                                d.Add(new WarningSetItem
-                                {
-                                    Item = val,
-                                    IsSum = true
-                                });
-                            }
-                            else
-                            {
-                                result.datas.Add(d.First(x => x.Item == val));
+                                result.datas.Add(d.First(x => x.Item == val.Item1));
                             }
                         }
                     }
@@ -221,10 +179,9 @@ namespace ApiManagement.Controllers.WarningController
 
         // PUT: api/Warning
         [HttpPut]
-        public Result PutSet([FromBody] WarningSetNoItems set)
+        public Result PutSet([FromBody] WarningSetWithItems set)
         {
-            var oldSet = ServerConfig.ApiDb.Query<WarningSet>(
-                "SELECT * FROM `warning_set` WHERE `MarkedDelete` = 0 AND Id = @Id;", new { set.Id }).FirstOrDefault();
+            var oldSet = WarningSetHelper.Instance.Get<WarningSet>(set.Id);
             if (oldSet == null)
             {
                 return Result.GenError<Result>(Error.WarningSetNotExist);
@@ -235,10 +192,9 @@ namespace ApiManagement.Controllers.WarningController
                 return Result.GenError<Result>(Error.WarningSetNotEmpty);
             }
 
-            var cnt =
-                ServerConfig.ApiDb.Query<int>("SELECT COUNT(1) FROM `warning_set` WHERE `Name` = @Name AND `Type` = @Type AND `DataType` = @DataType AND Id != @Id AND `MarkedDelete` = 0;",
-                    new { set.Name, set.Type, set.DataType, set.Id }).FirstOrDefault();
-            if (cnt > 0)
+            var names = new List<string> { set.Name };
+            var ids = new List<int> { set.Id };
+            if (WarningSetHelper.GetHaveSame(names, ids))
             {
                 return Result.GenError<Result>(Error.WarningSetIsExist);
             }
@@ -257,7 +213,15 @@ namespace ApiManagement.Controllers.WarningController
                         }
                         break;
                     case WarningDataType.生产数据:
-                        set.Items = set.Items.Where(x => !x.Item.IsNullOrEmpty()).ToList(); break;
+                        set.Items = set.Items.Where(x => x.ItemType != WarningItemType.Default).ToList();
+                        foreach (var item in set.Items)
+                        {
+                            if (WarningHelper.生产数据单次字段.All(x => x.Item2 != item.ItemType))
+                            {
+                                item.DeviceIds = set.DeviceIds;
+                            }
+                        }
+                        break;
                     case WarningDataType.故障数据:
                         set.Items = set.Items; break;
                     default:
@@ -270,6 +234,11 @@ namespace ApiManagement.Controllers.WarningController
                     //{
                     //    return Result.GenError<Result>(Error.WarningSetItemDataTypeError);
                     //}
+                    foreach (var item in set.Items)
+                    {
+                        item.MarkedDateTime = markedDateTime;
+                        item.SetId = set.Id;
+                    }
                     if (set.Items.Any(x => !x.ValidFrequency()))
                     {
                         return Result.GenError<Result>(Error.WarningSetItemFrequencyError);
@@ -279,42 +248,31 @@ namespace ApiManagement.Controllers.WarningController
                         return Result.GenError<Result>(Error.WarningSetItemConditionError);
                     }
 
-                    var oldWarningSetItems = ServerConfig.ApiDb.Query<WarningSetItem>("SELECT * FROM `warning_set_item` WHERE `MarkedDelete` = 0 AND SetId = @Id;",
-                        new { set.Id });
+                    var oldWarningSetItems = WarningSetItemHelper.GetWarningSetItemsBySetId(set.Id);
 
                     var delItems = oldWarningSetItems.Where(x => set.Items.All(y => y.Id != x.Id));
                     if (delItems.Any())
                     {
-                        foreach (var item in delItems)
-                        {
-                            item.MarkedDateTime = markedDateTime;
-                            item.MarkedDelete = true;
-                        }
-
-                        ServerConfig.ApiDb.Execute(
-                            "UPDATE `warning_set_item` SET `MarkedDateTime` = @MarkedDateTime, `MarkedDelete` = @MarkedDelete WHERE `Id` = @Id;", delItems);
+                        WarningSetItemHelper.Instance.Delete(delItems.Select(x => x.Id));
                     }
 
                     var updateItems = set.Items.Where(x => x.Id != 0);
                     if (updateItems.Any())
                     {
-                        var ids = new List<int>();
+                        var uIds = new List<int>();
                         foreach (var item in updateItems)
                         {
-                            item.SetId = set.Id;
-                            item.DataType = set.DataType;
                             var oldItem = oldWarningSetItems.FirstOrDefault(x => x.Id == item.Id);
-                            if (oldItem != null && oldItem.HaveChange(item))
+                            if (oldItem != null && ClassExtension.HaveChange(oldItem, item))
                             {
-                                item.MarkedDateTime = markedDateTime;
-                                ids.Add(item.Id);
+                                if (WarningHelper.生产数据单次字段.All(x => x.Item2 != item.ItemType))
+                                {
+                                    item.DeviceIds = set.DeviceIds;
+                                }
+                                uIds.Add(item.Id);
                             }
                         }
-
-                        ServerConfig.ApiDb.Execute(
-                            "UPDATE `warning_set_item` SET `MarkedDateTime` = @MarkedDateTime, `SetId` = @SetId, `Item` = @Item, `Condition1` = @Condition1, `Value1` = @Value1, `Logic` = @Logic, " +
-                            "`Condition2` = @Condition2, `Value2` = @Value2, `Frequency` = @Frequency, `Interval` = @Interval, `Count` = @Count, `DictionaryId` = @DictionaryId WHERE `Id` = @Id;",
-                            updateItems.Where(x => ids.Contains(x.Id)));
+                        WarningSetItemHelper.Instance.Update(updateItems.Where(x => uIds.Contains(x.Id)));
                     }
                     var newItems = set.Items.Where(x => x.Id == 0);
                     if (newItems.Any())
@@ -322,57 +280,43 @@ namespace ApiManagement.Controllers.WarningController
                         foreach (var item in newItems)
                         {
                             item.CreateUserId = createUserId;
-                            item.SetId = set.Id;
-                            item.DataType = set.DataType;
-                            item.Item = item.DataType == WarningDataType.设备数据 ? "" : item.Item;
                         }
-
-                        ServerConfig.ApiDb.Execute(
-                            "INSERT INTO `warning_set_item` (`CreateUserId`, `DataType`, `SetId`, `Item`, `Condition1`, `Value1`, `Logic`, `Condition2`, `Value2`, `Frequency`, `Interval`, `Count`, `DictionaryId`, `IsSum`) " +
-                            "VALUES (@CreateUserId, @DataType, @SetId, @Item, @Condition1, @Value1, @Logic, @Condition2, @Value2, @Frequency, @Interval, @Count, @DictionaryId, @IsSum);",
-                            newItems);
+                        WarningSetItemHelper.Instance.Add(newItems);
                     }
                 }
                 else
                 {
-                    ServerConfig.ApiDb.Execute(
-                        "UPDATE `warning_set_item` SET `MarkedDateTime`= @MarkedDateTime, `MarkedDelete`= @MarkedDelete WHERE `SetId`= @Id;", new
-                        {
-                            MarkedDateTime = markedDateTime,
-                            MarkedDelete = true,
-                            Id = set.Id
-                        });
+                    WarningSetItemHelper.Instance.Delete(set.Id);
                 }
             }
 
-            if (oldSet.HaveChange(set))
+            if (ClassExtension.HaveChange(oldSet, set))
             {
-                set.MarkedDateTime = DateTime.Now;
-                ServerConfig.ApiDb.Execute(
-                    "UPDATE `warning_set` SET `MarkedDateTime` = @MarkedDateTime, `Name` = @Name, `Enable` = @Enable, `ClassId` = @ClassId, `ScriptId` = @ScriptId, `DeviceIds` = @DeviceIds, `IsSum` = @IsSum WHERE `Id` = @Id;", set);
+                set.MarkedDateTime = markedDateTime;
+                WarningSetHelper.Instance.Update(set);
             }
 
-            WarningHelper.LoadConfig();
+            WarningHelper.UpdateConfig();
             return Result.GenError<Result>(Error.Success);
         }
 
         // POST: api/Warning
         [HttpPost]
-        public Result PostSet([FromBody] WarningSet set)
+        public Result PostSet([FromBody] WarningSetWithItems set)
         {
             if (set.Name.IsNullOrEmpty())
             {
                 return Result.GenError<Result>(Error.WarningSetNotEmpty);
             }
 
-            var cnt =
-                ServerConfig.ApiDb.Query<int>("SELECT COUNT(1) FROM `warning_set` WHERE `Name` = @Name AND `MarkedDelete` = 0;", new { set.Name }).FirstOrDefault();
-            if (cnt > 0)
+            var names = new List<string> { set.Name };
+            if (WarningSetHelper.GetHaveSame(names))
             {
                 return Result.GenError<Result>(Error.WarningSetIsExist);
             }
 
             var createUserId = Request.GetIdentityInformation();
+            var markedDateTime = DateTime.Now;
             if (set.Items != null && set.Items.Any())
             {
                 //if (set.Items.Any(x => !x.ValidDataType()))
@@ -390,26 +334,30 @@ namespace ApiManagement.Controllers.WarningController
             }
 
             set.CreateUserId = createUserId;
+            set.MarkedDateTime = markedDateTime;
             var id = ServerConfig.ApiDb.Query<int>(
-                 "INSERT INTO `warning_set` (`CreateUserId`, `Type`, `DataType`, `Name`, `Enable`, `ClassId`, `ScriptId`, `CategoryId`, `DeviceIds`, `IsSum`) " +
-                 "VALUES (@CreateUserId, @Type, @DataType, @Name, @Enable, @ClassId, @ScriptId, @CategoryId, @DeviceIds, @IsSum);SELECT LAST_INSERT_ID();",
+                 "INSERT INTO `warning_set` (`CreateUserId`, `MarkedDateTime`, `WarningType`, `DataType`, `Name`, `Enable`, `ClassId`, `ScriptId`, `CategoryId`, `DeviceIds`) " +
+                 "VALUES (@CreateUserId, @MarkedDateTime, @WarningType, @DataType, @Name, @Enable, @ClassId, @ScriptId, @CategoryId, @DeviceIds);SELECT LAST_INSERT_ID();",
                  set).FirstOrDefault();
 
             if (set.Items != null && set.Items.Any())
             {
+                var dic = new List<DataNameDictionary>();
+                if (set.DataType == WarningDataType.设备数据)
+                {
+                    var dIds = set.Items.Select(x => x.DictionaryId).Where(x => x != 0);
+                    dic.AddRange(DataNameDictionaryHelper.Instance.GetAllByIds<DataNameDictionary>(dIds));
+                }
                 foreach (var item in set.Items)
                 {
                     item.CreateUserId = createUserId;
+                    item.MarkedDateTime = markedDateTime;
                     item.SetId = id;
-                    item.DataType = set.DataType;
-                    item.Item = item.DataType == WarningDataType.设备数据 ? "" : item.Item;
+                    item.Item = set.DataType == WarningDataType.设备数据 ? dic.FirstOrDefault(x => x.Id == item.DictionaryId)?.VariableName ?? "" : item.Item;
                 }
-                ServerConfig.ApiDb.Execute(
-                    "INSERT INTO `warning_set_item` (`CreateUserId`, `DataType`, `SetId`, `Item`, `Condition1`, `Value1`, `Logic`, `Condition2`, `Value2`, `Frequency`, `Interval`, `Count`, `DictionaryId`, `IsSum`) " +
-                    "VALUES (@CreateUserId, @DataType, @SetId, @Item, @Condition1, @Value1, @Logic, @Condition2, @Value2, @Frequency, @Interval, @Count, @DictionaryId, @IsSum);",
-                    set.Items);
+                WarningSetItemHelper.Instance.Add<WarningSetItem>(set.Items);
             }
-            WarningHelper.LoadConfig();
+            WarningHelper.UpdateConfig();
             return Result.GenError<Result>(Error.Success);
         }
 
@@ -439,10 +387,9 @@ namespace ApiManagement.Controllers.WarningController
                     MarkedDelete = true,
                     Id = id
                 });
-            WarningHelper.LoadConfig();
+            WarningHelper.UpdateConfig();
             return Result.GenError<Result>(Error.Success);
         }
-
 
         /// <summary>
         /// 获取当前预警
@@ -455,80 +402,133 @@ namespace ApiManagement.Controllers.WarningController
             var result = new DataResult();
             if (WarningHelper.CurrentData != null && WarningHelper.CurrentData.Any())
             {
-                var data = sId == 0 ? WarningHelper.CurrentData.Where(x => x.Key.Item3 == dataType && x.Key.Item4 == type).Select(y => y.Value)
+                var r = sId == 0 ? WarningHelper.CurrentData.Where(x => x.Key.Item3 == dataType && x.Key.Item4 == type).Select(y => y.Value)
                     : WarningHelper.CurrentData.Where(x => x.Key.Item3 == dataType && x.Key.Item4 == type).Where(y => y.Value.SetId == sId).Select(z => z.Value);
-                var set = data.Select(x => x.SetId).Any() ? ServerConfig.ApiDb.Query<WarningSet>("SELECT `Id`, `Name` FROM `warning_set` WHERE `MarkedDelete` = 0 AND Id IN @Id;", new
+                if (r.Any())
                 {
-                    Id = data.Select(x => x.SetId)
-                }) : new List<WarningSet>();
-                var device = data.Select(x => x.DeviceId).Any() ? ServerConfig.ApiDb.Query<DeviceLibrary>("SELECT `Id`, `Code` FROM `device_library` WHERE `MarkedDelete` = 0 AND Id IN @Id;", new
-                {
-                    Id = data.Select(x => x.DeviceId)
-                }) : new List<DeviceLibrary>();
-                var categories = data.Select(x => x.CategoryId).Any() ? ServerConfig.ApiDb.Query<DeviceCategory>("SELECT `Id`, `CategoryName` FROM `device_category` WHERE `MarkedDelete` = 0 AND Id IN @Id;", new
-                {
-                    Id = data.Select(x => x.CategoryId)
-                }) : new List<DeviceCategory>();
-                //var classes = ServerConfig.ApiDb.Query<DeviceClass>("SELECT `Id`, `Class` FROM `device_class` WHERE `MarkedDelete` = 0 AND Id IN @Id;", new
-                //{
-                //    Id = data.Select(x => x.ClassId)
-                //});
-                foreach (var current in data.OrderBy(x => x.ItemId).ThenBy(x => x.DeviceId))
-                {
-                    var d = ClassExtension.ParentCopyToChild<WarningCurrent, WarningCurrentDetail>(current);
-                    d.SetName = set.FirstOrDefault(x => x.Id == d.SetId)?.Name ?? "";
-                    d.Code = device.FirstOrDefault(x => x.Id == d.DeviceId)?.Code ?? "";
-                    //d.Class = classes.FirstOrDefault(x => x.Id == d.ClassId)?.Class ?? "";
-                    d.CategoryName = categories.FirstOrDefault(x => x.Id == d.CategoryId)?.CategoryName ?? "";
-                    result.datas.Add(d);
+                    var sets = WarningSetHelper.GetMenus(r.Select(x => x.SetId));
+                    var devices = DeviceLibraryHelper.GetMenus(r.Select(x => x.DeviceId));
+                    var categories = DeviceCategoryHelper.GetMenus(r.Select(x => x.CategoryId));
+                    //var classes = ServerConfig.ApiDb.Query<DeviceClass>("SELECT `Id`, `Class` FROM `device_class` WHERE `MarkedDelete` = 0 AND Id IN @Id;", new
+                    //{
+                    //    Id = data.Select(x => x.ClassId)
+                    //});
+                    foreach (var current in r.OrderBy(x => x.ItemId).ThenBy(x => x.DeviceId))
+                    {
+                        var d = ClassExtension.ParentCopyToChild<WarningCurrent, WarningCurrentDetail>(current);
+                        d.SetName = sets.FirstOrDefault(x => x.Id == d.SetId)?.Name ?? "";
+                        d.Code = devices.FirstOrDefault(x => x.Id == d.DeviceId)?.Code ?? "";
+                        //d.Class = classes.FirstOrDefault(x => x.Id == d.ClassId)?.Class ?? "";
+                        d.CategoryName = categories.FirstOrDefault(x => x.Id == d.CategoryId)?.CategoryName ?? "";
+                        result.datas.Add(d);
+                    }
                 }
             }
             return result;
         }
 
         /// <summary>
-        /// 获取预警管理设置
+        /// 获取预警记录
         /// </summary>
         /// <returns></returns>
         // POST: api/Warning
         [HttpGet("Log")]
-        public DataResult GetWarningLog([FromQuery]int sId, DateTime startTime, DateTime endTime, WarningType type, WarningDataType dataType)
+        public DataResult GetWarningLog([FromQuery]int sId, DateTime startTime, DateTime endTime, WarningType type, WarningDataType dataType, string deviceIds = "")
         {
             var result = new DataResult();
-            var r = ServerConfig.ApiDb.Query<WarningLog>(
-                $"SELECT * FROM `warning_log` WHERE 1 = 1" +
-                $" AND Type = @type" +
-                $" AND `DataType` = @dataType" +
-                //$"SELECT * FROM `warning_log` WHERE `MarkedDelete` = 0" +
-                $"{(sId == 0 ? "" : " AND SetId = @sId")}" +
-                $"{(startTime == default(DateTime) ? "" : " AND CurrentTime >= @startTime")}" +
-                $"{(endTime == default(DateTime) ? "" : " AND CurrentTime <= @endTime")};", new { sId, startTime, endTime, type, dataType });
-
-            if (r != null && r.Any())
+            IEnumerable<int> deviceIdList = null;
+            if (sId != 0)
             {
-                var set = r.Select(x => x.SetId).Any() ? ServerConfig.ApiDb.Query<WarningSet>("SELECT `Id`, `Name` FROM `warning_set` WHERE `MarkedDelete` = 0 AND Id IN @Id;", new
+                var set = WarningSetHelper.Instance.Get<WarningSet>(sId);
+                if (set == null)
                 {
-                    Id = r.Select(x => x.SetId)
-                }) : new List<WarningSet>();
-                var device = r.Select(x => x.DeviceId).Any() ? ServerConfig.ApiDb.Query<DeviceLibrary>("SELECT `Id`, `Code` FROM `device_library` WHERE `MarkedDelete` = 0 AND Id IN @Id;", new
-                {
-                    Id = r.Select(x => x.DeviceId)
-                }) : new List<DeviceLibrary>();
-                var categories = r.Select(x => x.CategoryId).Any() ? ServerConfig.ApiDb.Query<DeviceCategory>("SELECT `Id`, `CategoryName` FROM `device_category` WHERE `MarkedDelete` = 0 AND Id IN @Id;", new
-                {
-                    Id = r.Select(x => x.CategoryId)
-                }) : new List<DeviceCategory>();
+                    return Result.GenError<DataResult>(Error.WarningSetNotExist);
+                }
+                deviceIdList = deviceIds.IsNullOrEmpty() ? null : deviceIds.Split(",").Select(x => int.TryParse(x, out var a) ? a : 0).Where(y => y != 0).ToList();
+            }
+            if (startTime != default(DateTime))
+            {
+                startTime = startTime.DayBeginTime();
+            }
 
-                foreach (var current in r)
+            if (endTime != default(DateTime))
+            {
+                endTime = endTime.DayEndTime();
+            }
+
+            result.datas.AddRange(WarningLogHelper.GetWarningLogs(startTime, endTime, sId, 0, type, dataType, deviceIdList, null));
+            return result;
+        }
+
+        /// <summary>
+        /// 处理设备预警
+        /// </summary>
+        /// <returns></returns>
+        // POST: api/Warning
+        [HttpPost("Deal")]
+        public Result DealWarningLog([FromBody]WarningClear clear)
+        {
+            var set = WarningSetHelper.Instance.Get<WarningSet>(clear.SetId);
+            if (set == null)
+            {
+                return Result.GenError<Result>(Error.WarningSetNotExist);
+            }
+            if (set.WarningType != WarningType.设备 || set.DataType != WarningDataType.设备数据)
+            {
+                return Result.GenError<Result>(Error.WarningSetItemDataTypeError);
+            }
+            if (clear.DeviceIds.IsNullOrEmpty())
+            {
+                clear.DeviceIds = set.DeviceIds;
+            }
+            if (!clear.DeviceIdList.Any())
+            {
+                return Result.GenError<Result>(Error.DeviceNotExist);
+            }
+            var markedDateTime = DateTime.Now;
+            var createUserId = Request.GetIdentityInformation();
+            clear.CreateUserId = createUserId;
+            clear.MarkedDateTime = markedDateTime;
+            clear.DealTime = markedDateTime;
+            WarningLogHelper.DealWarningLogs(clear);
+            WarningClearHelper.Instance.Add(clear);
+            return Result.GenError<Result>(Error.Success);
+        }
+
+        /// <summary>
+        /// 获取处理设备预警记录
+        /// </summary>
+        /// <returns></returns>
+        // POST: api/Warning
+        [HttpGet("DealLog")]
+        public DataResult GetWarningDealLog([FromQuery]int sId, DateTime startTime, DateTime endTime, WarningType type, WarningDataType dataType, string deviceIds = "")
+        {
+            var result = new DataResult();
+            if (sId != 0)
+            {
+                var set = WarningSetHelper.Instance.Get<WarningSet>(sId);
+                if (set == null)
                 {
-                    var d = ClassExtension.ParentCopyToChild<WarningCurrent, WarningLog>(current);
-                    d.SetName = set.FirstOrDefault(x => x.Id == d.SetId)?.Name ?? "";
-                    d.Code = device.FirstOrDefault(x => x.Id == d.DeviceId)?.Code ?? "";
-                    //d.Class = classes.FirstOrDefault(x => x.Id == d.ClassId)?.Class ?? "";
-                    d.CategoryName = categories.FirstOrDefault(x => x.Id == d.CategoryId)?.CategoryName ?? "";
-                    result.datas.Add(d);
+                    return Result.GenError<DataResult>(Error.WarningSetNotExist);
+                }
+                if (set.WarningType != WarningType.设备 || set.DataType != WarningDataType.设备数据)
+                {
+                    return Result.GenError<DataResult>(Error.WarningSetItemDataTypeError);
                 }
             }
+            var markedDateTime = DateTime.Now;
+            if (startTime == default(DateTime))
+            {
+                startTime = markedDateTime;
+            }
+            if (endTime == default(DateTime))
+            {
+                endTime = markedDateTime;
+            }
+            startTime = startTime.DayBeginTime();
+            endTime = endTime.DayEndTime();
+            var deviceIdList = deviceIds.IsNullOrEmpty() ? null : deviceIds.Split(",").Select(x => int.TryParse(x, out var a) ? a : 0).Where(y => y != 0).ToList();
+            result.datas.AddRange(WarningClearHelper.GetWarningClears(startTime, endTime, sId, type, dataType, deviceIdList));
             return result;
         }
     }

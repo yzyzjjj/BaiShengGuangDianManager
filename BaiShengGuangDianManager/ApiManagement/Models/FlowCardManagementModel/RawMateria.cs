@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using ApiManagement.Models.BaseModel;
+using ModelBase.Base.Logic;
 
 namespace ApiManagement.Models.FlowCardManagementModel
 {
@@ -13,7 +14,7 @@ namespace ApiManagement.Models.FlowCardManagementModel
         /// <summary>
         /// 原料规格
         /// </summary>
-
-        public List<RawMateriaSpecification> RawMateriaSpecifications = new List<RawMateriaSpecification>();
+        [IgnoreChange]
+        public List<RawMateriaSpecification> Specifications = new List<RawMateriaSpecification>();
     }
 }

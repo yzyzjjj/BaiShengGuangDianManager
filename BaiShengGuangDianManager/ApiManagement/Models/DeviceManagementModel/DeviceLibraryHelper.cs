@@ -1,5 +1,6 @@
 ﻿using ApiManagement.Base.Server;
 using ApiManagement.Models.BaseModel;
+using ServiceStack;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -52,12 +53,42 @@ namespace ApiManagement.Models.DeviceManagementModel
 
         //    return Instance.CommonGet<DeviceLibrary>(args, true).Select(x => new { x.Id, x.Model, x.CategoryId });
         //}
-        public static IEnumerable<DeviceLibrary> GetDetail(int wId = 0, IEnumerable<string> codes = null)
+        /// <summary>
+        /// 菜单
+        /// </summary>
+        /// <param name="ids"></param>
+        public static IEnumerable<DeviceLibrary> GetMenus(IEnumerable<int> ids)
+        {
+            var args = new List<Tuple<string, string, dynamic>>();
+            if (ids == null || !ids.Any())
+            {
+                return new List<DeviceLibrary>();
+            }
+            args.Add(new Tuple<string, string, dynamic>("Id", "IN", ids));
+            return Instance.CommonGet<DeviceLibrary>(args, true);
+        }
+        public static IEnumerable<DeviceLibrary> GetDetail(int wId, IEnumerable<string> codes)
         {
             return ServerConfig.ApiDb.Query<DeviceLibrary>(
                 $"SELECT * FROM `device_library` WHERE " +
                 //$"{(wId == 0 ? "" : "a.Id = @id AND ")}" +
-                $"{(codes != null ? "" : "Code = @codes AND ")}MarkedDelete = 0;", new { wId, codes });
+                $"{(codes != null ? "" : "Code IN @codes AND ")}" +
+                $"MarkedDelete = 0;", new { wId, codes });
+        }
+        public static DeviceLibrary GetDetail(int wId, string code)
+        {
+            return ServerConfig.ApiDb.Query<DeviceLibrary>(
+                $"SELECT * FROM `device_library` WHERE " +
+                //$"{(wId == 0 ? "" : "a.Id = @id AND ")}" +
+                $"{(code.IsNullOrEmpty() ? "" : "Code = @code AND ")}MarkedDelete = 0;", new { wId, code }).FirstOrDefault();
+        }
+        public static int GetCountByClass(int classId)
+        {
+            var args = new List<Tuple<string, string, dynamic>>
+            {
+                new Tuple<string, string, dynamic>("ClassId", "=", classId)
+            };
+            return Instance.CommonGetCount(args);
         }
         //public static bool GetHaveSame(int wId, IEnumerable<string> sames, IEnumerable<int> ids = null)
         //{

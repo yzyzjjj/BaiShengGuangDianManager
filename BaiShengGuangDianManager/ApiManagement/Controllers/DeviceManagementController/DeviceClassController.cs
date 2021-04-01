@@ -6,7 +6,9 @@ using ModelBase.Base.Utils;
 using ModelBase.Models.Result;
 using ServiceStack;
 using System;
+using System.Collections.Generic;
 using System.Linq;
+using ApiManagement.Models.Warning;
 
 namespace ApiManagement.Controllers.DeviceManagementController
 {
@@ -20,45 +22,40 @@ namespace ApiManagement.Controllers.DeviceManagementController
         public DataResult GetDeviceClass([FromQuery] bool menu, int qId)
         {
             var result = new DataResult();
-            if (menu)
+            result.datas.AddRange(menu
+                ? DeviceClassHelper.GetMenu(qId)
+                : DeviceClassHelper.GetDetails(qId));
+            if (qId != 0 && !result.datas.Any())
             {
-                result.datas.AddRange(ServerConfig.ApiDb.Query<dynamic>($"SELECT Id, Class FROM `device_class` WHERE `MarkedDelete` = 0{(qId == 0 ? "" : " AND Id = @qId")};", new { qId }));
-            }
-            else
-            {
-                result.datas.AddRange(ServerConfig.ApiDb.Query<DeviceClass>($"SELECT * FROM `device_class` WHERE `MarkedDelete` = 0{(qId == 0 ? "" : " AND Id = @qId")};", new { qId }));
+                result.errno = Error.ScriptVersionNotExist;
+                return result;
             }
             return result;
         }
 
-        // PUT: api/DeviceClass/5
-        [HttpPut("{id}")]
+        // PUT: api/DeviceClass
+        [HttpPut]
         public Result PutDeviceClass([FromBody] DeviceClass deviceClass)
         {
-            var data =
-                ServerConfig.ApiDb.Query<DeviceClass>("SELECT * FROM `device_class` WHERE Id = @Id AND MarkedDelete = 0;", new { deviceClass.Id }).FirstOrDefault();
+            var data = DeviceClassHelper.Instance.Get<DeviceClass>(deviceClass.Id);
             if (data == null)
             {
                 return Result.GenError<Result>(Error.DeviceClassNotExist);
             }
 
-            if (!deviceClass.Class.IsNullOrEmpty() && data.Class != deviceClass.Class)
+            if (deviceClass.Class.IsNullOrEmpty())
+                return Result.GenError<Result>(Error.DeviceClassNotEmpty);
+
+            var names = new List<string> { deviceClass.Class };
+            var ids = new List<int> { deviceClass.Id };
+            if (DeviceClassHelper.GetHaveSame(names, ids))
             {
-                var cnt =
-                    ServerConfig.ApiDb.Query<int>("SELECT COUNT(1) FROM `device_class` WHERE Id != @Id AND Class = @Class AND MarkedDelete = 0;",
-                        new { deviceClass.Id, deviceClass.Class }).FirstOrDefault();
-                if (cnt > 0)
-                {
-                    return Result.GenError<Result>(Error.DeviceClassIsExist);
-                }
+                return Result.GenError<Result>(Error.DeviceClassIsExist);
             }
 
             deviceClass.CreateUserId = Request.GetIdentityInformation();
             deviceClass.MarkedDateTime = DateTime.Now;
-            ServerConfig.ApiDb.Execute(
-                "UPDATE device_class SET `MarkedDateTime` = @MarkedDateTime, `MarkedDelete` = @MarkedDelete, " +
-                "`ModifyId` = @ModifyId, `Class` = @Class, `Description` = @Description WHERE `Id` = @Id;", deviceClass);
-
+            DeviceClassHelper.Instance.Update(deviceClass);
             return Result.GenError<Result>(Error.Success);
         }
 
@@ -66,19 +63,15 @@ namespace ApiManagement.Controllers.DeviceManagementController
         [HttpPost]
         public Result PostDeviceClass([FromBody] DeviceClass deviceClass)
         {
-            var cnt =
-                ServerConfig.ApiDb.Query<int>("SELECT COUNT(1) FROM `device_class` WHERE Class = @Class AND MarkedDelete = 0;", new { deviceClass.Class }).FirstOrDefault();
-            if (cnt > 0)
+            var names = new List<string> { deviceClass.Class };
+            if (DeviceClassHelper.GetHaveSame(names))
             {
                 return Result.GenError<Result>(Error.DeviceClassIsExist);
             }
+
             deviceClass.CreateUserId = Request.GetIdentityInformation();
             deviceClass.MarkedDateTime = DateTime.Now;
-            ServerConfig.ApiDb.Execute(
-                "INSERT INTO device_class (`CreateUserId`, `MarkedDateTime`, `Class`, `Description`) " +
-                "VALUES (@CreateUserId, @MarkedDateTime, @Class, @Description);",
-                deviceClass);
-
+            DeviceClassHelper.Instance.Add(deviceClass);
             return Result.GenError<Result>(Error.Success);
         }
 
@@ -86,27 +79,18 @@ namespace ApiManagement.Controllers.DeviceManagementController
         [HttpDelete("{id}")]
         public Result DeleteDeviceClass([FromRoute] int id)
         {
-            var cnt =
-                ServerConfig.ApiDb.Query<int>("SELECT COUNT(1) FROM `device_class` WHERE Id = @id AND `MarkedDelete` = 0;", new { id }).FirstOrDefault();
-            if (cnt == 0)
+            var data = DeviceClassHelper.Instance.Get<DeviceClass>(id);
+            if (data == null)
             {
                 return Result.GenError<Result>(Error.DeviceClassNotExist);
             }
 
-            cnt =
-                ServerConfig.ApiDb.Query<int>("SELECT COUNT(1) FROM `device_library` WHERE ClassId = @id AND `MarkedDelete` = 0;", new { id }).FirstOrDefault();
+            var cnt = DeviceLibraryHelper.GetCountByClass(id);
             if (cnt > 0)
             {
                 return Result.GenError<Result>(Error.DeviceModelUseDeviceClass);
             }
-
-            ServerConfig.ApiDb.Execute(
-                "UPDATE `device_class` SET `MarkedDateTime`= @MarkedDateTime, `MarkedDelete`= @MarkedDelete WHERE `Id`= @Id;", new
-                {
-                    MarkedDateTime = DateTime.Now,
-                    MarkedDelete = true,
-                    Id = id
-                });
+            DeviceClassHelper.Instance.Delete(id);
             return Result.GenError<Result>(Error.Success);
         }
 

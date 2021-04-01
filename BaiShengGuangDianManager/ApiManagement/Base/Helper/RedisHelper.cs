@@ -17,6 +17,7 @@ namespace ApiManagement.Base.Helper
         //public static readonly RedisHelper Instance = new RedisHelper();
         private static PooledRedisClientManager _pool;
         private static dynamic _redisConfig;
+        private static bool _closeWrite = false;
         public RedisHelper()
         {
 
@@ -145,6 +146,11 @@ namespace ApiManagement.Base.Helper
 
         public static void Set<T>(string key, T value, DateTime expiry)
         {
+            if (_closeWrite)
+            {
+                return;
+            }
+
             if (value == null)
             {
                 return;
@@ -178,11 +184,19 @@ namespace ApiManagement.Base.Helper
         /// <param name="value"></param>
         public static void Set<T>(string key, T value)
         {
+            if (_closeWrite)
+            {
+                return;
+            }
             Set(key, value, TimeSpan.FromSeconds(_redisConfig.ExpireTime));
         }
 
         public static void Set<T>(string key, T value, TimeSpan slidingExpiration)
         {
+            if (_closeWrite)
+            {
+                return;
+            }
             if (value == null)
             {
                 return;
@@ -209,6 +223,10 @@ namespace ApiManagement.Base.Helper
 
         public static void SetForever<T>(string key, T value)
         {
+            if (_closeWrite)
+            {
+                return;
+            }
             if (value == null)
             {
                 return;
@@ -266,7 +284,6 @@ namespace ApiManagement.Base.Helper
             }
 
             T obj;
-
             using (var r = _pool.GetReadOnlyClient())
             {
                 try
@@ -1033,17 +1050,34 @@ namespace ApiManagement.Base.Helper
             }
         }
 
-        public static void PublishToTable(string channel = "", string table = "all")
+        public static void PublishToTable(string channel, string table)
         {
             if (channel.IsNullOrEmpty())
             {
-                channel = _redisConfig.RedisKey;
+                Log.Error($"PublishToTable Channel Empty!!!");
+                return;
             }
 
             var message = string.Format("reload_table:{0}", table);
             using (var redis = _pool.GetClient())
             {
                 redis.PublishMessage(channel, message);
+                //redis.CreateSubscription();
+            }
+        }
+        public static void PublishToTable(string table = "all")
+        {
+            var channel = (string) _redisConfig.RedisKey;
+            if (channel.IsNullOrEmpty())
+            {
+                Log.Error($"PublishToTable RedisKey Empty!!!");
+                return;
+            }
+
+            var message = string.Format("reload_table:{0}", table);
+            using (var redis = _pool.GetClient())
+            {
+                redis.PublishMessage(_redisConfig.RedisKey, message);
                 //redis.CreateSubscription();
             }
         }

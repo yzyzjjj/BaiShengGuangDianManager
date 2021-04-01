@@ -1,6 +1,8 @@
-﻿namespace ApiManagement.Models.SmartFactoryModel
+﻿using ApiManagement.Models.AccountModel;
+
+namespace ApiManagement.Models.SmartFactoryModel
 {
-    public class SmartOperator : SmartAccount
+    public class SmartOperator : AccountInfo
     {
         /// <summary>
         /// 车间Id

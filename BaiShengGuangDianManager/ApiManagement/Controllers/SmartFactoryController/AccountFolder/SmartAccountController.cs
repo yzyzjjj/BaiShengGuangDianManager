@@ -2,6 +2,7 @@
 using System.Collections.Generic;
 using System.Linq;
 using ApiManagement.Base.Server;
+using ApiManagement.Models.AccountModel;
 using ApiManagement.Models.BaseModel;
 using ApiManagement.Models.SmartFactoryModel;
 using Microsoft.AspNetCore.Mvc;
@@ -26,7 +27,7 @@ namespace ApiManagement.Controllers.SmartFactoryController.AccountFolder
                 : $"SELECT * FROM `t_user` WHERE MarkedDelete = 0{(qId == 0 ? "" : " AND Id = @qId")};";
             result.datas.AddRange(menu
                 ? ServerConfig.ApiDb.Query<dynamic>(sql, new { qId })
-                : ServerConfig.ApiDb.Query<SmartAccount>(sql, new { qId }));
+                : ServerConfig.ApiDb.Query<AccountInfo>(sql, new { qId }));
             if (qId != 0 && !result.datas.Any())
             {
                 result.errno = Error.AccountNotExist;
@@ -42,7 +43,7 @@ namespace ApiManagement.Controllers.SmartFactoryController.AccountFolder
         /// <returns></returns>
         // PUT: api/SmartAccount/Id/5
         [HttpPut]
-        public Result PutSmartAccount([FromBody] IEnumerable<SmartAccount> smartUsers)
+        public Result PutSmartAccount([FromBody] IEnumerable<AccountInfo> smartUsers)
         {
             if (smartUsers == null || !smartUsers.Any())
             {
@@ -50,7 +51,7 @@ namespace ApiManagement.Controllers.SmartFactoryController.AccountFolder
             }
 
             var smartUserIds = smartUsers.Select(x => x.Id);
-            var data = SmartAccountHelper.Instance.GetByIds<SmartAccount>(smartUserIds);
+            var data = AccountInfoHelper.Instance.GetByIds<AccountInfo>(smartUserIds);
             if (data.Count() != smartUsers.Count())
             {
                 return Result.GenError<Result>(Error.SmartProcessCodeNotExist);
@@ -63,13 +64,13 @@ namespace ApiManagement.Controllers.SmartFactoryController.AccountFolder
                 smartUser.CreateUserId = createUserId;
                 smartUser.MarkedDateTime = markedDateTime;
             }
-            SmartAccountHelper.Instance.Update(smartUsers);
+            AccountInfoHelper.Instance.Update(smartUsers);
             return Result.GenError<Result>(Error.Success);
         }
 
         // POST: api/SmartAccount
         [HttpPost]
-        public Result PostSmartAccount([FromBody] IEnumerable<SmartAccount> smartUsers)
+        public Result PostSmartAccount([FromBody] IEnumerable<AccountInfo> smartUsers)
         {
             var createUserId = Request.GetIdentityInformation();
             var markedDateTime = DateTime.Now;
@@ -78,7 +79,7 @@ namespace ApiManagement.Controllers.SmartFactoryController.AccountFolder
                 smartUser.CreateUserId = createUserId;
                 smartUser.MarkedDateTime = markedDateTime;
             }
-            SmartAccountHelper.Instance.Add(smartUsers);
+            AccountInfoHelper.Instance.Add(smartUsers);
             return Result.GenError<Result>(Error.Success);
         }
 
@@ -91,12 +92,12 @@ namespace ApiManagement.Controllers.SmartFactoryController.AccountFolder
         public Result DeleteSmartAccount([FromBody] BatchDelete batchDelete)
         {
             var ids = batchDelete.ids;
-            var count = SmartAccountHelper.Instance.GetCountByIds(ids);
+            var count = AccountInfoHelper.Instance.GetCountByIds(ids);
             if (count == 0)
             {
                 return Result.GenError<Result>(Error.AccountNotExist);
             }
-            SmartAccountHelper.Instance.Delete(ids);
+            AccountInfoHelper.Instance.Delete(ids);
             return Result.GenError<Result>(Error.Success);
         }
     }

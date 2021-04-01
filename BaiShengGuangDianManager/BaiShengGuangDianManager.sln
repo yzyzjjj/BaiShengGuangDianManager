@@ -7,7 +7,7 @@ Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "ModelBase", "..\..\BaiSheng
 EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "ApiManagement", "ApiManagement\ApiManagement.csproj", "{40DF8258-6FCD-491A-85E9-01C685A1B37E}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "RelayServer", "RelayServer\RelayServer.csproj", "{06F4D507-FF11-4E4A-B7CC-7DEC05CA2F78}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "RelayServer", "RelayServer\RelayServer.csproj", "{06F4D507-FF11-4E4A-B7CC-7DEC05CA2F78}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution

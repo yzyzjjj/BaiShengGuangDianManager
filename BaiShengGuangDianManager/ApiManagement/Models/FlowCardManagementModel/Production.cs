@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using ApiManagement.Models.BaseModel;
+using ModelBase.Base.Logic;
 using ModelBase.Base.Utils;
 
 namespace ApiManagement.Models.FlowCardManagementModel
@@ -14,7 +15,9 @@ namespace ApiManagement.Models.FlowCardManagementModel
         /// 计划号
         /// </summary>
         public string ProductionProcessName { get; set; }
+        [IgnoreChange]
         public List<ProductionSpecification> Specifications = new List<ProductionSpecification>();
+        [IgnoreChange]
         public List<ProductionProcessStep> ProcessSteps = new List<ProductionProcessStep>();
     }
     public class ProductionDetail : Production

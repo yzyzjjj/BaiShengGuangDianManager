@@ -1,6 +1,7 @@
 ﻿using ApiManagement.Base.Server;
 using ApiManagement.Models.DeviceManagementModel;
 using ApiManagement.Models.FlowCardManagementModel;
+using ApiManagement.Models.OtherModel;
 using ModelBase.Base.HttpServer;
 using ModelBase.Base.Logger;
 using ModelBase.Base.Utils;
@@ -9,19 +10,15 @@ using ServiceStack;
 using System;
 using System.Collections.Generic;
 using System.Linq;
-#if !DEBUG
 using System.Threading;
-#endif
+using System.Threading.Tasks;
 using System.Web;
 
 namespace ApiManagement.Base.Helper
 {
     public class HFlowCardHelper
     {
-#if DEBUG
-#else
         private static Timer _timer;
-#endif
         private static int _id = 0;
         private static string _createUserId = "ErpSystem";
         private static string _url = ServerConfig.ErpUrl;
@@ -46,9 +43,9 @@ namespace ApiManagement.Base.Helper
 #if DEBUG
             Console.WriteLine("FlowCardHelper 调试模式已开启");
 #else
-            _timer = new Timer(DoSth, null, 5000, 1000 * 60 * 1);
             Console.WriteLine("FlowCardHelper 发布模式已开启");
 #endif
+            _timer = new Timer(DoSth, null, 5000, 1000 * 60 * 1);
         }
 
         /// <summary>
@@ -58,7 +55,7 @@ namespace ApiManagement.Base.Helper
         {
             var _pre = "FlowCard";
             var lockKey = $"{_pre}:Lock";
-            if (RedisHelper.SetIfNotExist(lockKey, "lock"))
+            if (RedisHelper.SetIfNotExist(lockKey, DateTime.Now.ToStr()))
             {
                 try
                 {
@@ -1007,6 +1004,50 @@ namespace ApiManagement.Base.Helper
             public string jhh;
             public ErpGx[] gx;
             public ErpYq[] khyq;
+        }
+
+        public static void UseFlowCardReport()
+        {
+            var fcs = ServerConfig.ApiDb.Query<FlowCardReport>(
+                "SELECT * FROM `flowcard_report` WHERE State = 0 AND Time > @Time ORDER BY Time DESC;", new { Time = DateTime.Today.AddDays(-1) });
+            var gxs = fcs.GroupBy(x => x.Step).Select(x => x.Key);
+            foreach (var gx in gxs)
+            {
+                if (AnalysisHelper.ParamIntDic.ContainsKey(gx))
+                {
+                    var fcc = fcs.Where(x => x.Step == gx);
+                    var flowCardInfos = fcc.Select(fc => new
+                    {
+                        Id = fc.FlowCardId,
+                        MarkedDateTime = fc.Time,
+                        FaChu = fc.Total,
+                        fc.HeGe,
+                        fc.LiePian,
+                        fc.DeviceId,
+                        fc.Time,
+                        JiaGongRen = fc.Processor
+                    });
+
+                    Task.Run(() =>
+                    {
+                        ServerConfig.ApiDb.Execute(
+                            $"UPDATE `flowcard_library` SET `MarkedDateTime` = @MarkedDateTime, " +
+                            $"`{AnalysisHelper.ParamIntDic[gx][1]}` = @FaChu, " +
+                            $"`{AnalysisHelper.ParamIntDic[gx][2]}` = @HeGe, " +
+                            $"`{AnalysisHelper.ParamIntDic[gx][3]}` = @LiePian, " +
+                            $"`{AnalysisHelper.ParamIntDic[gx][4]}` = @DeviceId, " +
+                            $"`{AnalysisHelper.ParamIntDic[gx][0]}` = @Time, " +
+                            $"`{AnalysisHelper.ParamIntDic[gx][5]}` = @JiaGongRen WHERE `Id` = @Id;",
+                            flowCardInfos);
+
+                        ServerConfig.ApiDb.Execute($"UPDATE `flowcard_report` SET `State` = @State WHERE `Id` = @Id;", fcc.Select(x => new
+                        {
+                            x.Id,
+                            State = x.FlowCardId == 0 ? 2 : (x.ProcessorId == 0 ? 3 : (x.DeviceId == 0 ? 4 : 1))
+                        }));
+                    });
+                }
+            }
         }
     }
 }

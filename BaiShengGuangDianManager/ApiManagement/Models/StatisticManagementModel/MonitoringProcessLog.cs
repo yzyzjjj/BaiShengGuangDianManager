@@ -26,6 +26,7 @@ namespace ApiManagement.Models.StatisticManagementModel
         public string Code { get; set; }
         public string ProcessorName { get; set; }
         public string FlowCardName { get; set; }
+        public int ProductionProcessId { get; set; }
         public string ProductionProcessName { get; set; }
     }
     public class MonitoringProcessLogFlag : MonitoringProcessLog

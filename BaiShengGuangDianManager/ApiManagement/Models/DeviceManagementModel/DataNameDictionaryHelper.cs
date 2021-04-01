@@ -68,6 +68,23 @@ namespace ApiManagement.Models.DeviceManagementModel
         //    }
         //    return Instance.CommonHaveSame(args);
         //}
+        public static IEnumerable<DataNameDictionaryDetail> GetDataNameDictionaryDetailsByScript(int scriptId)
+        {
+            var args = new List<Tuple<string, string, dynamic>>
+            {
+                new Tuple<string, string, dynamic>("ScriptId", "=", scriptId)
+            };
+            return Instance.CommonGet<DataNameDictionaryDetail>(args);
+        }
+        public static IEnumerable<DataNameDictionaryDetail> GetDataNameDictionaryDetailsByScripts(IEnumerable<int> scriptIds)
+        {
+            var args = new List<Tuple<string, string, dynamic>>();
+            if (scriptIds != null && scriptIds.Any())
+            {
+                args.Add(new Tuple<string, string, dynamic>("ScriptId", "IN", scriptIds));
+            }
+            return Instance.CommonGet<DataNameDictionaryDetail>(args);
+        }
         public static IEnumerable<DataNameDictionaryDetail> GetDataNameDictionaryDetails(IEnumerable<int> scriptIds, IEnumerable<int> variableNameIds = null)
         {
             scriptIds = scriptIds.Distinct();
@@ -101,6 +118,20 @@ namespace ApiManagement.Models.DeviceManagementModel
                 }
             }
             return res;
+        }
+
+        public static IEnumerable<DataNameDictionaryDetail> GetDataNameDictionaryDetailsByPointerAddress(IEnumerable<int> scriptIds, IEnumerable<int> pointerAddresses = null)
+        {
+            var args = new List<Tuple<string, string, dynamic>>();
+            if (scriptIds != null && scriptIds.Any())
+            {
+                args.Add(new Tuple<string, string, dynamic>("ScriptId", "IN", scriptIds));
+            }
+            if (pointerAddresses != null && pointerAddresses.Any())
+            {
+                args.Add(new Tuple<string, string, dynamic>("PointerAddress", "IN", pointerAddresses));
+            }
+            return Instance.CommonGet<DataNameDictionaryDetail>(args);
         }
         #endregion
 

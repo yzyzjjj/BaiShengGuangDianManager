@@ -6,6 +6,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading;
+using ApiManagement.Models.AccountModel;
 using static ApiManagement.Models.SmartFactoryModel.ScheduleState;
 using DateTime = System.DateTime;
 
@@ -53,10 +54,7 @@ namespace ApiManagement.Base.Helper
         //private static List<SmartProcessDevice> _devices;
         private static List<SmartProcessor> _processors = new List<SmartProcessor>();
 
-#if DEBUG
-#else
         private static Timer _simulateTimer;
-#endif
 
         public static void Init()
         {
@@ -142,7 +140,7 @@ namespace ApiManagement.Base.Helper
 
         public static void InitProcessor()
         {
-            var users = SmartAccountHelper.Instance.GetAll<SmartAccount>();
+            var users = AccountInfoHelper.Instance.GetAll<AccountInfo>();
             var processorList = RedisHelper.Get<List<SmartProcessor>>(ProcessorKey);
             if (processorList == null)
             {
@@ -860,7 +858,7 @@ namespace ApiManagement.Base.Helper
                                     });
                                 }
                             }
-                            var processor = SmartAccountHelper.GetSmartAccount(processDevice.ProcessorId)?.Account ?? "";
+                            var processor = AccountInfoHelper.GetAccount(processDevice.ProcessorId)?.Account ?? "";
                             //todo
                             var log = new SmartFlowCardProcessLog(0, processor, markedDateTime, processDevice, qualified, unqualified);
                             SmartFlowCardProcessLogHelper.Instance.Add(log);

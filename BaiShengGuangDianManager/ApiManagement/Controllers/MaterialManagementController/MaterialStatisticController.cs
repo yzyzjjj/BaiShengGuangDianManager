@@ -6,7 +6,6 @@ using ModelBase.Models.Result;
 using ServiceStack;
 using ServiceStack.Text;
 using System;
-using System.Diagnostics;
 using System.Linq;
 
 namespace ApiManagement.Controllers.MaterialManagementController
@@ -21,29 +20,36 @@ namespace ApiManagement.Controllers.MaterialManagementController
     {
         // GET: api/MaterialValuer/Balance?qId=0
         [HttpGet("Balance")]
-        public DataResult GetMaterialValuer([FromQuery] DateTime day, MaterialStatisticInterval interval, 
+        public DataResult GetMaterialValuer([FromQuery] DateTime time1, DateTime time2, MaterialStatisticInterval interval,
             int categoryId = 0, int nameId = 0, int supplierId = 0, int specificationId = 0, int siteId = 0)
         {
             var result = new DataResult();
-            DateTime day1;
-            DateTime day2;
+            if (time1 == default(DateTime))
+            {
+                return result;
+            }
+            if (time2 == default(DateTime))
+            {
+                time2 = time1;
+            }
+
             switch (interval)
             {
                 case MaterialStatisticInterval.天:
-                    day2 = day.Date;
-                    day1 = day2.AddDays(-1);
+                    time1 = time1.Date.AddDays(-1);
+                    time2 = time2.Date;
                     break;
                 case MaterialStatisticInterval.周:
-                    day2 = day.WeekEndTime();
-                    day1 = day.WeekBeginTime().AddDays(-1);
+                    time1 = time1.WeekBeginTime().AddDays(-1);
+                    time2 = time2.WeekEndTime();
                     break;
                 case MaterialStatisticInterval.月:
-                    day2 = day.EndOfMonth();
-                    day1 = day.EndOfLastMonth();
+                    time1 = time1.EndOfLastMonth();
+                    time2 = time2.EndOfMonth();
                     break;
                 case MaterialStatisticInterval.年:
-                    day2 = day.EndOfYear();
-                    day1 = day.EndOfYear(-1);
+                    time1 = time1.EndOfYear(-1);
+                    time2 = time2.EndOfYear();
                     break;
                 default: return result;
             }
@@ -56,11 +62,11 @@ namespace ApiManagement.Controllers.MaterialManagementController
                 $"{(supplierId != 0 ? "AND SupplierId = @supplierId " : "")}" +
                 $"{(specificationId != 0 ? "AND SpecificationId = @specificationId " : "")}" +
                 $"{(siteId != 0 ? "AND SiteId = @siteId " : "")} " +
-                $"And Time > @day1 AND Time <= @day2 " +
+                $"And Time > @time1 AND Time <= @time2 " +
                 $"ORDER BY Time DESC) a GROUP BY BillId ORDER BY BillId DESC;", new
                 {
-                    day1,
-                    day2,
+                    time1,
+                    time2,
                     categoryId,
                     nameId,
                     supplierId,
@@ -68,7 +74,7 @@ namespace ApiManagement.Controllers.MaterialManagementController
                     siteId
                 }, 60).ToList();
             var beforeData = ServerConfig.ApiDb.Query<MaterialStatistic>(
-                "SELECT * FROM `material_balance` WHERE Time = @day1 " +
+                "SELECT * FROM `material_balance` WHERE Time = @time1 " +
                 $"{(categoryId != 0 ? "AND CategoryId = @categoryId " : "")}" +
                 $"{(nameId != 0 ? "AND NameId = @nameId " : "")}" +
                 $"{(supplierId != 0 ? "AND SupplierId = @supplierId " : "")}" +
@@ -76,7 +82,7 @@ namespace ApiManagement.Controllers.MaterialManagementController
                 $"{(siteId != 0 ? "AND SiteId = @siteId " : "")}" +
                 "ORDER BY BillId;", new
                 {
-                    day1,
+                    time1,
                     categoryId,
                     nameId,
                     supplierId,

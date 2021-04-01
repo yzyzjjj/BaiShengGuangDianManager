@@ -1,5 +1,6 @@
 ﻿using ApiManagement.Models.BaseModel;
 using ApiManagement.Models.DeviceManagementModel;
+using ApiManagement.Models.Warning;
 using ModelBase.Base.Utils;
 using Newtonsoft.Json;
 using ServiceStack;
@@ -7,26 +8,102 @@ using System;
 using System.Collections.Generic;
 using System.ComponentModel;
 using System.Linq;
-using ModelBase.Models.Device;
 
 namespace ApiManagement.Models.StatisticManagementModel
 {
-    public enum MonitoringKanBanEnum
+    public enum KanBanEnum
     {
         [Description("无")]
         无 = 0,
         [Description("设备详情看板")]
         设备详情看板 = 1,
         [Description("设备状态看板")]
-        设备状态看板 = 2
+        设备状态看板 = 2,
+        [Description("生产相关看板")]
+        生产相关看板 = 3
     }
 
-    public class MonitoringKanBan
+    public enum KanBanItemEnum
+    {
+        [Description("无")]
+        无 = 0,
+        #region 生产相关看板
+        [Description("合格率异常报警")]
+        合格率异常报警 = 1,
+        [Description("合格率异常统计")]
+        合格率异常统计,
+        [Description("设备状态反馈")]
+        设备状态反馈,
+        [Description("设备预警状态")]
+        设备预警状态,
+        [Description("计划号日进度表")]
+        计划号日进度表,
+        [Description("设备日进度表")]
+        设备日进度表,
+        [Description("操作工日进度表")]
+        操作工日进度表,
+        #endregion
+
+
+        #region 设备状态看板 生产数据选项
+        [Description("上次加工数")]
+        上次加工数 = 100,
+        [Description("上次合格数")]
+        上次合格数,
+        [Description("上次次品数")]
+        上次次品数,
+        [Description("上次合格率")]
+        上次合格率,
+        [Description("上次次品率")]
+        上次次品率,
+
+        [Description("今日加工数")]
+        今日加工数,
+        [Description("今日加工次数")]
+        今日加工次数,
+        [Description("今日合格数")]
+        今日合格数,
+        [Description("今日次品数")]
+        今日次品数,
+        [Description("今日合格率")]
+        今日合格率,
+        [Description("今日次品率")]
+        今日次品率,
+        [Description("今日合格率预警")]
+        今日合格率预警,
+
+        [Description("昨日加工数")]
+        昨日加工数,
+        [Description("昨日加工次数")]
+        昨日加工次数,
+        [Description("昨日合格数")]
+        昨日合格数,
+        [Description("昨日次品数")]
+        昨日次品数,
+        [Description("昨日合格率")]
+        昨日合格率,
+        [Description("昨日次品率")]
+        昨日次品率,
+        [Description("昨日合格率预警")]
+        昨日合格率预警,
+        #endregion
+
+    }
+
+    public class MonitoringKanBan : MonitoringProcess
     {
         public MonitoringKanBan()
         {
             ProductionList = new List<MonitoringProductionData>();
             MSetData = new List<MonitoringSetData>();
+            Times = new Dictionary<KanBanItemEnum, DateTime>();
+            WarningLogs = new List<WarningLog>();
+            WarningStatistics = new List<WarningStatistic>();
+            DeviceStateInfos = new List<DeviceStateInfo>();
+            WarningDeviceInfos = new List<WarningDeviceInfo>();
+            ProductionSchedules = new List<ProductionSchedule>();
+            DeviceSchedules = new List<DeviceSchedule>();
+            ProcessorSchedules = new List<ProcessorSchedule>();
         }
         //[JsonIgnore]
         //public bool Init = false;
@@ -34,167 +111,17 @@ namespace ApiManagement.Models.StatisticManagementModel
         //public int InitCount = 0;
         //[JsonIgnore]
         public DateTime Date => Time.Date;
-        public DateTime Time { get; set; }
         /// <summary>
         /// 看板id
         /// </summary>
         public int Id { get; set; } = 0;
-        /// <summary>
-        /// 总设备数量
-        /// </summary>
-        public int AllDevice { get; set; } = 0;
-        /// <summary>
-        /// 正常运行设备数量
-        /// </summary>
-        public int NormalDevice { get; set; } = 0;
-        /// <summary>
-        /// 加工中设备数量
-        /// </summary>
-        public int ProcessDevice { get; set; } = 0;
-        /// <summary>
-        /// 闲置设备数量
-        /// </summary>
-        public int IdleDevice => NormalDevice - ProcessDevice;
-        /// <summary>
-        /// 故障设备数量
-        /// </summary>
-        public int FaultDevice { get; set; } = 0;
-        /// <summary>
-        /// 连接异常设备数量
-        /// </summary>
-        public int ConnectErrorDevice => AllDevice - NormalDevice - FaultDevice;
-        /// <summary>
-        /// 日最大使用台数
-        /// </summary>
-        public int MaxUse { get; set; } = 0;
-        /// <summary>
-        /// 今日当前使用台数
-        /// </summary>
-        [JsonIgnore]
-        private List<int> _useList;
-        public List<int> UseList
-        {
-            get
-            {
-                if (_useList == null)
-                {
-                    _useList = !UseListStr.IsNullOrEmpty()
-                        ? JsonConvert.DeserializeObject<List<int>>(UseListStr) : new List<int>();
-                }
-
-                var str = _useList.OrderBy(x => x).ToJson();
-                if (UseListStr != str)
-                {
-                    UseListStr = str;
-                }
-
-                _useList = _useList.OrderBy(x => x).ToList();
-                return _useList;
-            }
-            set
-            {
-                _useList = value;
-                UseListStr = _useList.OrderBy(x => x).ToJson();
-            }
-        }
-
-        [JsonIgnore]
-        public string UseListStr { get; set; } = "[]";
-        /// <summary>
-        /// 今日最大使用台数
-        /// </summary>
-        [JsonIgnore]
-        private List<int> _maxUseList;
-        public List<int> MaxUseList
-        {
-            get
-            {
-                if (_maxUseList == null)
-                {
-                    _maxUseList = !MaxUseListStr.IsNullOrEmpty()
-                        ? JsonConvert.DeserializeObject<List<int>>(MaxUseListStr) : new List<int>();
-                }
-
-                var str = _maxUseList.OrderBy(x => x).ToJson();
-                if (MaxUseListStr != str)
-                {
-                    MaxUseListStr = str;
-                }
-
-                _maxUseList = _maxUseList.OrderBy(x => x).ToList();
-                return _maxUseList;
-            }
-            set
-            {
-                _maxUseList = value;
-                MaxUseListStr = _maxUseList.OrderBy(x => x).ToJson();
-            }
-        }
-        [JsonIgnore]
-        public string MaxUseListStr { get; set; } = "[]";
-        public List<string> UseCodeList { get; set; }
-        /// <summary>
-        /// 日最小使用台数
-        /// </summary>
-        public int MinUse { get; set; } = -1;
-        /// <summary>
-        /// 日最大使用率
-        /// </summary>
         public decimal MaxUseRate => AllDevice != 0 ? (MaxUse * 1m / AllDevice).ToRound(4) : 0;
         /// <summary>
         /// 日最小使用率
         /// </summary>
         public decimal MinUseRate => AllDevice != 0 ? ((MinUse == -1 ? 0 : MinUse) * 1m / AllDevice).ToRound(4) : 0;
-        /// <summary>
-        /// 最大同时使用台数日
-        /// </summary>
-        public decimal MaxSimultaneousUseRate { get; set; } = 0;
-        /// <summary>
-        /// 最小同时使用台数日
-        /// </summary>
-        public decimal MinSimultaneousUseRate { get; set; } = -1;
-        /// <summary>
-        /// 单台加工利用率=加工时间/24h
-        /// </summary>
-        public List<ProcessUseRate> SingleProcessRate { get; set; } = new List<ProcessUseRate>();
         [JsonIgnore]
         public string SingleProcessRateStr => SingleProcessRate.ToJson();
-        /// <summary>
-        /// 所有利用率=总加工时间/（机台号*24h）
-        /// </summary>
-        public decimal AllProcessRate { get; set; } = 0;
-        /// <summary>
-        /// 运行时间
-        /// </summary>
-        public int RunTime { get; set; } = 0;
-        /// <summary>
-        /// 加工时间
-        /// </summary>
-        public int ProcessTime { get; set; } = 0;
-        /// <summary>
-        /// 闲置时间 = 运行时间-加工时间
-        /// </summary>
-        public int IdleTime => RunTime - ProcessTime;
-        /// <summary>
-        /// 生产总数
-        /// </summary>
-        public int FaChu { get; set; }
-        /// <summary>
-        /// 合格
-        /// </summary>
-        public int HeGe { get; set; }
-        /// <summary>
-        /// 裂片
-        /// </summary>
-        public int LiePian { get; set; }
-        /// <summary>
-        /// 合格率
-        /// </summary>
-        public decimal Rate => FaChu == 0 ? 0 : ((decimal)HeGe / FaChu).ToRound();
-        /// <summary>
-        /// 生产数据
-        /// </summary>
-        public List<MonitoringProductionData> ProductionList { get; set; }
         public string ProductionData => ProductionList.ToJSON();
         /// <summary>
         /// 监控数据
@@ -205,6 +132,39 @@ namespace ApiManagement.Models.StatisticManagementModel
             x.Id,
             Data = x.Data.Select(y => (MonitoringSetSingleData)y)
         }).ToJSON();
+        /// <summary>
+        /// 报警数据
+        /// </summary>
+        [JsonIgnore]
+        public Dictionary<KanBanItemEnum, DateTime> Times { get; set; }
+        /// <summary>
+        /// 报警数据
+        /// </summary>
+        public List<WarningLog> WarningLogs { get; set; }
+        /// <summary>
+        /// 报警统计数据
+        /// </summary>
+        public List<WarningStatistic> WarningStatistics { get; set; }
+        /// <summary>
+        /// 设备状态反馈
+        /// </summary>
+        public List<DeviceStateInfo> DeviceStateInfos { get; set; }
+        /// <summary>
+        /// 预警状态设备
+        /// </summary>
+        public List<WarningDeviceInfo> WarningDeviceInfos { get; set; }
+        /// <summary>
+        /// 计划号日进度表
+        /// </summary>
+        public List<ProductionSchedule> ProductionSchedules { get; set; }
+        /// <summary>
+        /// 设备日进度表
+        /// </summary>
+        public List<DeviceSchedule> DeviceSchedules { get; set; }
+        /// <summary>
+        /// 操作工日进度表
+        /// </summary>
+        public List<ProcessorSchedule> ProcessorSchedules { get; set; }
         public void Update(MonitoringKanBan monitoringKanBan)
         {
             Time = monitoringKanBan.Time;
@@ -249,14 +209,6 @@ namespace ApiManagement.Models.StatisticManagementModel
 
     public class MonitoringKanBanDevice : MonitoringKanBan
     {
-        public MonitoringKanBanDevice()
-        {
-            AllDevice = 1;
-            AnalysisData = new DeviceData();
-        }
-        public int DeviceId { get; set; }
-        public string Code { get; set; }
-        public DeviceData AnalysisData { get; set; }
     }
     public class ProcessUseRate
     {
@@ -274,7 +226,7 @@ namespace ApiManagement.Models.StatisticManagementModel
         /// <summary>
         /// 0
         /// </summary>
-        public MonitoringKanBanEnum Type { get; set; }
+        public KanBanEnum Type { get; set; }
         public string DeviceIds { get; set; }
         /// <summary>
         /// 顺序
@@ -297,13 +249,49 @@ namespace ApiManagement.Models.StatisticManagementModel
         /// </summary>
         public int Col { get; set; }
         /// <summary>
+        /// 设备看板内容列数量
+        /// </summary>
+        public int ContentCol { get; set; }
+        /// <summary>
+        /// 设备看板内容列名
+        /// </summary>
+        public string ColName { get; set; }
+
+        public List<string> ColNameList
+        {
+            get
+            {
+                try
+                {
+                    if (!ColName.IsNullOrEmpty())
+                    {
+                        return ColName.Split(",").ToList();
+                    }
+                }
+                catch (Exception)
+                {
+                    // ignored
+                }
+
+                return new List<string>();
+            }
+        }
+        /// <summary>
+        /// 设备看板内容配置
+        /// </summary>
+        public string ColSet { get; set; }
+        /// <summary>
         /// 每页显示条数
         /// </summary>
         public int Length => Row * Col;
         /// <summary>
-        /// data_name_dictionary
+        /// data_name_dictionary，含生产数据设置
         /// </summary>
         public string Variables { get; set; }
+        /// <summary>
+        /// 子选项配置
+        /// </summary>
+        public string Items { get; set; }
 
         public List<int> DeviceIdList
         {
@@ -345,16 +333,53 @@ namespace ApiManagement.Models.StatisticManagementModel
                 return vl;
             }
         }
+        public List<KanBanItemEnum> ItemList
+        {
+            get
+            {
+                var vl = new List<KanBanItemEnum>();
+                try
+                {
+                    if (!Items.IsNullOrEmpty())
+                    {
+                        vl.AddRange(JsonConvert.DeserializeObject<IEnumerable<KanBanItemEnum>>(Items));
+                    }
+                }
+                catch (Exception)
+                {
+                    // ignored
+                }
+
+                Items = vl.ToJSON();
+                return vl;
+            }
+        }
     }
     public class MonitoringProductionData
     {
         public int DeviceId { get; set; }
         public string Code { get; set; }
         public DateTime Time { get; set; }
-        public int FaChu { get; set; }
-        public int HeGe { get; set; }
-        public int LiePian { get; set; }
-        public decimal Rate { get; set; }
+        /// <summary>
+        /// 单台日加工数
+        /// </summary>
+        public int DayTotal { get; set; }
+        /// <summary>
+        /// 单台日合格数
+        /// </summary>
+        public int DayQualified { get; set; }
+        /// <summary>
+        /// 单台日次品数
+        /// </summary>
+        public int DayUnqualified { get; set; }
+        /// <summary>
+        /// 单台日合格率(%)
+        /// </summary>
+        public decimal DayQualifiedRate => DayTotal == 0 ? 0 : ((decimal)DayQualified * 100 / DayTotal).ToRound();
+        /// <summary>
+        /// 单台日次品率(%)
+        /// </summary>
+        public decimal DayUnqualifiedRate => DayTotal == 0 ? 0 : ((decimal)DayUnqualified * 100 / DayTotal).ToRound();
         public long ProcessTime { get; set; }
     }
     public class MonitoringSetData : DeviceLibraryDetail
@@ -391,5 +416,93 @@ namespace ApiManagement.Models.StatisticManagementModel
         /// 表data_name_dictionary ，id
         /// </summary>
         public string VName { get; set; }
+        /// <summary>
+        /// 顺序
+        /// </summary>
+        public int Order { get; set; }
+
+    }
+
+    /// <summary>
+    /// 设备状态反馈
+    /// </summary>
+    public class DeviceStateInfo
+    {
+        public int DeviceId { get; set; }
+        public string Code { get; set; }
+        /// <summary>
+        /// 待机时间
+        /// </summary>
+        public decimal IdleSecond { get; set; }
+    }
+    /// <summary>
+    /// 预警状态设备
+    /// </summary>
+    public class WarningDeviceInfo
+    {
+        public DateTime Time { get; set; }
+        public int DeviceId { get; set; }
+        public string Code { get; set; }
+        /// <summary>
+        /// 预警名id
+        /// </summary>
+        public int SetId { get; set; }
+        /// <summary>
+        /// 预警名
+        /// </summary>
+        public string SetName { get; set; }
+        /// <summary>
+        /// 预警项id
+        /// </summary>
+        /// <returns></returns>
+        public int ItemId { get; set; }
+        /// <summary>
+        /// 预警项名称
+        /// </summary>
+        /// <returns></returns>
+        public string Item { get; set; } = string.Empty;
+        /// <summary>
+        /// 预警项类型
+        /// </summary>
+        /// <returns></returns>
+        public WarningItemType ItemType { get; set; }
+        /// <summary>
+        /// 预警范围
+        /// </summary>
+        public string Range { get; set; }
+        /// <summary>
+        /// 预警值
+        /// </summary>
+        public decimal Value { get; set; }
+    }
+    /// <summary>
+    /// 计划号进度表
+    /// </summary>
+    public class ProductionSchedule
+    {
+        public int ProductionId { get; set; }
+        public string Production { get; set; }
+        public decimal Plan { get; set; }
+        public decimal Actual { get; set; }
+    }
+    /// <summary>
+    /// 设备进度表
+    /// </summary>
+    public class DeviceSchedule
+    {
+        public int DeviceId { get; set; }
+        public string Code { get; set; }
+        public decimal Plan { get; set; }
+        public decimal Actual { get; set; }
+    }
+    /// <summary>
+    /// 操作工进度表
+    /// </summary>
+    public class ProcessorSchedule
+    {
+        public int ProcessorId { get; set; }
+        public string Processor { get; set; }
+        public decimal Plan { get; set; }
+        public decimal Actual { get; set; }
     }
 }

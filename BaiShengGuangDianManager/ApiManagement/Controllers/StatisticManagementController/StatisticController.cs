@@ -6,6 +6,7 @@ using Microsoft.AspNetCore.Mvc;
 using ModelBase.Base.EnumConfig;
 using ModelBase.Base.Logger;
 using ModelBase.Base.Utils;
+using ModelBase.Models.Device;
 using ModelBase.Models.Result;
 using Newtonsoft.Json.Linq;
 using ServiceStack;
@@ -14,7 +15,6 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
 using System.Threading.Tasks;
-using ModelBase.Models.Device;
 
 namespace ApiManagement.Controllers.StatisticManagementController
 {
@@ -928,90 +928,125 @@ namespace ApiManagement.Controllers.StatisticManagementController
                 {
                     return Result.GenError<DataResult>(Error.ParamError);
                 }
-                var deviceIds = requestBody.DeviceId.Split(",");
-                if (deviceIds.Length == 0)
-                {
-                    return Result.GenError<DataResult>(Error.DeviceNotExist);
-                }
-                var cnt =
-                    ServerConfig.ApiDb
-                        .Query<int>(
-                            "SELECT COUNT(1) FROM `device_library` WHERE Id IN @id AND `MarkedDelete` = 0;",
-                            new { id = deviceIds }).FirstOrDefault();
-                if (cnt != deviceIds.Length)
+                var deviceIds = requestBody.DeviceId.Split(",").Select(int.Parse);
+                if (!deviceIds.Any())
                 {
                     return Result.GenError<DataResult>(Error.DeviceNotExist);
                 }
 
-                var sql = "SELECT DeviceId, SUM(ProcessCount) ProcessCount, SUM(ProcessTime) ProcessTime FROM `npc_monitoring_process_day` " +
-                          "WHERE Time >= @Time AND Time <= @Time AND DeviceId IN @DeviceId GROUP BY DeviceId";
-                var monitoringProcess = ServerConfig.ApiDb.Query<MonitoringProcess>(sql, new
+                var cnt = DeviceLibraryHelper.Instance.GetCountByIds(deviceIds);
+                if (cnt != deviceIds.Count())
                 {
-                    Time = requestBody.StartTime,
-                    DeviceId = deviceIds,
-                }, 60).ToDictionary(x => x.DeviceId.ToString());
+                    return Result.GenError<DataResult>(Error.DeviceNotExist);
+                }
 
-                sql = "SELECT a.*, b.`Code`, c.ProcessorName, d.FlowCardName, d.ProductionProcessName FROM `npc_monitoring_process_log` a " +
+                var result = new DataResult();
+                var sql = "";
+                //var sql = "SELECT DeviceId, SUM(ProcessCount) ProcessCount, SUM(ProcessTime) ProcessTime FROM `npc_monitoring_process_day` " +
+                //          "WHERE Time >= @Time AND Time <= @Time AND DeviceId IN @DeviceId GROUP BY DeviceId";
+                //var monitoringProcess = ServerConfig.ApiDb.Query<MonitoringProcess>(sql, new
+                //{
+                //    Time = requestBody.StartTime,
+                //    DeviceId = deviceIds,
+                //}, 60).ToDictionary(x => x.DeviceId);
+
+                var productions = ProductionHelper.Instance.GetAllData<Production>();
+                sql = "SELECT a.*, b.`Code`, c.ProcessorName, d.FlowCardName, d.ProductionProcessId FROM `npc_monitoring_process_log` a " +
                       "LEFT JOIN `device_library` b ON a.DeviceId = b.Id " +
                       "LEFT JOIN `processor` c ON a.ProcessorId = c.Id " +
-                      "LEFT JOIN ( SELECT a.*, b.ProductionProcessName FROM `flowcard_library` a JOIN `production_library` b ON a.ProductionProcessId = b.Id ) d ON a.FlowCardId = d.Id " +
+                      "LEFT JOIN `flowcard_library` d ON a.FlowCardId = d.Id " +
                       "WHERE a.DeviceId IN @DeviceId AND StartTime >= @StartTime1 AND StartTime <= @StartTime2 ORDER BY a.StartTime;";
+                var flowCardIs = new List<int>();
                 if (requestBody.ProductionId != 0)
                 {
-                    sql = "SELECT a.*, b.`Code`, c.ProcessorName, d.FlowCardName, d.ProductionProcessName FROM `npc_monitoring_process_log` a " +
+                    var flowCards = FlowCardHelper.GetFlowCardsByProduction(requestBody.ProductionId);
+                    flowCardIs.AddRange(flowCards.Select(x => x.Id));
+                    if (!flowCardIs.Any())
+                    {
+                        return result;
+                    }
+                    sql = "SELECT a.*, b.`Code`, c.ProcessorName, d.FlowCardName, d.ProductionProcessId FROM `npc_monitoring_process_log` a " +
                         "LEFT JOIN `device_library` b ON a.DeviceId = b.Id " +
                         "LEFT JOIN `processor` c ON a.ProcessorId = c.Id " +
-                        "JOIN ( SELECT a.*, b.ProductionProcessName FROM `flowcard_library` a JOIN `production_library` b ON a.ProductionProcessId = b.Id WHERE b.Id = @ProductionId) d ON a.FlowCardId = d.Id " +
-                        "WHERE a.DeviceId IN @DeviceId AND StartTime >= @StartTime1 AND StartTime <= @StartTime2 ORDER BY a.StartTime;";
+                        "LEFT JOIN `flowcard_library` d ON a.FlowCardId = d.Id " +
+                        "WHERE a.DeviceId IN @DeviceId AND StartTime >= @StartTime1 AND StartTime <= @StartTime2 AND a.FlowCardId IN @flowCardIs ORDER BY a.StartTime;";
                 }
 
-                var day = (requestBody.EndTime.DayEndTime() - requestBody.StartTime.DayBeginTime()).TotalDays + 1;
+                var day = Math.Floor((requestBody.EndTime.DayEndTime() - requestBody.StartTime.DayBeginTime()).TotalDays + 1);
                 var data = ServerConfig.ApiDb.Query<MonitoringProcessLogDetail>(sql, new
                 {
                     DeviceId = deviceIds,
                     StartTime1 = requestBody.StartTime.DayBeginTime(),
                     StartTime2 = requestBody.EndTime.DayEndTime(),
                     ProductionId = requestBody.ProductionId,
+                    flowCardIs
                 }, 60).OrderByDescending(x => x.StartTime);
-                var result = new DataResult();
+                var Counts = ServerConfig.ApiDb.Query<dynamic>(
+                    "SELECT b.DeviceId, COUNT(1) Count FROM (SELECT * FROM flowcard_report WHERE Time >= @StartTime1 AND Time <= @StartTime2) a JOIN (SELECT Id DeviceId, `Code` FROM device_library WHERE Id IN @DeviceId AND MarkedDelete = 0) b ON a.`Code` = b.`Code` GROUP BY b.DeviceId;",
+                    new
+                    {
+                        DeviceId = deviceIds,
+                        StartTime1 = requestBody.StartTime.DayBeginTime(),
+                        StartTime2 = requestBody.EndTime.DayEndTime(),
+                    }, 60).ToDictionary(x=>x.DeviceId, x=>x.Count);
+                var Count = 0;
+                var Time = 0;
                 foreach (var device in deviceIds)
                 {
-                    var idleTime = default(DateTime);
+                    //var idleTime = default(DateTime);
                     var logs = new List<object>();
-                    foreach (var d in data.Where(x => x.DeviceId.ToString() == device))
+                    foreach (var d in data.Where(x => x.DeviceId == device))
                     {
-                        if (d.OpName == "加工")
-                        {
-                            if (idleTime == default(DateTime))
-                            {
-                                idleTime = d.StartTime;
-                            }
-                            else
-                            {
-                                logs.Add(new MonitoringProcessLogDetail
-                                {
-                                    DeviceId = d.DeviceId,
-                                    OpName = "闲置",
-                                    Code = d.Code,
-                                    StartTime = d.EndTime,
-                                    EndTime = idleTime,
-                                });
-                                idleTime = d.StartTime;
-                            }
-                        }
+                        //if (d.OpName == "加工")
+                        //{
+                        //    if (idleTime == default(DateTime))
+                        //    {
+                        //        idleTime = d.StartTime;
+                        //    }
+                        //    else
+                        //    {
+                        //        logs.Add(new MonitoringProcessLogDetail
+                        //        {
+                        //            DeviceId = d.DeviceId,
+                        //            OpName = "闲置",
+                        //            Code = d.Code,
+                        //            StartTime = d.EndTime,
+                        //            EndTime = idleTime,
+                        //        });
+                        //        idleTime = d.StartTime;
+                        //    }
+                        //}
+                        var product = productions.FirstOrDefault(x => x.Id == d.ProductionProcessId);
+                        d.ProductionProcessName = product?.ProductionProcessName;
                         logs.Add(d);
+                        if (d.ProcessType == ProcessType.Process)
+                        {
+                            Count++;
+                            Time += d.TotalTime;
+                        }
                     }
 
+                    var fcCount = Counts.ContainsKey(device) ? Counts[device] : 0;
                     result.datas.Add(new
                     {
                         DeviceId = device,
-                        ProcessCount = monitoringProcess.ContainsKey(device)
-                            ? monitoringProcess[device].ProcessCount
-                            : 0,
-                        ProcessCountAvg = monitoringProcess.ContainsKey(device)
-                            ? monitoringProcess[device].ProcessCount / day
-                            : 0,
-                        ProcessLog = logs
+                        //ProcessCount = monitoringProcess.ContainsKey(device)
+                        //    ? monitoringProcess[device].ProcessCount
+                        //    : 0,
+                        //ProcessCountAvg = monitoringProcess.ContainsKey(device)
+                        //    ? monitoringProcess[device].ProcessCount / day
+                        //    : 0,
+                        //ProcessTime = monitoringProcess.ContainsKey(device)
+                        //    ? monitoringProcess[device].ProcessTime
+                        //    : 0,
+                        //ProcessTimeAvg = monitoringProcess.ContainsKey(device)
+                        //    ? monitoringProcess[device].ProcessTime / day
+                        //    : 0,
+                        Count,
+                        CountAvg = Math.Abs(day) > 0 ? (Count / day).ToRound() : 0,
+                        Time,
+                        TimeAvg = fcCount != 0 ? (int)(Time / fcCount) : 0,
+                        Logs = logs
                     });
                 }
 

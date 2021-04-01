@@ -1,7 +1,8 @@
-﻿using System;
+﻿using ApiManagement.Models.BaseModel;
+using ModelBase.Base.Utils;
+using System;
 using System.Collections.Generic;
-using ApiManagement.Base.Server;
-using ApiManagement.Models.BaseModel;
+using System.Linq;
 
 namespace ApiManagement.Models.FlowCardManagementModel
 {
@@ -17,7 +18,7 @@ namespace ApiManagement.Models.FlowCardManagementModel
                 "UPDATE production_library SET `MarkedDateTime` = @MarkedDateTime, `ProductionProcessName` = @ProductionProcessName WHERE `Id` = @Id;";
 
             SameField = "ProductionProcessName";
-            MenuFields.AddRange(new[] { "Id", "ProductionProcessName" });
+            MenuFields.AddRange(new[] { "Id", "MarkedDateTime", "ProductionProcessName" });
         }
         public static readonly ProductionHelper Instance = new ProductionHelper();
         #region Get
@@ -25,29 +26,52 @@ namespace ApiManagement.Models.FlowCardManagementModel
         /// 菜单
         /// </summary>
         /// <param name="id"></param>
-        /// <param name="cId"></param>
-        /// <param name="wId"></param>
-        public static IEnumerable<dynamic> GetMenu(int id = 0, int cId = 0, int wId = 0)
+        public static IEnumerable<dynamic> GetMenu(int id = 0)
         {
-            return ServerConfig.ApiDb.Query<dynamic>(
-                $"SELECT a.Id, `Capacity`, CategoryId, Category FROM production_library a JOIN t_process_code_category b ON a.CategoryId = b.Id " +
-                $"WHERE {(id == 0 ? "" : "a.Id = @id AND ")}{(cId == 0 ? "" : "a.CategoryId = @cId AND ")}{(wId == 0 ? "" : "a.WorkshopId = @wId AND ")}a.MarkedDelete = 0 ORDER BY a.CategoryId, a.Id;",
-                new { id, cId, wId });
+            var args = new List<Tuple<string, string, dynamic>>();
+            if (id != 0)
+            {
+                args.Add(new Tuple<string, string, dynamic>("Id", "=", id));
+            }
+
+            return Instance.CommonGet<Production>(args, true).Select(x => new { x.Id, x.MarkedDateTime, x.ProductionProcessName }).OrderByDescending(x => x.Id);
         }
-        public static IEnumerable<ProductionDetail> GetDetail(int id = 0, int cId = 0, int wId = 0)
+        /// <summary>
+        /// 菜单
+        /// </summary>
+        /// <param name="ids"></param>
+        public static IEnumerable<Production> GetMenus(IEnumerable<int> ids)
         {
-            return ServerConfig.ApiDb.Query<ProductionDetail>(
-                $"SELECT a.*, b.Category FROM production_library a JOIN t_process_code_category b ON a.CategoryId = b.Id " +
-                $"WHERE {(id == 0 ? "" : "a.Id = @id AND ")}{(cId == 0 ? "" : "a.CategoryId = @cId AND ")}{(wId == 0 ? "" : "a.WorkshopId = @wId AND ")}a.MarkedDelete = 0 ORDER BY a.CategoryId, a.Id;",
-                new { id, cId, wId });
+            var args = new List<Tuple<string, string, dynamic>>();
+            if (ids == null || !ids.Any())
+            {
+                return new List<Production>();
+            }
+            args.Add(new Tuple<string, string, dynamic>("Id", "IN", ids));
+            return Instance.CommonGet<Production>(args, true);
         }
-        public static bool GetHaveSame(int wId, int cId, IEnumerable<string> sames, IEnumerable<int> ids = null)
+        public static IEnumerable<ProductionDetail> GetDetail(int id = 0, DateTime startTime = default(DateTime), DateTime endTime = default(DateTime))
+        {
+            var args = new List<Tuple<string, string, dynamic>>();
+            if (id != 0)
+            {
+                args.Add(new Tuple<string, string, dynamic>("Id", "=", id));
+            }
+            if (startTime != default(DateTime))
+            {
+                args.Add(new Tuple<string, string, dynamic>("MarkedDateTime", ">=", startTime.DayBeginTime()));
+            }
+            if (endTime != default(DateTime))
+            {
+                args.Add(new Tuple<string, string, dynamic>("MarkedDateTime", "<=", endTime.DayEndTime()));
+            }
+            return Instance.CommonGet<ProductionDetail>(args).OrderByDescending(x => x.MarkedDateTime).ThenByDescending(x => x.Id);
+        }
+        public static bool GetHaveSame(IEnumerable<string> sames, IEnumerable<int> ids = null)
         {
             var args = new List<Tuple<string, string, dynamic>>
             {
-                new Tuple<string, string, dynamic>("WorkshopId", "=", wId),
-                new Tuple<string, string, dynamic>("CategoryId", "=", cId),
-                new Tuple<string, string, dynamic>("Capacity", "IN", sames)
+                new Tuple<string, string, dynamic>("ProductionProcessName", "IN", sames)
             };
             if (ids != null)
             {
@@ -55,49 +79,12 @@ namespace ApiManagement.Models.FlowCardManagementModel
             }
             return Instance.CommonHaveSame(args);
         }
-
-        /// <summary>
-        /// 通过流程类型id获取产能类型
-        /// </summary>
-        /// <param name="processCodeCategoryIds">流程类型id</param>
-        /// <returns></returns>
-        public static IEnumerable<Production> GetSameSmartCapacities(IEnumerable<int> processCodeCategoryIds)
-        {
-            var args = new List<Tuple<string, string, dynamic>>();
-            if (processCodeCategoryIds != null)
-            {
-                args.Add(new Tuple<string, string, dynamic>("CategoryId", "IN", processCodeCategoryIds));
-            }
-            return Instance.CommonGet<Production>(args);
-        }
-
-        public static IEnumerable<Production> GetSmartCapacities(IEnumerable<string> capacities)
-        {
-            var args = new List<Tuple<string, string, dynamic>>();
-            if (capacities != null)
-            {
-                args.Add(new Tuple<string, string, dynamic>("Capacity", "IN", capacities));
-            }
-            return Instance.CommonGet<Production>(args);
-        }
         #endregion
 
         #region Add
         #endregion
 
         #region Update
-        public static void UpdateCategoryId(Production capacity)
-        {
-            var args = new List<string>
-            {
-                "MarkedDateTime","CategoryId"
-            };
-            var cons = new List<string>
-            {
-                "Id"
-            };
-            Instance.CommonUpdate(args, cons, capacity);
-        }
         #endregion
 
         #region Delete

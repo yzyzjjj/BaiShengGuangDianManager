@@ -1,5 +1,6 @@
 ﻿using System;
 using ApiManagement.Models.BaseModel;
+using ApiManagement.Models.StatisticManagementModel;
 
 namespace ApiManagement.Models.DeviceManagementModel
 {
@@ -28,10 +29,17 @@ namespace ApiManagement.Models.DeviceManagementModel
         /// 常用变量类型id
         /// </summary>
         public int VariableNameId { get; set; }
-
     }
     public class DataNameDictionaryOrder : DataNameDictionary
     {
+        /// <summary>
+        /// 默认设备数据，0设备数据，1生产数据
+        /// </summary>
+        public int Type { get; set; } = 0;
+        /// <summary>
+        /// 
+        /// </summary>
+        public KanBanItemEnum ItemType { get; set; } = KanBanItemEnum.无;
         /// <summary>
         /// 顺序
         /// </summary>

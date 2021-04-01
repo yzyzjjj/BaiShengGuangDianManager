@@ -19,6 +19,10 @@ namespace ApiManagement.Models.BaseModel
     }
     public abstract class DataHelper : IDataHelper
     {
+        public Dictionary<string,string> Op = new Dictionary<string, string>
+        {
+            {"FIND_IN_SET", "FIND_IN_SET({0}, {1}) AND "}
+        };
         #region 字段
         /// <summary>
         /// 表名
@@ -203,10 +207,21 @@ namespace ApiManagement.Models.BaseModel
         {
             var d = new DynamicParameters();
             var param = new List<string>();
+            var argsGroup = args.GroupBy(x => x.Item1).ToDictionary(x => x.Key, x => x.Count());
+            var argsGroupCount = args.GroupBy(x => x.Item1).ToDictionary(x => x.Key, x => 0);
             foreach (var arg in args)
             {
-                param.Add($"`{arg.Item1}` {arg.Item2} @{arg.Item1} AND ");
-                d.Add(arg.Item1, arg.Item3);
+                var pName = arg.Item1;
+                if (argsGroup[arg.Item1] > 1)
+                {
+                    var index = argsGroupCount[arg.Item1]++;
+                    pName = $"{arg.Item1}{index}";
+                }
+
+                param.Add(Op.ContainsKey(arg.Item2)
+                    ? Op[arg.Item2].FormatWith($"@{pName}", arg.Item1)
+                    : $"`{arg.Item1}` {arg.Item2} @{pName} AND ");
+                d.Add(pName, arg.Item3);
             }
             return CommonGet<T>((menu && MenuFields.Any() ? MenuFields.Select(x => $"`{x}`").Join(", ") : "*"), param.Join(""), d);
         }
@@ -229,6 +244,38 @@ namespace ApiManagement.Models.BaseModel
         //}
 
         /// <summary>
+        /// 多条件获取数量(通用接口) MenuFields  MenuQueryFields
+        /// </summary>
+        /// <param name="args">字段, 符合(条件), 数据</param>
+        /// <returns></returns>
+        public int CommonGetCount(IEnumerable<Tuple<string, string, dynamic>> args)
+        {
+            var d = new DynamicParameters();
+            var param = new List<string>();
+            var argsGroup = args.GroupBy(x => x.Item1).ToDictionary(x => x.Key, x => x.Count());
+            var argsGroupCount = args.GroupBy(x => x.Item1).ToDictionary(x => x.Key, x => 0);
+            foreach (var arg in args)
+            {
+                var pName = arg.Item1;
+                if (argsGroup[arg.Item1] > 1)
+                {
+                    var index = argsGroupCount[arg.Item1]++;
+                    pName = $"{arg.Item1}{index}";
+                }
+
+                param.Add(Op.ContainsKey(arg.Item2)
+                    ? Op[arg.Item2].FormatWith($"@{pName}", arg.Item1)
+                    : $"`{arg.Item1}` {arg.Item2} @{pName} AND ");
+                d.Add(pName, arg.Item3);
+            }
+            return CommonGetCount(param.Join(""), d);
+        }
+        private int CommonGetCount(string param, DynamicParameters arg)
+        {
+            return param.IsNullOrEmpty() ? ServerConfig.ApiDb.Query<int>($"SELECT COUNT(1) FROM `{Table}` WHERE `MarkedDelete` = 0;").FirstOrDefault()
+                : ServerConfig.ApiDb.Query<int>($"SELECT COUNT(1) FROM `{Table}` WHERE {param}`MarkedDelete` = 0;", arg).FirstOrDefault();
+        }
+        /// <summary>
         /// 获取指定字段重复数据
         /// </summary>
         /// <param name="sames"></param>
@@ -247,9 +294,19 @@ namespace ApiManagement.Models.BaseModel
         {
             var d = new DynamicParameters();
             var param = new List<string>();
+            var argsGroup = args.GroupBy(x => x.Item1).ToDictionary(x => x.Key, x => x.Count());
+            var argsGroupCount = args.GroupBy(x => x.Item1).ToDictionary(x => x.Key, x => 0);
             foreach (var arg in args)
             {
-                param.Add($"`{arg.Item1}` {arg.Item2} @{arg.Item1} AND ");
+                var pName = arg.Item1;
+                if (argsGroup[arg.Item1] > 1)
+                {
+                    var index = argsGroupCount[arg.Item1]++;
+                    pName = $"{arg.Item1}{index}";
+                }
+                param.Add(Op.ContainsKey(arg.Item2)
+                    ? Op[arg.Item2].FormatWith($"@{pName}", arg.Item1)
+                    : $"`{arg.Item1}` {arg.Item2} @{pName} AND ");
                 d.Add(arg.Item1, arg.Item3);
             }
             return CommonGetSames<string>(param.Join(""), d);
@@ -278,9 +335,19 @@ namespace ApiManagement.Models.BaseModel
         {
             var d = new DynamicParameters();
             var param = new List<string>();
+            var argsGroup = args.GroupBy(x => x.Item1).ToDictionary(x => x.Key, x => x.Count());
+            var argsGroupCount = args.GroupBy(x => x.Item1).ToDictionary(x => x.Key, x => 0);
             foreach (var arg in args)
             {
-                param.Add($"`{arg.Item1}` {arg.Item2} @{arg.Item1} AND ");
+                var pName = arg.Item1;
+                if (argsGroup[arg.Item1] > 1)
+                {
+                    var index = argsGroupCount[arg.Item1]++;
+                    pName = $"{arg.Item1}{index}";
+                }
+                param.Add(Op.ContainsKey(arg.Item2)
+                    ? Op[arg.Item2].FormatWith($"@{pName}", arg.Item1)
+                    : $"`{arg.Item1}` {arg.Item2} @{pName} AND ");
                 d.Add(arg.Item1, arg.Item3);
             }
             return CommonGetSameCount(param.Join(""), d);
@@ -327,7 +394,7 @@ namespace ApiManagement.Models.BaseModel
         /// </summary>
         /// <typeparam name="T"></typeparam>
         /// <param name="t"></param>
-        public void Add<T>(T t) where T : CommonBase
+        public void Add<T>(T t)
         {
             ServerConfig.ApiDb.Execute(InsertSql, t);
         }

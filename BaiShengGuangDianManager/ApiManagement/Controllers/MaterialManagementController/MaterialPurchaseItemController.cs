@@ -75,7 +75,7 @@ namespace ApiManagement.Controllers.MaterialManagementController
                     p.Add("b.ErpId IN @pIdList");
                 }
 
-                var sql = $"SELECT a.ErpId Id, a.`Name`, a.`Number`, Stock, b.ErpId PurchaseId, b.`Purchase`, a.`Order` " +
+                var sql = $"SELECT a.ErpId Id, a.`Name`, a.`Batch`, a.`IncreaseTime`, a.`Number`, Stock, b.ErpId PurchaseId, b.`Purchase`, a.`Order` " +
                           $"FROM `material_purchase_item` a JOIN `material_purchase` b ON a.PurchaseId = b.Id WHERE {(p.Any() ? (p.Join(" AND ") + " AND ") : "")} a.MarkedDelete = 0 AND b.MarkedDelete = 0;";
                 var data = ServerConfig.ApiDb.Query<dynamic>(sql, new { idList, pIdList });
                 result.datas.AddRange(data);
@@ -113,7 +113,7 @@ namespace ApiManagement.Controllers.MaterialManagementController
                     p.Add("b.ErpId IN @pIdList");
                 }
 
-                var sql = $"SELECT a.ErpId Id, a.`Name`, a.`Number`, Stock, b.ErpId PurchaseId, b.`Purchase`, a.`Order` " +
+                var sql = $"SELECT a.ErpId Id, a.`Name`, a.`Batch`, a.`IncreaseTime`, a.`Number`, Stock, b.ErpId PurchaseId, b.`Purchase`, a.`Order` " +
                           $"FROM `material_purchase_item` a JOIN `material_purchase` b ON a.PurchaseId = b.Id WHERE {(p.Any() ? (p.Join(" AND ") + " AND ") : "")} a.MarkedDelete = 0 AND b.MarkedDelete = 0;";
                 var data = await ServerConfig.ApiDb.QueryAsync<dynamic>(sql, new { idList, pIdList });
                 result.datas.AddRange(data);
@@ -265,11 +265,18 @@ namespace ApiManagement.Controllers.MaterialManagementController
             }
 
             var markedDateTime = DateTime.Now;
+            var batch = markedDateTime.ToStrFull().Substring(0, 15);
             foreach (var item in oldMaterialPurchaseItems)
             {
                 var materialPurchaseItem = materialPurchaseItems.FirstOrDefault(x => x.Id == item.Id);
                 if (materialPurchaseItem != null)
                 {
+                    if (item.Stock == 0)
+                    {
+                        item.Batch = batch;
+                        item.IncreaseTime = markedDateTime;
+                    }
+
                     item.MarkedDateTime = markedDateTime;
                     item.Stock += materialPurchaseItem.Count;
                     item.Count = materialPurchaseItem.Count;
@@ -735,7 +742,8 @@ namespace ApiManagement.Controllers.MaterialManagementController
             #endregion
 
             ServerConfig.ApiDb.Execute(
-                "UPDATE `material_purchase_item` SET `MarkedDateTime` = @MarkedDateTime, `Stock` = @Stock, `BillId` = @BillId, `ThisCode` = @ThisCode WHERE `Id` = @Id;", oldMaterialPurchaseItems);
+                "UPDATE `material_purchase_item` SET `MarkedDateTime` = @MarkedDateTime, `Batch` = @Batch, `IncreaseTime` = @IncreaseTime, " +
+                "`Stock` = @Stock, `BillId` = @BillId, `ThisCode` = @ThisCode WHERE `Id` = @Id;", oldMaterialPurchaseItems);
             //TimerHelper.MaterialRecovery(true);
             return Result.GenError<Result>(Error.Success);
         }

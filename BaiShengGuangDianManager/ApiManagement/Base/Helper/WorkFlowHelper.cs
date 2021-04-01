@@ -7,6 +7,8 @@ using ModelBase.Base.Utils;
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using ApiManagement.Models.FlowCardManagementModel;
+using ApiManagement.Models.AccountModel;
 
 namespace ApiManagement.Base.Helper
 {
@@ -25,8 +27,8 @@ namespace ApiManagement.Base.Helper
         /// <summary>
         /// 用户创建
         /// </summary>
-        public event EventHandler<SmartAccount> SmartAccountCreated;
-        public void OnSmartAccountCreated(SmartAccount user)
+        public event EventHandler<AccountInfo> SmartAccountCreated;
+        public void OnSmartAccountCreated(AccountInfo user)
         {
             //SmartAccountCreated?.BeginInvoke(this, user, null, null);
             SmartAccountCreated?.Invoke(this, user);
@@ -64,8 +66,8 @@ namespace ApiManagement.Base.Helper
         /// <summary>
         /// 用户改变
         /// </summary>
-        public event EventHandler<IEnumerable<SmartAccount>> SmartAccountChanged;
-        public void OnSmartAccountChanged(IEnumerable<SmartAccount> user)
+        public event EventHandler<IEnumerable<AccountInfo>> SmartAccountChanged;
+        public void OnSmartAccountChanged(IEnumerable<AccountInfo> user)
         {
             SmartAccountChanged?.Invoke(this, user);
         }
@@ -138,6 +140,21 @@ namespace ApiManagement.Base.Helper
         {
             SmartOperatorChanged?.Invoke(this, operators);
         }
+
+
+        /// <summary>
+        /// 流程卡上报 更新
+        /// </summary>
+        public event EventHandler<IEnumerable<FlowCard>> FlowCardChanged;
+        public void OnFlowCardChanged(IEnumerable<FlowCard> flowCards)
+        {
+            FlowCardChanged?.BeginInvoke(this, flowCards, o =>
+            {
+
+                FlowCardChanged.EndInvoke(o);
+            }, null);
+        }
+
         #endregion
 
         #region 需要更新

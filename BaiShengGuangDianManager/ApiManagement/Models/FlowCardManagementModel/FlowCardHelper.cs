@@ -18,12 +18,26 @@ namespace ApiManagement.Models.FlowCardManagementModel
                 "UPDATE flowcard_library SET `MarkedDateTime` = @MarkedDateTime, `RawMaterialQuantity` = @RawMaterialQuantity, `Sender` = @Sender, `InboundNum` = @InboundNum, " +
                 "`Remarks` = @Remarks, `Priority` = @Priority WHERE `Id` = @Id;";
 
-            SameField = "Capacity";
-            MenuFields.AddRange(new[] { "Id", "Capacity", "CategoryId", "Category" });
+            SameField = "FlowCardName";
+            MenuFields.AddRange(new[] { "Id", "FlowCardName", "ProductionProcessId", "RawMateriaId" });
         }
 
         public static readonly FlowCardHelper Instance = new FlowCardHelper();
         #region Get
+        /// <summary>
+        /// 菜单
+        /// </summary>
+        /// <param name="id"></param>
+        public static IEnumerable<FlowCard> GetMenu(int id = 0)
+        {
+            var args = new List<Tuple<string, string, dynamic>>();
+            if (id != 0)
+            {
+                args.Add(new Tuple<string, string, dynamic>("Id", "=", id));
+            }
+
+            return Instance.CommonGet<FlowCard>(args, true);
+        }
         /// <summary>
         /// 菜单
         /// </summary>
@@ -44,13 +58,31 @@ namespace ApiManagement.Models.FlowCardManagementModel
                                                             "ON a.RawMateriaId = c.Id WHERE a.FlowCardName = @flowCard AND a.MarkedDelete = 0;",
                 new { flowCard }).FirstOrDefault();
         }
-        public static IEnumerable<FlowCard> GetFlowCard(IEnumerable<string> flowCards)
+        public static FlowCard GetFlowCard(string flowCard)
+        {
+            var args = new List<Tuple<string, string, dynamic>>
+            {
+                new Tuple<string, string, dynamic>("FlowCardName", "=", flowCard)
+            };
+            return Instance.CommonGet<FlowCard>(args).FirstOrDefault();
+        }
+        public static IEnumerable<FlowCard> GetFlowCards(IEnumerable<string> flowCards)
         {
             var args = new List<Tuple<string, string, dynamic>>
             {
                 new Tuple<string, string, dynamic>("FlowCardName", "IN", flowCards)
             };
             return Instance.CommonGet<FlowCard>(args);
+        }
+        public static IEnumerable<FlowCard> GetFlowCardsByProduction(int productId)
+        {
+            return ServerConfig.ApiDb.Query<FlowCard>("SELECT * FROM flowcard_library WHERE ProductionProcessId = @productId;",
+                new { productId });
+        }
+        public static IEnumerable<FlowCard> GetFlowCardsByProductions(IEnumerable<int> productIds)
+        {
+            return ServerConfig.ApiDb.Query<FlowCard>("SELECT * FROM flowcard_library WHERE ProductionProcessId IN @productIds;",
+                new { productIds });
         }
         public static IEnumerable<FlowCardDetail> GetDetail(int id = 0, int cId = 0, int wId = 0)
         {
@@ -73,49 +105,12 @@ namespace ApiManagement.Models.FlowCardManagementModel
             }
             return Instance.CommonHaveSame(args);
         }
-
-        /// <summary>
-        /// 通过流程类型id获取产能类型
-        /// </summary>
-        /// <param name="processCodeCategoryIds">流程类型id</param>
-        /// <returns></returns>
-        public static IEnumerable<FlowCard> GetSameSmartCapacities(IEnumerable<int> processCodeCategoryIds)
-        {
-            var args = new List<Tuple<string, string, dynamic>>();
-            if (processCodeCategoryIds != null)
-            {
-                args.Add(new Tuple<string, string, dynamic>("CategoryId", "IN", processCodeCategoryIds));
-            }
-            return Instance.CommonGet<FlowCard>(args);
-        }
-
-        public static IEnumerable<FlowCard> GetSmartCapacities(IEnumerable<string> capacities)
-        {
-            var args = new List<Tuple<string, string, dynamic>>();
-            if (capacities != null)
-            {
-                args.Add(new Tuple<string, string, dynamic>("Capacity", "IN", capacities));
-            }
-            return Instance.CommonGet<FlowCard>(args);
-        }
-        #endregion
+                #endregion
 
         #region Add
         #endregion
 
         #region Update
-        public static void UpdateCategoryId(FlowCard capacity)
-        {
-            var args = new List<string>
-            {
-                "MarkedDateTime","CategoryId"
-            };
-            var cons = new List<string>
-            {
-                "Id"
-            };
-            Instance.CommonUpdate(args, cons, capacity);
-        }
         #endregion
 
         #region Delete

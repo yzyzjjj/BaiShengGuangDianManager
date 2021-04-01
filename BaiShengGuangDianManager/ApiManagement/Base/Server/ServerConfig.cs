@@ -8,6 +8,7 @@ using ModelBase.Models.Server;
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using ApiManagement.Models.AccountModel;
 
 namespace ApiManagement.Base.Server
 {
@@ -21,6 +22,7 @@ namespace ApiManagement.Base.Server
         public static Dictionary<string, Action> Loads;
         public static void Init(IConfiguration configuration)
         {
+            RedisHelper.Init(configuration);
             ApiDb = new DataBase(configuration.GetConnectionString("ApiDb"));
             Loads = new Dictionary<string, Action>
             {
@@ -36,20 +38,21 @@ namespace ApiManagement.Base.Server
             GateUrl = configuration.GetAppSettings<string>("GateUrl");
             ErpUrl = configuration.GetAppSettings<string>("ErpUrl");
             GlobalConfig.LoadGlobalConfig();
-            SmartAccountHelper.Init(configuration);
-            RedisHelper.Init(configuration);
-            AnalysisHelper.Init();
-            HFlowCardHelper.Init();
+            AccountInfoHelper.Init(configuration);
             WarningHelper.Init();
+            HFlowCardHelper.Init();
+            //HFlowCardHelper.UseFlowCardReport();
             WorkFlowHelper.Init();
             SimulateHelper.Init();
             HScheduleHelper.Init();
             TimerHelper.Init();
+            AnalysisHelper.Init();
             if (!RedisHelper.Exists(IsSetProcessDataKey))
             {
                 RedisHelper.SetForever(IsSetProcessDataKey, 1);
             }
 
+            Loads.Add(WarningHelper.RedisReloadKey, WarningHelper.LoadConfig);
             Log.InfoFormat("ServerConfig Done");
         }
         public static void ReloadConfig(string tableName)

@@ -997,7 +997,7 @@ namespace ApiManagement.Controllers.FlowCardManagementController
             }
 
             FlowCardHelper.Instance.Add<FlowCard>(flowCardLibraries.OrderBy(x => x.FlowCardName));
-            var newFlowCards = FlowCardHelper.GetFlowCard(flowCardLibraries.Select(x => x.FlowCardName)).ToDictionary(x => x.FlowCardName, x => x.Id);
+            var newFlowCards = FlowCardHelper.GetFlowCards(flowCardLibraries.Select(x => x.FlowCardName)).ToDictionary(x => x.FlowCardName, x => x.Id);
             foreach (var flowCard in flowCardLibraries)
             {
                 flowCard.Id = newFlowCards[flowCard.FlowCardName];

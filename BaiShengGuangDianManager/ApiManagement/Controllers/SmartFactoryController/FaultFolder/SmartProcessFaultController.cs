@@ -28,7 +28,7 @@ namespace ApiManagement.Controllers.SmartFactoryController.FaultFolder
                       "JOIN (SELECT a.Id, b.Process FROM `t_product_process` a " +
                       "JOIN (SELECT a.Id, b.Process FROM `t_process_code_category_process` a " +
                       "JOIN `t_process` b ON a.ProcessId = b.Id) b ON a.ProcessId = b.Id) b ON a.ProcessId = b.Id) d ON a.ProcessId = d.Id " +
-                      $"WHERE a.MarkedDelete = 0{(qId == 0 ? "" : " AND a.Id = @qId")} ORDER BY a.Id Desc;";
+                      $"WHERE{(qId == 0 ? "" : " a.Id = @qId AND")} a.MarkedDelete = 0 ORDER BY a.Id Desc;";
             result.datas.AddRange(ServerConfig.ApiDb.Query<SmartProcessFaultDetail>(sql, new { qId }));
             if (qId != 0 && !result.datas.Any())
             {

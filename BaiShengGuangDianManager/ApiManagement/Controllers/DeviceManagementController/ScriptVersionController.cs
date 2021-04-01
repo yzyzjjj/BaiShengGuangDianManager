@@ -32,21 +32,9 @@ namespace ApiManagement.Controllers.DeviceManagementController
         public DataResult GetScriptVersion([FromQuery] bool menu, int deviceModelId, int qId)
         {
             var result = new DataResult();
-            if (deviceModelId != 0)
-            {
-                result.datas.AddRange(ServerConfig.ApiDb.Query<ScriptVersion>("SELECT * FROM `script_version` WHERE FIND_IN_SET(@deviceModelId, DeviceModelId) AND `MarkedDelete` = 0;", new { deviceModelId }));
-                return result;
-            }
-
-            if (menu)
-            {
-                result.datas.AddRange(ServerConfig.ApiDb.Query<dynamic>($"SELECT Id, ScriptName FROM `script_version` WHERE {(qId == 0 ? "" : "Id = @qId AND ")} MarkedDelete = 0 ORDER BY Id;;"));
-            }
-            else
-            {
-                result.datas.AddRange(ServerConfig.ApiDb.Query<ScriptVersion>($"SELECT * FROM `script_version` WHERE {(qId == 0 ? "" : "Id = @qId AND ")} MarkedDelete = 0 ORDER BY Id;;"));
-            }
-
+            result.datas.AddRange(menu
+                ? ScriptVersionHelper.GetMenu(qId)
+                : ScriptVersionHelper.GetDetails(qId, deviceModelId));
             if (qId != 0 && !result.datas.Any())
             {
                 result.errno = Error.ScriptVersionNotExist;
@@ -131,14 +119,13 @@ namespace ApiManagement.Controllers.DeviceManagementController
 
         private void CheckScriptVersion(int scriptId)
         {
-            var scriptVersion =
-                ServerConfig.ApiDb.Query<ScriptVersion>("SELECT * FROM `script_version` WHERE Id = @id AND `MarkedDelete` = 0;", new { id = scriptId }).FirstOrDefault();
+            var scriptVersion = ScriptVersionHelper.Instance.Get<ScriptVersion>(scriptId);
             if (scriptVersion == null)
             {
                 return;
             }
-            var dataNameDictionaries =
-                ServerConfig.ApiDb.Query<DataNameDictionary>("SELECT * FROM `data_name_dictionary` WHERE ScriptId = @ScriptId AND `MarkedDelete` = 0;", new { ScriptId = scriptId });
+
+            var dataNameDictionaries = DataNameDictionaryHelper.GetDataNameDictionaryDetailsByScript(scriptId);
             if (!dataNameDictionaries.Any())
             {
                 return;
@@ -171,9 +158,7 @@ namespace ApiManagement.Controllers.DeviceManagementController
 
             scriptVersion.CreateUserId = Request.GetIdentityInformation();
             scriptVersion.MarkedDateTime = DateTime.Now;
-            ServerConfig.ApiDb.Execute(
-                "UPDATE script_version SET `ValueNumber` = @ValueNumber, `InputNumber` = @InputNumber, `OutputNumber` = @OutputNumber, `MaxValuePointerAddress` = @MaxValuePointerAddress, " +
-                "`MaxInputPointerAddress` = @MaxInputPointerAddress, `MaxOutputPointerAddress` = @MaxOutputPointerAddress, `HeartPacket` = @HeartPacket WHERE `Id` = @Id;", scriptVersion);
+            ScriptVersionHelper.Update(scriptVersion);
 
             ServerConfig.ApiDb.Execute(
                 "UPDATE npc_proxy_link SET `Instruction` = @HeartPacket WHERE `Instruction` = @oldHeartPacket;", new { oldHeartPacket, scriptVersion.HeartPacket });
@@ -184,39 +169,39 @@ namespace ApiManagement.Controllers.DeviceManagementController
         [HttpPost]
         public Result PostScriptVersion([FromBody] ScriptVersion scriptVersion)
         {
-            var cnt =
-                ServerConfig.ApiDb.Query<int>("SELECT COUNT(1) FROM `script_version` WHERE ScriptName = @ScriptName AND MarkedDelete = 0;", new { scriptVersion.ScriptName }).FirstOrDefault();
-            if (cnt > 0)
+            var names = new List<string> { scriptVersion.ScriptName };
+            if (ScriptVersionHelper.GetHaveSame(names))
             {
                 return Result.GenError<Result>(Error.ScriptVersionIsExist);
             }
 
             var createUserId = Request.GetIdentityInformation();
-            var time = DateTime.Now;
+            var markedDateTime = DateTime.Now;
+
             scriptVersion.CreateUserId = createUserId;
+            scriptVersion.MarkedDateTime = markedDateTime;
+
             var valN = scriptVersion.ValueNumber == 0 ? 300 : scriptVersion.ValueNumber;
             var inN = scriptVersion.InputNumber == 0 ? 255 : scriptVersion.InputNumber;
             var outN = scriptVersion.OutputNumber == 0 ? 255 : scriptVersion.OutputNumber;
             var msg = new DeviceInfoMessagePacket(valN, inN, outN);
             scriptVersion.HeartPacket = msg.Serialize();
             scriptVersion.ScriptFile = scriptVersion.ScriptFile ?? "";
-            var index = ServerConfig.ApiDb.Query<int>(
-                "INSERT INTO script_version (`CreateUserId`, `DeviceModelId`, `ScriptName`, `ValueNumber`, `InputNumber`, `OutputNumber`, `HeartPacket`, `ScriptFile`) " +
-                 "VALUES (@CreateUserId, @DeviceModelId, @ScriptName, @ValueNumber, @InputNumber, @OutputNumber, @HeartPacket, @ScriptFile);SELECT LAST_INSERT_ID();",
-                 scriptVersion).FirstOrDefault();
+            ScriptVersionHelper.Add(scriptVersion);
 
-            var usuallyDictionaries = ServerConfig.ApiDb.Query<UsuallyDictionary>("SELECT a.Id VariableNameId, IFNULL(b.DictionaryId, 0) DictionaryId, IFNULL(b.VariableTypeId, 0) VariableTypeId FROM `usually_dictionary_type` a LEFT JOIN (SELECT * FROM `usually_dictionary` WHERE ScriptId = 0) b ON a.Id = b.VariableNameId;");
+            //var index = ScriptVersionHelper.Add(scriptVersion);
+            //var usuallyDictionaries = ServerConfig.ApiDb.Query<UsuallyDictionary>("SELECT a.Id VariableNameId, IFNULL(b.DictionaryId, 0) DictionaryId, IFNULL(b.VariableTypeId, 0) VariableTypeId FROM `usually_dictionary_type` a LEFT JOIN (SELECT * FROM `usually_dictionary` WHERE ScriptId = 0) b ON a.Id = b.VariableNameId;");
+            //foreach (var usuallyDictionary in usuallyDictionaries)
+            //{
+            //    usuallyDictionary.ScriptId = index;
+            //    usuallyDictionary.CreateUserId = createUserId;
+            //    usuallyDictionary.MarkedDateTime = markedDateTime;
+            //}
 
-            foreach (var usuallyDictionary in usuallyDictionaries)
-            {
-                usuallyDictionary.ScriptId = index;
-                usuallyDictionary.CreateUserId = createUserId;
-            }
-
-            ServerConfig.ApiDb.Execute(
-                "INSERT INTO usually_dictionary (`CreateUserId`, `ScriptId`, `VariableNameId`, `DictionaryId`, `VariableTypeId`) " +
-                "VALUES (@CreateUserId, @ScriptId, @VariableNameId, @DictionaryId, @VariableTypeId);",
-                usuallyDictionaries);
+            //ServerConfig.ApiDb.Execute(
+            //    "INSERT INTO usually_dictionary (`CreateUserId`, `ScriptId`, `VariableNameId`, `DictionaryId`, `VariableTypeId`) " +
+            //    "VALUES (@CreateUserId, @ScriptId, @VariableNameId, @DictionaryId, @VariableTypeId);",
+            //    usuallyDictionaries);
 
             RedisHelper.PublishToTable();
             return Result.GenError<Result>(Error.Success);

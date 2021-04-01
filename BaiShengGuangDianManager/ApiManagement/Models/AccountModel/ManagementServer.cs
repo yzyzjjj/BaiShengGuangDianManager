@@ -1,0 +1,9 @@
+﻿namespace ApiManagement.Models.AccountModel
+{
+    public class ManagementServer
+    {
+        public int Id { get; set; }
+        public string Name { get; set; }
+        public string Host { get; set; }
+    }
+}

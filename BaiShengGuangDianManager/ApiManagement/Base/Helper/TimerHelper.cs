@@ -18,6 +18,7 @@ using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Web;
+using ApiManagement.Models.AccountModel;
 
 namespace ApiManagement.Base.Helper
 {
@@ -982,6 +983,8 @@ namespace ApiManagement.Base.Helper
                                             if (change != null && change.BillId > 0)
                                             {
                                                 g.Stock = change.Stock;
+                                                g.Batch = change.Batch;
+                                                g.IncreaseTime = change.IncreaseTime;
                                                 g.BillId = change.BillId;
                                                 if (g.Price != change.Price)
                                                 {
@@ -1019,6 +1022,8 @@ namespace ApiManagement.Base.Helper
                                                 if (change != null && change.BillId > 0)
                                                 {
                                                     ll.Stock = change.Stock;
+                                                    ll.Batch = change.Batch;
+                                                    ll.IncreaseTime = change.IncreaseTime;
                                                     ll.BillId = change.BillId;
                                                     if (ll.Price != change.Price)
                                                     {
@@ -2310,14 +2315,14 @@ namespace ApiManagement.Base.Helper
                         var res = JsonConvert.DeserializeObject<ErpAccount[]>(rr);
                         if (res.Any())
                         {
-                            var accounts = SmartAccountHelper.Instance.GetAllData<SmartAccount>();
+                            var accounts = AccountInfoHelper.Instance.GetAllData<AccountInfo>();
                             var add = res.Where(x => accounts.All(y => y.Account != x.f_username));
                             if (add.Any())
                             {
                                 var role = ServerConfig.ApiDb.Query<int>("SELECT Id FROM `roles` WHERE New = 1;");
                                 ServerConfig.ApiDb.Execute(
                                     "INSERT INTO accounts (`Number`, `Account`, `Name`, `Role`, `DeviceIds`, `MarkedDelete`) VALUES (@Number, @Account, @Name, @Role, '', @MarkedDelete);",
-                                    add.Select(x => new SmartAccount
+                                    add.Select(x => new AccountInfo
                                     {
                                         Number = x.f_ygbh,
                                         Account = x.f_username,
@@ -2335,7 +2340,7 @@ namespace ApiManagement.Base.Helper
                             {
                                 ServerConfig.ApiDb.Execute(
                                     "UPDATE accounts SET `Number` = @Number, `Name` = @Name, `MarkedDelete` = @MarkedDelete WHERE `Account` = @Account;",
-                                    update.Select(x => new SmartAccount
+                                    update.Select(x => new AccountInfo
                                     {
                                         Account = x.f_username,
                                         Number = x.f_ygbh,
