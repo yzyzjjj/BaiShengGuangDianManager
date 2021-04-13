@@ -1,16 +1,30 @@
-﻿using System.Collections.Generic;
+﻿using ModelBase.Models.BaseModel;
+using System.Collections.Generic;
 using System.Linq;
 
 namespace ApiManagement.Models.AccountModel
 {
-    public class RoleInfo
+    public class RoleInfo : CommonBase
     {
-        public int Id { get; set; }
+        /// <summary>
+        /// 角色名
+        /// </summary>
         public string Name { get; set; }
-        public bool Default { get; set; }
-        public bool IsDeleted { get; set; }
+        /// <summary>
+        /// 权限组ID列表
+        /// </summary>
         public string Permissions { get; set; }
+        /// <summary>
+        /// 权限组ID列表
+        /// </summary>
         public IEnumerable<int> PermissionsList => Permissions.Split(',').Select(int.Parse).Distinct();
-
+        /// <summary>
+        /// 默认角色不可删除
+        /// </summary>
+        public bool Default { get; set; }
+        /// <summary>
+        /// 新账号默认角色
+        /// </summary>
+        public bool New { get; set; }
     }
 }

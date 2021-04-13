@@ -1,5 +1,5 @@
-﻿using ApiManagement.Models.BaseModel;
-using ModelBase.Base.EnumConfig;
+﻿using ModelBase.Base.EnumConfig;
+using ModelBase.Models.BaseModel;
 using Newtonsoft.Json;
 
 namespace ApiManagement.Models.DeviceManagementModel

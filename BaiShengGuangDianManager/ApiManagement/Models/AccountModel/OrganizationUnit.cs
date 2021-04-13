@@ -1,17 +1,42 @@
-﻿using Newtonsoft.Json;
+﻿using ModelBase.Models.BaseModel;
+using Newtonsoft.Json;
 
 namespace ApiManagement.Models.AccountModel
 {
-    public class OrganizationUnit
+    public class OrganizationUnit : CommonBase
     {
-        public int Id { get; set; }
+        /// <summary>
+        /// 上级部门
+        /// </summary>
         public int ParentId { get; set; }
+        /// <summary>
+        /// 上级部门
+        /// </summary>
         public string Code { get; set; }
+        /// <summary>
+        /// 上级部门
+        /// </summary>
         [JsonIgnore]
         public string CodeLink { get; set; }
+        /// <summary>
+        /// 上级部门
+        /// </summary>
         public string Name { get; set; }
-        [JsonIgnore]
-        public bool IsDeleted { get; set; }
+        /// <summary>
+        /// 上级部门
+        /// </summary>
         public int MemberCount { get; set; }
+    }
+
+    public class OrganizationUnitMember : CommonBase
+    {
+        /// <summary>
+        /// 组织架构Id
+        /// </summary>
+        public int OrganizationUnitId { get; set; }
+        /// <summary>
+        /// 上级部门
+        /// </summary>
+        public int AccountId { get; set; }
     }
 }

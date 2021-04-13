@@ -16,7 +16,7 @@ namespace ApiManagement.Models.SmartFactoryModel
         public SmartKanBanError Error { get; set; } = SmartKanBanError.正常;
         public string ErrorStr => Error.GetAttribute<DescriptionAttribute>()?.Description ?? "";
         public List<SmartTaskOrderKanBanNeed> Needs { get; set; } = new List<SmartTaskOrderKanBanNeed>();
-        
+
     }
 
     /// <summary>

@@ -1,7 +1,7 @@
 ﻿using System;
 using ApiManagement.Base.Helper;
-using ApiManagement.Models.BaseModel;
 using ModelBase.Base.Logic;
+using ModelBase.Models.BaseModel;
 
 namespace ApiManagement.Models.MaterialManagementModel
 {

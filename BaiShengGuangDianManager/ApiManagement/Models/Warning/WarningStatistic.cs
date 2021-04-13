@@ -4,8 +4,8 @@ namespace ApiManagement.Models.Warning
 {
     public class WarningStatistic
     {
-        private DateTime warningTime;
-        private int v;
+        //private DateTime warningTime;
+        //private int v;
 
         public WarningStatistic()
         {

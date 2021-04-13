@@ -1,5 +1,7 @@
-﻿using Microsoft.Extensions.Configuration;
+﻿using ApiManagement.Base.Server;
+using Microsoft.Extensions.Configuration;
 using ModelBase.Base.Logger;
+using ModelBase.Base.Utils;
 using ServiceStack;
 using ServiceStack.Redis;
 using System;
@@ -7,8 +9,6 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
-using ApiManagement.Base.Server;
-using ModelBase.Base.Utils;
 
 namespace ApiManagement.Base.Helper
 {
@@ -119,7 +119,10 @@ namespace ApiManagement.Base.Helper
                             while (true)
                             {
                                 if (subDoing || success)
+                                {
                                     continue;
+                                }
+
                                 subDoing = true;
                                 try
                                 {
@@ -1067,7 +1070,7 @@ namespace ApiManagement.Base.Helper
         }
         public static void PublishToTable(string table = "all")
         {
-            var channel = (string) _redisConfig.RedisKey;
+            var channel = (string)_redisConfig.RedisKey;
             if (channel.IsNullOrEmpty())
             {
                 Log.Error($"PublishToTable RedisKey Empty!!!");

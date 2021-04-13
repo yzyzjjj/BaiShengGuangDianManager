@@ -1,8 +1,7 @@
-﻿using ApiManagement.Models.BaseModel;
-using ApiManagement.Models.DeviceManagementModel;
+﻿using ApiManagement.Models.DeviceManagementModel;
 using ApiManagement.Models.Warning;
 using ModelBase.Base.Utils;
-using Newtonsoft.Json;
+using Newtonsoft.Json;using ModelBase.Models.BaseModel;
 using ServiceStack;
 using System;
 using System.Collections.Generic;
@@ -329,7 +328,7 @@ namespace ApiManagement.Models.StatisticManagementModel
                     // ignored
                 }
 
-                Variables = vl.Select(x => new { x.ScriptId, x.VariableTypeId, VariableName = x.VariableName ?? "", x.PointerAddress, x.Order }).ToJSON();
+                //Variables = vl.Select(x => new { x.ScriptId, x.VariableTypeId, VariableName = x.VariableName ?? "", x.PointerAddress, x.Order }).ToJSON();
                 return vl;
             }
         }
@@ -420,6 +419,14 @@ namespace ApiManagement.Models.StatisticManagementModel
         /// 顺序
         /// </summary>
         public int Order { get; set; }
+        /// <summary>
+        /// 分隔符
+        /// </summary>
+        public string Delimiter { get; set; }
+        /// <summary>
+        /// 子顺序
+        /// </summary>
+        public int SubOrder { get; set; }
 
     }
 

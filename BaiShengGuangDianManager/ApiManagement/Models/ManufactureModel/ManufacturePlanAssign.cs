@@ -1,5 +1,4 @@
-﻿using ApiManagement.Models.BaseModel;
-using ModelBase.Base.Utils;
+﻿using ModelBase.Base.Utils;
 using ServiceStack;
 using System;
 using System.Collections.Generic;

@@ -15,15 +15,9 @@ namespace ApiManagement.Controllers.OtherController
         /// <summary>
         /// 刷新管理员权限
         /// </summary>
-        /// <param name="content">内容</param>
-        /// <param name="msgEnum"></param>
-        /// <param name="notifyType"></param>
-        /// <param name="msgType"></param>
-        /// <param name="atMobiles"></param>
-        /// <param name="isAtAll"></param>
         /// <returns></returns>
         [HttpGet("UpdatePermission")]
-        public Result UpdatePermission([FromQuery] string content, NotifyMsgEnum msgEnum, NotifyTypeEnum notifyType, NotifyMsgTypeEnum msgType, string[] atMobiles, bool isAtAll = false)
+        public Result UpdatePermission()
         {
             var sql =
                 "UPDATE roles SET Permissions = (SELECT GROUP_CONCAT(Id) FROM permissions_group ORDER BY Id) WHERE Id = 1";

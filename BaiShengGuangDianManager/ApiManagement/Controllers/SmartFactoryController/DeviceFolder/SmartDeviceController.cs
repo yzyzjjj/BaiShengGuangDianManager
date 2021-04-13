@@ -1,8 +1,8 @@
-﻿using ApiManagement.Models.BaseModel;
-using ApiManagement.Models.SmartFactoryModel;
+﻿using ApiManagement.Models.SmartFactoryModel;
 using Microsoft.AspNetCore.Mvc;
 using ModelBase.Base.EnumConfig;
 using ModelBase.Base.Utils;
+using ModelBase.Models.BaseModel;
 using ModelBase.Models.Result;
 using ServiceStack;
 using System;
@@ -108,7 +108,7 @@ namespace ApiManagement.Controllers.SmartFactoryController.DeviceFolder
             {
                 return Result.GenError<Result>(Error.SmartDeviceIsExist);
             }
-            
+
             var userId = Request.GetIdentityInformation();
             var markedDateTime = DateTime.Now;
             foreach (var smartDevice in devices)
@@ -131,7 +131,7 @@ namespace ApiManagement.Controllers.SmartFactoryController.DeviceFolder
         {
             var ids = batchDelete.ids;
             var cnt = SmartDeviceHelper.Instance.GetCountByIds(ids);
-            if (cnt == 0)
+            if (cnt != ids.Count())
             {
                 return Result.GenError<Result>(Error.SmartDeviceNotExist);
             }

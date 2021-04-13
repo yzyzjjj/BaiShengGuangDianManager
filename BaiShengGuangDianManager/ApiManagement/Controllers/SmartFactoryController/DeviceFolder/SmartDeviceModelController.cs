@@ -1,14 +1,13 @@
-﻿using ApiManagement.Models.BaseModel;
-using ApiManagement.Models.SmartFactoryModel;
+﻿using ApiManagement.Models.SmartFactoryModel;
 using Microsoft.AspNetCore.Mvc;
 using ModelBase.Base.EnumConfig;
 using ModelBase.Base.Utils;
+using ModelBase.Models.BaseModel;
 using ModelBase.Models.Result;
 using ServiceStack;
 using System;
 using System.Collections.Generic;
 using System.Linq;
-
 namespace ApiManagement.Controllers.SmartFactoryController.DeviceFolder
 {
     /// <summary>
@@ -129,7 +128,7 @@ namespace ApiManagement.Controllers.SmartFactoryController.DeviceFolder
         {
             var ids = batchDelete.ids;
             var cnt = SmartDeviceModelHelper.Instance.GetCountByIds(ids);
-            if (cnt == 0)
+            if (cnt != ids.Count())
             {
                 return Result.GenError<Result>(Error.SmartDeviceModelNotExist);
             }

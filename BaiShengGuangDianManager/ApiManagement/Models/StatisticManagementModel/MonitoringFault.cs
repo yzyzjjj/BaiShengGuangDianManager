@@ -2,7 +2,7 @@
 using System.Collections.Generic;
 using System.Linq;
 using ModelBase.Base.Utils;
-using Newtonsoft.Json;
+using Newtonsoft.Json;using ModelBase.Models.BaseModel;
 using ServiceStack;
 
 namespace ApiManagement.Models.StatisticManagementModel

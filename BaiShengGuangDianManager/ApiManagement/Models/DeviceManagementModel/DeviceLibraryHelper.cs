@@ -1,9 +1,9 @@
 ﻿using ApiManagement.Base.Server;
-using ApiManagement.Models.BaseModel;
 using ServiceStack;
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using ApiManagement.Models.BaseModel;
 
 namespace ApiManagement.Models.DeviceManagementModel
 {
@@ -67,6 +67,14 @@ namespace ApiManagement.Models.DeviceManagementModel
             args.Add(new Tuple<string, string, dynamic>("Id", "IN", ids));
             return Instance.CommonGet<DeviceLibrary>(args, true);
         }
+        public static DeviceLibrary GetDetail(int wId, string code)
+        {
+            return ServerConfig.ApiDb.Query<DeviceLibrary>(
+                $"SELECT * FROM `device_library` WHERE " +
+                //$"{(wId == 0 ? "" : "a.Id = @id AND ")}" +
+                $"{(code.IsNullOrEmpty() ? "" : "Code = @code AND ")}" +
+                $"MarkedDelete = 0;", new { wId, code }).FirstOrDefault();
+        }
         public static IEnumerable<DeviceLibrary> GetDetail(int wId, IEnumerable<string> codes)
         {
             return ServerConfig.ApiDb.Query<DeviceLibrary>(
@@ -74,13 +82,6 @@ namespace ApiManagement.Models.DeviceManagementModel
                 //$"{(wId == 0 ? "" : "a.Id = @id AND ")}" +
                 $"{(codes != null ? "" : "Code IN @codes AND ")}" +
                 $"MarkedDelete = 0;", new { wId, codes });
-        }
-        public static DeviceLibrary GetDetail(int wId, string code)
-        {
-            return ServerConfig.ApiDb.Query<DeviceLibrary>(
-                $"SELECT * FROM `device_library` WHERE " +
-                //$"{(wId == 0 ? "" : "a.Id = @id AND ")}" +
-                $"{(code.IsNullOrEmpty() ? "" : "Code = @code AND ")}MarkedDelete = 0;", new { wId, code }).FirstOrDefault();
         }
         public static int GetCountByClass(int classId)
         {

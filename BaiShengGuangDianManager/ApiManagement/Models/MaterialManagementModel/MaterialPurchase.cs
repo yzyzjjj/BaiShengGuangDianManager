@@ -1,8 +1,8 @@
 ﻿using ApiManagement.Base.Helper;
-using ApiManagement.Models.BaseModel;
 using ModelBase.Base.Logic;
 using System;
 using System.Collections.Generic;
+using ModelBase.Models.BaseModel;
 
 namespace ApiManagement.Models.MaterialManagementModel
 {

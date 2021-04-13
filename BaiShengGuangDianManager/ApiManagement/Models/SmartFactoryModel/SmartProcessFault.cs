@@ -1,4 +1,4 @@
-﻿using ApiManagement.Models.BaseModel;
+﻿using ModelBase.Models.BaseModel;
 using System;
 
 namespace ApiManagement.Models.SmartFactoryModel

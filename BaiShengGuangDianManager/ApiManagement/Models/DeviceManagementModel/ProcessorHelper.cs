@@ -1,8 +1,4 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using ApiManagement.Models.BaseModel;
-using ApiManagement.Models.StatisticManagementModel;
+﻿using ApiManagement.Models.BaseModel;
 
 namespace ApiManagement.Models.DeviceManagementModel
 {

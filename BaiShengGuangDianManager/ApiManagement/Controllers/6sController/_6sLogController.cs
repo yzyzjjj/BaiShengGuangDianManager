@@ -1,6 +1,5 @@
 ﻿using ApiManagement.Base.Server;
 using ApiManagement.Models._6sModel;
-using ApiManagement.Models.BaseModel;
 using Microsoft.AspNetCore.Mvc;
 using ModelBase.Base.EnumConfig;
 using ModelBase.Models.Result;
@@ -8,6 +7,7 @@ using ServiceStack;
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using ModelBase.Models.BaseModel;
 
 namespace ApiManagement.Controllers._6sController
 {

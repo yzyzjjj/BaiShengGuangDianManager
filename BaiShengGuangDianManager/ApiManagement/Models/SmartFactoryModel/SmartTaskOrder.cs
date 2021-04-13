@@ -1,9 +1,8 @@
-﻿using ApiManagement.Models.BaseModel;
-using ModelBase.Base.Utils;
+﻿using ModelBase.Base.Utils;
 using System;
 using System.Collections.Generic;
 using System.Linq;
-using Newtonsoft.Json;
+using Newtonsoft.Json;using ModelBase.Models.BaseModel;
 using ServiceStack;
 
 namespace ApiManagement.Models.SmartFactoryModel

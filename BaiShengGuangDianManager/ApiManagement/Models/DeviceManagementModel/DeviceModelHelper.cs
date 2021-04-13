@@ -1,7 +1,8 @@
 ﻿using ApiManagement.Base.Server;
-using ApiManagement.Models.BaseModel;
 using System;
 using System.Collections.Generic;
+using ApiManagement.Models.BaseModel;
+using ModelBase.Models.BaseModel;
 
 namespace ApiManagement.Models.DeviceManagementModel
 {
@@ -74,30 +75,6 @@ namespace ApiManagement.Models.DeviceManagementModel
         //    }
         //    return Instance.CommonHaveSame(args);
         //}
-        public static IEnumerable<DeviceModel> GetHaveSameCode(IEnumerable<string> sames, IEnumerable<int> ids = null)
-        {
-            var args = new List<Tuple<string, string, dynamic>>
-            {
-                new Tuple<string, string, dynamic>("Code", "IN", sames)
-            };
-            if (ids != null)
-            {
-                args.Add(new Tuple<string, string, dynamic>("Id", "NOT IN", ids));
-            }
-            return Instance.CommonGet<DeviceModel>(args);
-        }
-        public static IEnumerable<DeviceModel> GetHaveSameIpPort(int wId, IEnumerable<string> ips, IEnumerable<int> ports, IEnumerable<int> ids = null)
-        {
-            return ServerConfig.ApiDb.Query<DeviceModel>("SELECT Id, `Code`, `Ip`, `Port` FROM `device_library` " +
-                                                           "WHERE Ip IN @ips AND Port IN @ports AND Id NOT IN @ids AND `MarkedDelete` = 0;",
-                new { ips, ports, ids });
-        }
-        public static IEnumerable<DeviceModelDetail> GetDeviceModelDetails(IEnumerable<int> scriptIds)
-        {
-            return ServerConfig.ApiDb.Query<DeviceModelDetail>("SELECT a.*, IFNULL(b.VariableNameId, 0) VariableNameId FROM `device_library` a " +
-                                                                      "LEFT JOIN usually_dictionary b ON a.ScriptId = b.ScriptId AND a.VariableTypeId = b.VariableTypeId AND a.PointerAddress = b.DictionaryId " +
-                                                                      "WHERE a.ScriptId IN @scriptIds AND a.MarkedDelete = 0;", new { scriptIds });
-        }
         #endregion
 
         #region Add

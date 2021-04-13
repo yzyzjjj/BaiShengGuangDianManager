@@ -1,6 +1,5 @@
 ﻿using System;
-using ApiManagement.Models.BaseModel;
-using Newtonsoft.Json;
+using Newtonsoft.Json;using ModelBase.Models.BaseModel;
 
 namespace ApiManagement.Models._6sModel
 {

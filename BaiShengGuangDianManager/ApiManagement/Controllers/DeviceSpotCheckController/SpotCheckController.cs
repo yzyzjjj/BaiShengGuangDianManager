@@ -8,6 +8,7 @@ using Microsoft.AspNetCore.Mvc;
 using ModelBase.Base.EnumConfig;
 using ModelBase.Base.Utils;
 using ModelBase.Models.Result;
+using ModelBase.Models.BaseModel;
 using ServiceStack;
 
 namespace ApiManagement.Controllers.DeviceSpotCheckController

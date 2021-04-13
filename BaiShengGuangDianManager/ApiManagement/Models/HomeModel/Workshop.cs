@@ -1,5 +1,5 @@
 ﻿using System;
-using ApiManagement.Models.BaseModel;
+using ModelBase.Models.BaseModel;
 
 namespace ApiManagement.Models.HomeModel
 {

@@ -1,5 +1,5 @@
-﻿using ApiManagement.Models.BaseModel;
-using ModelBase.Base.Utils;
+﻿using ModelBase.Base.Utils;
+using ModelBase.Models.BaseModel;
 using Newtonsoft.Json;
 using ServiceStack;
 using ServiceStack.DataAnnotations;

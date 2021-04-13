@@ -1,11 +1,7 @@
-﻿using ApiManagement.Models.BaseModel;
-using ModelBase.Base.Logic;
-using ModelBase.Base.Utils;
-using Newtonsoft.Json;
-using ServiceStack;
+﻿using ModelBase.Base.Logic;
+using ModelBase.Models.BaseModel;
 using System;
 using System.Collections.Generic;
-using System.ComponentModel;
 using System.Linq;
 
 namespace ApiManagement.Models.Warning
@@ -29,6 +25,7 @@ namespace ApiManagement.Models.Warning
     {
         不设置,
         每次,
+        连续,
         秒,
         分,
         小时,

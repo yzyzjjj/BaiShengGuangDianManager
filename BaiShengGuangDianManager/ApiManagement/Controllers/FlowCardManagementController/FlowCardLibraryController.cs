@@ -9,6 +9,7 @@ using ModelBase.Models.Result;
 using ServiceStack;
 using System;
 using System.Collections.Generic;
+using ModelBase.Models.BaseModel;
 using System.Linq;
 
 namespace ApiManagement.Controllers.FlowCardManagementController

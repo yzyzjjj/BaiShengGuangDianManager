@@ -5,6 +5,7 @@ using ApiManagement.Models.FlowCardManagementModel;
 using Microsoft.AspNetCore.Mvc;
 using ModelBase.Base.EnumConfig;
 using ModelBase.Base.Utils;
+using ModelBase.Models.BaseModel;
 using ModelBase.Models.Result;
 
 namespace ApiManagement.Controllers.FlowCardManagementController

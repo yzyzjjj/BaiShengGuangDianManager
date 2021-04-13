@@ -1,14 +1,13 @@
 ﻿using ApiManagement.Base.Server;
-using ApiManagement.Models.BaseModel;
 using ApiManagement.Models.ManufactureModel;
 using Microsoft.AspNetCore.Mvc;
 using ModelBase.Base.EnumConfig;
 using ModelBase.Base.Utils;
+using ModelBase.Models.BaseModel;
 using ModelBase.Models.Result;
 using ServiceStack;
 using System;
 using System.Linq;
-
 namespace ApiManagement.Controllers.ManufactureController
 {
     /// <summary>

@@ -1,11 +1,11 @@
 ﻿using ApiManagement.Base.Server;
 using ApiManagement.Models._6sModel;
+using ApiManagement.Models.AccountModel;
 using ApiManagement.Models.DeviceSpotCheckModel;
 using ApiManagement.Models.ManufactureModel;
 using ApiManagement.Models.MaterialManagementModel;
 using ApiManagement.Models.OtherModel;
 using ApiManagement.Models.RepairManagementModel;
-using ApiManagement.Models.SmartFactoryModel;
 using Microsoft.EntityFrameworkCore.Internal;
 using ModelBase.Base.HttpServer;
 using ModelBase.Base.Logger;
@@ -18,7 +18,6 @@ using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Web;
-using ApiManagement.Models.AccountModel;
 
 namespace ApiManagement.Base.Helper
 {
@@ -2315,13 +2314,13 @@ namespace ApiManagement.Base.Helper
                         var res = JsonConvert.DeserializeObject<ErpAccount[]>(rr);
                         if (res.Any())
                         {
-                            var accounts = AccountInfoHelper.Instance.GetAllData<AccountInfo>();
+                            var accounts = AccountInfoHelper.GetAccountInfoByImport();
                             var add = res.Where(x => accounts.All(y => y.Account != x.f_username));
                             if (add.Any())
                             {
                                 var role = ServerConfig.ApiDb.Query<int>("SELECT Id FROM `roles` WHERE New = 1;");
                                 ServerConfig.ApiDb.Execute(
-                                    "INSERT INTO accounts (`Number`, `Account`, `Name`, `Role`, `DeviceIds`, `MarkedDelete`) VALUES (@Number, @Account, @Name, @Role, '', @MarkedDelete);",
+                                    "INSERT INTO accounts (`Number`, `Account`, `Name`, `Role`, `DeviceIds`, `MarkedDelete`, `IsErp`) VALUES (@Number, @Account, @Name, @Role, '', @MarkedDelete, 1);",
                                     add.Select(x => new AccountInfo
                                     {
                                         Number = x.f_ygbh,
@@ -2333,21 +2332,37 @@ namespace ApiManagement.Base.Helper
                             }
 
                             var update = res.Where(x => accounts.Any(y => y.Account == x.f_username) &&
-                                                        (!accounts.First(y => y.Account == x.f_username).MarkedDelete && x.ifdelete ||
-                                                         accounts.First(y => y.Account == x.f_username).Name != x.f_name ||
-                                                         accounts.First(y => y.Account == x.f_username).Number != x.f_ygbh));
+                                                        (accounts.First(y => y.Account == x.f_username).Name != x.f_name
+                                                         || !accounts.First(y => y.Account == x.f_username).IsErp));
                             if (update.Any())
                             {
                                 ServerConfig.ApiDb.Execute(
-                                    "UPDATE accounts SET `Number` = @Number, `Name` = @Name, `MarkedDelete` = @MarkedDelete WHERE `Account` = @Account;",
+                                    "UPDATE accounts SET `Number` = @Number, `Name` = @Name, `IsErp` = @IsErp WHERE `Account` = @Account;",
                                     update.Select(x => new AccountInfo
                                     {
                                         Account = x.f_username,
                                         Number = x.f_ygbh,
                                         Name = x.f_name,
-                                        MarkedDelete = x.ifdelete,
+                                        IsErp = true
                                     }));
                             }
+
+                            var delete = accounts.Where(x =>
+                                         (res.All(y => y.f_username != x.Account) && !x.MarkedDelete)
+                                          || (res.Any(y => y.f_username == x.Account) && res.First(y => y.f_username == x.Account).ifdelete && !x.MarkedDelete));
+                            if (delete.Any())
+                            {
+                                AccountInfoHelper.Instance.Delete(delete.Select(x => x.Id));
+                            }
+
+                            //var duplicates = accounts.GroupBy(x => x.Account).ToDictionary(x => x.Key, x => x.ToList()).Where(x => x.Value.Count > 1).ToDictionary(x => x.Key, x => x.Value);
+                            //if (duplicates.Any())
+                            //{
+                            //    foreach (var VARIABLE in COLLECTION)
+                            //    {
+
+                            //    }
+                            //}
                         }
                     }
                     catch (Exception e)

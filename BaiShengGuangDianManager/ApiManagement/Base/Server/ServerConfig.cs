@@ -28,6 +28,8 @@ namespace ApiManagement.Base.Server
             {
                 //{PermissionHelper.TableName, PermissionHelper.LoadConfig},
                 {"ReadDB", LoadDateBase},
+                {PermissionHelper.TableName, PermissionHelper.LoadConfig},
+                {PermissionGroupHelper.TableName, PermissionGroupHelper.LoadConfig},
             };
 
             foreach (var action in Loads.Values)

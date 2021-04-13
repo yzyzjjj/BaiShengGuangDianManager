@@ -1,8 +1,8 @@
-﻿using ApiManagement.Models.BaseModel;
-using ModelBase.Base.Utils;
+﻿using ModelBase.Base.Utils;
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using ApiManagement.Models.BaseModel;
 
 namespace ApiManagement.Models.FlowCardManagementModel
 {

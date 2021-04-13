@@ -3,7 +3,7 @@ using ApiManagement.Models.Warning;
 using ModelBase.Base.Logger;
 using ModelBase.Base.Utils;
 using ModelBase.Models.Device;
-using Newtonsoft.Json;
+using Newtonsoft.Json;using ModelBase.Models.BaseModel;
 using ServiceStack;
 using System;
 using System.Collections.Generic;

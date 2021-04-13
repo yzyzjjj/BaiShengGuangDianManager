@@ -14,7 +14,7 @@ using ModelBase.Base.Utils;
 using ModelBase.Models.Control;
 using ModelBase.Models.Device;
 using ModelBase.Models.Result;
-using Newtonsoft.Json;
+using Newtonsoft.Json;using ModelBase.Models.BaseModel;
 using ServiceStack;
 using System;
 using System.Collections.Generic;

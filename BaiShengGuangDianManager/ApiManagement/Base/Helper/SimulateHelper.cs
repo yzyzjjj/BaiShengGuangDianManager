@@ -858,7 +858,7 @@ namespace ApiManagement.Base.Helper
                                     });
                                 }
                             }
-                            var processor = AccountInfoHelper.GetAccount(processDevice.ProcessorId)?.Account ?? "";
+                            var processor = AccountInfoHelper.GetAccountInfo(processDevice.ProcessorId)?.Account ?? "";
                             //todo
                             var log = new SmartFlowCardProcessLog(0, processor, markedDateTime, processDevice, qualified, unqualified);
                             SmartFlowCardProcessLogHelper.Instance.Add(log);

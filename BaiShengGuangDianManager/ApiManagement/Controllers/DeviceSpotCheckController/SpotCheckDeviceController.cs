@@ -8,6 +8,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using ApiManagement.Models.DeviceSpotCheckModel;
+using ModelBase.Models.BaseModel;
 using ApiManagement.Models.OtherModel;
 
 namespace ApiManagement.Controllers.DeviceSpotCheckController

@@ -1,5 +1,4 @@
-﻿using ApiManagement.Models.BaseModel;
-using ServiceStack.DataAnnotations;
+﻿using ModelBase.Models.BaseModel;
 
 namespace ApiManagement.Models.SmartFactoryModel
 {

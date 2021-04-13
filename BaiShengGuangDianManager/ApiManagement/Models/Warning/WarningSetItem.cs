@@ -1,5 +1,5 @@
-﻿using ApiManagement.Models.BaseModel;
-using ModelBase.Base.Utils;
+﻿using ModelBase.Base.Utils;
+using ModelBase.Models.BaseModel;
 using Newtonsoft.Json;
 using ServiceStack;
 using System;
@@ -95,6 +95,10 @@ namespace ApiManagement.Models.Warning
                 Frequency = 0;
                 Count = 1;
             }
+            if (Interval == WarningInterval.连续)
+            {
+                Frequency = 0;
+            }
             return (Interval > 0 && Count > 0);
         }
         public WarningCondition Condition1 { get; set; }
@@ -183,8 +187,6 @@ namespace ApiManagement.Models.Warning
                 var total = 0;
                 switch (Interval)
                 {
-                    case WarningInterval.每次:
-                        break;
                     case WarningInterval.秒:
                         total += Frequency;
                         break;

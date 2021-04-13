@@ -1,6 +1,5 @@
-﻿using System;
-using ApiManagement.Models.BaseModel;
-
+﻿
+using ModelBase.Models.BaseModel;
 namespace ApiManagement.Models.FlowCardManagementModel
 {
     public class FlowCardSpecification : CommonBase

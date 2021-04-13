@@ -1,4 +1,6 @@
 ﻿using ApiManagement.Base.Server;
+using ApiManagement.Models.AccountModel;
+using ApiManagement.Models.FlowCardManagementModel;
 using ApiManagement.Models.MaterialManagementModel;
 using ApiManagement.Models.PlanManagementModel;
 using ApiManagement.Models.SmartFactoryModel;
@@ -7,8 +9,6 @@ using ModelBase.Base.Utils;
 using System;
 using System.Collections.Generic;
 using System.Linq;
-using ApiManagement.Models.FlowCardManagementModel;
-using ApiManagement.Models.AccountModel;
 
 namespace ApiManagement.Base.Helper
 {
@@ -200,6 +200,16 @@ namespace ApiManagement.Base.Helper
         }
         #endregion
 
+        #region 删除触发
+        /// <summary>
+        /// 账号删除
+        /// </summary>
+        public event EventHandler<IEnumerable<AccountInfo>> AccountInfoDeleted;
+        public void OnAccountInfoDeleted(IEnumerable<AccountInfo> accountInfos)
+        {
+            AccountInfoDeleted?.Invoke(this, accountInfos);
+        }
+        #endregion
         public static void Init()
         {
             Instance = Instance ?? new WorkFlowHelper();
@@ -207,6 +217,18 @@ namespace ApiManagement.Base.Helper
 
         public void Register()
         {
+            AccountInfoDeleted += (o, args) =>
+            {
+                try
+                {
+                    var ids = args.Select(x => x.Id);
+                    OrganizationUnitHelper.DeleteMemberByAccountIds(ids);
+                }
+                catch (Exception e)
+                {
+                    Log.Error(e);
+                }
+            };
             BillNeedUpdate += (o, args) =>
             {
                 try

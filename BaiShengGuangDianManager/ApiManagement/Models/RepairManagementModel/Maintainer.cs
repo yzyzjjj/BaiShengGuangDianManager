@@ -1,6 +1,6 @@
-﻿using ApiManagement.Models.BaseModel;
-using ModelBase.Base.Logic;
+﻿using ModelBase.Base.Logic;
 using System;
+using ModelBase.Models.BaseModel;
 using System.Collections.Generic;
 
 namespace ApiManagement.Models.RepairManagementModel

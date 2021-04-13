@@ -1,9 +1,9 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Linq;
-using ApiManagement.Models.BaseModel;
 using Newtonsoft.Json;
 using ServiceStack;
+using ModelBase.Models.BaseModel;
 
 namespace ApiManagement.Models.AccountModel
 {
@@ -22,6 +22,7 @@ namespace ApiManagement.Models.AccountModel
         /// </summary>
         [JsonIgnore]
         public string Password { get; set; }
+        public string NewPassword { get; set; }
         /// <summary>
         /// 姓名
         /// </summary>
@@ -61,7 +62,6 @@ namespace ApiManagement.Models.AccountModel
         /// <summary>
         /// 权限ID
         /// </summary>
-        [JsonIgnore]
         public string SelfPermissions { get; set; }
         /// <summary>
         /// 所有机台
@@ -79,8 +79,15 @@ namespace ApiManagement.Models.AccountModel
         /// 0生产员
         /// </summary>
         [JsonIgnore]
+        [Obsolete("弃用")]
         public string MaxProductionRole { get; set; }
+        /// <summary>
+        /// 权限组id
+        /// </summary>
         public string Permissions { get; set; }
+        /// <summary>
+        /// 权限组id
+        /// </summary>
         [JsonIgnore]
         public IEnumerable<int> PermissionsList => Permissions.IsNullOrEmpty() ? new List<int>() : Permissions.Split(',').Select(int.Parse).Distinct();
         [JsonIgnore]
@@ -94,5 +101,21 @@ namespace ApiManagement.Models.AccountModel
         /// 备注
         /// </summary>
         public string Remark { get; set; }
+        /// <summary>
+        /// 备注
+        /// </summary>
+        public bool IsErp { get; set; }
+        /// <summary>
+        /// 上次登录时间
+        /// </summary>
+        public DateTime LoginTime { get; set; }
+        /// <summary>
+        /// 上次登出时间
+        /// </summary>
+        public DateTime LogoutTime { get; set; }
+        /// <summary>
+        /// 备注
+        /// </summary>
+        public int LoginCount { get; set; }
     }
 }

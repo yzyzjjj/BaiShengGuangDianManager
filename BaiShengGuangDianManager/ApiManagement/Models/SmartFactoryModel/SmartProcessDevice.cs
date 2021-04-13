@@ -1,4 +1,5 @@
 ﻿using ApiManagement.Base.Helper;
+using ApiManagement.Models.AccountModel;
 using Microsoft.EntityFrameworkCore.Internal;
 using ModelBase.Base.Logger;
 using ModelBase.Base.Utils;
@@ -7,7 +8,6 @@ using ServiceStack;
 using System;
 using System.Collections.Generic;
 using System.Linq;
-using ApiManagement.Models.AccountModel;
 
 namespace ApiManagement.Models.SmartFactoryModel
 {
@@ -176,7 +176,7 @@ namespace ApiManagement.Models.SmartFactoryModel
                             TotalSecond += second;
                             var last = process.Left == 0;
                             process.State = last ? SmartFlowCardProcessState.已完成 : SmartFlowCardProcessState.等待中;
-                            var createUserId = AccountInfoHelper.GetAccount(process.ProcessorId)?.Account ?? "";
+                            var createUserId = AccountInfoHelper.GetAccountInfo(process.ProcessorId)?.Account ?? "";
                             if (last)
                             {
                                 processorId = ProcessorId;

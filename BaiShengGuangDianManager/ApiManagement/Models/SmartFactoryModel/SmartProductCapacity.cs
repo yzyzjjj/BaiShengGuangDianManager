@@ -1,5 +1,4 @@
 ﻿using System;
-
 namespace ApiManagement.Models.SmartFactoryModel
 {
     //public class SmartProductCapacity : CommonBase, ICloneable

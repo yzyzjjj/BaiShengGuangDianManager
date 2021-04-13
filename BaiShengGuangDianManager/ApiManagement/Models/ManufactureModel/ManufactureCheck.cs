@@ -1,6 +1,5 @@
-﻿using System.Collections.Generic;
-using ApiManagement.Models.BaseModel;
-using ApiManagement.Models._6sModel;
+﻿using ModelBase.Models.BaseModel;
+using System.Collections.Generic;
 
 namespace ApiManagement.Models.ManufactureModel
 {

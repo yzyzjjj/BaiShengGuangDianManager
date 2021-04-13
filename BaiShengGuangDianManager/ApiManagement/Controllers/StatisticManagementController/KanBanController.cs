@@ -224,6 +224,8 @@ namespace ApiManagement.Controllers.StatisticManagementController
                                     var r = new MonitoringSetSingleDataDetail
                                     {
                                         Order = x.Order,
+                                        SubOrder = x.SubOrder,
+                                        Delimiter = x.Delimiter,
                                         Sid = x.ScriptId,
                                         Type = x.VariableTypeId,
                                         Add = x.PointerAddress,
@@ -367,6 +369,40 @@ namespace ApiManagement.Controllers.StatisticManagementController
                 {
                     return Result.GenError<Result>(Error.MonitoringKanBanSetVariableError);
                 }
+
+                if (set.VariableList.Any())
+                {
+                    if (set.VariableList.GroupBy(x => new { x.Order, x.SubOrder }).Any(x => x.Count() > 1))
+                    {
+                        return Result.GenError<Result>(Error.MonitoringKanBanSetVariableOrderDuplicate);
+                    }
+
+                    var nVariableList = new List<DataNameDictionaryOrder>();
+                    var orderGroup = set.VariableList.GroupBy(x => x.Order).Select(x => x.Key).OrderBy(x => x);
+                    for (int i = 0; i < orderGroup.Count(); i++)
+                    {
+                        var order = orderGroup.ElementAt(i);
+                        var oVariableList = set.VariableList.Where(x => x.Order == order).OrderBy(x => x.SubOrder);
+                        for (int j = 0; j < oVariableList.Count(); j++)
+                        {
+                            var variable = oVariableList.ElementAt(j);
+                            //variable.Order = i + 1;
+                            variable.SubOrder = j + 1;
+                            variable.Delimiter = variable.Delimiter ?? "";
+                            nVariableList.Add(variable);
+                        }
+                    }
+                    set.Variables = nVariableList.Select(x => new
+                    {
+                        x.ScriptId,
+                        x.VariableTypeId,
+                        x.VariableName,
+                        x.PointerAddress,
+                        x.Order,
+                        x.SubOrder,
+                        x.Delimiter,
+                    }).ToJSON();
+                }
             }
 
             set.MarkedDateTime = DateTime.Now;
@@ -407,6 +443,39 @@ namespace ApiManagement.Controllers.StatisticManagementController
                 if (set.VariableList.Count == 0)
                 {
                     return Result.GenError<Result>(Error.MonitoringKanBanSetVariableError);
+                }
+                if (set.VariableList.Any())
+                {
+                    if (set.VariableList.GroupBy(x => new { x.Order, x.SubOrder }).Any(x => x.Count() > 1))
+                    {
+                        return Result.GenError<Result>(Error.MonitoringKanBanSetVariableOrderDuplicate);
+                    }
+
+                    var nVariableList = new List<DataNameDictionaryOrder>();
+                    var orderGroup = set.VariableList.GroupBy(x => x.Order).Select(x => x.Key).OrderBy(x => x);
+                    for (int i = 0; i < orderGroup.Count(); i++)
+                    {
+                        var order = orderGroup.ElementAt(i);
+                        var oVariableList = set.VariableList.Where(x => x.Order == order).OrderBy(x => x.SubOrder);
+                        for (int j = 0; j < oVariableList.Count(); j++)
+                        {
+                            var variable = oVariableList.ElementAt(j);
+                            //variable.Order = i + 1;
+                            variable.SubOrder = j + 1;
+                            variable.Delimiter = variable.Delimiter ?? "";
+                            nVariableList.Add(variable);
+                        }
+                    }
+                    set.Variables = nVariableList.Select(x => new
+                    {
+                        x.ScriptId,
+                        x.VariableTypeId,
+                        x.VariableName,
+                        x.PointerAddress,
+                        x.Order,
+                        x.SubOrder,
+                        x.Delimiter,
+                    }).ToJSON();
                 }
             }
 

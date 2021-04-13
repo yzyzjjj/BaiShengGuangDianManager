@@ -1,5 +1,4 @@
 ﻿using ApiManagement.Base.Server;
-using ApiManagement.Models.BaseModel;
 using ApiManagement.Models.ManufactureModel;
 using Microsoft.AspNetCore.Mvc;
 using ModelBase.Base.EnumConfig;
@@ -8,6 +7,7 @@ using ModelBase.Models.Result;
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using ModelBase.Models.BaseModel;
 
 namespace ApiManagement.Controllers.ManufactureController
 {

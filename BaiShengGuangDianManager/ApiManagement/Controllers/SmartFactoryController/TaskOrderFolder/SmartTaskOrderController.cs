@@ -1,5 +1,4 @@
-﻿using ApiManagement.Models.BaseModel;
-using ApiManagement.Models.SmartFactoryModel;
+﻿using ApiManagement.Models.SmartFactoryModel;
 using Microsoft.AspNetCore.Mvc;
 using ModelBase.Base.EnumConfig;
 using ModelBase.Base.Utils;
@@ -8,6 +7,7 @@ using ServiceStack;
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using ModelBase.Models.BaseModel;
 
 namespace ApiManagement.Controllers.SmartFactoryController.TaskOrderFolder
 {

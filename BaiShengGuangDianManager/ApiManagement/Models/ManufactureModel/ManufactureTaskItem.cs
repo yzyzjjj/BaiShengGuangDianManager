@@ -1,5 +1,5 @@
-﻿using ApiManagement.Models.BaseModel;
-using ModelBase.Base.Utils;
+﻿using ModelBase.Base.Utils;
+using ModelBase.Models.BaseModel;
 
 namespace ApiManagement.Models.ManufactureModel
 {

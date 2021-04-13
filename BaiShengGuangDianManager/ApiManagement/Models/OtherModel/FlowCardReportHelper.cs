@@ -1,8 +1,8 @@
 ﻿using ApiManagement.Base.Server;
-using ApiManagement.Models.BaseModel;
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using ApiManagement.Models.BaseModel;
 
 namespace ApiManagement.Models.OtherModel
 {
@@ -13,8 +13,8 @@ namespace ApiManagement.Models.OtherModel
             Table = "flowcard_report";
 
             InsertSql =
-                "INSERT INTO `flowcard_report` (`Time`, `FlowCardId`, `FlowCard`, `ProductionId`, `Production`, `DeviceId`, `Code`, `Step`, `Back`, `ProcessorId`, `Processor`, `Total`, `HeGe`, `LiePian`, `State`) " +
-                "VALUES (@Time, @FlowCardId, @FlowCard, @ProductionId, @Production, @DeviceId, @Code, @Step, @Back, @ProcessorId, @Processor, @Total, @HeGe, @LiePian, @State);";
+                "INSERT INTO `flowcard_report` (`Time`, `FlowCardId`, `FlowCard`, `ProductionId`, `Production`, `DeviceId`, `Code`, `Step`, `Back`, `ProcessorId`, `Processor`, `Total`, `HeGe`, `LiePian`, `Reason`) " +
+                "VALUES (@Time, @FlowCardId, @FlowCard, @ProductionId, @Production, @DeviceId, @Code, @Step, @Back, @ProcessorId, @Processor, @Total, @HeGe, @LiePian, @Reason);";
             UpdateSql =
                 "UPDATE `flowcard_report` SET `Time` = @Time, `FlowCardId` = @FlowCardId, `FlowCard` = @FlowCard, `ProductionId` = @ProductionId, `Production` = @Production, " +
                 "`DeviceId` = @DeviceId, `Code` = @Code, `Step` = @Step, `Back` = @Back, `ProcessorId` = @ProcessorId, `Processor` = @Processor, `Total` = @Total, `HeGe` = @HeGe, `LiePian` = @LiePian WHERE `Id` = @Id;";
@@ -112,6 +112,13 @@ namespace ApiManagement.Models.OtherModel
         #endregion
 
         #region Update
+
+        public static void Update(IEnumerable<FlowCardReport> flowCardReports)
+        {
+            ServerConfig.ApiDb.Execute(
+                "UPDATE `flowcard_report` SET `FlowCardId` = @FlowCardId, `ProductionId` = @ProductionId, `Production` = @Production, `DeviceId` = @DeviceId, `ProcessorId` = @ProcessorId, `State` = @State  WHERE `Id` = @Id;",
+                flowCardReports);
+        }
         #endregion
 
         #region Delete

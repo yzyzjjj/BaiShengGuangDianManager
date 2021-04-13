@@ -1,10 +1,10 @@
-﻿using ApiManagement.Models.BaseModel;
-using ModelBase.Base.Utils;
+﻿using ModelBase.Base.Utils;
 using ServiceStack;
 using System;
 using System.Collections.Generic;
 using System.ComponentModel;
 using System.Linq;
+using ModelBase.Models.BaseModel;
 
 namespace ApiManagement.Models.ManufactureModel
 {

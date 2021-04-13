@@ -1,7 +1,6 @@
-﻿using ApiManagement.Models.BaseModel;
-using ModelBase.Base.Utils;
+﻿using ModelBase.Base.Utils;
+using ModelBase.Models.BaseModel;
 using System;
-using System.ComponentModel;
 
 namespace ApiManagement.Models.SmartFactoryModel
 {

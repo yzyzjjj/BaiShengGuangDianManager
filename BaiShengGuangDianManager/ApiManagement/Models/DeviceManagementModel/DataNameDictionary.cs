@@ -1,6 +1,6 @@
 ﻿using System;
-using ApiManagement.Models.BaseModel;
 using ApiManagement.Models.StatisticManagementModel;
+using ModelBase.Models.BaseModel;
 
 namespace ApiManagement.Models.DeviceManagementModel
 {
@@ -40,10 +40,18 @@ namespace ApiManagement.Models.DeviceManagementModel
         /// 
         /// </summary>
         public KanBanItemEnum ItemType { get; set; } = KanBanItemEnum.无;
+
         /// <summary>
         /// 顺序
         /// </summary>
-        public int Order { get; set; }
-
+        public int Order { get; set; } = 1;
+        /// <summary>
+        /// 分隔符
+        /// </summary>
+        public string Delimiter { get; set; } = "";
+        /// <summary>
+        /// 子顺序
+        /// </summary>
+        public int SubOrder { get; set; } = 1;
     }
 }

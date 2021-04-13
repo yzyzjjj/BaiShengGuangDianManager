@@ -17,6 +17,11 @@
   </ItemGroup>
 
   <ItemGroup>
+    <Compile Remove="Base\Helper\HPermissionHelper.cs" />
+    <Compile Remove="Base\Helper\OperateLogHelper.cs" />
+    <Compile Remove="Controllers\OtherController\FlowCardReportController - 复制.cs" />
+    <Compile Remove="Models\BaseModel\BatchDelete.cs" />
+    <Compile Remove="Models\BaseModel\CommonBase.cs" />
     <Compile Remove="Models\SmartFactoryModel\SmartUser.cs" />
     <Compile Remove="Models\SmartFactoryModel\SmartUserHelper.cs" />
   </ItemGroup>

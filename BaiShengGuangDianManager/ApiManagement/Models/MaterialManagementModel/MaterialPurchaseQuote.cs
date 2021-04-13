@@ -1,6 +1,6 @@
 ﻿using System;
-using ApiManagement.Models.BaseModel;
 using ServiceStack;
+using ModelBase.Models.BaseModel;
 
 namespace ApiManagement.Models.MaterialManagementModel
 {

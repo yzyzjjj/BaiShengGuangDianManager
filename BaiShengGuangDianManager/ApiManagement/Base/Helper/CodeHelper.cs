@@ -1,10 +1,8 @@
-﻿using ApiManagement.Base.Server;
-using ModelBase.Base.Utils;
+﻿using ModelBase.Base.Utils;
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
-
 namespace ApiManagement.Base.Helper
 {
     public enum CodeType

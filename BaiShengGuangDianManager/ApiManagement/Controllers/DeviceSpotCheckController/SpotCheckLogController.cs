@@ -7,8 +7,8 @@ using ModelBase.Models.Result;
 using System;
 using System.Collections.Generic;
 using System.Linq;
-using ApiManagement.Models.BaseModel;
 using ApiManagement.Models.DeviceSpotCheckModel;
+using ModelBase.Models.BaseModel;
 
 namespace ApiManagement.Controllers.DeviceSpotCheckController
 {

@@ -2,8 +2,6 @@
 using System.Linq;
 using ApiManagement.Base.Server;
 using ApiManagement.Models.AccountModel;
-using ApiManagement.Models.SmartFactoryModel;
-using ServiceStack;
 
 namespace ApiManagement.Base.Helper
 {

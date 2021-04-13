@@ -1,5 +1,4 @@
 ﻿using ApiManagement.Base.Server;
-using ApiManagement.Models.BaseModel;
 using ApiManagement.Models.DeviceSpotCheckModel;
 using ApiManagement.Models.OtherModel;
 using Microsoft.AspNetCore.Mvc;
@@ -9,6 +8,7 @@ using ModelBase.Models.Result;
 using ServiceStack;
 using System;
 using System.Collections.Generic;
+using ModelBase.Models.BaseModel;
 using System.Linq;
 
 namespace ApiManagement.Controllers.DeviceSpotCheckController

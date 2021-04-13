@@ -1,6 +1,4 @@
-﻿using ApiManagement.Models.BaseModel;
-
-namespace ApiManagement.Models.Notify
+﻿namespace ApiManagement.Models.Notify
 {
     public class NotifyMessage
     {

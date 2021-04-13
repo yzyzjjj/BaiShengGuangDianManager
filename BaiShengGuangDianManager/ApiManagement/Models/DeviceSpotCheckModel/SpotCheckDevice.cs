@@ -1,7 +1,7 @@
-﻿using System;
-using ApiManagement.Models.BaseModel;
-using ApiManagement.Models.OtherModel;
+﻿using ApiManagement.Models.OtherModel;
+using ModelBase.Models.BaseModel;
 using Newtonsoft.Json;
+using System;
 
 namespace ApiManagement.Models.DeviceSpotCheckModel
 {

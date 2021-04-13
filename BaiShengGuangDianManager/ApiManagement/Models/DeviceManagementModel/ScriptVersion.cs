@@ -1,9 +1,8 @@
-﻿using System;
+﻿using Newtonsoft.Json;
+using ServiceStack;
 using System.Collections.Generic;
 using System.Linq;
-using ApiManagement.Models.BaseModel;
-using Newtonsoft.Json;
-using ServiceStack;
+using ModelBase.Models.BaseModel;
 
 namespace ApiManagement.Models.DeviceManagementModel
 {

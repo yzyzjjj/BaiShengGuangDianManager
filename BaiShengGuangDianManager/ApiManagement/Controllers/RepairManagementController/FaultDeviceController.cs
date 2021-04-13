@@ -1,6 +1,5 @@
 ﻿using ApiManagement.Base.Helper;
 using ApiManagement.Base.Server;
-using ApiManagement.Models.BaseModel;
 using ApiManagement.Models.DeviceManagementModel;
 using ApiManagement.Models.Notify;
 using ApiManagement.Models.RepairManagementModel;
@@ -12,6 +11,7 @@ using ServiceStack;
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using ModelBase.Models.BaseModel;
 
 namespace ApiManagement.Controllers.RepairManagementController
 {

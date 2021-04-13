@@ -89,20 +89,21 @@ namespace ApiManagement.Base.Helper
             {"精抛机", new []{ "JingPaoTime", "JingPaoFaChu", "JingPaoHeGe", "JingPaoLiePian", "JingPaoDeviceId", "JingPaoJiaGongRen"}},
         };
         /// <summary>
-        /// 研磨1 粗抛 2  精抛 3
+        /// 研磨1 粗抛 2  精抛 3 外观检验 4
         /// </summary>
         public static readonly Dictionary<int, string[]> ParamIntDic = new Dictionary<int, string[]>
         {
             {1, new []{ "YanMoTime", "YanMoFaChu", "YanMoHeGe", "YanMoLiePian", "YanMoDeviceId", "YanMoJiaGongRen"}},
             {2, new []{ "CuPaoTime", "CuPaoFaChu", "CuPaoHeGe", "CuPaoLiePian", "CuPaoDeviceId", "CuPaoJiaGongRen"}},
             {3, new []{ "JingPaoTime", "JingPaoFaChu", "JingPaoHeGe", "JingPaoLiePian", "JingPaoDeviceId", "JingPaoJiaGongRen"}},
+            {4, new []{ "WaiGuanTime", "WaiGuanFaChu", "WaiGuanHeGe", "WaiGuanLiePian", "WaiGuanDeviceId", "WaiGuanJiaGongRen"}},
         };
         #endregion
 
         #region FlowCardReportAnalysis
         private static readonly string fcraRedisPre = "FlowCardReportAnalysis";
-        private static readonly string fcraLockKey = $"{fcrRedisPre}:Lock";
-        private static readonly string fcraDeviceKey = $"{fcrRedisPre}:Device";
+        private static readonly string fcraLockKey = $"{fcraRedisPre}:Lock";
+        private static readonly string fcraDeviceKey = $"{fcraRedisPre}:Device";
         #endregion
 
         #region 变量
@@ -1583,6 +1584,8 @@ namespace ApiManagement.Base.Helper
                                 var r = new MonitoringSetSingleDataDetail
                                 {
                                     Order = x.Order,
+                                    SubOrder = x.SubOrder,
+                                    Delimiter = x.Delimiter,
                                     Sid = x.ScriptId,
                                     Type = x.VariableTypeId,
                                     Add = x.PointerAddress,
@@ -1743,7 +1746,7 @@ namespace ApiManagement.Base.Helper
                                 var reports = FlowCardReportHelper.GetReport(startTime, endTime, 0, set.DeviceIdList)
                                     .GroupBy(x => x.ProcessorId)
                                     .ToDictionary(x => x.Key, x => x.Sum(y => y.HeGe));
-                                var processes = AccountInfoHelper.GetAccountByNames(reports.Keys);
+                                var processes = AccountInfoHelper.GetAccountInfoByAccountIds(reports.Keys);
                                 MonitoringKanBanDic[id].ProcessorSchedules = reports.Where(x => processes.Any(y => y.Id == x.Key))
                                     .Select(x =>
                                     {

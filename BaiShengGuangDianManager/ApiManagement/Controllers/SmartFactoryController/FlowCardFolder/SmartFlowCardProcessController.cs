@@ -1,5 +1,4 @@
 ﻿using ApiManagement.Base.Helper;
-using ApiManagement.Models.BaseModel;
 using ApiManagement.Models.SmartFactoryModel;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore.Internal;
@@ -9,6 +8,7 @@ using ModelBase.Models.Result;
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using ModelBase.Models.BaseModel;
 
 namespace ApiManagement.Controllers.SmartFactoryController.FlowCardFolder
 {

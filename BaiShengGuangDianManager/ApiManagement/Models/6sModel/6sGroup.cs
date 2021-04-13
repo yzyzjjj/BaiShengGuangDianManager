@@ -1,5 +1,5 @@
-﻿using ApiManagement.Models.BaseModel;
-using System.Collections.Generic;
+﻿using System.Collections.Generic;
+using ModelBase.Models.BaseModel;
 
 namespace ApiManagement.Models._6sModel
 {

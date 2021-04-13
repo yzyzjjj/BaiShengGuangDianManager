@@ -1,8 +1,8 @@
 ﻿using System;
-using ApiManagement.Models.BaseModel;
 using ServiceStack;
 using System.Collections.Generic;
 using System.Linq;
+using ModelBase.Models.BaseModel;
 
 namespace ApiManagement.Models.SmartFactoryModel
 {

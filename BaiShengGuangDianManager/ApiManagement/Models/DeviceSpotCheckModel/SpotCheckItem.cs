@@ -1,5 +1,5 @@
-﻿using ApiManagement.Models.BaseModel;
-using ApiManagement.Models.OtherModel;
+﻿using ApiManagement.Models.OtherModel;
+using ModelBase.Models.BaseModel;
 
 namespace ApiManagement.Models.DeviceSpotCheckModel
 {

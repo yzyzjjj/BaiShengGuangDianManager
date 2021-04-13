@@ -1,7 +1,7 @@
-﻿using ApiManagement.Models.BaseModel;
-using ServiceStack;
+﻿using ServiceStack;
 using System;
 using System.Collections.Generic;
+using ModelBase.Models.BaseModel;
 using System.Linq;
 
 namespace ApiManagement.Models.Warning

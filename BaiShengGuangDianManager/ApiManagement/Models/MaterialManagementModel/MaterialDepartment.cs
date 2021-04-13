@@ -1,9 +1,4 @@
-﻿using ApiManagement.Base.Helper;
-using ApiManagement.Models.BaseModel;
-using ServiceStack;
-using System;
-using System.ComponentModel;
-using System.Linq;
+﻿using ModelBase.Models.BaseModel;
 
 namespace ApiManagement.Models.MaterialManagementModel
 {

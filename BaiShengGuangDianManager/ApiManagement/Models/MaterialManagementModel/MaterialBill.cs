@@ -1,4 +1,4 @@
-﻿using ApiManagement.Models.BaseModel;
+﻿using ModelBase.Models.BaseModel;
 using Newtonsoft.Json;
 
 namespace ApiManagement.Models.MaterialManagementModel

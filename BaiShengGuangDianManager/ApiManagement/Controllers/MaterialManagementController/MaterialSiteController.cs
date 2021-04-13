@@ -2,11 +2,11 @@
 using System.Collections.Generic;
 using System.Linq;
 using ApiManagement.Base.Server;
-using ApiManagement.Models.BaseModel;
 using ApiManagement.Models.MaterialManagementModel;
 using Microsoft.AspNetCore.Mvc;
 using ModelBase.Base.EnumConfig;
 using ModelBase.Base.Utils;
+using ModelBase.Models.BaseModel;
 using ModelBase.Models.Result;
 using ServiceStack;
 

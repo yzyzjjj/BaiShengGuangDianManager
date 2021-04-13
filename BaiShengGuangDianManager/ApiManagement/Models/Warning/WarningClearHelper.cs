@@ -1,12 +1,11 @@
 ﻿using ApiManagement.Base.Server;
+using ApiManagement.Models.AccountModel;
 using ApiManagement.Models.BaseModel;
 using ApiManagement.Models.DeviceManagementModel;
 using ServiceStack;
 using System;
 using System.Collections.Generic;
 using System.Linq;
-using ApiManagement.Models.AccountModel;
-using ApiManagement.Models.SmartFactoryModel;
 
 namespace ApiManagement.Models.Warning
 {
@@ -27,7 +26,7 @@ namespace ApiManagement.Models.Warning
         }
         public static readonly WarningClearHelper Instance = new WarningClearHelper();
         #region Get
-        public static IEnumerable<WarningClearDetail> GetWarningClears(DateTime startTime, DateTime endTime, int setId, 
+        public static IEnumerable<WarningClearDetail> GetWarningClears(DateTime startTime, DateTime endTime, int setId,
             WarningType warningType, WarningDataType dataType, IEnumerable<int> deviceIds)
         {
             var clears = new List<WarningClearDetail>();
@@ -69,12 +68,12 @@ namespace ApiManagement.Models.Warning
             {
                 var sets = WarningSetHelper.GetMenus(clears.Select(x => x.SetId).Distinct()).ToDictionary(x => x.Id);
                 var devices = DeviceLibraryHelper.GetMenus(clears.SelectMany(x => x.DeviceIdList).Distinct()).ToDictionary(x => x.Id);
-                var createUserIds = AccountInfoHelper.GetAccountByAccounts(clears.Select(x => x.CreateUserId).Distinct()).ToDictionary(x => x.Account);
+                var createUserIds = AccountInfoHelper.GetAccountInfoByAccounts(clears.Select(x => x.CreateUserId).Distinct()).ToDictionary(x => x.Account);
                 foreach (var d in clears)
                 {
-                    d.Name = createUserIds.ContainsKey(d.CreateUserId)? createUserIds[d.CreateUserId].Name : "";
+                    d.Name = createUserIds.ContainsKey(d.CreateUserId) ? createUserIds[d.CreateUserId].Name : "";
                     d.SetName = sets.ContainsKey(d.SetId) ? sets[d.SetId].Name : "";
-                    d.DeviceList.AddRange(d.DeviceIdList.Select(x => devices.ContainsKey(x) ? devices[x].Code :  x.ToString()));
+                    d.DeviceList.AddRange(d.DeviceIdList.Select(x => devices.ContainsKey(x) ? devices[x].Code : x.ToString()));
                 }
             }
 

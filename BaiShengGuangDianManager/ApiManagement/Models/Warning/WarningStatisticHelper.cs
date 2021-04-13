@@ -1,10 +1,10 @@
 ﻿using ApiManagement.Base.Server;
-using ApiManagement.Models.BaseModel;
 using ModelBase.Base.Logger;
 using ServiceStack;
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using ApiManagement.Models.BaseModel;
 
 namespace ApiManagement.Models.Warning
 {
@@ -22,7 +22,7 @@ namespace ApiManagement.Models.Warning
             InsertSql =
                 "";
             UpdateSql =
-               "";
+                "";
 
             SameField = "";
             //MenuFields.AddRange(new[] { "Id", "Item" });
@@ -102,7 +102,7 @@ namespace ApiManagement.Models.Warning
                 {
                     sql = $"SELECT a.*, b.SetId, b.SetName, b.Item FROM `{table}` a " +
                           $"JOIN (SELECT a.*, b.`Name` SetName FROM `warning_set_item` a JOIN warning_set b ON a.SetId = b.Id) b ON a.ItemId = b.Id " +
-                          $"WHERE Time = @time{(itemIds != null && itemIds.Any() ? " AND ItemId IN @itemIds" : "")} GROUP BY Time;";
+                          $"WHERE Time = @time{(itemIds != null && itemIds.Any() ? " AND ItemId IN @itemIds" : "")} GROUP BY Time, a.ItemId;";
                 }
                 else
                 {
@@ -120,7 +120,8 @@ namespace ApiManagement.Models.Warning
                           $"JOIN `warning_current` c ON c.ItemId = a.ItemId " +
                           $"WHERE Time = @time" +
                           $"{(itemIds != null && itemIds.Any() ? " AND ItemId IN @itemIds" : "")}" +
-                          $"{(param.Any() ? $" AND {param.Join(" AND ")}" : "")} AND b.MarkedDelete = 0 GROUP BY Time;";
+                          //$"{(param.Any() ? $" AND {param.Join(" AND ")}" : "")} AND b.MarkedDelete = 0 GROUP BY Time, a.ItemId;";
+                          $"{(param.Any() ? $" AND {param.Join(" AND ")}" : "")} AND b.MarkedDelete = 0 GROUP BY Time, a.ItemId;";
                 }
                 res.AddRange(ServerConfig.ApiDb.Query<WarningStatistic>(sql, new { time, dataType, deviceIds, itemTypes }));
             }

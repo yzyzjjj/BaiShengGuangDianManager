@@ -1,8 +1,7 @@
-﻿using System.Collections.Generic;
-using System.Linq;
-using ApiManagement.Models.BaseModel;
-using Microsoft.EntityFrameworkCore.ChangeTracking.Internal;
+﻿using ModelBase.Models.BaseModel;
 using ServiceStack;
+using System.Collections.Generic;
+using System.Linq;
 
 namespace ApiManagement.Models.PlanManagementModel
 {
@@ -21,7 +20,7 @@ namespace ApiManagement.Models.PlanManagementModel
         public decimal ExtraConsumption { get; set; }
         public decimal PlannedCost { get; set; }
         public decimal ActualCost { get; set; }
-        public List<ProductionPlanBillStockDetail> FirstBill  = new List<ProductionPlanBillStockDetail>();
+        public List<ProductionPlanBillStockDetail> FirstBill = new List<ProductionPlanBillStockDetail>();
     }
     public class OpProductionPlan : ProductionPlan
     {
