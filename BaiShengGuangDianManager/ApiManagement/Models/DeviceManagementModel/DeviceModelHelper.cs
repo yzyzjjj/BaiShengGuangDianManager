@@ -1,8 +1,8 @@
 ﻿using ApiManagement.Base.Server;
+using ApiManagement.Models.BaseModel;
 using System;
 using System.Collections.Generic;
-using ApiManagement.Models.BaseModel;
-using ModelBase.Models.BaseModel;
+using System.Linq;
 
 namespace ApiManagement.Models.DeviceManagementModel
 {
@@ -10,23 +10,32 @@ namespace ApiManagement.Models.DeviceManagementModel
     {
         private DeviceModelHelper()
         {
-            Table = "device_library";
+            Table = "device_model";
             InsertSql =
-                "INSERT INTO device_library (`CreateUserId`, `MarkedDateTime`, `Code`, `DeviceName`, `MacAddress`, `Ip`, `Port`, `Identifier`, `ClassId`, `DeviceModelId`, " +
-                "`ScriptId`, `FirmwareId`, `HardwareId`, `ApplicationId`, `SiteId`, `Administrator`, `Remark`, `Icon`) " +
-                "VALUES (@CreateUserId, @MarkedDateTime, @Code, @DeviceName, @MacAddress, @Ip, @Port, @Identifier, @ClassId, @DeviceModelId, " +
-                "@ScriptId, @FirmwareId, @HardwareId, @ApplicationId, @SiteId, @Administrator, @Remark, @Icon);";
+                "INSERT INTO `device_model` (`CreateUserId`, `MarkedDateTime`, `WorkshopId`, `DeviceCategoryId`, `ModelName`, `Description`) " +
+                "VALUES (@CreateUserId, @MarkedDateTime, @WorkshopId, @DeviceCategoryId, @ModelName, @Description);";
 
-            UpdateSql = "UPDATE device_library SET `MarkedDateTime` = @MarkedDateTime, `Code` = @Code, `DeviceName` = @DeviceName, `MacAddress` = @MacAddress, " +
-                        "`Ip` = @Ip, `Port` = @Port, `Identifier` = @Identifier, `DeviceModelId` = @DeviceModelId, `ScriptId` = @ScriptId, " +
-                        "`FirmwareId` = @FirmwareId, `HardwareId` = @HardwareId, `ApplicationId` = @ApplicationId, `SiteId` = @SiteId, `Administrator` = @Administrator, " +
-                        "`Remark` = @Remark, `Icon` = @Icon WHERE `Id` = @Id";
+            UpdateSql = "UPDATE `device_model` SET `MarkedDateTime` = @MarkedDateTime, `WorkshopId` = @WorkshopId, " +
+                        "`DeviceCategoryId` = @DeviceCategoryId, `ModelName` = @ModelName, `Description` = @Description WHERE `Id` = @Id;";
 
-            SameField = "Code";
-            MenuFields.AddRange(new[] { "Id", "Code" });
+            SameField = "ModelName";
+            MenuFields.AddRange(new[] { "Id", "DeviceCategoryId", "ModelName" });
         }
         public static readonly DeviceModelHelper Instance = new DeviceModelHelper();
         #region Get
+        /// <summary>
+        /// 菜单
+        /// </summary>
+        /// <param name="id"></param>
+        public static IEnumerable<dynamic> GetMenu(int id = 0)
+        {
+            var args = new List<Tuple<string, string, dynamic>>();
+            if (id != 0)
+            {
+                args.Add(new Tuple<string, string, dynamic>("Id", "=", id));
+            }
+            return Instance.CommonGet<DeviceModel>(args, true).Select(x => new { x.Id, x.DeviceCategoryId, x.ModelName }).OrderByDescending(x => x.Id);
+        }
         ///// <summary>
         ///// 菜单
         ///// </summary>
@@ -75,6 +84,21 @@ namespace ApiManagement.Models.DeviceManagementModel
         //    }
         //    return Instance.CommonHaveSame(args);
         //}
+
+        /// <summary>
+        /// 获取设备使用次数
+        /// </summary>
+        /// <param name="ids"></param>
+        /// <returns></returns>
+        public static int GetUseCount(IEnumerable<int> ids)
+        {
+            var args = new List<Tuple<string, string, dynamic>>
+            {
+                new Tuple<string, string, dynamic>("DeviceModelId", "IN", ids)
+            };
+
+            return DeviceLibraryHelper.Instance.CommonGetCount(args);
+        }
         #endregion
 
         #region Add

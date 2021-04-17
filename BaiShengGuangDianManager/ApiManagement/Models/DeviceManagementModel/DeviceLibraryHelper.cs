@@ -1,9 +1,9 @@
 ﻿using ApiManagement.Base.Server;
+using ApiManagement.Models.BaseModel;
 using ServiceStack;
 using System;
 using System.Collections.Generic;
 using System.Linq;
-using ApiManagement.Models.BaseModel;
 
 namespace ApiManagement.Models.DeviceManagementModel
 {
@@ -13,12 +13,12 @@ namespace ApiManagement.Models.DeviceManagementModel
         {
             Table = "device_library";
             InsertSql =
-                "INSERT INTO device_library (`CreateUserId`, `MarkedDateTime`, `Code`, `DeviceName`, `MacAddress`, `Ip`, `Port`, `Identifier`, `ClassId`, `DeviceModelId`, " +
+                "INSERT INTO device_library (`CreateUserId`, `MarkedDateTime`, `WorkshopId`, `Code`, `DeviceName`, `MacAddress`, `Ip`, `Port`, `Identifier`, `ClassId`, `DeviceModelId`, " +
                 "`ScriptId`, `FirmwareId`, `HardwareId`, `ApplicationId`, `SiteId`, `Administrator`, `Remark`, `Icon`) " +
-                "VALUES (@CreateUserId, @MarkedDateTime, @Code, @DeviceName, @MacAddress, @Ip, @Port, @Identifier, @ClassId, @DeviceModelId, " +
+                "VALUES (@CreateUserId, @MarkedDateTime, @WorkshopId, @Code, @DeviceName, @MacAddress, @Ip, @Port, @Identifier, @ClassId, @DeviceModelId, " +
                 "@ScriptId, @FirmwareId, @HardwareId, @ApplicationId, @SiteId, @Administrator, @Remark, @Icon);";
 
-            UpdateSql = "UPDATE device_library SET `MarkedDateTime` = @MarkedDateTime, `Code` = @Code, `DeviceName` = @DeviceName, `MacAddress` = @MacAddress, " +
+            UpdateSql = "UPDATE device_library SET `MarkedDateTime` = @MarkedDateTime, `WorkshopId` = @WorkshopId, `Code` = @Code, `DeviceName` = @DeviceName, `MacAddress` = @MacAddress, " +
                         "`Ip` = @Ip, `Port` = @Port, `Identifier` = @Identifier, `DeviceModelId` = @DeviceModelId, `ScriptId` = @ScriptId, " +
                         "`FirmwareId` = @FirmwareId, `HardwareId` = @HardwareId, `ApplicationId` = @ApplicationId, `SiteId` = @SiteId, `Administrator` = @Administrator, " +
                         "`Remark` = @Remark, `Icon` = @Icon WHERE `Id` = @Id";
@@ -71,15 +71,15 @@ namespace ApiManagement.Models.DeviceManagementModel
         {
             return ServerConfig.ApiDb.Query<DeviceLibrary>(
                 $"SELECT * FROM `device_library` WHERE " +
-                //$"{(wId == 0 ? "" : "a.Id = @id AND ")}" +
+                $"{(wId == 0 ? "" : "WorkshopId = @wId AND ")}" +
                 $"{(code.IsNullOrEmpty() ? "" : "Code = @code AND ")}" +
                 $"MarkedDelete = 0;", new { wId, code }).FirstOrDefault();
         }
-        public static IEnumerable<DeviceLibrary> GetDetail(int wId, IEnumerable<string> codes)
+        public static IEnumerable<DeviceLibrary> GetDetails(int wId, IEnumerable<string> codes = null)
         {
             return ServerConfig.ApiDb.Query<DeviceLibrary>(
                 $"SELECT * FROM `device_library` WHERE " +
-                //$"{(wId == 0 ? "" : "a.Id = @id AND ")}" +
+                $"{(wId == 0 ? "" : "WorkshopId = @wId AND ")}" +
                 $"{(codes != null ? "" : "Code IN @codes AND ")}" +
                 $"MarkedDelete = 0;", new { wId, codes });
         }
@@ -115,7 +115,7 @@ namespace ApiManagement.Models.DeviceManagementModel
             };
             if (wId != 0)
             {
-                args.Add(new Tuple<string, string, dynamic>("wId", "=", wId));
+                args.Add(new Tuple<string, string, dynamic>("WorkshopId", "=", wId));
             }
             if (ids != null)
             {

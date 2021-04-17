@@ -240,6 +240,7 @@ namespace ApiManagement.Models.Warning
         {
             return DataType != WarningDataType.默认;
         }
+        public int StepId { get; set; }
         public int ClassId { get; set; }
         public int ScriptId { get; set; }
         public int CategoryId { get; set; }
@@ -424,6 +425,24 @@ namespace ApiManagement.Models.Warning
         {
             ParamList.Add(param);
             Param = ParamList.ToJSON();
+        }
+        //[JsonIgnore]
+        //public WarningLog Log { get; set; }
+        /// <summary>
+        /// 其他参数
+        /// </summary>
+        public string OtherParam { get; set; } = "[]";
+        [JsonIgnore]
+        public List<object> OtherParamList { get; set; } = new List<object>();
+        public void AddOtherParam(string param)
+        {
+            OtherParamList.Add(param);
+            OtherParam = OtherParamList.ToJSON();
+        }
+        public void AddOtherParam(IEnumerable<object> param)
+        {
+            OtherParamList.AddRange(param);
+            OtherParam = OtherParamList.ToJSON();
         }
     }
     //public class WarningSetItemConfig : WarningSetItemDetail

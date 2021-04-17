@@ -33,7 +33,7 @@ namespace ApiManagement.Models.DeviceManagementModel
                 args.Add(new Tuple<string, string, dynamic>("Id", "=", id));
             }
 
-            return Instance.CommonGet<DeviceCategory>(args, true).Select(x => new { x.Id, x.CategoryName });
+            return Instance.CommonGet<DeviceCategory>(args, true).Select(x => new { x.Id, x.CategoryName }).OrderByDescending(x => x.Id);
         }
         /// <summary>
         /// 菜单
@@ -47,7 +47,7 @@ namespace ApiManagement.Models.DeviceManagementModel
                 args.Add(new Tuple<string, string, dynamic>("Id", "IN", ids));
             }
 
-            return Instance.CommonGet<DeviceCategory>(args, true);
+            return Instance.CommonGet<DeviceCategory>(args, true).OrderByDescending(x => x.Id);
         }
         public static bool GetHaveSame(IEnumerable<string> sames, IEnumerable<int> ids = null)
         {

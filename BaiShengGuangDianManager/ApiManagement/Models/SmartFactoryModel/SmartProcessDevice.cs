@@ -1,5 +1,5 @@
 ﻿using ApiManagement.Base.Helper;
-using ApiManagement.Models.AccountModel;
+using ApiManagement.Models.AccountManagementModel;
 using Microsoft.EntityFrameworkCore.Internal;
 using ModelBase.Base.Logger;
 using ModelBase.Base.Utils;

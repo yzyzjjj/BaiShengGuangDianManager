@@ -242,7 +242,7 @@ namespace ApiManagement.Controllers.MaterialManagementController
             var planLogs = newLogChanges.Where(x => x.PlanId != 0 && x.ChangeNumber != x.Number);
             if (planLogs.Any())
             {
-                var existProductionPlanBills = ServerConfig.ApiDb.Query<ProductionPlanBill>(
+                var existProductionPlanBills = ServerConfig.ApiDb.Query<ProductPlanBill>(
                     "SELECT * FROM `production_plan_bill` WHERE MarkedDelete = 0 AND PlanId IN @PlanId AND BillId IN @BillId;",
                     new
                     {

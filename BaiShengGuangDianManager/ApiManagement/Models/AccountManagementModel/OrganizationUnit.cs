@@ -1,7 +1,7 @@
 ﻿using ModelBase.Models.BaseModel;
 using Newtonsoft.Json;
 
-namespace ApiManagement.Models.AccountModel
+namespace ApiManagement.Models.AccountManagementModel
 {
     public class OrganizationUnit : CommonBase
     {

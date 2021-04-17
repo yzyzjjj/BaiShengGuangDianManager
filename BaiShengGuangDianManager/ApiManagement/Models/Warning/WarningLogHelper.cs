@@ -1,10 +1,10 @@
 ﻿using ApiManagement.Base.Server;
+using ApiManagement.Models.BaseModel;
 using ApiManagement.Models.DeviceManagementModel;
 using ServiceStack;
 using System;
 using System.Collections.Generic;
 using System.Linq;
-using ApiManagement.Models.BaseModel;
 
 namespace ApiManagement.Models.Warning
 {
@@ -15,8 +15,8 @@ namespace ApiManagement.Models.Warning
             Table = "warning_log";
 
             InsertSql =
-                "INSERT INTO `warning_log` (`Id`, `IsWarning`, `WarningTime`, `WarningType`, `ClassId`, `SetName`, `ItemId`, `Item`, `DeviceId`, `DataType`, `SetId`, `ScriptId`, `CategoryId`, `StartTime`, `EndTime`, `Frequency`, `Interval`, `Count`, `Condition1`, `Value1`, `Condition2`, `Value2`, `Range`, `DictionaryId`, `Current`, `Value`, `Param`, `Values`, `DeviceIds`) " +
-                "VALUES (@Id, @IsWarning, @WarningTime, @WarningType, @ClassId, @SetName, @ItemId, @Item, @DeviceId, @DataType, @SetId, @ScriptId, @CategoryId, @StartTime, @EndTime, @Frequency, @Interval, @Count, @Condition1, @Value1, @Condition2, @Value2, @Range, @DictionaryId, @Current, @Value, @Param, @Values, @DeviceIds);";
+                "INSERT INTO `warning_log` (`Id`, `IsWarning`, `WarningTime`, `WarningType`, `StepId`, `ClassId`, `SetName`, `ItemId`, `Item`, `DeviceId`, `DataType`, `SetId`, `ScriptId`, `CategoryId`, `StartTime`, `EndTime`, `Frequency`, `Interval`, `Count`, `Condition1`, `Value1`, `Condition2`, `Value2`, `Range`, `DictionaryId`, `Current`, `Value`, `Param`, `Values`, `DeviceIds`) " +
+                "VALUES (@Id, @IsWarning, @WarningTime, @WarningType, @StepId, @ClassId, @SetName, @ItemId, @Item, @DeviceId, @DataType, @SetId, @ScriptId, @CategoryId, @StartTime, @EndTime, @Frequency, @Interval, @Count, @Condition1, @Value1, @Condition2, @Value2, @Range, @DictionaryId, @Current, @Value, @Param, @Values, @DeviceIds);";
             UpdateSql =
                 "";
 
@@ -38,9 +38,21 @@ namespace ApiManagement.Models.Warning
             }
             return Instance.CommonHaveSame(args);
         }
-
+        /// <summary>
+        /// 
+        /// </summary>
+        /// <param name="startTime"></param>
+        /// <param name="endTime"></param>
+        /// <param name="setId"></param>
+        /// <param name="itemId"></param>
+        /// <param name="warningType"></param>
+        /// <param name="dataType"></param>
+        /// <param name="deviceIds"></param>
+        /// <param name="itemTypes"></param>
+        /// <param name="isWarning">-1all 0  1 </param>
+        /// <returns></returns>
         public static IEnumerable<WarningLog> GetWarningLogs(DateTime startTime, DateTime endTime, int setId, int itemId,
-            WarningType warningType, WarningDataType dataType, IEnumerable<int> deviceIds, IEnumerable<WarningItemType> itemTypes)
+            WarningType warningType, WarningDataType dataType, IEnumerable<int> deviceIds, IEnumerable<WarningItemType> itemTypes, int isWarning = -1)
         {
             var param = new List<string>();
             if (startTime != default(DateTime))
@@ -71,6 +83,10 @@ namespace ApiManagement.Models.Warning
             {
                 param.Add("DeviceId IN @deviceIds");
             }
+            if (isWarning != -1)
+            {
+                param.Add("IsWarning = @isWarning");
+            }
 
             IEnumerable<int> itemIds = null;
             if (itemTypes != null && itemTypes.Any())
@@ -92,7 +108,7 @@ namespace ApiManagement.Models.Warning
             }
             var r = ServerConfig.ApiDb.Query<WarningLog>(
                 $"SELECT * FROM `warning_log`{(param.Any() ? $" WHERE {param.Join(" AND ")}" : "")} ORDER BY WarningTime DESC;",
-                new { startTime, endTime, setId, itemId, warningType, dataType, deviceIds, itemIds });
+                new { startTime, endTime, setId, itemId, warningType, dataType, deviceIds, itemIds, isWarning });
 
             if (r != null && r.Any())
             {

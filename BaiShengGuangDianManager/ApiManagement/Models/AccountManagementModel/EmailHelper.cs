@@ -9,7 +9,7 @@ using ApiManagement.Base.Server;
 using ModelBase.Base.Logger;
 using ModelBase.Base.Utils;
 
-namespace ApiManagement.Models.AccountModel
+namespace ApiManagement.Models.AccountManagementModel
 {
     /// <summary>
     /// 邮件

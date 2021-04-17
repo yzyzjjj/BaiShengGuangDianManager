@@ -606,7 +606,7 @@ namespace ApiManagement.Controllers.MaterialManagementController
             #endregion
 
             var mBill = materialManagement.Bill.GroupBy(x => x.BillId).Select(x => x.Key);
-            var allBill = ServerConfig.ApiDb.Query<ProductionPlanBillStockDetail>("SELECT a.*, IFNULL(b.Number, 0) Number FROM `material_bill` a LEFT JOIN `material_management` b ON a.Id = b.BillId WHERE a.Id IN @ids AND a.MarkedDelete = 0;", new { ids = mBill });
+            var allBill = ServerConfig.ApiDb.Query<ProductPlanBillStockDetail>("SELECT a.*, IFNULL(b.Number, 0) Number FROM `material_bill` a LEFT JOIN `material_management` b ON a.Id = b.BillId WHERE a.Id IN @ids AND a.MarkedDelete = 0;", new { ids = mBill });
             if (allBill.Count() != mBill.Count())
             {
                 return Result.GenError<Result>(Error.MaterialBillNotExist);
@@ -626,7 +626,7 @@ namespace ApiManagement.Controllers.MaterialManagementController
             var markedDateTime = DateTime.Now;
             if (planBill.Any())
             {
-                var allPlanBill = ServerConfig.ApiDb.Query<ProductionPlanBill>("SELECT Id, PlanId, BillId, ActualConsumption FROM `production_plan_bill` WHERE PlanId IN @PlanId AND BillId IN @BillId AND `MarkedDelete` = 0;",
+                var allPlanBill = ServerConfig.ApiDb.Query<ProductPlanBill>("SELECT Id, PlanId, BillId, ActualConsumption FROM `production_plan_bill` WHERE PlanId IN @PlanId AND BillId IN @BillId AND `MarkedDelete` = 0;",
                     new { PlanId = planBill.Select(x => x.PlanId), BillId = planBill.Select(x => x.BillId) });
                 Dictionary<dynamic, dynamic> plans = ServerConfig.ApiDb.Query<dynamic>("SELECT Id, Plan FROM  `production_plan` WHERE Id IN @PlanID;",
                     new { PlanId = planBill.Select(x => x.PlanId) }).ToDictionary(x => x.Id);
@@ -756,7 +756,7 @@ namespace ApiManagement.Controllers.MaterialManagementController
                 return Result.GenError<DataResult>(Error.MaterialManagementNotEmpty);
             }
             var mBill = materialManagement.Bill.GroupBy(x => x.BillId).Select(x => x.Key);
-            var allBill = ServerConfig.ApiDb.Query<ProductionPlanBillStockDetail>("SELECT  a.*, IFNULL(b.Number, 0) Number FROM `material_bill` a LEFT JOIN `material_management` b ON a.Id = b.BillId WHERE a.Id IN @ids AND a.MarkedDelete = 0;", new { ids = mBill });
+            var allBill = ServerConfig.ApiDb.Query<ProductPlanBillStockDetail>("SELECT  a.*, IFNULL(b.Number, 0) Number FROM `material_bill` a LEFT JOIN `material_management` b ON a.Id = b.BillId WHERE a.Id IN @ids AND a.MarkedDelete = 0;", new { ids = mBill });
             if (allBill.Count() != mBill.Count())
             {
                 return Result.GenError<DataResult>(Error.MaterialBillNotExist);
@@ -768,7 +768,7 @@ namespace ApiManagement.Controllers.MaterialManagementController
             {
                 var plan =
                     ServerConfig.ApiDb
-                        .Query<ProductionPlan>("SELECT * FROM `production_plan` WHERE Id = @id AND `MarkedDelete` = 0;",
+                        .Query<ProductPlan>("SELECT * FROM `production_plan` WHERE Id = @id AND `MarkedDelete` = 0;",
                             new { id = materialManagement.PlanId }).FirstOrDefault();
                 if (plan == null)
                 {
@@ -807,7 +807,7 @@ namespace ApiManagement.Controllers.MaterialManagementController
                 #region 计划领料
                 if (materialManagement.PlanId != 0)
                 {
-                    var planBill = ServerConfig.ApiDb.Query<ProductionPlanBill>("SELECT * FROM `production_plan_bill` WHERE `PlanId` = @PlanId AND MarkedDelete = 0;", new
+                    var planBill = ServerConfig.ApiDb.Query<ProductPlanBill>("SELECT * FROM `production_plan_bill` WHERE `PlanId` = @PlanId AND MarkedDelete = 0;", new
                     {
                         PlanId = materialManagement.PlanId
                     });

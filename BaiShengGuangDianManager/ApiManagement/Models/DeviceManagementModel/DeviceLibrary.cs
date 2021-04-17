@@ -7,6 +7,10 @@ namespace ApiManagement.Models.DeviceManagementModel
     public class DeviceLibrary : CommonBase
     {
         /// <summary>
+        /// 车间Id
+        /// </summary>
+        public int WorkshopId { get; set; }
+        /// <summary>
         /// 设备编码或机台号
         /// </summary>
         public string Code { get; set; }
@@ -85,8 +89,8 @@ namespace ApiManagement.Models.DeviceManagementModel
         public string FirmwareName { get; set; }
         public string ApplicationName { get; set; }
         public string HardwareName { get; set; }
-        public string SiteName { get; set; }
-        public string RegionDescription { get; set; }
+        public string WorkshopName { get; set; }
+        public string Region { get; set; }
         public string ScriptName { get; set; }
         /// <summary>
         /// 状态 0 已报修 1 已确认 2 维修中

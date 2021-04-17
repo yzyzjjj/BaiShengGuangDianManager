@@ -46,13 +46,15 @@ namespace ApiManagement.Base.Helper
         public static List<Tuple<string, WarningItemType>> 生产数据单次字段 = new List<Tuple<string, WarningItemType>>();
         public static List<Tuple<string, WarningItemType>> 生产数据合计字段 = new List<Tuple<string, WarningItemType>>();
         /// <summary>
-        /// 预警项Id ItemId, 设备Id DeviceId, 数据类型 DataType, 预警类型， 预警设备分类 1研磨/抛光设备
+        /// 设备预计 预警项Id ItemId, 设备Id DeviceId, 数据类型 DataType, 预警类型， 预警设备分类 1研磨/抛光设备/
+        /// 生产预警 预警项Id ItemId, 设备Id DeviceId, 数据类型 DataType, 预警类型， 预警设备分类 工序
         /// </summary>
         public static Dictionary<Tuple<int, int, WarningDataType, WarningType, int>, WarningCurrent> CurrentData;
         private static Timer _timer5S;
         private static int _dealLength = 2000;
         private static DateTime _startTime = DateTime.Today;
         private static int LogId;
+        private static bool NeedLoadConfig = false;
         public static void Init()
         {
             try
@@ -62,10 +64,10 @@ namespace ApiManagement.Base.Helper
 #else
                 Console.WriteLine("WarningHelper 发布模式已开启");
 #endif
-                if (!RedisHelper.Exists(Debug))
-                {
-                    RedisHelper.SetForever(Debug, 0);
-                }
+                //if (!RedisHelper.Exists(Debug))
+                //{
+                //    RedisHelper.SetForever(Debug, 0);
+                //}
                 LogId = RedisHelper.Exists(LogIdKey) ?
                     RedisHelper.Get<int>(LogIdKey) :
                     ServerConfig.ApiDb.Query<int>("SELECT IFNULL(MAX(Id), 0) FROM `warning_log`;").FirstOrDefault();
@@ -80,10 +82,11 @@ namespace ApiManagement.Base.Helper
                 生产数据合计字段.AddRange(EnumHelper.EnumToList<WarningItemType>()
                     .Where(x => x.EnumValue >= 11 && x.EnumValue <= 15)
                     .Select(x => new Tuple<string, WarningItemType>(x.Description, (WarningItemType)x.EnumValue)));
-                CurrentData = ServerConfig.ApiDb.Query<WarningCurrent>("SELECT a.*, b.VariableName Item, b.VariableTypeId, b.PointerAddress, b.`Precision`, c.WarningType, c.ClassId, c.`Name` SetName, c.`DeviceIds` DeviceIds FROM `warning_current` a " +
+                CurrentData = ServerConfig.ApiDb.Query<WarningCurrent>("SELECT a.*, b.VariableName Item, b.VariableTypeId, b.PointerAddress, b.`Precision`, c.WarningType, c.StepId, c.ClassId, c.`Name` SetName, c.`DeviceIds` DeviceIds FROM `warning_current` a " +
                                                                        "JOIN `data_name_dictionary` b ON a.DictionaryId = b.Id " +
                                                                        "JOIN `warning_set` c ON a.SetId = c.Id;")
-                    .ToDictionary(x => new Tuple<int, int, WarningDataType, WarningType, int>(x.ItemId, x.DeviceId, x.DataType, x.WarningType, x.ClassId));
+                    .ToDictionary(x => new Tuple<int, int, WarningDataType, WarningType, int>(x.ItemId, x.DeviceId, x.DataType, x.WarningType,
+                        (x.DataType == WarningDataType.生产数据 && x.WarningType == WarningType.设备) ? x.StepId : x.ClassId));
                 LoadConfig();
 
                 _timer5S = new Timer(DoSth_5s, null, 5000, 1000 * 5);
@@ -92,6 +95,11 @@ namespace ApiManagement.Base.Helper
             {
                 Log.Error(e);
             }
+        }
+
+        public static void NeedLoad()
+        {
+            NeedLoadConfig = true;
         }
 
         public static void LoadConfig()
@@ -145,35 +153,56 @@ namespace ApiManagement.Base.Helper
                 #region 生产数据
                 dataType = WarningDataType.生产数据;
                 sql =
-                    "SELECT b.*, a.*, b.`Name` SetName  FROM `warning_set_item` a JOIN `warning_set` b ON a.SetId = b.Id WHERE b.`Enable` = 1 AND b.DataType = @DataType AND a.MarkedDelete = 0 AND b.MarkedDelete = 0;";
+                    "SELECT b.*, a.*, b.`Name` SetName  FROM `warning_set_item` a " +
+                    "JOIN `warning_set` b ON a.SetId = b.Id WHERE b.`Enable` = 1 AND b.DataType = @DataType AND a.MarkedDelete = 0 AND b.MarkedDelete = 0;";
                 warningSetItemConfigs = ServerConfig.ApiDb.Query<WarningSetItemDetail>(sql, new { DataType = dataType });
                 if (warningSetItemConfigs != null)
                 {
                     foreach (var config in warningSetItemConfigs)
                     {
-                        var key = new Tuple<int, int, WarningDataType, WarningType, int>(config.Id, 0, config.DataType, config.WarningType, config.ClassId);
+                        if (config.StepId == 0)
+                        {
+                            Log.Error($" StepId Error , {config.SetName} {config.SetId}");
+                            continue;
+                        }
+
+                        var key = new Tuple<int, int, WarningDataType, WarningType, int>(config.Id, 0, config.DataType, config.WarningType, config.StepId);
                         var value = ClassExtension.ParentCopyToChild<WarningSetItemDetail, WarningCurrent>(config);
                         value.DeviceId = 0;
                         value.DeviceIds = "";
                         if (生产数据合计字段.All(x => x.Item2 != config.ItemType))
                         {
-                            foreach (var deviceId in config.DeviceList)
+                            if (config.CategoryId != 0)
                             {
-                                key = new Tuple<int, int, WarningDataType, WarningType, int>(config.Id, deviceId, config.DataType, config.WarningType, config.ClassId);
+                                foreach (var deviceId in config.DeviceList)
+                                {
+                                    key = new Tuple<int, int, WarningDataType, WarningType, int>(config.Id, deviceId, config.DataType, config.WarningType, config.StepId);
+                                    value = ClassExtension.ParentCopyToChild<WarningSetItemDetail, WarningCurrent>(config);
+                                    value.DeviceId = deviceId;
+                                    value.DeviceIds = "";
+                                    value.ItemId = config.Id;
+                                    if (!CurrentData.ContainsKey(key))
+                                    {
+                                        CurrentData.Add(key, value);
+                                    }
+                                    else
+                                    {
+                                        if (CurrentData[key].DataType == value.DataType && ClassExtension.HaveChange(CurrentData[key], value))
+                                        {
+                                            CurrentData[key].Update(value);
+                                        }
+                                    }
+                                }
+                            }
+                            else
+                            {
+                                key = new Tuple<int, int, WarningDataType, WarningType, int>(config.Id, 0, config.DataType, config.WarningType, config.StepId);
                                 value = ClassExtension.ParentCopyToChild<WarningSetItemDetail, WarningCurrent>(config);
-                                value.DeviceId = deviceId;
                                 value.DeviceIds = "";
                                 value.ItemId = config.Id;
                                 if (!CurrentData.ContainsKey(key))
                                 {
                                     CurrentData.Add(key, value);
-                                }
-                                else
-                                {
-                                    if (CurrentData[key].DataType == value.DataType && ClassExtension.HaveChange(CurrentData[key], value))
-                                    {
-                                        CurrentData[key].Update(value);
-                                    }
                                 }
                             }
                         }
@@ -235,6 +264,13 @@ namespace ApiManagement.Base.Helper
             {
                 LogId = ServerConfig.ApiDb.Query<int>("SELECT IFNULL(MAX(Id), 0) FROM `warning_log`;").FirstOrDefault();
                 RedisHelper.SetForever(LogIdKey, LogId);
+                return;
+            }
+
+            if (NeedLoadConfig)
+            {
+                LoadConfig();
+                NeedLoadConfig = false;
                 return;
             }
             设备数据Warning();
@@ -374,13 +410,17 @@ namespace ApiManagement.Base.Helper
                                                         var warningLog = ClassExtension.ParentCopyToChild<WarningCurrent, WarningLog>(deviceWarning);
                                                         if (deviceWarning.Interval == WarningInterval.连续 && deviceWarning.Counting)
                                                         {
-                                                            //不满足消除一次
-                                                            warningLog.Id = Interlocked.Increment(ref LogId);
-                                                            warningLog.IsWarning = false;
-                                                            warningLog.WarningTime = currentTime;
-                                                            warningLog.WarningData = deviceWarning.WarningData.ToList();
-                                                            warningLog.UpdateValues();
-                                                            warningLogs.Add(warningLog);
+                                                            if (deviceWarning.Trend)
+                                                            {
+                                                                deviceWarning.Trend = false;
+                                                                //不满足消除一次
+                                                                warningLog.Id = Interlocked.Increment(ref LogId);
+                                                                warningLog.IsWarning = false;
+                                                                warningLog.WarningTime = currentTime;
+                                                                warningLog.WarningData = deviceWarning.WarningData.ToList();
+                                                                warningLog.UpdateValues();
+                                                                warningLogs.Add(warningLog);
+                                                            }
 
                                                             deviceWarning.Trend = false;
                                                             deviceWarning.WarningData.RemoveAt(0);
@@ -571,7 +611,7 @@ namespace ApiManagement.Base.Helper
                     {
                         rTime = now;
                         RedisHelper.SetForever(pTimeKey, rTime.ToStr());
-                        pId = ServerConfig.ApiDb.Query<int>("SELECT IFNULL(MAX(Id), 0) FROM `flowcard_report` WHERE Time < @rTime AND State != 0 ORDER BY Id DESC LIMIT 1;",
+                        pId = ServerConfig.ApiDb.Query<int>("SELECT IFNULL(MAX(Id), 0) FROM `flowcard_report_get` WHERE Time < @rTime AND State != 0 ORDER BY Id DESC LIMIT 1;",
                             new { rTime }).FirstOrDefault();
                         if (pId == 0)
                         {
@@ -584,14 +624,13 @@ namespace ApiManagement.Base.Helper
                     }
                     #region 预警检验
                     var keys = CurrentData.Keys.Where(x => x.Item3 == WarningDataType.生产数据
-                                                           && x.Item4 == WarningType.设备
-                                                           && x.Item5 == 1).ToList();
+                                                           && x.Item4 == WarningType.设备).ToList();
 
                     var singleData = CurrentData.Where(x => keys.Contains(x.Key))
                         .Where(x => 生产数据单次字段.Any(y => y.Item2 == x.Value.ItemType)).ToDictionary(x => x.Key, x => x.Value);
                     #region 预警检验  单次加工相关预警
                     var endId = pId;
-                    var mData = ServerConfig.ApiDb.Query<FlowCardReport>("SELECT * FROM `flowcard_report` WHERE Id > @pId AND State != 0 ORDER BY Id LIMIT @limit;",
+                    var mData = ServerConfig.ApiDb.Query<FlowCardReportGet>("SELECT * FROM `flowcard_report_get` WHERE Id > @pId AND State != 0 ORDER BY Id LIMIT @limit;",
                         new
                         {
                             pId,
@@ -606,145 +645,281 @@ namespace ApiManagement.Base.Helper
                         {
                             if (endId > pId)
                             {
-                                foreach (var (deviceId, _) in allDeviceList)
+                                foreach (var report in mData)
                                 {
-                                    var reports = mData.Where(x => x.DeviceId == deviceId).OrderBy(x => x.Time);
-                                    if (reports.Any())
+                                    var time = report.Time;
+                                    var stepId = report.Step;
+                                    var deviceId = report.DeviceId;
+                                    var deviceSingleData = singleData.Where(x => x.Key.Item5 == stepId);
+                                    foreach (var (_, deviceWarning) in deviceSingleData)
                                     {
-                                        var t = default(DateTime);
-                                        foreach (var report in reports)
+                                        deviceWarning.CurrentTime = time;
+                                        var f = true;
+                                        switch (deviceWarning.ItemType)
                                         {
-                                            var time = report.Time;
-                                            if (t > time)
+                                            //[Description("单次加工数")]
+                                            case WarningItemType.SingleTotal:
+                                                deviceWarning.Value = report.Total;
+                                                break;
+                                            //[Description("单次合格数")]
+                                            case WarningItemType.SingleQualified:
+                                                deviceWarning.Value = report.HeGe;
+                                                break;
+                                            //[Description("单次次品数")]
+                                            case WarningItemType.SingleUnqualified:
+                                                deviceWarning.Value = report.LiePian;
+                                                break;
+                                            //[Description("单次合格率(%)")]
+                                            case WarningItemType.SingleQualifiedRate:
+                                                deviceWarning.Value = report.QualifiedRate;
+                                                break;
+                                            //[Description("单次次品率(%)")]
+                                            case WarningItemType.SingleUnqualifiedRate:
+                                                deviceWarning.Value = report.UnqualifiedRate;
+                                                break;
+                                            default:
+                                                f = false;
+                                                break;
+                                        }
+
+                                        if (f)
+                                        {
+                                            var conditionInfos = new List<WarningConditionInfo>
                                             {
-                                                throw new Exception("1111");
+                                                new WarningConditionInfo(deviceWarning.Condition1, deviceWarning.Value1),
+                                                new WarningConditionInfo(deviceWarning.Condition2, deviceWarning.Value2),
+                                            };
+                                            if (MeetConditions(conditionInfos, deviceWarning.Logic, deviceWarning.Value))
+                                            {
+                                                deviceWarning.Trend = true;
+                                                var wd = new WarningData(time, deviceWarning.Value);
+                                                wd.AddParam(report.FlowCard);
+                                                wd.AddParam(report.Processor);
+                                                wd.AddOtherParam(report.ReasonList);
+                                                deviceWarning.WarningData.Add(wd);
+                                                deviceWarning.UpdateValues();
                                             }
-                                            t = time;
-                                            var deviceSingleData = singleData.Where(x => x.Key.Item2 == deviceId);
-                                            //Console.WriteLine($"{deviceId}, {deviceSingleData.Count()}");
-                                            foreach (var (_, deviceWarning) in deviceSingleData)
+                                            else
                                             {
-                                                deviceWarning.CurrentTime = time;
-                                                var f = true;
-                                                switch (deviceWarning.ItemType)
+                                                var warningLog = ClassExtension.ParentCopyToChild<WarningCurrent, WarningLog>(deviceWarning);
+                                                var clear = true;
+                                                if (deviceWarning.Interval == WarningInterval.连续 && deviceWarning.Counting)
                                                 {
-                                                    //[Description("单次加工数")]
-                                                    case WarningItemType.SingleTotal:
-                                                        deviceWarning.Value = report.Total;
-                                                        break;
-                                                    //[Description("单次合格数")]
-                                                    case WarningItemType.SingleQualified:
-                                                        deviceWarning.Value = report.HeGe;
-                                                        break;
-                                                    //[Description("单次次品数")]
-                                                    case WarningItemType.SingleUnqualified:
-                                                        deviceWarning.Value = report.LiePian;
-                                                        break;
-                                                    //[Description("单次合格率(%)")]
-                                                    case WarningItemType.SingleQualifiedRate:
-                                                        deviceWarning.Value = report.QualifiedRate;
-                                                        break;
-                                                    //[Description("单次次品率(%)")]
-                                                    case WarningItemType.SingleUnqualifiedRate:
-                                                        deviceWarning.Value = report.UnqualifiedRate;
-                                                        break;
-                                                    default:
-                                                        f = false;
-                                                        break;
+                                                    clear = false;
+                                                    if (deviceWarning.Trend)
+                                                    {
+                                                        deviceWarning.Trend = false;
+                                                        //不满足消除一次
+                                                        warningLog.Id = Interlocked.Increment(ref LogId);
+                                                        warningLog.IsWarning = false;
+                                                        warningLog.WarningTime = time;
+                                                        warningLog.WarningData = deviceWarning.WarningData.ToList();
+                                                        warningLog.UpdateValues();
+                                                        warningLogs.Add(warningLog);
+                                                    }
+
+                                                    deviceWarning.WarningData.RemoveAt(0);
+                                                    deviceWarning.UpdateValues();
+                                                    if (deviceWarning.Current == 0)
+                                                    {
+                                                        clear = true;
+                                                    }
                                                 }
-
-                                                if (f)
+                                                if (clear && deviceId != 0)
                                                 {
-                                                    var conditionInfos = new List<WarningConditionInfo>
+                                                    var warning = allDeviceList[deviceId].ProductWarningList.Values
+                                                        .FirstOrDefault(x => x.ItemId == deviceWarning.ItemId);
+
+                                                    if (warning != null)
                                                     {
-                                                        new WarningConditionInfo(deviceWarning.Condition1, deviceWarning.Value1),
-                                                        new WarningConditionInfo(deviceWarning.Condition2, deviceWarning.Value2),
-                                                    };
-                                                    if (MeetConditions(conditionInfos, deviceWarning.Logic, deviceWarning.Value))
-                                                    {
-                                                        deviceWarning.Trend = true;
-                                                        var wd = new WarningData(time, deviceWarning.Value);
-                                                        wd.AddParam(report.FlowCard);
-                                                        wd.AddParam(report.Processor);
-                                                        deviceWarning.WarningData.Add(wd);
-                                                        deviceWarning.UpdateValues();
+                                                        warningLog.Id = warning.LogId;
+                                                        warningLog.ItemId = warning.ItemId;
+                                                        allDeviceList[deviceId].UpdateWarningData(WarningDataType.生产数据, warningLog, false);
                                                     }
-                                                    else
-                                                    {
-                                                        var warningLog = ClassExtension.ParentCopyToChild<WarningCurrent, WarningLog>(deviceWarning);
-                                                        var clear = true;
-                                                        if (deviceWarning.Interval == WarningInterval.连续 && deviceWarning.Counting)
-                                                        {
-                                                            clear = false;
-                                                            //不满足消除一次
-                                                            warningLog.Id = Interlocked.Increment(ref LogId);
-                                                            warningLog.IsWarning = false;
-                                                            warningLog.WarningTime = time;
-                                                            warningLog.WarningData = deviceWarning.WarningData.ToList();
-                                                            warningLog.UpdateValues();
-                                                            warningLogs.Add(warningLog);
+                                                }
+                                            }
 
-                                                            deviceWarning.Trend = false;
-                                                            deviceWarning.WarningData.RemoveAt(0);
-                                                            deviceWarning.UpdateValues();
-                                                            if (deviceWarning.Current == 0)
-                                                            {
-                                                                clear = true;
-                                                            }
-                                                        }
-                                                        if (clear)
-                                                        {
-                                                            var warning = allDeviceList[deviceId].ProductWarningList.Values
-                                                                .FirstOrDefault(x => x.ItemId == deviceWarning.ItemId);
-
-                                                            if (warning != null)
-                                                            {
-                                                                warningLog.Id = warning.LogId;
-                                                                warningLog.ItemId = warning.ItemId;
-                                                                allDeviceList[deviceId].UpdateWarningData(WarningDataType.生产数据, warningLog, false);
-                                                            }
-                                                        }
-                                                    }
-
-                                                    if (deviceWarning.Interval != WarningInterval.每次 && deviceWarning.Interval != WarningInterval.连续)
-                                                    {
-                                                        //距离第一次满足条件已经过去的时间
-                                                        var totalSeconds = (int)(time - deviceWarning.StartTime).TotalSeconds;
-                                                        while (deviceWarning.Counting && totalSeconds > deviceWarning.TotalConfigSeconds)
-                                                        {
-                                                            if (deviceWarning.Trend)
-                                                            {
-                                                                var warningLog = ClassExtension.ParentCopyToChild<WarningCurrent, WarningLog>(deviceWarning);
-                                                                warningLog.Id = Interlocked.Increment(ref LogId);
-                                                                warningLog.IsWarning = false;
-                                                                warningLog.WarningTime = time;
-                                                                warningLog.WarningData = deviceWarning.WarningData.ToList();
-                                                                warningLog.UpdateValues();
-                                                                warningLogs.Add(warningLog);
-                                                                deviceWarning.Trend = false;
-                                                            }
-
-                                                            deviceWarning.WarningData.RemoveAt(0);
-                                                            deviceWarning.UpdateValues();
-                                                            totalSeconds = (int)(time - deviceWarning.StartTime).TotalSeconds;
-                                                        }
-                                                    }
-
-                                                    if (deviceWarning.Current >= deviceWarning.Count)
+                                            if (deviceWarning.Interval != WarningInterval.每次 && deviceWarning.Interval != WarningInterval.连续)
+                                            {
+                                                //距离第一次满足条件已经过去的时间
+                                                var totalSeconds = (int)(time - deviceWarning.StartTime).TotalSeconds;
+                                                while (deviceWarning.Counting && totalSeconds > deviceWarning.TotalConfigSeconds)
+                                                {
+                                                    if (deviceWarning.Trend)
                                                     {
                                                         var warningLog = ClassExtension.ParentCopyToChild<WarningCurrent, WarningLog>(deviceWarning);
                                                         warningLog.Id = Interlocked.Increment(ref LogId);
-                                                        warningLog.IsWarning = true;
+                                                        warningLog.IsWarning = false;
                                                         warningLog.WarningTime = time;
+                                                        warningLog.WarningData = deviceWarning.WarningData.ToList();
+                                                        warningLog.UpdateValues();
                                                         warningLogs.Add(warningLog);
-                                                        allDeviceList[deviceId].UpdateWarningData(WarningDataType.生产数据, warningLog);
-                                                        deviceWarning.Reset();
+                                                        deviceWarning.Trend = false;
                                                     }
+
+                                                    deviceWarning.WarningData.RemoveAt(0);
+                                                    deviceWarning.UpdateValues();
+                                                    totalSeconds = (int)(time - deviceWarning.StartTime).TotalSeconds;
                                                 }
+                                            }
+
+                                            if (deviceWarning.Current >= deviceWarning.Count)
+                                            {
+                                                var warningLog = ClassExtension.ParentCopyToChild<WarningCurrent, WarningLog>(deviceWarning);
+                                                warningLog.Id = Interlocked.Increment(ref LogId);
+                                                warningLog.IsWarning = true;
+                                                warningLog.WarningTime = time;
+                                                warningLogs.Add(warningLog);
+                                                if (deviceId != 0)
+                                                {
+                                                    allDeviceList[deviceId].UpdateWarningData(WarningDataType.生产数据, warningLog);
+                                                }
+
+                                                deviceWarning.Reset();
                                             }
                                         }
                                     }
                                 }
+
+                                //foreach (var (deviceId, _) in allDeviceList)
+                                //{
+                                //    var reports = mData.Where(x => x.DeviceId == deviceId).OrderBy(x => x.Time);
+                                //    if (reports.Any())
+                                //    {
+                                //        var t = default(DateTime);
+                                //        foreach (var report in reports)
+                                //        {
+                                //            var time = report.Time;
+                                //            if (t > time)
+                                //            {
+                                //                throw new Exception("1111");
+                                //            }
+                                //            t = time;
+                                //            var deviceSingleData = singleData.Where(x => x.Key.Item2 == deviceId);
+                                //            //Console.WriteLine($"{deviceId}, {deviceSingleData.Count()}");
+                                //            foreach (var (_, deviceWarning) in deviceSingleData)
+                                //            {
+                                //                deviceWarning.CurrentTime = time;
+                                //                var f = true;
+                                //                switch (deviceWarning.ItemType)
+                                //                {
+                                //                    //[Description("单次加工数")]
+                                //                    case WarningItemType.SingleTotal:
+                                //                        deviceWarning.Value = report.Total;
+                                //                        break;
+                                //                    //[Description("单次合格数")]
+                                //                    case WarningItemType.SingleQualified:
+                                //                        deviceWarning.Value = report.HeGe;
+                                //                        break;
+                                //                    //[Description("单次次品数")]
+                                //                    case WarningItemType.SingleUnqualified:
+                                //                        deviceWarning.Value = report.LiePian;
+                                //                        break;
+                                //                    //[Description("单次合格率(%)")]
+                                //                    case WarningItemType.SingleQualifiedRate:
+                                //                        deviceWarning.Value = report.QualifiedRate;
+                                //                        break;
+                                //                    //[Description("单次次品率(%)")]
+                                //                    case WarningItemType.SingleUnqualifiedRate:
+                                //                        deviceWarning.Value = report.UnqualifiedRate;
+                                //                        break;
+                                //                    default:
+                                //                        f = false;
+                                //                        break;
+                                //                }
+
+                                //                if (f)
+                                //                {
+                                //                    var conditionInfos = new List<WarningConditionInfo>
+                                //                    {
+                                //                        new WarningConditionInfo(deviceWarning.Condition1, deviceWarning.Value1),
+                                //                        new WarningConditionInfo(deviceWarning.Condition2, deviceWarning.Value2),
+                                //                    };
+                                //                    if (MeetConditions(conditionInfos, deviceWarning.Logic, deviceWarning.Value))
+                                //                    {
+                                //                        deviceWarning.Trend = true;
+                                //                        var wd = new WarningData(time, deviceWarning.Value);
+                                //                        wd.AddParam(report.FlowCard);
+                                //                        wd.AddParam(report.Processor);
+                                //                        deviceWarning.WarningData.Add(wd);
+                                //                        deviceWarning.UpdateValues();
+                                //                    }
+                                //                    else
+                                //                    {
+                                //                        var warningLog = ClassExtension.ParentCopyToChild<WarningCurrent, WarningLog>(deviceWarning);
+                                //                        var clear = true;
+                                //                        if (deviceWarning.Interval == WarningInterval.连续 && deviceWarning.Counting)
+                                //                        {
+                                //                            clear = false;
+                                //                            //不满足消除一次
+                                //                            warningLog.Id = Interlocked.Increment(ref LogId);
+                                //                            warningLog.IsWarning = false;
+                                //                            warningLog.WarningTime = time;
+                                //                            warningLog.WarningData = deviceWarning.WarningData.ToList();
+                                //                            warningLog.UpdateValues();
+                                //                            warningLogs.Add(warningLog);
+
+                                //                            deviceWarning.Trend = false;
+                                //                            deviceWarning.WarningData.RemoveAt(0);
+                                //                            deviceWarning.UpdateValues();
+                                //                            if (deviceWarning.Current == 0)
+                                //                            {
+                                //                                clear = true;
+                                //                            }
+                                //                        }
+                                //                        if (clear)
+                                //                        {
+                                //                            var warning = allDeviceList[deviceId].ProductWarningList.Values
+                                //                                .FirstOrDefault(x => x.ItemId == deviceWarning.ItemId);
+
+                                //                            if (warning != null)
+                                //                            {
+                                //                                warningLog.Id = warning.LogId;
+                                //                                warningLog.ItemId = warning.ItemId;
+                                //                                allDeviceList[deviceId].UpdateWarningData(WarningDataType.生产数据, warningLog, false);
+                                //                            }
+                                //                        }
+                                //                    }
+
+                                //                    if (deviceWarning.Interval != WarningInterval.每次 && deviceWarning.Interval != WarningInterval.连续)
+                                //                    {
+                                //                        //距离第一次满足条件已经过去的时间
+                                //                        var totalSeconds = (int)(time - deviceWarning.StartTime).TotalSeconds;
+                                //                        while (deviceWarning.Counting && totalSeconds > deviceWarning.TotalConfigSeconds)
+                                //                        {
+                                //                            if (deviceWarning.Trend)
+                                //                            {
+                                //                                var warningLog = ClassExtension.ParentCopyToChild<WarningCurrent, WarningLog>(deviceWarning);
+                                //                                warningLog.Id = Interlocked.Increment(ref LogId);
+                                //                                warningLog.IsWarning = false;
+                                //                                warningLog.WarningTime = time;
+                                //                                warningLog.WarningData = deviceWarning.WarningData.ToList();
+                                //                                warningLog.UpdateValues();
+                                //                                warningLogs.Add(warningLog);
+                                //                                deviceWarning.Trend = false;
+                                //                            }
+
+                                //                            deviceWarning.WarningData.RemoveAt(0);
+                                //                            deviceWarning.UpdateValues();
+                                //                            totalSeconds = (int)(time - deviceWarning.StartTime).TotalSeconds;
+                                //                        }
+                                //                    }
+
+                                //                    if (deviceWarning.Current >= deviceWarning.Count)
+                                //                    {
+                                //                        var warningLog = ClassExtension.ParentCopyToChild<WarningCurrent, WarningLog>(deviceWarning);
+                                //                        warningLog.Id = Interlocked.Increment(ref LogId);
+                                //                        warningLog.IsWarning = true;
+                                //                        warningLog.WarningTime = time;
+                                //                        warningLogs.Add(warningLog);
+                                //                        allDeviceList[deviceId].UpdateWarningData(WarningDataType.生产数据, warningLog);
+                                //                        deviceWarning.Reset();
+                                //                    }
+                                //                }
+                                //            }
+                                //        }
+                                //    }
+                                //}
                             }
                         }
                     }
@@ -752,7 +927,7 @@ namespace ApiManagement.Base.Helper
                     {
                         if (!singleData.Any())
                         {
-                            endId = ServerConfig.ApiDb.Query<int>("SELECT IFNULL(MAX(Id), 0) FROM `flowcard_report` WHERE Time < @now AND State != 0 ORDER BY Id DESC LIMIT 1;",
+                            endId = ServerConfig.ApiDb.Query<int>("SELECT IFNULL(MAX(Id), 0) FROM `flowcard_report_get` WHERE Time < @now AND State != 0 ORDER BY Id DESC LIMIT 1;",
                             new { now }).FirstOrDefault();
                         }
                     }
@@ -985,11 +1160,11 @@ namespace ApiManagement.Base.Helper
                     if (CurrentData.Any())
                     {
                         ServerConfig.ApiDb.Execute(
-                            "INSERT INTO `warning_current` (`CurrentTime`, `WarningType`, `ClassId`, `ItemId`, `DeviceId`, `DataType`, `SetId`, `ScriptId`, `CategoryId`, `StartTime`, `EndTime`, " +
+                            "INSERT INTO `warning_current` (`CurrentTime`, `WarningType`, `StepId`, `ClassId`, `ItemId`, `DeviceId`, `DataType`, `SetId`, `ScriptId`, `CategoryId`, `StartTime`, `EndTime`, " +
                             "`Frequency`, `Interval`, `Count`, `Condition1`, `Value1`, `Logic`, `Condition2`, `Value2`, `DictionaryId`, `Current`, `Trend`, `Values`, `DeviceIds`) " +
-                            "VALUES (@CurrentTime, @WarningType, @ClassId, @ItemId, @DeviceId, @DataType, @SetId, @ScriptId, @CategoryId, @StartTime, " +
+                            "VALUES (@CurrentTime, @WarningType, @StepId, @ClassId, @ItemId, @DeviceId, @DataType, @SetId, @ScriptId, @CategoryId, @StartTime, " +
                             "@EndTime, @Frequency, @Interval, @Count, @Condition1, @Value1, @Logic, @Condition2, @Value2, @DictionaryId, @Current, @Trend, @Values, @DeviceIds) " +
-                            "ON DUPLICATE KEY UPDATE `CurrentTime` = @CurrentTime, `ScriptId` = @ScriptId, `CategoryId` = @CategoryId, `StartTime` = @StartTime, `EndTime` = @EndTime, " +
+                            "ON DUPLICATE KEY UPDATE `CurrentTime` = @CurrentTime, `StepId` = @StepId, `ClassId` = @ClassId, `ScriptId` = @ScriptId, `CategoryId` = @CategoryId, `StartTime` = @StartTime, `EndTime` = @EndTime, " +
                             "`Frequency` = @Frequency, `Interval` = @Interval, `Count` = @Count, `Condition1` = @Condition1, `Value1` = @Value1, `Logic` = @Logic, `Condition2` = @Condition2, " +
                             "`Value2` = @Value2, `DictionaryId` = @DictionaryId, `Current` = @Current, `Trend` = @Trend, `Values` = @Values, `DeviceIds` = @DeviceIds;",
                             CurrentData.Where(x => x.Key.Item3 == WarningDataType.生产数据 && x.Key.Item4 == WarningType.设备 && x.Key.Item5 == 1).Select(y => y.Value));

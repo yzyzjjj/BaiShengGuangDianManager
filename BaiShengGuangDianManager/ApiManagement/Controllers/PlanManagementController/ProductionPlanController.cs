@@ -33,7 +33,7 @@ namespace ApiManagement.Controllers.PlanManagementController
             {
                 sql = $"SELECT * FROM `production_plan` WHERE {(qId == 0 ? "" : "Id = @qId AND ")}`MarkedDelete` = 0 ORDER BY Id DESC;";
             }
-            var data = ServerConfig.ApiDb.Query<ProductionPlanDetail>(sql, new { qId });
+            var data = ServerConfig.ApiDb.Query<ProductPlanDetail>(sql, new { qId });
             if (qId != 0 && !data.Any())
             {
                 return Result.GenError<DataResult>(Error.ProductionPlanNotExist);
@@ -53,7 +53,7 @@ namespace ApiManagement.Controllers.PlanManagementController
                         "JOIN `material_category` b ON a.CategoryId = b.Id ) b ON a.NameId = b.Id ) b ON a.SupplierId = b.Id ) b ON a.SpecificationId = b.Id JOIN `material_site` c ON a.SiteId = c.Id ) b ON a.BillId = b.Id " +
                         //"LEFT JOIN `material_management` c ON a.BillId = c.BillId WHERE a.PlanId = @planId AND a.`MarkedDelete` = 0 ORDER BY a.Extra, a.Id;";
                         "LEFT JOIN `material_management` c ON a.BillId = c.BillId WHERE a.PlanId = @planId AND a.`MarkedDelete` = 0 ORDER BY a.Id DESC;";
-                    plan.FirstBill.AddRange(ServerConfig.ApiDb.Query<ProductionPlanBillStockDetail>(sql, new { planId = plan.Id }));
+                    plan.FirstBill.AddRange(ServerConfig.ApiDb.Query<ProductPlanBillStockDetail>(sql, new { planId = plan.Id }));
                 }
             }
             var result = new DataResult();
@@ -67,7 +67,7 @@ namespace ApiManagement.Controllers.PlanManagementController
         /// </summary>
         /// <returns></returns>
         [HttpPut("{id}")]
-        public Result PutProductionPlan([FromRoute] int id, [FromBody] OpProductionPlan productionPlan)
+        public Result PutProductionPlan([FromRoute] int id, [FromBody] OpProductPlan productionPlan)
         {
             var cnt = ServerConfig.ApiDb.Query<int>("SELECT COUNT(1) FROM `production_plan` WHERE Id = @id AND `MarkedDelete` = 0;", new { id }).FirstOrDefault();
             if (cnt == 0)
@@ -91,14 +91,14 @@ namespace ApiManagement.Controllers.PlanManagementController
             }
             else
             {
-                var planBill = ServerConfig.ApiDb.Query<ProductionPlanBill>("SELECT * FROM `production_plan_bill` WHERE `PlanId` = @PlanId AND MarkedDelete = 0;", new
+                var planBill = ServerConfig.ApiDb.Query<ProductPlanBill>("SELECT * FROM `production_plan_bill` WHERE `PlanId` = @PlanId AND MarkedDelete = 0;", new
                 {
                     PlanId = id
                 });
 
                 productionPlan.Bill =
                     productionPlan.Bill.OrderByDescending(x => x.Id);
-                var plBill = new Dictionary<int, ProductionPlanBill>();
+                var plBill = new Dictionary<int, ProductPlanBill>();
                 foreach (var bill in productionPlan.Bill)
                 {
                     if (!plBill.ContainsKey(bill.BillId))
@@ -131,7 +131,7 @@ namespace ApiManagement.Controllers.PlanManagementController
                     return Result.GenError<Result>(Error.MaterialBillNotExist);
                 }
 
-                var updateBill = new List<ProductionPlanBill>();
+                var updateBill = new List<ProductPlanBill>();
                 #region 更新
                 updateBill.AddRange(plBill.Values.Where(x => planBill.Any(y => y.Id == x.Id)));
                 #endregion
@@ -176,7 +176,7 @@ namespace ApiManagement.Controllers.PlanManagementController
         /// </summary>
         /// <returns></returns>
         [HttpPost]
-        public Result PostProductionPlan([FromBody] OpProductionPlan productionPlan)
+        public Result PostProductionPlan([FromBody] OpProductPlan productionPlan)
         {
             if (productionPlan.Plan.IsNullOrEmpty())
             {
@@ -212,7 +212,7 @@ namespace ApiManagement.Controllers.PlanManagementController
 
             if (planBill != null)
             {
-                var pBill = new List<ProductionPlanBill>();
+                var pBill = new List<ProductPlanBill>();
                 foreach (var billId in planBill)
                 {
                     var bill = productionPlan.Bill.First(x => x.BillId == billId);
@@ -237,7 +237,7 @@ namespace ApiManagement.Controllers.PlanManagementController
         /// </summary>
         /// <returns></returns>
         [HttpPost("Move")]
-        public Result MoveProductionPlan([FromBody] ProductionPlanMove productionPlan)
+        public Result MoveProductionPlan([FromBody] ProductPlanMove productionPlan)
         {
             if (productionPlan.Bill == null || !productionPlan.Bill.Any())
             {
@@ -250,7 +250,7 @@ namespace ApiManagement.Controllers.PlanManagementController
             {
                 return Result.GenError<Result>(Error.ProductionPlanSame);
             }
-            var plans = ServerConfig.ApiDb.Query<ProductionPlan>("SELECT * FROM `production_plan` WHERE Id IN @ids AND MarkedDelete = 0;",
+            var plans = ServerConfig.ApiDb.Query<ProductPlan>("SELECT * FROM `production_plan` WHERE Id IN @ids AND MarkedDelete = 0;",
                 new { ids = new List<int> { fromId, toId } });
             if (plans.Count() != 2)
             {
@@ -258,7 +258,7 @@ namespace ApiManagement.Controllers.PlanManagementController
             }
 
             var planBill =
-                ServerConfig.ApiDb.Query<ProductionPlanBill>("SELECT * FROM `production_plan_bill` WHERE Id IN @Bill AND PlanId = @fromId AND `MarkedDelete` = 0;",
+                ServerConfig.ApiDb.Query<ProductPlanBill>("SELECT * FROM `production_plan_bill` WHERE Id IN @Bill AND PlanId = @fromId AND `MarkedDelete` = 0;",
                     new { fromId, productionPlan.Bill });
 
             if (planBill.Count() != productionPlan.Bill.Count())

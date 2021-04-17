@@ -86,7 +86,7 @@ namespace ApiManagement.Controllers.StatisticManagementController
                             page = page < 0 ? 0 : page;
                             var idList = set.DeviceIdList;
                             var deviceLibraryDetails = ServerConfig.ApiDb.Query<DeviceLibraryDetail>(
-                                "SELECT a.*, b.ModelName, b.DeviceCategoryId, b.CategoryName, c.FirmwareName, d.ApplicationName, e.HardwareName, f.SiteName, f.RegionDescription, " +
+                                "SELECT a.*, b.ModelName, b.DeviceCategoryId, b.CategoryName, c.FirmwareName, d.ApplicationName, e.HardwareName, f.SiteName, f.Region, " +
                                 "g.ScriptName, IFNULL(h.`Name`, '')  AdministratorName, i.`Class` FROM device_library a " +
                                 $"JOIN (SELECT a.*, b.CategoryName FROM device_model a JOIN device_category b ON a.DeviceCategoryId = b.Id) b ON a.DeviceModelId = b.Id " +
                                 "JOIN firmware_library c ON a.FirmwareId = c.Id " +

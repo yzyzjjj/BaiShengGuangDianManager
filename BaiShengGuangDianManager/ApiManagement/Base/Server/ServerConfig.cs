@@ -8,7 +8,7 @@ using ModelBase.Models.Server;
 using System;
 using System.Collections.Generic;
 using System.Linq;
-using ApiManagement.Models.AccountModel;
+using ApiManagement.Models.AccountManagementModel;
 
 namespace ApiManagement.Base.Server
 {
@@ -54,7 +54,7 @@ namespace ApiManagement.Base.Server
                 RedisHelper.SetForever(IsSetProcessDataKey, 1);
             }
 
-            Loads.Add(WarningHelper.RedisReloadKey, WarningHelper.LoadConfig);
+            Loads.Add(WarningHelper.RedisReloadKey, WarningHelper.NeedLoad);
             Log.InfoFormat("ServerConfig Done");
         }
         public static void ReloadConfig(string tableName)

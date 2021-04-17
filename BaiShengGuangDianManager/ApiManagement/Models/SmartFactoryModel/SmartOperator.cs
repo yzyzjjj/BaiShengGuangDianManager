@@ -1,4 +1,4 @@
-﻿using ApiManagement.Models.AccountModel;
+﻿using ApiManagement.Models.AccountManagementModel;
 using ModelBase.Models.BaseModel;
 
 namespace ApiManagement.Models.SmartFactoryModel

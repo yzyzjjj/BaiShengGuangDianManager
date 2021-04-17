@@ -5,6 +5,7 @@ using ModelBase.Base.EnumConfig;
 using ModelBase.Base.Utils;
 using ModelBase.Models.Result;
 using System;
+using System.Collections.Generic;
 using System.Linq;
 
 namespace ApiManagement.Controllers.DeviceManagementController
@@ -112,20 +113,17 @@ namespace ApiManagement.Controllers.DeviceManagementController
         [HttpDelete("{id}")]
         public Result DeleteDeviceModel([FromRoute] int id)
         {
-            var cnt =
-                ServerConfig.ApiDb.Query<int>("SELECT COUNT(1) FROM `device_model` WHERE Id = @id AND `MarkedDelete` = 0;", new { id }).FirstOrDefault();
+            var cnt = DeviceModelHelper.Instance.GetCountById(id);
             if (cnt == 0)
             {
                 return Result.GenError<Result>(Error.DeviceModelNotExist);
             }
 
-            ServerConfig.ApiDb.Execute(
-                "UPDATE `device_model` SET `MarkedDateTime`= @MarkedDateTime, `MarkedDelete`= @MarkedDelete WHERE `Id`= @Id;", new
-                {
-                    MarkedDateTime = DateTime.Now,
-                    MarkedDelete = true,
-                    Id = id
-                });
+            if (DeviceModelHelper.GetUseCount(new List<int>(id)) > 0)
+            {
+                return Result.GenError<Result>(Error.DeviceLibraryUseDeviceModel);
+            }
+            DeviceModelHelper.Instance.Delete(id);
             return Result.GenError<Result>(Error.Success);
         }
     }

@@ -8,26 +8,26 @@ namespace ApiManagement.Models.PlanManagementModel
     /// <summary>
     /// 计划管理
     /// </summary>
-    public class ProductionPlan : CommonBase
+    public class ProductPlan : CommonBase
     {
         public string Plan { get; set; }
         public string Remark { get; set; }
     }
-    public class ProductionPlanDetail : ProductionPlan
+    public class ProductPlanDetail : ProductPlan
     {
         public decimal PlannedConsumption { get; set; }
         public decimal ActualConsumption { get; set; }
         public decimal ExtraConsumption { get; set; }
         public decimal PlannedCost { get; set; }
         public decimal ActualCost { get; set; }
-        public List<ProductionPlanBillStockDetail> FirstBill = new List<ProductionPlanBillStockDetail>();
+        public List<ProductPlanBillStockDetail> FirstBill = new List<ProductPlanBillStockDetail>();
     }
-    public class OpProductionPlan : ProductionPlan
+    public class OpProductPlan : ProductPlan
     {
-        public IEnumerable<ProductionPlanBill> Bill { get; set; }
+        public IEnumerable<ProductPlanBill> Bill { get; set; }
     }
 
-    public class ProductionPlanMove : CommonBase
+    public class ProductPlanMove : CommonBase
     {
         /// <summary>
         /// 转出

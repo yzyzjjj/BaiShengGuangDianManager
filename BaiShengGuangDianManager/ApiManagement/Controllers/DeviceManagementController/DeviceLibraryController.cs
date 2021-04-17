@@ -20,6 +20,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Net;
+using ApiManagement.Models.AccountManagementModel;
 
 namespace ApiManagement.Controllers.DeviceManagementController
 {
@@ -69,7 +70,7 @@ namespace ApiManagement.Controllers.DeviceManagementController
                 else
                 {
                     sql = other ?
-                            "SELECT a.*, b.ModelName, b.DeviceCategoryId, b.CategoryName, c.FirmwareName, d.ApplicationName, e.HardwareName, f.SiteName, f.RegionDescription, " +
+                            "SELECT a.*, b.ModelName, b.DeviceCategoryId, b.CategoryName, c.FirmwareName, d.ApplicationName, e.HardwareName, j.Name WorkshopName, f.Region, " +
                             "g.ScriptName, IFNULL(h.`Name`, '')  AdministratorName, i.`Class` FROM device_library a " +
                             $"JOIN (SELECT a.*, b.CategoryName FROM device_model a JOIN device_category b ON a.DeviceCategoryId = b.Id " +
                             $"{(categoryId != 0 ? "WHERE b.Id = @categoryId" : "")}) b ON a.DeviceModelId = b.Id " +
@@ -78,8 +79,9 @@ namespace ApiManagement.Controllers.DeviceManagementController
                             "JOIN hardware_library e ON a.HardwareId = e.Id " +
                             "JOIN site f ON a.SiteId = f.Id " +
                             "JOIN script_version g ON a.ScriptId = g.Id " +
-                            "JOIN device_class i ON a.ClassId = i.Id " +
                             "LEFT JOIN (SELECT * FROM(SELECT * FROM maintainer ORDER BY MarkedDelete)a GROUP BY a.Account) h ON a.Administrator = h.Account " +
+                            "JOIN device_class i ON a.ClassId = i.Id " +
+                            "JOIN workshop j ON a.WorkshopId = j.Id " +
                             $"WHERE" +
                             $"{(idList.Any() ? " a.Id IN @idList AND " : "")}" +
                             $"{(scriptId != 0 ? " a.ScriptId = @scriptId AND " : "")}" +
@@ -209,7 +211,7 @@ namespace ApiManagement.Controllers.DeviceManagementController
                         x.ProcessTime,
                         x.LeftTime,
                         x.Administrator,
-                        x.SiteName,
+                        x.WorkshopName,
                     }));
                 }
                 else
@@ -227,7 +229,7 @@ namespace ApiManagement.Controllers.DeviceManagementController
         {
             var result = new DataResult();
             var data =
-                ServerConfig.ApiDb.Query<DeviceLibraryDetail>("SELECT a.*, b.ModelName, b.DeviceCategoryId, c.FirmwareName, d.ApplicationName, e.HardwareName, f.SiteName, f.RegionDescription, " +
+                ServerConfig.ApiDb.Query<DeviceLibraryDetail>("SELECT a.*, b.ModelName, b.DeviceCategoryId, c.FirmwareName, d.ApplicationName, e.HardwareName, j.Name WorkshopName, f.Region, " +
                                                               "g.ScriptName, i.`Class` FROM device_library a " +
                                                                  "JOIN device_model b ON a.DeviceModelId = b.Id " +
                                                                  "JOIN firmware_library c ON a.FirmwareId = c.Id " +
@@ -235,7 +237,8 @@ namespace ApiManagement.Controllers.DeviceManagementController
                                                                  "JOIN hardware_library e ON a.HardwareId = e.Id " +
                                                                  "JOIN site f ON a.SiteId = f.Id " +
                                                                  "JOIN device_class i ON a.ClassId = i.Id " +
-                                                                 "JOIN script_version g ON a.ScriptId = g.Id WHERE a.Id = @id AND a.`MarkedDelete` = 0;", new { id }).FirstOrDefault();
+                                                                 "JOIN workshop j ON a.WorkshopId = j.Id " +
+                                                              "JOIN script_version g ON a.ScriptId = g.Id WHERE a.Id = @id AND a.`MarkedDelete` = 0;", new { id }).FirstOrDefault();
             if (data == null)
             {
                 result.errno = Error.DeviceNotExist;
@@ -290,15 +293,16 @@ namespace ApiManagement.Controllers.DeviceManagementController
         {
             var result = new DataResult();
             var data =
-                ServerConfig.ApiDb.Query<DeviceLibraryDetail>("SELECT a.*, b.ModelName, b.DeviceCategoryId, c.FirmwareName, d.ApplicationName, e.HardwareName, f.SiteName, " +
+                ServerConfig.ApiDb.Query<DeviceLibraryDetail>("SELECT a.*, b.ModelName, b.DeviceCategoryId, c.FirmwareName, d.ApplicationName, e.HardwareName, j.Name WorkshopName, " +
                                                               "g.ScriptName, i.`Class` FROM device_library a " +
-                                                                 "JOIN device_model b ON a.DeviceModelId = b.Id " +
-                                                                 "JOIN firmware_library c ON a.FirmwareId = c.Id " +
-                                                                 "JOIN application_library d ON a.ApplicationId = d.Id " +
-                                                                 "JOIN hardware_library e ON a.HardwareId = e.Id " +
-                                                                 "JOIN site f ON a.SiteId = f.Id " +
-                                                                 "JOIN device_class i ON a.ClassId = i.Id " +
-                                                                 "JOIN script_version g ON a.ScriptId = g.Id WHERE a.Code = @code AND a.`MarkedDelete` = 0;", new { code }).FirstOrDefault();
+                                                              "JOIN device_model b ON a.DeviceModelId = b.Id " +
+                                                              "JOIN firmware_library c ON a.FirmwareId = c.Id " +
+                                                              "JOIN application_library d ON a.ApplicationId = d.Id " +
+                                                              "JOIN hardware_library e ON a.HardwareId = e.Id " +
+                                                              "JOIN site f ON a.SiteId = f.Id " +
+                                                              "JOIN device_class i ON a.ClassId = i.Id " + 
+                                                              "JOIN workshop j ON a.WorkshopId = j.Id " +
+                                                              "JOIN script_version g ON a.ScriptId = g.Id WHERE a.Code = @code AND a.`MarkedDelete` = 0;", new { code }).FirstOrDefault();
             if (data == null)
             {
                 result.errno = Error.DeviceNotExist;
@@ -349,13 +353,9 @@ namespace ApiManagement.Controllers.DeviceManagementController
             var result = new DeviceUpdateResult();
             result.classes.AddRange(ServerConfig.ApiDb.Query<dynamic>("SELECT Id, `Class` FROM `device_class` WHERE `MarkedDelete` = 0 ORDER BY Id DESC;"));
 
-            var deviceCategories =
-                ServerConfig.ApiDb.Query<dynamic>("SELECT Id, CategoryName FROM `device_category` WHERE `MarkedDelete` = 0 ORDER BY Id DESC;");
-            result.deviceCategories.AddRange(deviceCategories);
+            result.deviceCategories.AddRange(DeviceCategoryHelper.GetMenu());
 
-            var deviceModels =
-                ServerConfig.ApiDb.Query<dynamic>("SELECT Id, DeviceCategoryId, ModelName FROM `device_model` WHERE `MarkedDelete` = 0 ORDER BY Id DESC;");
-            result.deviceModels.AddRange(deviceModels);
+            result.deviceModels.AddRange(DeviceModelHelper.GetMenu());
 
             var firmwareLibraries =
                 ServerConfig.ApiDb.Query<dynamic>("SELECT Id, FirmwareName FROM `firmware_library` WHERE `MarkedDelete` = 0 ORDER BY Id DESC;");
@@ -369,9 +369,9 @@ namespace ApiManagement.Controllers.DeviceManagementController
                 ServerConfig.ApiDb.Query<dynamic>("SELECT Id, ApplicationName FROM `application_library` WHERE `MarkedDelete` = 0 ORDER BY Id DESC;");
             result.applicationLibraries.AddRange(applicationLibraries);
 
-            var sites =
-                ServerConfig.ApiDb.Query<dynamic>("SELECT Id, SiteName, RegionDescription FROM `site` WHERE `MarkedDelete` = 0 ORDER BY Id DESC;");
-            result.sites.AddRange(sites);
+            result.workshops.AddRange(WorkshopHelper.GetMenu());
+
+            result.sites.AddRange(SiteHelper.GetMenu());
 
             var scriptVersions =
                 ServerConfig.ApiDb.Query<dynamic>("SELECT Id, DeviceModelId, ScriptName FROM `script_version` WHERE `MarkedDelete` = 0 ORDER BY Id DESC;");
@@ -897,7 +897,7 @@ namespace ApiManagement.Controllers.DeviceManagementController
                 deviceLibrary.MarkedDateTime = markedDateTime;
             }
             DeviceLibraryHelper.Instance.Add(deviceLibraries);
-            var data = DeviceLibraryHelper.GetDetail(0, codes);
+            var data = DeviceLibraryHelper.GetDetails(0, codes);
 
             ServerConfig.ApiDb.Execute("INSERT INTO npc_proxy_link (`DeviceId`) VALUES (@DeviceId);", data.Select(x => new { DeviceId = x.Id }));
 

@@ -3,7 +3,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 
-namespace ApiManagement.Models.AccountModel
+namespace ApiManagement.Models.AccountManagementModel
 {
     public class PermissionHelper : DataHelper
     {

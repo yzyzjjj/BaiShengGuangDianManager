@@ -1,6 +1,6 @@
 ﻿using ApiManagement.Base.Server;
 using ApiManagement.Models._6sModel;
-using ApiManagement.Models.AccountModel;
+using ApiManagement.Models.AccountManagementModel;
 using ApiManagement.Models.DeviceSpotCheckModel;
 using ApiManagement.Models.ManufactureModel;
 using ApiManagement.Models.MaterialManagementModel;

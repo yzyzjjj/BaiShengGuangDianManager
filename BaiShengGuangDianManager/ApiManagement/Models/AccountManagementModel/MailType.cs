@@ -1,4 +1,4 @@
-﻿namespace ApiManagement.Models.AccountModel
+﻿namespace ApiManagement.Models.AccountManagementModel
 {
     public class MailType
     {

@@ -1,5 +1,5 @@
 ﻿using ApiManagement.Base.Server;
-using ApiManagement.Models.AccountModel;
+using ApiManagement.Models.AccountManagementModel;
 using ApiManagement.Models.FlowCardManagementModel;
 using ApiManagement.Models.MaterialManagementModel;
 using ApiManagement.Models.PlanManagementModel;
@@ -280,7 +280,7 @@ namespace ApiManagement.Base.Helper
                                 updateLog);
 
                             var allBillId = updateLog.Select(x => x.BillId).Concat(updateLog.Select(x => x.NewBillId));
-                            var planBills = ServerConfig.ApiDb.Query<ProductionPlanBill>(
+                            var planBills = ServerConfig.ApiDb.Query<ProductPlanBill>(
                                 "SELECT * FROM `production_plan_bill` WHERE BillId IN @allBillId AND MarkedDelete = 0",
                                 new { allBillId }).OrderBy(x => x.PlanId);
                             var newPlanBill = planBills.Where(x => updateLog.Any(y => y.NewBillId == x.BillId));
@@ -359,7 +359,7 @@ namespace ApiManagement.Base.Helper
                                 updateLog);
 
                             var allBillId = updateLog.Select(x => x.BillId).Concat(updateLog.Select(x => x.NewBillId));
-                            var planBills = ServerConfig.ApiDb.Query<ProductionPlanBill>(
+                            var planBills = ServerConfig.ApiDb.Query<ProductPlanBill>(
                                 "SELECT * FROM `production_plan_bill` WHERE BillId IN @allBillId AND MarkedDelete = 0",
                                 new { allBillId }).OrderBy(x => x.PlanId);
                             var newPlanBill = planBills.Where(x => updateLog.Any(y => y.NewBillId == x.BillId));

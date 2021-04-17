@@ -60,6 +60,9 @@ namespace ApiManagement.Models.Warning
         public WarningDataType DataType { get; set; }
         public string Name { get; set; }
         public bool Enable { get; set; }
+        public int StepId { get; set; }
+        [IgnoreChange]
+        public string StepName { get; set; }
         public int ClassId { get; set; }
         [IgnoreChange]
         public string Class { get; set; }

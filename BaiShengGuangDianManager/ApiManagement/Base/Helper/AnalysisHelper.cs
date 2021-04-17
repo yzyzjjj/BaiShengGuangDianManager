@@ -1,5 +1,5 @@
 ﻿using ApiManagement.Base.Server;
-using ApiManagement.Models.AccountModel;
+using ApiManagement.Models.AccountManagementModel;
 using ApiManagement.Models.DeviceManagementModel;
 using ApiManagement.Models.FlowCardManagementModel;
 using ApiManagement.Models.OtherModel;
@@ -97,6 +97,16 @@ namespace ApiManagement.Base.Helper
             {2, new []{ "CuPaoTime", "CuPaoFaChu", "CuPaoHeGe", "CuPaoLiePian", "CuPaoDeviceId", "CuPaoJiaGongRen"}},
             {3, new []{ "JingPaoTime", "JingPaoFaChu", "JingPaoHeGe", "JingPaoLiePian", "JingPaoDeviceId", "JingPaoJiaGongRen"}},
             {4, new []{ "WaiGuanTime", "WaiGuanFaChu", "WaiGuanHeGe", "WaiGuanLiePian", "WaiGuanDeviceId", "WaiGuanJiaGongRen"}},
+        };
+        /// <summary>
+        /// 研磨机 粗抛机  精抛机
+        /// </summary>
+        public static readonly Dictionary<string, string[]> ParamAbbrevDic = new Dictionary<string, string[]>
+        {
+            //{"研磨机", new []{ "YanMoTime", "YanMoFaChu", "YanMoHeGe", "YanMoLiePian", "YanMoDeviceId", "YanMoJiaGongRen"}},
+            {"cpjg", new []{ "CuPaoTime", "CuPaoFaChu", "CuPaoHeGe", "CuPaoLiePian", "CuPaoDeviceId", "CuPaoJiaGongRen"}},
+            {"jpjg", new []{ "JingPaoTime", "JingPaoFaChu", "JingPaoHeGe", "JingPaoLiePian", "JingPaoDeviceId", "JingPaoJiaGongRen"}},
+            {"wgjy2", new []{ "WaiGuanTime", "WaiGuanFaChu", "WaiGuanHeGe", "WaiGuanLiePian", "WaiGuanDeviceId", "WaiGuanJiaGongRen"}},
         };
         #endregion
 
@@ -1657,15 +1667,21 @@ namespace ApiManagement.Base.Helper
                             MonitoringKanBanDic[id].Times[item] = time;
                             if (item == KanBanItemEnum.合格率异常报警)
                             {
+                                //MonitoringKanBanDic[id].WarningLogs =
+                                //    WarningLogHelper.GetWarningLogs(startTime, endTime, 0, 0, WarningType.设备, WarningDataType.生产数据,
+                                //        set.DeviceIdList, new List<WarningItemType> { WarningItemType.SingleQualifiedRate }, 1).ToList();
                                 MonitoringKanBanDic[id].WarningLogs =
                                     WarningLogHelper.GetWarningLogs(startTime, endTime, 0, 0, WarningType.设备, WarningDataType.生产数据,
-                                        set.DeviceIdList, new List<WarningItemType> { WarningItemType.SingleQualifiedRate }).ToList();
+                                        null, new List<WarningItemType> { WarningItemType.SingleQualifiedRate }, 1).ToList();
                             }
                             else if (item == KanBanItemEnum.合格率异常统计)
                             {
+                                //MonitoringKanBanDic[id].WarningStatistics =
+                                //    WarningStatisticHelper.GetWarningStatistic(WarningStatisticTime.天, startTime, null, WarningDataType.生产数据,
+                                //        set.DeviceIdList, new List<WarningItemType> { WarningItemType.SingleQualifiedRate }).ToList();
                                 MonitoringKanBanDic[id].WarningStatistics =
                                     WarningStatisticHelper.GetWarningStatistic(WarningStatisticTime.天, startTime, null, WarningDataType.生产数据,
-                                        set.DeviceIdList, new List<WarningItemType> { WarningItemType.SingleQualifiedRate }).ToList();
+                                        null, new List<WarningItemType> { WarningItemType.SingleQualifiedRate }).ToList();
                             }
                             else if (item == KanBanItemEnum.设备状态反馈)
                             {

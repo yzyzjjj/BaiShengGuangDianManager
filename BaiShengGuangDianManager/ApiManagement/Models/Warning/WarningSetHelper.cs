@@ -11,10 +11,10 @@ namespace ApiManagement.Models.Warning
             Table = "warning_set";
 
             InsertSql =
-                "INSERT INTO  `warning_set` (`Id`, `CreateUserId`, `MarkedDateTime`, `WarningType`, `DataType`, `Name`, `Enable`, `ClassId`, `ScriptId`, `CategoryId`, `DeviceIds`) " +
-                "VALUES (@Id, @CreateUserId, @MarkedDateTime, @WarningType, @DataType, @Name, @Enable, @ClassId, @ScriptId, @CategoryId, @DeviceIds);";
+                "INSERT INTO  `warning_set` (`Id`, `CreateUserId`, `MarkedDateTime`, `WarningType`, `DataType`, `Name`, `Enable`, `StepId`, `ClassId`, `ScriptId`, `CategoryId`, `DeviceIds`) " +
+                "VALUES (@Id, @CreateUserId, @MarkedDateTime, @WarningType, @DataType, @Name, @Enable, @StepId, @ClassId, @ScriptId, @CategoryId, @DeviceIds);";
             UpdateSql =
-                "UPDATE `warning_set` SET `MarkedDateTime` = @MarkedDateTime, `Name` = @Name, `Enable` = @Enable, `ClassId` = @ClassId, `ScriptId` = @ScriptId, " +
+                "UPDATE `warning_set` SET `MarkedDateTime` = @MarkedDateTime, `Name` = @Name, `Enable` = @Enable, `StepId` = @StepId, `ClassId` = @ClassId, `ScriptId` = @ScriptId, " +
                 "`DeviceIds` = @DeviceIds WHERE `Id` = @Id";
 
             SameField = "Name";

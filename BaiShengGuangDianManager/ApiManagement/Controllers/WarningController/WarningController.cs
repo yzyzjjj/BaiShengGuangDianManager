@@ -30,8 +30,9 @@ namespace ApiManagement.Controllers.WarningController
         {
             var result = new DataResult();
             var r = ServerConfig.ApiDb.Query<WarningSetWithItems>(
-                $"SELECT a.*, b.`Class` FROM `warning_set` a " +
-                $"JOIN `device_class` b ON a.ClassId = b.Id " +
+                $"SELECT a.*, IFNULL(b.`Class`, '') `Class`, IFNULL(c.`StepName`, '') `StepName` FROM `warning_set` a " +
+                $"LEFT JOIN `device_class` b ON a.ClassId = b.Id " +
+                $"LEFT JOIN `device_process_step` c ON a.StepId = c.Id " +
                 $"WHERE a.`MarkedDelete` = 0 AND a.`WarningType` = @type AND a.`DataType` = @dataType{(qId == 0 ? "" : " AND a.Id = @qId")};", new { qId, type, dataType });
 
             var d = new List<WarningSetItemDetail>();
@@ -335,11 +336,7 @@ namespace ApiManagement.Controllers.WarningController
 
             set.CreateUserId = createUserId;
             set.MarkedDateTime = markedDateTime;
-            var id = ServerConfig.ApiDb.Query<int>(
-                 "INSERT INTO `warning_set` (`CreateUserId`, `MarkedDateTime`, `WarningType`, `DataType`, `Name`, `Enable`, `ClassId`, `ScriptId`, `CategoryId`, `DeviceIds`) " +
-                 "VALUES (@CreateUserId, @MarkedDateTime, @WarningType, @DataType, @Name, @Enable, @ClassId, @ScriptId, @CategoryId, @DeviceIds);SELECT LAST_INSERT_ID();",
-                 set).FirstOrDefault();
-
+            var id = WarningSetHelper.Instance.AddBackId(set);
             if (set.Items != null && set.Items.Any())
             {
                 var dic = new List<DataNameDictionary>();
@@ -456,7 +453,7 @@ namespace ApiManagement.Controllers.WarningController
                 endTime = endTime.DayEndTime();
             }
 
-            result.datas.AddRange(WarningLogHelper.GetWarningLogs(startTime, endTime, sId, 0, type, dataType, deviceIdList, null));
+            result.datas.AddRange(WarningLogHelper.GetWarningLogs(startTime, endTime, sId, 0, type, dataType, deviceIdList, null, 1));
             return result;
         }
 

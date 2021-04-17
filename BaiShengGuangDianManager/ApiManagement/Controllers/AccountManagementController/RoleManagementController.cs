@@ -1,4 +1,4 @@
-﻿using ApiManagement.Models.AccountModel;
+﻿using ApiManagement.Models.AccountManagementModel;
 using Microsoft.AspNetCore.Mvc;
 using ModelBase.Base.EnumConfig;
 using ModelBase.Base.Utils;

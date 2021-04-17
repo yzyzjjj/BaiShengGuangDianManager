@@ -5,7 +5,7 @@ using Newtonsoft.Json;
 using ServiceStack;
 using ModelBase.Models.BaseModel;
 
-namespace ApiManagement.Models.AccountModel
+namespace ApiManagement.Models.AccountManagementModel
 {
     public class AccountInfo : CommonBase
     {

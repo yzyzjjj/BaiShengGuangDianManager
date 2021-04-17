@@ -15,10 +15,17 @@ namespace ApiManagement.Controllers.DeviceManagementController
     {
         // GET: api/DeviceProcessStep
         [HttpGet]
-        public DataResult GetDeviceProcessStep()
+        public DataResult GetDeviceProcessStep([FromQuery]int qId, bool menu)
         {
             var result = new DataResult();
-            result.datas.AddRange(ServerConfig.ApiDb.Query<DeviceProcessStepDetail>("SELECT a.*, b.CategoryName FROM `device_process_step` a JOIN `device_category` b ON a.DeviceCategoryId = b.Id WHERE a.MarkedDelete = 0 ORDER BY a.DeviceCategoryId, a.Id;"));
+            result.datas.AddRange(menu
+                ? DeviceProcessStepHelper.GetMenu(qId)
+                : DeviceProcessStepHelper.GetDetails(qId));
+            if (qId != 0 && !result.datas.Any())
+            {
+                result.errno = Error.DeviceProcessStepNotExist;
+                return result;
+            }
             return result;
         }
 

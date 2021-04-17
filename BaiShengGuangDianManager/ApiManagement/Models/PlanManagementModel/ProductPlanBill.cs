@@ -6,7 +6,7 @@ namespace ApiManagement.Models.PlanManagementModel
     /// <summary>
     /// 计划所用物料
     /// </summary>
-    public class ProductionPlanBill : CommonBase
+    public class ProductPlanBill : CommonBase
     {
         public int PlanId { get; set; }
         public int BillId { get; set; }
@@ -15,7 +15,7 @@ namespace ApiManagement.Models.PlanManagementModel
         public bool Extra { get; set; }
     }
 
-    public class ProductionPlanBillDetail : MaterialBillDetail
+    public class ProductPlanBillDetail : MaterialBillDetail
     {
         public int PlanId { get; set; }
         public int BillId { get; set; }
@@ -24,7 +24,7 @@ namespace ApiManagement.Models.PlanManagementModel
         public bool Extra { get; set; }
     }
 
-    public class ProductionPlanBillStockDetail : MaterialBillDetail
+    public class ProductPlanBillStockDetail : MaterialBillDetail
     {
         public int PlanId { get; set; }
         public int BillId { get; set; }

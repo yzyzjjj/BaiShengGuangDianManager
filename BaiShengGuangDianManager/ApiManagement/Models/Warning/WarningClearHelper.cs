@@ -1,5 +1,5 @@
 ﻿using ApiManagement.Base.Server;
-using ApiManagement.Models.AccountModel;
+using ApiManagement.Models.AccountManagementModel;
 using ApiManagement.Models.BaseModel;
 using ApiManagement.Models.DeviceManagementModel;
 using ServiceStack;

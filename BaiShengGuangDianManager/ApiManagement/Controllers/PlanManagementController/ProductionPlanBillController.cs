@@ -46,7 +46,7 @@ namespace ApiManagement.Controllers.PlanManagementController
                         $"JOIN `material_category` b ON a.CategoryId = b.Id ) b ON a.NameId = b.Id ) b ON a.SupplierId = b.Id ) b ON a.SpecificationId = b.Id JOIN `material_site` c ON a.SiteId = c.Id ) b ON a.BillId = b.Id WHERE {(qId == 0 ? "" : "a.Id = @qId AND ")}a.`MarkedDelete` = 0 ORDER BY a.Extra, a.Id;";
                 }
 
-                var data = ServerConfig.ApiDb.Query<ProductionPlanBillDetail>(sql, new {planId, qId});
+                var data = ServerConfig.ApiDb.Query<ProductPlanBillDetail>(sql, new {planId, qId});
                 if (qId != 0 && !data.Any())
                 {
                     return Result.GenError<DataResult>(Error.ProductionPlanBillNotExist);
@@ -63,7 +63,7 @@ namespace ApiManagement.Controllers.PlanManagementController
                     "JOIN ( SELECT a.*, b.Category FROM `material_name` a " +
                     "JOIN `material_category` b ON a.CategoryId = b.Id ) b ON a.NameId = b.Id ) b ON a.SupplierId = b.Id ) b ON a.SpecificationId = b.Id JOIN `material_site` c ON a.SiteId = c.Id ) b ON a.BillId = b.Id " +
                     "LEFT JOIN `material_management` c ON a.BillId = c.BillId WHERE a.PlanId = @planId AND a.`MarkedDelete` = 0 ORDER BY a.Id, a.Extra;";
-                result.datas.AddRange(ServerConfig.ApiDb.Query<ProductionPlanBillStockDetail>(sql, new { planId }));
+                result.datas.AddRange(ServerConfig.ApiDb.Query<ProductPlanBillStockDetail>(sql, new { planId }));
             }
             return result;
         }
