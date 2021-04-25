@@ -1,7 +1,8 @@
 ﻿using ApiManagement.Models.DeviceManagementModel;
 using ApiManagement.Models.Warning;
 using ModelBase.Base.Utils;
-using Newtonsoft.Json;using ModelBase.Models.BaseModel;
+using ModelBase.Models.BaseModel;
+using Newtonsoft.Json;
 using ServiceStack;
 using System;
 using System.Collections.Generic;
@@ -10,6 +11,9 @@ using System.Linq;
 
 namespace ApiManagement.Models.StatisticManagementModel
 {
+    /// <summary>
+    /// 看板类型
+    /// </summary>
     public enum KanBanEnum
     {
         [Description("无")]
@@ -21,7 +25,9 @@ namespace ApiManagement.Models.StatisticManagementModel
         [Description("生产相关看板")]
         生产相关看板 = 3
     }
-
+    /// <summary>
+    /// 看板子选项类型
+    /// </summary>
     public enum KanBanItemEnum
     {
         [Description("无")]
@@ -88,6 +94,20 @@ namespace ApiManagement.Models.StatisticManagementModel
         #endregion
 
     }
+    /// <summary>
+    /// 看板班次配置
+    /// </summary>
+    public enum KanBanShiftsEnum
+    {
+        [Description("当前班次")]
+        当前班次 = 0,
+        [Description("上个班")]
+        上个班 = 1,
+        [Description("今日")]
+        今日 = 2,
+        [Description("昨日")]
+        昨日 = 3
+    }
 
     public class MonitoringKanBan : MonitoringProcess
     {
@@ -95,14 +115,29 @@ namespace ApiManagement.Models.StatisticManagementModel
         {
             ProductionList = new List<MonitoringProductionData>();
             MSetData = new List<MonitoringSetData>();
-            Times = new Dictionary<KanBanItemEnum, DateTime>();
-            WarningLogs = new List<WarningLog>();
-            WarningStatistics = new List<WarningStatistic>();
-            DeviceStateInfos = new List<DeviceStateInfo>();
-            WarningDeviceInfos = new List<WarningDeviceInfo>();
-            ProductionSchedules = new List<ProductionSchedule>();
-            DeviceSchedules = new List<DeviceSchedule>();
-            ProcessorSchedules = new List<ProcessorSchedule>();
+            Times = new Dictionary<string, DateTime>();
+
+            ItemData = new Dictionary<string, List<object>>();
+            //WarningLogs = new Dictionary<string, List<WarningLog>>();
+            //WarningStatistics = new Dictionary<string, List<WarningStatistic>>();
+            //DeviceStateInfos = new Dictionary<string, List<DeviceStateInfo>>();
+            //WarningDeviceInfos = new Dictionary<string, List<WarningDeviceInfo>>();
+            //ProductionSchedules = new Dictionary<string, List<ProductionSchedule>>();
+            //DeviceSchedules = new Dictionary<string, List<DeviceSchedule>>();
+            //ProcessorSchedules = new Dictionary<string, List<ProcessorSchedule>>();
+        }
+        public void Check(List<KanBanItemSet> itemList)
+        {
+            var wl = itemList.Select(x => $"{(int)x.Item}_{x.Col}_{x.Order}");
+            ItemData = ItemData.Where(x => wl.Contains(x.Key)).ToDictionary(x => x.Key, x => x.Value);
+
+            //WarningLogs = WarningLogs.Where(x => wl.Contains(x.Key)).ToDictionary(x => x.Key, x => x.Value);
+            //WarningStatistics = WarningStatistics.Where(x => wl.Contains(x.Key)).ToDictionary(x => x.Key, x => x.Value);
+            //DeviceStateInfos = DeviceStateInfos.Where(x => wl.Contains(x.Key)).ToDictionary(x => x.Key, x => x.Value);
+            //WarningDeviceInfos = WarningDeviceInfos.Where(x => wl.Contains(x.Key)).ToDictionary(x => x.Key, x => x.Value);
+            //ProductionSchedules = ProductionSchedules.Where(x => wl.Contains(x.Key)).ToDictionary(x => x.Key, x => x.Value);
+            //DeviceSchedules = DeviceSchedules.Where(x => wl.Contains(x.Key)).ToDictionary(x => x.Key, x => x.Value);
+            //ProcessorSchedules = ProcessorSchedules.Where(x => wl.Contains(x.Key)).ToDictionary(x => x.Key, x => x.Value);
         }
         //[JsonIgnore]
         //public bool Init = false;
@@ -135,35 +170,47 @@ namespace ApiManagement.Models.StatisticManagementModel
         /// 报警数据
         /// </summary>
         [JsonIgnore]
-        public Dictionary<KanBanItemEnum, DateTime> Times { get; set; }
+        public Dictionary<string, DateTime> Times { get; set; }
+        /// <summary>
+        /// 数据
+        /// </summary>
+        public Dictionary<string, List<dynamic>> ItemData { get; set; }
+
         /// <summary>
         /// 报警数据
         /// </summary>
-        public List<WarningLog> WarningLogs { get; set; }
+        [Obsolete]
+        public Dictionary<string, List<WarningLog>> WarningLogs { get; set; }
         /// <summary>
         /// 报警统计数据
         /// </summary>
-        public List<WarningStatistic> WarningStatistics { get; set; }
+        [Obsolete]
+        public Dictionary<string, List<WarningStatistic>> WarningStatistics { get; set; }
         /// <summary>
         /// 设备状态反馈
         /// </summary>
-        public List<DeviceStateInfo> DeviceStateInfos { get; set; }
+        [Obsolete]
+        public Dictionary<string, List<DeviceStateInfo>> DeviceStateInfos { get; set; }
         /// <summary>
         /// 预警状态设备
         /// </summary>
-        public List<WarningDeviceInfo> WarningDeviceInfos { get; set; }
+        [Obsolete]
+        public Dictionary<string, List<WarningDeviceInfo>> WarningDeviceInfos { get; set; }
         /// <summary>
         /// 计划号日进度表
         /// </summary>
-        public List<ProductionSchedule> ProductionSchedules { get; set; }
+        [Obsolete]
+        public Dictionary<string, List<ProductionSchedule>> ProductionSchedules { get; set; }
         /// <summary>
         /// 设备日进度表
         /// </summary>
-        public List<DeviceSchedule> DeviceSchedules { get; set; }
+        [Obsolete]
+        public Dictionary<string, List<DeviceSchedule>> DeviceSchedules { get; set; }
         /// <summary>
         /// 操作工日进度表
         /// </summary>
-        public List<ProcessorSchedule> ProcessorSchedules { get; set; }
+        [Obsolete]
+        public Dictionary<string, List<ProcessorSchedule>> ProcessorSchedules { get; set; }
         public void Update(MonitoringKanBan monitoringKanBan)
         {
             Time = monitoringKanBan.Time;
@@ -217,6 +264,10 @@ namespace ApiManagement.Models.StatisticManagementModel
     }
     public class MonitoringKanBanSet : CommonBase
     {
+        /// <summary>
+        /// 车间Id
+        /// </summary>
+        public int WorkshopId { get; set; }
         /// <summary>
         /// 看板名
         /// </summary>
@@ -332,27 +383,86 @@ namespace ApiManagement.Models.StatisticManagementModel
                 return vl;
             }
         }
-        public List<KanBanItemEnum> ItemList
+        public List<KanBanItemSet> ItemList
         {
             get
             {
-                var vl = new List<KanBanItemEnum>();
+                var vl = new List<KanBanItemSet>();
                 try
                 {
                     if (!Items.IsNullOrEmpty())
                     {
-                        vl.AddRange(JsonConvert.DeserializeObject<IEnumerable<KanBanItemEnum>>(Items));
+                        vl.AddRange(JsonConvert.DeserializeObject<IEnumerable<KanBanItemSet>>(Items));
+                        //vl.AddRange(JsonConvert.DeserializeObject<IEnumerable<KanBanItemEnum>>(Items));
                     }
                 }
                 catch (Exception)
                 {
                     // ignored
+                    var ov = new List<KanBanItemEnum>();
+                    try
+                    {
+                        if (!Items.IsNullOrEmpty())
+                        {
+                            ov.AddRange(JsonConvert.DeserializeObject<IEnumerable<KanBanItemEnum>>(Items));
+                        }
+
+                        var i = 0;
+                        vl.AddRange(ov.Select(x => new KanBanItemSet
+                        {
+                            Item = x,
+                            Order = i++,
+                            Shits = KanBanShiftsEnum.当前班次
+                        }));
+                    }
+                    catch (Exception)
+                    {
+                        // ignored
+                    }
                 }
 
                 Items = vl.ToJSON();
                 return vl;
             }
         }
+    }
+
+    public class KanBanItemSet
+    {
+        public KanBanItemEnum Item { get; set; }
+        public int Col { get; set; }
+        public int Order { get; set; }
+        public KanBanShiftsEnum Shits { get; set; }
+
+        #region 显示时长
+        public int Hour { get; set; }
+        public int Min { get; set; }
+        #endregion
+    }
+    public class KanBanItemConfig
+    {
+        public KanBanItemConfig(KanBanItemEnum item, bool haveShits, bool haveDuration)
+        {
+            Item = item;
+            HaveShits = haveShits;
+            HaveDuration = haveDuration;
+        }
+        /// <summary>
+        /// 看板子选项类型
+        /// </summary>
+        public KanBanItemEnum Item { get; set; }
+        /// <summary>
+        /// 是否可配置班制
+        /// </summary>
+        public bool HaveShits { get; set; }
+        /// <summary>
+        /// 是否可配置班制
+        /// </summary>
+        public string Name => Item.GetAttribute<DescriptionAttribute>()?.Description ?? "";
+        /// <summary>
+        /// 是否可配置时长
+        /// </summary>
+        public bool HaveDuration { get; set; }
     }
     public class MonitoringProductionData
     {

@@ -13,8 +13,9 @@ namespace ApiManagement.Models.OtherModel
         public FlowCardReportGet()
         {
         }
-        public FlowCardReportGet(ErpFlowCardReportGet report, DeviceProcessStepDetail step)
+        public FlowCardReportGet(ErpFlowCardReportGet report, DeviceProcessStepDetail step, DateTime now)
         {
+            InsertTime = now;
             Step = step.Id;
             StepName = step.StepName;
             StepAbbrev = step.Abbrev;
@@ -36,7 +37,18 @@ namespace ApiManagement.Models.OtherModel
         /// 数据源Id
         /// </summary>
         public int OtherId { get; set; }
+        /// <summary>
+        /// 修改时间
+        /// </summary>
+        public DateTime MarkedDateTime { get; set; }
+        /// <summary>
+        /// 插入时间
+        /// </summary>
+        public DateTime InsertTime { get; set; }
         public int MarkedDelete { get; set; }
+        /// <summary>
+        /// 上报时间
+        /// </summary>
         public DateTime Time { get; set; }
         /// <summary>
         /// 工序
@@ -112,11 +124,11 @@ namespace ApiManagement.Models.OtherModel
         /// <summary>
         /// 单次合格率(%)
         /// </summary>
-        public decimal QualifiedRate => Total == 0 ? 0 : ((decimal)HeGe * 100 / Total).ToRound();
+        public decimal QualifiedRate => Total != 0 ? ((decimal)HeGe * 100 / Total).ToRound() : (HeGe != 0 ? 100 : 0);
         /// <summary>
         /// 单次次品率(%)
         /// </summary>
-        public decimal UnqualifiedRate => Total == 0 ? 0 : ((decimal)LiePian * 100 / Total).ToRound();
+        public decimal UnqualifiedRate => Total != 0 ? ((decimal)LiePian * 100 / Total).ToRound() : (HeGe != 0 ? 100 : 0);
 
         /// <summary>
         /// 加工日志的Id

@@ -141,9 +141,21 @@ namespace ApiManagement.Models.DeviceManagementModel
         }
 
         /// <summary>
-        /// 当前加工流程卡号
+        /// 当前流程卡
         /// </summary>
-        public string FlowCard { get; set; } = string.Empty;
+        public int FlowCardId { get; set; }
+        /// <summary>
+        /// 当前流程卡
+        /// </summary>
+        public string FlowCard { get; set; } = "";
+        /// <summary>
+        /// 上次加工流程卡
+        /// </summary>
+        public int LastFlowCardId { get; set; }
+        /// <summary>
+        /// 上次加工流程卡
+        /// </summary>
+        public string LastFlowCard { get; set; } = "";
         /// <summary>
         /// 当前加工计划号
         /// </summary>

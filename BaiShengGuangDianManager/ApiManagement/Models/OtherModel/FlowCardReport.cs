@@ -70,11 +70,11 @@ namespace ApiManagement.Models.OtherModel
         /// <summary>
         /// 单次合格率(%)
         /// </summary>
-        public decimal QualifiedRate => Total == 0 ? 0 : ((decimal)HeGe * 100 / Total).ToRound();
+        public decimal QualifiedRate => Total != 0 ? ((decimal)HeGe * 100 / Total).ToRound() : (HeGe != 0 ? 100 : 0);
         /// <summary>
         /// 单次次品率(%)
         /// </summary>
-        public decimal UnqualifiedRate => Total == 0 ? 0 : ((decimal)LiePian * 100 / Total).ToRound();
+        public decimal UnqualifiedRate => Total != 0 ? ((decimal)LiePian * 100 / Total).ToRound() : (HeGe != 0 ? 100 : 0);
         /// <summary>
         /// 0 未处理  1 已处理  2 未查询到流程卡 3 未查询到加工人 4 未查询到设备
         /// </summary>

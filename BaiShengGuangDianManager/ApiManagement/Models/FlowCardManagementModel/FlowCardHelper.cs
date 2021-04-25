@@ -66,6 +66,14 @@ namespace ApiManagement.Models.FlowCardManagementModel
             };
             return Instance.CommonGet<FlowCard>(args).FirstOrDefault();
         }
+        public static FlowCard GetFlowCardAll(string flowCard)
+        {
+            var args = new List<Tuple<string, string, dynamic>>
+            {
+                new Tuple<string, string, dynamic>("FlowCardName", "=", flowCard)
+            };
+            return Instance.CommonGetAll<FlowCard>(args).FirstOrDefault();
+        }
         public static IEnumerable<FlowCard> GetFlowCards(IEnumerable<string> flowCards)
         {
             var args = new List<Tuple<string, string, dynamic>>
@@ -73,6 +81,14 @@ namespace ApiManagement.Models.FlowCardManagementModel
                 new Tuple<string, string, dynamic>("FlowCardName", "IN", flowCards)
             };
             return Instance.CommonGet<FlowCard>(args);
+        }
+        public static IEnumerable<FlowCard> GetAllFlowCards(IEnumerable<string> flowCards)
+        {
+            var args = new List<Tuple<string, string, dynamic>>
+            {
+                new Tuple<string, string, dynamic>("FlowCardName", "IN", flowCards)
+            };
+            return Instance.CommonGetAll<FlowCard>(args);
         }
         public static IEnumerable<FlowCard> GetFlowCardsByProduction(int productId)
         {

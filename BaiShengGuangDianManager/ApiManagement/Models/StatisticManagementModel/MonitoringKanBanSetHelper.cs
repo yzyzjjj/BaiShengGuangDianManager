@@ -1,28 +1,28 @@
-﻿using System;
+﻿using ApiManagement.Models.BaseModel;
+using System;
 using System.Collections.Generic;
 using System.Linq;
-using ApiManagement.Models.BaseModel;
 
 namespace ApiManagement.Models.StatisticManagementModel
 {
     public class MonitoringKanBanSetHelper : DataHelper
     {
-        public Dictionary<KanBanEnum, List<KanBanItemEnum>> Configs = new Dictionary<KanBanEnum, List<KanBanItemEnum>>
+        public Dictionary<KanBanEnum, List<KanBanItemConfig>> Configs = new Dictionary<KanBanEnum, List<KanBanItemConfig>>
         {
             {
-                KanBanEnum.生产相关看板, new List<KanBanItemEnum>
+                KanBanEnum.生产相关看板, new List<KanBanItemConfig>
                 {
-                    KanBanItemEnum.合格率异常报警,
-                    KanBanItemEnum.合格率异常统计,
-                    KanBanItemEnum.设备状态反馈,
-                    KanBanItemEnum.设备预警状态,
-                    KanBanItemEnum.计划号日进度表,
-                    KanBanItemEnum.设备日进度表,
-                    KanBanItemEnum.操作工日进度表,
+                    new KanBanItemConfig(KanBanItemEnum.合格率异常报警, true, true),
+                    new KanBanItemConfig(KanBanItemEnum.合格率异常统计, true, false),
+                    new KanBanItemConfig(KanBanItemEnum.设备状态反馈, false, false),
+                    new KanBanItemConfig(KanBanItemEnum.设备预警状态, false, false),
+                    new KanBanItemConfig(KanBanItemEnum.计划号日进度表, true, false),
+                    new KanBanItemConfig(KanBanItemEnum.设备日进度表, true, false),
+                    new KanBanItemConfig(KanBanItemEnum.操作工日进度表, true, false),
                 }
             },
             {
-                KanBanEnum.设备状态看板, new List<KanBanItemEnum>
+                KanBanEnum.设备状态看板, new List<KanBanItemConfig>
                 {
                     //KanBanItemEnum.上次加工数,
                     //KanBanItemEnum.上次合格数,
@@ -49,13 +49,13 @@ namespace ApiManagement.Models.StatisticManagementModel
 
         private MonitoringKanBanSetHelper()
         {
-            Table = "npc_monitoring_kanban_set";
+            Table = "kanban_set";
 
             InsertSql =
-                "INSERT INTO `npc_monitoring_kanban_set` (`CreateUserId`, `MarkedDateTime`, `Name`, `IsShow`, `Type`, `DeviceIds`, `Order`, `UI`, `Second`, `Row`, `Col`, `ContentCol`, `ColName`, `ColSet`, `Variables`, `Items`) " +
+                "INSERT INTO `kanban_set` (`CreateUserId`, `MarkedDateTime`, `Name`, `IsShow`, `Type`, `DeviceIds`, `Order`, `UI`, `Second`, `Row`, `Col`, `ContentCol`, `ColName`, `ColSet`, `Variables`, `Items`) " +
                 "VALUES (@CreateUserId, @MarkedDateTime, @Name, @IsShow, @Type, @DeviceIds, @Order, @UI, @Second, @Row, @Col, @ContentCol, @ColName, @ColSet, @Variables, @Items);";
             UpdateSql =
-                "UPDATE `npc_monitoring_kanban_set` SET `MarkedDateTime` = @MarkedDateTime, `Name` = @Name, `IsShow` = @IsShow, `DeviceIds` = @DeviceIds, `Order` = @Order, `UI` = @UI, " +
+                "UPDATE `kanban_set` SET `MarkedDateTime` = @MarkedDateTime, `Name` = @Name, `IsShow` = @IsShow, `DeviceIds` = @DeviceIds, `Order` = @Order, `UI` = @UI, " +
                 "`Second` = @Second, `Row` = @Row, `Row` = @Row, `Col` = @Col, `ContentCol` = @ContentCol, `ColName` = @ColName, `ColSet` = @ColSet, `Variables` = @Variables, `Items` = @Items WHERE `Id` = @Id;";
 
             SameField = "Name";

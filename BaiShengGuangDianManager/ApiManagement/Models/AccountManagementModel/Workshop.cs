@@ -1,8 +1,8 @@
-﻿using System;
+﻿using ModelBase.Models.BaseModel;
+using ServiceStack;
+using System;
 using System.Collections.Generic;
 using System.Linq;
-using ModelBase.Models.BaseModel;
-using ServiceStack;
 
 namespace ApiManagement.Models.AccountManagementModel
 {
@@ -19,16 +19,25 @@ namespace ApiManagement.Models.AccountManagementModel
         /// <summary>
         /// 班次
         /// </summary>
-        public int Shifts => ShiftTimeList.Count;
+        public int Shifts { get; set; }
         /// <summary>
         /// 班次时间
+        /// 例子：1班次2个时间（t1,t2），上班时间为(t1,t2)
+        /// 例子：2班次2个时间（t1,t2），上班时间为(t1,t2)(t2,下一天的t1) 
+        /// 例子：3班次3个时间（t1,t2,t3），上班时间为(t1,t2)(t2,t3)(t3,下一天的t1) 
         /// </summary>
         public string ShiftTimes { get; set; }
-        public List<TimeSpan> ShiftTimeList => ShiftTimes.IsNullOrEmpty() ? new List<TimeSpan>() 
+        public List<TimeSpan> ShiftTimeList => ShiftTimes.IsNullOrEmpty() ? new List<TimeSpan>()
             : ShiftTimes.Split(",").Select(x => TimeSpan.TryParse(x, out var a) ? a : default(TimeSpan)).Where(y => y != default(TimeSpan)).OrderBy(x => x).ToList();
         /// <summary>
         /// 备注
         /// </summary>
         public string Remark { get; set; }
+
+        public bool ValidShifts()
+        {
+            return Shifts != 0 && (Shifts == 1 && ShiftTimeList.Count != 2) &&
+                   (Shifts >= 2 && Shifts != ShiftTimeList.Count);
+        }
     }
 }

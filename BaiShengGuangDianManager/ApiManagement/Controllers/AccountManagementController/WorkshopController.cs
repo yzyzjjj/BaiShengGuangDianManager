@@ -76,7 +76,7 @@ namespace ApiManagement.Controllers.AccountManagementController
                 return Result.GenError<Result>(Error.WorkshopDuplicate);
             }
 
-            if (workshops.Any(x => x.Shifts <= 0))
+            if (workshops.Any(x => !x.ValidShifts()))
             {
                 return Result.GenError<Result>(Error.WorkshopShiftsError);
             }
@@ -120,7 +120,7 @@ namespace ApiManagement.Controllers.AccountManagementController
             {
                 return Result.GenError<Result>(Error.WorkshopDuplicate);
             }
-            if (workshops.Any(x => x.Shifts <= 0))
+            if (workshops.Any(x => !x.ValidShifts()))
             {
                 return Result.GenError<Result>(Error.WorkshopShiftsError);
             }

@@ -29,6 +29,9 @@ namespace ApiManagement.Models.Warning
         }
         public static readonly WarningStatisticHelper Instance = new WarningStatisticHelper();
         #region Get
+
+
+
         /// <summary>
         /// 获取统计
         /// </summary>

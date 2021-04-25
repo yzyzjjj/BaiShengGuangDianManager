@@ -80,7 +80,7 @@ namespace ApiManagement.Models.DeviceManagementModel
             sIds.AddRange(scriptIds);
             var args = new List<Tuple<string, string, dynamic>>
             {
-                new Tuple<string, string, dynamic>("ScriptId", "IN", scriptIds)
+                new Tuple<string, string, dynamic>("ScriptId", "IN", sIds)
             };
             if (variableNameIds != null)
             {

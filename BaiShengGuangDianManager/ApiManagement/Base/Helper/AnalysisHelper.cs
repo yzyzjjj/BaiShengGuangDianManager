@@ -201,7 +201,7 @@ namespace ApiManagement.Base.Helper
         private static Timer _timer10S;
         private static Timer _timer60S;
 #if DEBUG
-        private static int _dealLength = 100;
+        private static int _dealLength = 1000;
 #else        
         private static int _dealLength = 1000;
 #endif
@@ -241,8 +241,8 @@ namespace ApiManagement.Base.Helper
                 }
 
                 RedisHelper.Remove(aLockKey);
-                MonitoringKanBanDic.AddRange(ServerConfig.ApiDb.Query<MonitoringKanBan>("SELECT * FROM (SELECT * FROM `npc_monitoring_kanban` ORDER BY Date DESC) a GROUP BY a.Id;", null, 60).ToDictionary(x => x.Id));
-                MonitoringKanBanDeviceDic.AddRange(ServerConfig.ApiDb.Query<MonitoringKanBanDevice>("SELECT * FROM (SELECT * FROM `npc_monitoring_kanban_device` ORDER BY Date DESC) a GROUP BY a.DeviceId;").ToDictionary(x => x.DeviceId));
+                MonitoringKanBanDic.AddRange(ServerConfig.ApiDb.Query<MonitoringKanBan>("SELECT * FROM (SELECT * FROM `kanban_log` ORDER BY Date DESC) a GROUP BY a.Id;", null, 60).ToDictionary(x => x.Id));
+                MonitoringKanBanDeviceDic.AddRange(ServerConfig.ApiDb.Query<MonitoringKanBanDevice>("SELECT * FROM (SELECT * FROM `kanban_device_state` ORDER BY Date DESC) a GROUP BY a.DeviceId;").ToDictionary(x => x.DeviceId));
 
                 _timer2S = new Timer(DoSth_2s, null, 10000, 2000);
                 _timer10S = new Timer(DoSth_10s, null, 10000, 1000 * 10);
@@ -602,6 +602,9 @@ namespace ApiManagement.Base.Helper
                 try
                 {
                     RedisHelper.SetExpireAt(aLockKey, DateTime.Now.AddMinutes(5));
+                    var now = DateTime.Now;
+                    var workshop = WorkshopHelper.Instance.Get<Workshop>(1);
+
                     var processLogId = ServerConfig.ApiDb.Query<int>("SELECT MAX(Id) FROM `npc_monitoring_process_log`;").FirstOrDefault();
                     RedisHelper.SetForever(aProcessLogIdKey, processLogId);
                     var exceptDevicesStr = RedisHelper.Get<string>(aExceptDeviceKey);
@@ -688,17 +691,29 @@ namespace ApiManagement.Base.Helper
                     {
                         allDeviceList[deviceId].Check();
                     }
-                    var now = DateTime.Now;
+
                     var startId = RedisHelper.Get<int>(aIdKey);
                     var endId = startId;
                     var lastTime = RedisHelper.Get<DateTime>(aTimeKey);
                     var kanBanTime = lastTime;
+                    if (workshop.Shifts == 0 || !workshop.ShiftTimeList.Any() || workshop.Shifts != workshop.ShiftTimeList.Count)
+                    {
+                        workshop.Shifts = 2;
+                        workshop.ShiftTimes = "8:00:00,20:00:00";
+                    }
+
+                    //var currentWorkTime = DateTimeExtend.GetCurrentWorkTimeRanges(workshop.Shifts, workshop.ShiftTimeList, kanBanTime);
+                    //var todayWorkDay = DateTimeExtend.GetDayWorkDayRange(workshop.Shifts, workshop.ShiftTimeList, now);
+                    var kanBanWorkTime = DateTimeExtend.GetDayWorkDayRange(workshop.Shifts, workshop.ShiftTimeList, kanBanTime);
+                    var kanBanWorkDayEndTime = kanBanWorkTime.Item1.AddDays(1).AddSeconds(-1);
+                    //var kanBanNextWorkStartTime = kanBanWorkTime.Item1.AddDays(1);
+
                     //var nextTime = kanBanTime.Date.AddDays(1);
                     //if (!kanBanTime.InLastTime() && !kanBanTime.InSameDay(now))
                     //{
                     //    kanBanTime = nextTime;
                     //}
-                    if (kanBanTime.InLastTime())
+                    if (kanBanTime.InLastTime(kanBanWorkDayEndTime))
                     {
                         Log.Debug("New Day ------------------------------------------------------------------");
                         kanBanTime = kanBanTime.AddSeconds(1);
@@ -725,22 +740,38 @@ namespace ApiManagement.Base.Helper
                     {
                         minTime = mData.Min(x => x.SendTime);
                         maxTime = mData.Max(x => x.SendTime);
-                        var sameDay = minTime.InSameDay(maxTime);
-                        tData = !sameDay ? mData.Where(x => x.SendTime.Date < minTime.Date.AddDays(1))
+                        var sameDay = minTime.InSameDay(kanBanWorkTime);
+                        //tData = !sameDay ? mData.Where(x => x.SendTime.Date < minTime.Date.AddDays(1))
+                        tData = !sameDay ? mData.Where(x => x.SendTime < kanBanWorkTime.Item2)
                             : mData;
 
-                        tData = tData.OrderBy(x => x.SendTime).ToList();
-                        endId = tData.Last().Id;
-                        kanBanTime = sameDay ? tData.Last().SendTime.NoMillisecond() : minTime.DayEndTime();
-                        minTime = tData.Min(x => x.SendTime);
-                        maxTime = kanBanTime;
-                        if (endId <= startId)
+                        if (tData.Any())
                         {
-                            tData = new List<MonitoringData>();
-                        }
+                            tData = tData.OrderBy(x => x.SendTime).ToList();
+                            endId = tData.Last().Id;
+                            kanBanTime = sameDay ? tData.Last().SendTime.NoMillisecond() : kanBanWorkDayEndTime;
+                            minTime = tData.Min(x => x.SendTime);
+                            maxTime = kanBanTime;
+                            if (endId <= startId)
+                            {
+                                tData = new List<MonitoringData>();
+                            }
 
-                        var scriptIds = tData.GroupBy(x => x.ScriptId).Select(x => x.Key).ToList();
-                        dataNameDictionaries = scriptIds.Any() ? DataNameDictionaryHelper.GetDataNameDictionaryDetails(scriptIds, VariableNameIdList) : new List<DataNameDictionaryDetail>();
+                            var scriptIds = tData.GroupBy(x => x.ScriptId).Select(x => x.Key).ToList();
+                            dataNameDictionaries = scriptIds.Any() ? DataNameDictionaryHelper.GetDataNameDictionaryDetails(scriptIds, VariableNameIdList) : new List<DataNameDictionaryDetail>();
+                        }
+                        else
+                        {
+                            kanBanTime = minTime;
+                            if (!sameDay)
+                            {
+                                foreach (var device in allDeviceList.Values)
+                                {
+                                    device.Time = kanBanTime;
+                                    device.DayRest();
+                                }
+                            }
+                        }
                     }
                     else
                     {
@@ -756,11 +787,13 @@ namespace ApiManagement.Base.Helper
                     }
 
                     var faultDevices = ServerConfig.ApiDb.Query<int>(
-                        "SELECT DeviceId FROM `fault_device_repair` WHERE DeviceId != 0 AND MarkedDelete != 1 AND State < @State AND FaultTime <= @FaultTime2 GROUP BY DeviceId;", new
+                        //"SELECT DeviceId FROM `fault_device_repair` WHERE DeviceId != 0 AND MarkedDelete != 1 AND State < @State AND FaultTime <= @FaultTime2 GROUP BY DeviceId;", new
+                        "SELECT DeviceId FROM `fault_device_repair` WHERE DeviceId != 0 AND MarkedDelete != 1 AND State < @State AND FaultTime < @FaultTime2 GROUP BY DeviceId;", new
                         {
                             State = RepairStateEnum.Complete,
                             //FaultTime1 = kanBanTime.DayBeginTime(),
-                            FaultTime2 = kanBanTime.DayEndTime(),
+                            //FaultTime2 = kanBanTime.DayEndTime(),
+                            FaultTime2 = kanBanWorkTime.Item2,
                         });
                     foreach (var deviceId in faultDevices)
                     {
@@ -781,13 +814,14 @@ namespace ApiManagement.Base.Helper
 
                             var sql = string.Format(
                                 "SELECT {4} DeviceId, {0} Time, {1} DayTotal, {2} DayQualified, {3} DayUnqualified " +
-                                "FROM `flowcard_library` WHERE {4} IN @DeviceId AND {0} >= @startTime AND {0} <= @endTime;",
+                                //"FROM `flowcard_library` WHERE {4} IN @DeviceId AND {0} >= @startTime AND {0} <= @endTime;",
+                                "FROM `flowcard_library` WHERE {4} IN @DeviceId AND {0} >= @startTime AND {0} < @endTime;",
                                 category[0], category[1], category[2], category[3], category[4]);
                             var pData = ServerConfig.ApiDb.Query<MonitoringProductionData>(sql, new
                             {
                                 DeviceId = deviceIds,
-                                startTime = kanBanTime.DayBeginTime(),
-                                endTime = kanBanTime.DayEndTime(),
+                                startTime = kanBanWorkTime.Item1,
+                                endTime = kanBanWorkTime.Item2,
                             }, 60);
                             if (!pData.Any())
                             {
@@ -825,14 +859,13 @@ namespace ApiManagement.Base.Helper
                                         allDeviceList[deviceId].Time = time;
                                         allDeviceList[deviceId].NormalDevice = 1;
 
-                                        var analysisData = data.AnalysisData;
-                                        if (analysisData != null)
+                                        if (data.AnalysisData != null)
                                         {
-                                            allDeviceList[deviceId].AnalysisData = analysisData;
+                                            allDeviceList[deviceId].AnalysisData = data.AnalysisData; ;
                                             var lastProcessType = allDeviceList[deviceId].ProcessType;
                                             var thisProcessType = ProcessType.Idle;
                                             //洗盘按钮
-                                            if (GetValue(analysisData, dataNameDictionaries, data.ScriptId, washFlagDId,
+                                            if (GetValue(data.AnalysisData, dataNameDictionaries, data.ScriptId, washFlagDId,
                                                 out var v))
                                             {
                                                 if (v > 0)
@@ -842,7 +875,7 @@ namespace ApiManagement.Base.Helper
                                             }
 
                                             //修盘按钮
-                                            if (GetValue(analysisData, dataNameDictionaries, data.ScriptId,
+                                            if (GetValue(data.AnalysisData, dataNameDictionaries, data.ScriptId,
                                                 repairFlagDId, out v))
                                             {
                                                 if (v > 0)
@@ -852,7 +885,7 @@ namespace ApiManagement.Base.Helper
                                             }
 
                                             //加工工艺按钮
-                                            if (GetValue(analysisData, dataNameDictionaries, data.ScriptId,
+                                            if (GetValue(data.AnalysisData, dataNameDictionaries, data.ScriptId,
                                                 processFlagDId, out v))
                                             {
                                                 if (v > 0)
@@ -869,7 +902,7 @@ namespace ApiManagement.Base.Helper
                                             }
                                             else
                                             {
-                                                if (GetValue(analysisData, dataNameDictionaries, data.ScriptId,
+                                                if (GetValue(data.AnalysisData, dataNameDictionaries, data.ScriptId,
                                                     flowCardDId, out v))
                                                 {
                                                     currentFlowCardId = (int)v;
@@ -909,7 +942,7 @@ namespace ApiManagement.Base.Helper
                                                     processData.Add(key, new decimal[actProcessDIdCount]);
                                                 }
 
-                                                GetValue(analysisData, dataNameDictionaries, data.ScriptId,
+                                                GetValue(data.AnalysisData, dataNameDictionaries, data.ScriptId,
                                                     actProcessDId + i, out v);
                                                 var index = i % 6;
                                                 processData[key][index] = v;
@@ -920,7 +953,7 @@ namespace ApiManagement.Base.Helper
                                             //var r = RandomSeed.Next(EnumHelper.EnumToList<ProcessType>().Count());
                                             //EnumHelper.TryParseInt(r, out thisProcessType);
                                             //状态
-                                            if (GetValue(analysisData, dataNameDictionaries, data.ScriptId, stateDId,
+                                            if (GetValue(data.AnalysisData, dataNameDictionaries, data.ScriptId, stateDId,
                                                 out var thisState))
                                             {
                                                 //stateValue = RandomSeed.Next(3);
@@ -1177,7 +1210,7 @@ namespace ApiManagement.Base.Helper
                                             allDeviceList[deviceId].ProcessType = thisState > 0 ? thisProcessType : ProcessType.Idle;
 
                                             //总加工次数
-                                            if (GetValue(analysisData, dataNameDictionaries, data.ScriptId,
+                                            if (GetValue(data.AnalysisData, dataNameDictionaries, data.ScriptId,
                                                 processCountDId, out var totalProcessCount))
                                             {
                                                 if (totalProcessCount < 0)
@@ -1194,7 +1227,7 @@ namespace ApiManagement.Base.Helper
                                             allDeviceList[deviceId].TotalProcessCount = (int)totalProcessCount;
 
                                             //总加工时间
-                                            if (GetValue(analysisData, dataNameDictionaries, data.ScriptId,
+                                            if (GetValue(data.AnalysisData, dataNameDictionaries, data.ScriptId,
                                                 totalProcessTimeDId, out var totalProcessTime))
                                             {
                                                 if (totalProcessTime < 0)
@@ -1210,7 +1243,7 @@ namespace ApiManagement.Base.Helper
                                             allDeviceList[deviceId].TotalProcessTime = (int)totalProcessTime;
 
                                             //总运行时间
-                                            if (GetValue(analysisData, dataNameDictionaries, data.ScriptId, runTimeDId,
+                                            if (GetValue(data.AnalysisData, dataNameDictionaries, data.ScriptId, runTimeDId,
                                                 out var totalRunTime))
                                             {
                                                 if (totalRunTime < 0)
@@ -1294,7 +1327,7 @@ namespace ApiManagement.Base.Helper
                                     continue;
                                 }
 
-                                allDeviceList[deviceId].DayRest(maxTime);
+                                allDeviceList[deviceId].DayRest(maxTime < kanBanWorkTime.Item1);
                                 for (var i = 0; i < totalSeconds; i++)
                                 {
                                     var endTime = minTime.AddSeconds(i);
@@ -1430,7 +1463,7 @@ namespace ApiManagement.Base.Helper
             Task.Run(() =>
             {
                 ServerConfig.ApiDb.Execute(
-                    "INSERT INTO npc_monitoring_kanban (`Date`, `Time`, `Id`, `AllDevice`, `NormalDevice`, `ProcessDevice`, `IdleDevice`, `FaultDevice`, `ConnectErrorDevice`, `MaxUse`, `UseListStr`, " +
+                    "INSERT INTO kanban_log (`Date`, `Time`, `Id`, `AllDevice`, `NormalDevice`, `ProcessDevice`, `IdleDevice`, `FaultDevice`, `ConnectErrorDevice`, `MaxUse`, `UseListStr`, " +
                     "`MaxUseListStr`, `MaxUseRate`, `MinUse`, `MinUseRate`, `MaxSimultaneousUseRate`, `MinSimultaneousUseRate`, `SingleProcessRateStr`, `AllProcessRate`, `RunTime`, `ProcessTime`, `IdleTime`, " +
                     "`DayTotal`, `DayQualified`, `DayUnqualified`, `DayQualifiedRate`, `DayUnqualifiedRate`, " +
                     "`ProductionData`) " +
@@ -1447,7 +1480,7 @@ namespace ApiManagement.Base.Helper
                     , monitoringKanBanList);
 
                 ServerConfig.ApiDb.Execute(
-                    "INSERT INTO npc_monitoring_kanban_device (`Date`, `Time`, `DeviceId`, `AllDevice`, `NormalDevice`, `ProcessDevice`, `IdleDevice`, `FaultDevice`, `ConnectErrorDevice`, `MaxUse`, `UseListStr`, " +
+                    "INSERT INTO kanban_device_state (`Date`, `Time`, `DeviceId`, `AllDevice`, `NormalDevice`, `ProcessDevice`, `IdleDevice`, `FaultDevice`, `ConnectErrorDevice`, `MaxUse`, `UseListStr`, " +
                     "`MaxUseListStr`, `MaxUseRate`, `MinUse`, `MinUseRate`, `MaxSimultaneousUseRate`, `MinSimultaneousUseRate`, `SingleProcessRateStr`, `AllProcessRate`, `RunTime`, `ProcessTime`, `IdleTime`, " +
                     "`DayTotal`, `DayQualified`, `DayUnqualified`, `DayQualifiedRate`, `DayUnqualifiedRate`" +
                     ") VALUES (@Date, @Time, @DeviceId, @AllDevice, @NormalDevice, @ProcessDevice, @IdleDevice, @FaultDevice, @ConnectErrorDevice, @MaxUse, @UseListStr, " +
@@ -1475,313 +1508,404 @@ namespace ApiManagement.Base.Helper
 
         private static void UpdateKanBan(Dictionary<int, MonitoringProcess> allDeviceList, DateTime time)
         {
-            var sets = MonitoringKanBanSetHelper.Instance.GetAll<MonitoringKanBanSet>().ToList();
-            sets.Add(new MonitoringKanBanSet
+            try
             {
-                Id = 0,
-                Type = KanBanEnum.设备详情看板,
-                DeviceIds = allDeviceList.Keys.Join()
-            });
-            foreach (var set in sets)
-            {
-                if (!MonitoringKanBanDic.ContainsKey(set.Id))
+
+                var sets = MonitoringKanBanSetHelper.Instance.GetAll<MonitoringKanBanSet>().ToList();
+                sets.Add(new MonitoringKanBanSet
                 {
-                    MonitoringKanBanDic.Add(set.Id, new MonitoringKanBan
+                    Id = 0,
+                    Type = KanBanEnum.设备详情看板,
+                    DeviceIds = allDeviceList.Keys.Join()
+                });
+                foreach (var set in sets)
+                {
+                    if (!MonitoringKanBanDic.ContainsKey(set.Id))
                     {
-                        Time = time,
-                        Id = set.Id
-                    });
-                }
-            }
-
-            var scriptIds = sets.SelectMany(x => x.VariableList.Select(y => y.ScriptId)).Where(x => x != 0).Distinct();
-            var dataNameDictionaries = scriptIds.Any() ? DataNameDictionaryHelper.GetDataNameDictionaryDetails(scriptIds) : new List<DataNameDictionaryDetail>();
-            var removeTypes = MonitoringKanBanDic.Keys.Where(type => sets.All(x => x.Id != type)).ToList();
-            foreach (var removeType in removeTypes)
-            {
-                MonitoringKanBanDic.Remove(removeType);
-            }
-
-            var keys = MonitoringKanBanDeviceDic.Keys.ToList();
-            foreach (var deviceId in keys)
-            {
-                if (allDeviceList.ContainsKey(deviceId))
-                {
-                    //var t = (MonitoringProcess)allDeviceList[deviceId].Clone();
-                    var x = ClassExtension.CopyTo<MonitoringProcess, MonitoringKanBanDevice>(allDeviceList[deviceId]);
-                    MonitoringKanBanDeviceDic[deviceId] = x;
-                }
-                else
-                {
-                    MonitoringKanBanDeviceDic.Remove(deviceId);
-                }
-            }
-
-            #region MonitoringKanBanDic
-            foreach (var id in MonitoringKanBanDic.Keys)
-            {
-                var set = sets.FirstOrDefault(x => x.Id == id);
-                if (set != null && set.DeviceIdList.Any())
-                {
-                    var setDevices = MonitoringKanBanDeviceDic.Values.Where(x => set.DeviceIdList.Contains(x.DeviceId));
-                    //var validDevice = allDevice.Where(x => x.NormalDevice == 1);
-                    MonitoringKanBanDic[id].Time = time;
-                    if (set.Type == KanBanEnum.设备详情看板)
-                    {
-                        #region 设备详情看板
-                        MonitoringKanBanDic[id].AllDevice = setDevices.Count();
-                        MonitoringKanBanDic[id].NormalDevice = setDevices.Count(x => x.NormalDevice == 1);
-                        MonitoringKanBanDic[id].ProcessDevice = setDevices.Count(x => x.ProcessDevice == 1);
-                        MonitoringKanBanDic[id].FaultDevice = setDevices.Count(x => x.FaultDevice == 1);
-                        MonitoringKanBanDic[id].Use = setDevices.Count(x => x.Use == 1);
-                        MonitoringKanBanDic[id].UseList = setDevices.SelectMany(x => x.UseList).Distinct().ToList();
-                        MonitoringKanBanDic[id].MaxUseList = setDevices.SelectMany(x => x.MaxUseList).Distinct().ToList();
-                        MonitoringKanBanDic[id].MaxUse = MonitoringKanBanDic[id].MaxUseList.Count;
-                        MonitoringKanBanDic[id].MinUse = MonitoringKanBanDic[id].MinUse == -1 ? MonitoringKanBanDic[id].MaxUse :
-                            (MonitoringKanBanDic[id].MinUse < MonitoringKanBanDic[id].MaxUse ? MonitoringKanBanDic[id].MinUse : MonitoringKanBanDic[id].MaxUse);
-                        MonitoringKanBanDic[id].MaxSimultaneousUseRate =
-                            MonitoringKanBanDic[id].MaxSimultaneousUseRate <
-                            MonitoringKanBanDic[id].ProcessDevice
-                                ? MonitoringKanBanDic[id].ProcessDevice
-                                : MonitoringKanBanDic[id].MaxSimultaneousUseRate;
-                        MonitoringKanBanDic[id].MinSimultaneousUseRate = MonitoringKanBanDic[id].MinSimultaneousUseRate == -1 ? MonitoringKanBanDic[id].MaxSimultaneousUseRate :
-                            (MonitoringKanBanDic[id].MinSimultaneousUseRate < MonitoringKanBanDic[id].MaxSimultaneousUseRate ? MonitoringKanBanDic[id].MinSimultaneousUseRate : MonitoringKanBanDic[id].MaxSimultaneousUseRate);
-                        MonitoringKanBanDic[id].SingleProcessRate = setDevices.SelectMany(x => x.SingleProcessRate).ToList();
-                        MonitoringKanBanDic[id].RunTime = setDevices.Sum(x => x.RunTime);
-                        MonitoringKanBanDic[id].ProcessTime = setDevices.Sum(x => x.ProcessTime);
-                        MonitoringKanBanDic[id].AllProcessRate = setDevices.Any()
-                            ? (MonitoringKanBanDic[id].ProcessTime * 1m / (setDevices.Count() * 24 * 3600)).ToRound(4) : 0;
-                        MonitoringKanBanDic[id].UseCodeList = setDevices.SelectMany(x => x.UseCodeList).Distinct().ToList();
-
-                        MonitoringKanBanDic[id].DayTotal = setDevices.Sum(x => x.DayTotal);
-                        MonitoringKanBanDic[id].DayQualified = setDevices.Sum(x => x.DayQualified);
-                        MonitoringKanBanDic[id].DayUnqualified = setDevices.Sum(x => x.DayUnqualified);
-                        MonitoringKanBanDic[id].ProductionList = setDevices.Select(x => new MonitoringProductionData
+                        MonitoringKanBanDic.Add(set.Id, new MonitoringKanBan
                         {
-                            DeviceId = x.DeviceId,
-                            Code = x.Code,
-                            Time = x.Time,
-                            DayTotal = x.DayTotal,
-                            DayQualified = x.DayQualified,
-                            DayUnqualified = x.DayUnqualified
-                        }).ToList();
-                        #endregion
+                            Time = time,
+                            Id = set.Id
+                        });
                     }
-                    else if (set.Type == KanBanEnum.设备状态看板)
+                }
+
+                var workshopIds = sets.Select(x => x.WorkshopId).Where(x => x != 0).Distinct();
+                var workshops = WorkshopHelper.Instance.GetAllByIds<Workshop>(workshopIds).ToDictionary(x => x.Id);
+                var scriptIds = sets.SelectMany(x => x.VariableList.Select(y => y.ScriptId)).Where(x => x != 0).Distinct();
+                var dataNameDictionaries = scriptIds.Any() ? DataNameDictionaryHelper.GetDataNameDictionaryDetails(scriptIds) : new List<DataNameDictionaryDetail>();
+                var removeTypes = MonitoringKanBanDic.Keys.Where(type => sets.All(x => x.Id != type)).ToList();
+                foreach (var removeType in removeTypes)
+                {
+                    MonitoringKanBanDic.Remove(removeType);
+                }
+
+                var keys = MonitoringKanBanDeviceDic.Keys.ToList();
+                foreach (var deviceId in keys)
+                {
+                    if (allDeviceList.ContainsKey(deviceId))
                     {
-                        #region 设备状态看板
-                        var mSetData = new List<MonitoringSetData>();
-                        foreach (var deviceId in set.DeviceIdList)
+                        //var t = (MonitoringProcess)allDeviceList[deviceId].Clone();
+                        var x = ClassExtension.CopyTo<MonitoringProcess, MonitoringKanBanDevice>(allDeviceList[deviceId]);
+                        MonitoringKanBanDeviceDic[deviceId] = x;
+                    }
+                    else
+                    {
+                        MonitoringKanBanDeviceDic.Remove(deviceId);
+                    }
+                }
+
+                #region MonitoringKanBanDic
+                foreach (var id in MonitoringKanBanDic.Keys)
+                {
+                    var set = sets.FirstOrDefault(x => x.Id == id);
+                    if (set != null && set.DeviceIdList.Any())
+                    {
+                        var setDevices = MonitoringKanBanDeviceDic.Values.Where(x => set.DeviceIdList.Contains(x.DeviceId));
+                        //var validDevice = allDevice.Where(x => x.NormalDevice == 1);
+                        MonitoringKanBanDic[id].Time = time;
+                        if (set.Type == KanBanEnum.设备详情看板)
                         {
-                            if (!allDeviceList.ContainsKey(deviceId))
-                            {
-                                continue;
-                            }
-                            var device = allDeviceList[deviceId];
-                            var deviceData = device.AnalysisData;
+                            #region 设备详情看板
+                            MonitoringKanBanDic[id].AllDevice = setDevices.Count();
+                            MonitoringKanBanDic[id].NormalDevice = setDevices.Count(x => x.NormalDevice == 1);
+                            MonitoringKanBanDic[id].ProcessDevice = setDevices.Count(x => x.ProcessDevice == 1);
+                            MonitoringKanBanDic[id].FaultDevice = setDevices.Count(x => x.FaultDevice == 1);
+                            MonitoringKanBanDic[id].Use = setDevices.Count(x => x.Use == 1);
+                            MonitoringKanBanDic[id].UseList = setDevices.SelectMany(x => x.UseList).Distinct().ToList();
+                            MonitoringKanBanDic[id].MaxUseList = setDevices.SelectMany(x => x.MaxUseList).Distinct().ToList();
+                            MonitoringKanBanDic[id].MaxUse = MonitoringKanBanDic[id].MaxUseList.Count;
+                            MonitoringKanBanDic[id].MinUse = MonitoringKanBanDic[id].MinUse == -1 ? MonitoringKanBanDic[id].MaxUse :
+                                (MonitoringKanBanDic[id].MinUse < MonitoringKanBanDic[id].MaxUse ? MonitoringKanBanDic[id].MinUse : MonitoringKanBanDic[id].MaxUse);
+                            MonitoringKanBanDic[id].MaxSimultaneousUseRate =
+                                MonitoringKanBanDic[id].MaxSimultaneousUseRate <
+                                MonitoringKanBanDic[id].ProcessDevice
+                                    ? MonitoringKanBanDic[id].ProcessDevice
+                                    : MonitoringKanBanDic[id].MaxSimultaneousUseRate;
+                            MonitoringKanBanDic[id].MinSimultaneousUseRate = MonitoringKanBanDic[id].MinSimultaneousUseRate == -1 ? MonitoringKanBanDic[id].MaxSimultaneousUseRate :
+                                (MonitoringKanBanDic[id].MinSimultaneousUseRate < MonitoringKanBanDic[id].MaxSimultaneousUseRate ? MonitoringKanBanDic[id].MinSimultaneousUseRate : MonitoringKanBanDic[id].MaxSimultaneousUseRate);
+                            MonitoringKanBanDic[id].SingleProcessRate = setDevices.SelectMany(x => x.SingleProcessRate).ToList();
+                            MonitoringKanBanDic[id].RunTime = setDevices.Sum(x => x.RunTime);
+                            MonitoringKanBanDic[id].ProcessTime = setDevices.Sum(x => x.ProcessTime);
+                            MonitoringKanBanDic[id].AllProcessRate = setDevices.Any()
+                                ? (MonitoringKanBanDic[id].ProcessTime * 1m / (setDevices.Count() * 24 * 3600)).ToRound(4) : 0;
+                            MonitoringKanBanDic[id].UseCodeList = setDevices.SelectMany(x => x.UseCodeList).Distinct().ToList();
 
-                            var t = new MonitoringSetData { Id = deviceId, ScriptId = device.ScriptId };
-                            var vs = set.VariableList.Where(v => v.ScriptId == device.ScriptId).OrderBy(x => x.Order);
-                            foreach (var x in vs)
+                            MonitoringKanBanDic[id].DayTotal = setDevices.Sum(x => x.DayTotal);
+                            MonitoringKanBanDic[id].DayQualified = setDevices.Sum(x => x.DayQualified);
+                            MonitoringKanBanDic[id].DayUnqualified = setDevices.Sum(x => x.DayUnqualified);
+                            MonitoringKanBanDic[id].ProductionList = setDevices.Select(x => new MonitoringProductionData
                             {
-                                var dn = dataNameDictionaries.FirstOrDefault(d =>
-                                    d.VariableTypeId == x.VariableTypeId && d.PointerAddress == x.PointerAddress);
-
-                                if (dn == null)
+                                DeviceId = x.DeviceId,
+                                Code = x.Code,
+                                Time = x.Time,
+                                DayTotal = x.DayTotal,
+                                DayQualified = x.DayQualified,
+                                DayUnqualified = x.DayUnqualified
+                            }).ToList();
+                            #endregion
+                        }
+                        else if (set.Type == KanBanEnum.设备状态看板)
+                        {
+                            #region 设备状态看板
+                            var mSetData = new List<MonitoringSetData>();
+                            foreach (var deviceId in set.DeviceIdList)
+                            {
+                                if (!allDeviceList.ContainsKey(deviceId))
                                 {
                                     continue;
                                 }
-                                var r = new MonitoringSetSingleDataDetail
-                                {
-                                    Order = x.Order,
-                                    SubOrder = x.SubOrder,
-                                    Delimiter = x.Delimiter,
-                                    Sid = x.ScriptId,
-                                    Type = x.VariableTypeId,
-                                    Add = x.PointerAddress,
-                                    VName = x.VariableName.IsNullOrEmpty() ? dn.VariableName ?? "" : x.VariableName,
-                                };
+                                var device = allDeviceList[deviceId];
+                                var deviceData = device.AnalysisData;
 
-                                if (dn.VariableTypeId == 1 && dn.VariableNameId == stateDId)
+                                var t = new MonitoringSetData { Id = deviceId, ScriptId = device.ScriptId };
+                                var vs = set.VariableList.Where(v => v.ScriptId == device.ScriptId).OrderBy(x => x.Order);
+                                foreach (var x in vs)
                                 {
-                                    r.V = device.State.ToString();
-                                }
-                                else if (deviceData != null)
-                                {
-                                    List<int> bl = null;
-                                    switch (x.VariableTypeId)
+                                    var dn = dataNameDictionaries.FirstOrDefault(d =>
+                                        d.VariableTypeId == x.VariableTypeId && d.PointerAddress == x.PointerAddress);
+
+                                    if (dn == null)
                                     {
-                                        case 1: bl = deviceData.vals; break;
-                                        case 2: bl = deviceData.ins; break;
-                                        case 3: bl = deviceData.outs; break;
-                                        default: break;
+                                        continue;
                                     }
-
-                                    if (bl != null)
+                                    var r = new MonitoringSetSingleDataDetail
                                     {
-                                        if (bl.Count > x.PointerAddress - 1)
+                                        Order = x.Order,
+                                        SubOrder = x.SubOrder,
+                                        Delimiter = x.Delimiter,
+                                        Sid = x.ScriptId,
+                                        Type = x.VariableTypeId,
+                                        Add = x.PointerAddress,
+                                        VName = x.VariableName.IsNullOrEmpty() ? dn.VariableName ?? "" : x.VariableName,
+                                    };
+
+                                    if (dn.VariableTypeId == 1 && dn.VariableNameId == stateDId)
+                                    {
+                                        r.V = device.State.ToString();
+                                    }
+                                    else if (deviceData != null)
+                                    {
+                                        List<int> bl = null;
+                                        switch (x.VariableTypeId)
                                         {
-                                            var chu = Math.Pow(10, dn.Precision);
-                                            var v = (decimal)(bl.ElementAt(x.PointerAddress - 1) / chu);
-                                            if (dn.VariableTypeId == 1 && (dn.VariableNameId == AnalysisHelper.flowCardDId || dn.VariableNameId == AnalysisHelper.nextFlowCardDId))
+                                            case 1: bl = deviceData.vals; break;
+                                            case 2: bl = deviceData.ins; break;
+                                            case 3: bl = deviceData.outs; break;
+                                            default: break;
+                                        }
+
+                                        if (bl != null)
+                                        {
+                                            if (bl.Count > x.PointerAddress - 1)
                                             {
-                                                var flowCard = FlowCardHelper.Instance.Get<FlowCard>((int)v);
-                                                r.V = flowCard?.FlowCardName ?? "";
-                                            }
-                                            else if (dn.VariableTypeId == 1 && dn.VariableNameId == AnalysisHelper.currentProductDId)
-                                            {
-                                                var production = ProductionHelper.Instance.Get<Production>((int)v);
-                                                r.V = production?.ProductionProcessName ?? "";
-                                            }
-                                            else
-                                            {
-                                                r.V = v.ToString();
+                                                var chu = Math.Pow(10, dn.Precision);
+                                                var v = (decimal)(bl.ElementAt(x.PointerAddress - 1) / chu);
+                                                if (dn.VariableTypeId == 1 && (dn.VariableNameId == AnalysisHelper.flowCardDId || dn.VariableNameId == AnalysisHelper.nextFlowCardDId))
+                                                {
+                                                    var flowCard = FlowCardHelper.Instance.Get<FlowCard>((int)v);
+                                                    r.V = flowCard?.FlowCardName ?? "";
+                                                }
+                                                else if (dn.VariableTypeId == 1 && dn.VariableNameId == AnalysisHelper.currentProductDId)
+                                                {
+                                                    var production = ProductionHelper.Instance.Get<Production>((int)v);
+                                                    r.V = production?.ProductionProcessName ?? "";
+                                                }
+                                                else
+                                                {
+                                                    r.V = v.ToString();
+                                                }
                                             }
                                         }
                                     }
+                                    t.Data.Add(r);
                                 }
-                                t.Data.Add(r);
+                                mSetData.Add(t);
                             }
-                            mSetData.Add(t);
-                        }
 
-                        MonitoringKanBanDic[id].MSetData = mSetData;
-                        #endregion
-                    }
-                    else if (set.Type == KanBanEnum.生产相关看板)
-                    {
-                        #region 生产相关看板
-                        var startTime = time.DayBeginTime();
-                        var endTime = time.DayEndTime();
-                        foreach (var item in set.ItemList)
-                        {
-                            if (!MonitoringKanBanDic[id].Times.ContainsKey(item))
-                            {
-                                MonitoringKanBanDic[id].Times.Add(item, default(DateTime));
-                            }
-                            if (MonitoringKanBanDic[id].Times[item] != default(DateTime)
-                                && (time - MonitoringKanBanDic[id].Times[item]).TotalSeconds < 10)
-                            {
-                                continue;
-                            }
-                            MonitoringKanBanDic[id].Times[item] = time;
-                            if (item == KanBanItemEnum.合格率异常报警)
-                            {
-                                //MonitoringKanBanDic[id].WarningLogs =
-                                //    WarningLogHelper.GetWarningLogs(startTime, endTime, 0, 0, WarningType.设备, WarningDataType.生产数据,
-                                //        set.DeviceIdList, new List<WarningItemType> { WarningItemType.SingleQualifiedRate }, 1).ToList();
-                                MonitoringKanBanDic[id].WarningLogs =
-                                    WarningLogHelper.GetWarningLogs(startTime, endTime, 0, 0, WarningType.设备, WarningDataType.生产数据,
-                                        null, new List<WarningItemType> { WarningItemType.SingleQualifiedRate }, 1).ToList();
-                            }
-                            else if (item == KanBanItemEnum.合格率异常统计)
-                            {
-                                //MonitoringKanBanDic[id].WarningStatistics =
-                                //    WarningStatisticHelper.GetWarningStatistic(WarningStatisticTime.天, startTime, null, WarningDataType.生产数据,
-                                //        set.DeviceIdList, new List<WarningItemType> { WarningItemType.SingleQualifiedRate }).ToList();
-                                MonitoringKanBanDic[id].WarningStatistics =
-                                    WarningStatisticHelper.GetWarningStatistic(WarningStatisticTime.天, startTime, null, WarningDataType.生产数据,
-                                        null, new List<WarningItemType> { WarningItemType.SingleQualifiedRate }).ToList();
-                            }
-                            else if (item == KanBanItemEnum.设备状态反馈)
-                            {
-                                var idleSecond = RedisHelper.Get<int>(aIdleSecondKey);
-                                var devices = MonitoringProcessHelper.GetMonitoringProcesses();
-                                var idleDevices = devices.Where(x => x.State == 0 && x.TotalTime > idleSecond);
-                                MonitoringKanBanDic[id].DeviceStateInfos = idleDevices.Select(x => new DeviceStateInfo
-                                {
-                                    DeviceId = x.DeviceId,
-                                    Code = x.Code,
-                                    IdleSecond = x.TotalTime,
-                                }).OrderBy(x => x.IdleSecond).ToList();
-                            }
-                            else if (item == KanBanItemEnum.设备预警状态)
-                            {
-                                var deviceList = WarningHelper.GetMonitoringProcesses(set.DeviceIdList);
-                                var warningList = deviceList.Where(device => device.DeviceWarning);
-                                MonitoringKanBanDic[id].WarningDeviceInfos = warningList.Select(device =>
-                                {
-                                    var warnings = new List<MonitoringProcessWarningLog>();
-                                    //warnings.AddRange(device.DeviceWarningList.Values.Concat(device.ProductWarningList.Values));
-                                    warnings.AddRange(device.DeviceWarningList.Values);
-                                    var warning = warnings.OrderByDescending(x => x.WarningTime).First();
-                                    return new WarningDeviceInfo
-                                    {
-                                        Time = warning.WarningTime,
-                                        DeviceId = device.DeviceId,
-                                        Code = device.Code,
-                                        ItemId = warning.ItemId,
-                                        Item = warning.Item,
-                                        SetId = warning.SetId,
-                                        SetName = warning.SetName,
-                                        Range = warning.Range,
-                                        Value = warning.Value,
-                                    };
-                                }).OrderByDescending(x => x.Time).ToList();
-                            }
-                            else if (item == KanBanItemEnum.计划号日进度表)
-                            {
-                                var reports = FlowCardReportHelper.GetReport(startTime, endTime, 0, set.DeviceIdList)
-                                    .GroupBy(x => x.ProductionId)
-                                    .ToDictionary(x => x.Key, x => x.Sum(y => y.HeGe));
-                                var productions = ProductionHelper.GetMenus(reports.Keys);
-                                MonitoringKanBanDic[id].ProductionSchedules = reports.Where(x => productions.Any(y => y.Id == x.Key))
-                                    .Select(x =>
-                                    {
-                                        var production = productions.First(p => p.Id == x.Key);
-                                        return new ProductionSchedule
-                                        {
-                                            ProductionId = x.Key,
-                                            Production = production.ProductionProcessName,
-                                            Plan = 0,
-                                            Actual = x.Value,
-                                        };
-                                    }).OrderBy(x => x.ProductionId).ToList();
-                            }
-                            else if (item == KanBanItemEnum.设备日进度表)
-                            {
-                                var reports = FlowCardReportHelper.GetReport(startTime, endTime, 0, set.DeviceIdList)
-                                    .GroupBy(x => x.DeviceId)
-                                    .ToDictionary(x => x.Key, x => x.Sum(y => y.HeGe));
-                                var deviceLibraries = DeviceLibraryHelper.GetMenus(reports.Keys);
-                                MonitoringKanBanDic[id].DeviceSchedules = reports.Where(x => deviceLibraries.Any(y => y.Id == x.Key))
-                                    .Select(x =>
-                                    {
-                                        var deviceLibrary = deviceLibraries.First(p => p.Id == x.Key);
-                                        return new DeviceSchedule
-                                        {
-                                            DeviceId = x.Key,
-                                            Code = deviceLibrary.Code,
-                                            Plan = 0,
-                                            Actual = x.Value,
-                                        };
-                                    }).OrderBy(x => x.DeviceId).ToList();
-                            }
-                            else if (item == KanBanItemEnum.操作工日进度表)
-                            {
-                                var reports = FlowCardReportHelper.GetReport(startTime, endTime, 0, set.DeviceIdList)
-                                    .GroupBy(x => x.ProcessorId)
-                                    .ToDictionary(x => x.Key, x => x.Sum(y => y.HeGe));
-                                var processes = AccountInfoHelper.GetAccountInfoByAccountIds(reports.Keys);
-                                MonitoringKanBanDic[id].ProcessorSchedules = reports.Where(x => processes.Any(y => y.Id == x.Key))
-                                    .Select(x =>
-                                    {
-                                        var process = processes.First(p => p.Id == x.Key);
-                                        return new ProcessorSchedule
-                                        {
-                                            ProcessorId = x.Key,
-                                            Processor = process.Name,
-                                            Plan = 0,
-                                            Actual = x.Value,
-                                        };
-                                    }).OrderBy(x => x.ProcessorId).ToList();
-                            }
+                            MonitoringKanBanDic[id].MSetData = mSetData;
+                            #endregion
                         }
-                        #endregion
+                        else if (set.Type == KanBanEnum.生产相关看板)
+                        {
+                            #region 生产相关看板
+
+                            var workshop = workshops.ContainsKey(set.WorkshopId)
+                                ? workshops[set.WorkshopId]
+                                : new Workshop
+                                {
+                                    Shifts = 1,
+                                    ShiftTimes = "[\"00:00:00\",\"24:00:00\"]"
+                                };
+                            var currentWorkTimes = DateTimeExtend.GetCurrentWorkTimeRanges(workshop.Shifts, workshop.ShiftTimeList, time);
+                            var workTime = DateTimeExtend.GetDayWorkDayRange(workshop.Shifts, workshop.ShiftTimeList, time);
+                            foreach (var item in set.ItemList)
+                            {
+                                var type = item.Item;
+                                var key = $"{(int)item.Item}_{item.Col}_{item.Order}";
+                                if (!MonitoringKanBanDic[id].Times.ContainsKey(key))
+                                {
+                                    MonitoringKanBanDic[id].Times.Add(key, default(DateTime));
+                                }
+                                if (MonitoringKanBanDic[id].Times[key] != default(DateTime)
+                                    && (time - MonitoringKanBanDic[id].Times[key]).TotalSeconds < 10)
+                                {
+                                    continue;
+                                }
+                                MonitoringKanBanDic[id].Times[key] = time;
+                                var startTime = time.DayBeginTime();
+                                var endTime = time.DayEndTime();
+                                switch (item.Shits)
+                                {
+                                    case KanBanShiftsEnum.当前班次:
+                                        startTime = currentWorkTimes.ElementAt(1).Item1;
+                                        endTime = currentWorkTimes.ElementAt(1).Item2.AddSeconds(-1);
+                                        break;
+                                    case KanBanShiftsEnum.上个班:
+                                        startTime = currentWorkTimes.ElementAt(0).Item1;
+                                        endTime = currentWorkTimes.ElementAt(0).Item2.AddSeconds(-1);
+                                        break;
+                                    case KanBanShiftsEnum.今日:
+                                        startTime = workTime.Item1;
+                                        endTime = workTime.Item2.AddSeconds(-1);
+                                        break;
+                                    case KanBanShiftsEnum.昨日:
+                                        startTime = workTime.Item1.AddDays(-1);
+                                        endTime = workTime.Item2.AddDays(-1).AddSeconds(-1);
+                                        break;
+                                }
+
+                                if (endTime > time)
+                                {
+                                    endTime = time;
+                                }
+                                var cha = (endTime - startTime).TotalMinutes;
+                                var duration = item.Hour * 60 + item.Min;
+                                if (duration != 0 && duration < cha)
+                                {
+                                    startTime = endTime.AddMinutes(-duration);
+                                }
+
+                                if (!MonitoringKanBanDic[id].ItemData.ContainsKey(key))
+                                {
+                                    MonitoringKanBanDic[id].ItemData.Add(key, new List<dynamic>());
+                                }
+                                MonitoringKanBanDic[id].ItemData[key].Clear();
+                                if (type == KanBanItemEnum.合格率异常报警)
+                                {
+                                    //MonitoringKanBanDic[id].WarningLogs =
+                                    //    WarningLogHelper.GetWarningLogs(startTime, endTime, 0, 0, WarningType.设备, WarningDataType.生产数据,
+                                    //        set.DeviceIdList, new List<WarningItemType> { WarningItemType.SingleQualifiedRate }, 1).ToList();
+                                    MonitoringKanBanDic[id].ItemData[key].AddRange(
+                                        WarningLogHelper.GetWarningLogs(startTime, endTime, 0, 0, WarningType.设备, WarningDataType.生产数据,
+                                            null, new List<WarningItemType> { WarningItemType.SingleQualifiedRate }, 1));
+                                }
+                                else if (type == KanBanItemEnum.合格率异常统计)
+                                {
+                                    //相关设备
+                                    //MonitoringKanBanDic[id].WarningStatistics =
+                                    //    WarningStatisticHelper.GetWarningStatistic(WarningStatisticTime.天, startTime, null, WarningDataType.生产数据,
+                                    //        set.DeviceIdList, new List<WarningItemType> { WarningItemType.SingleQualifiedRate }).ToList();
+
+                                    //无相关设备
+                                    //MonitoringKanBanDic[id].WarningStatistics =
+                                    //    WarningStatisticHelper.GetWarningStatistic(WarningStatisticTime.天, startTime, null, WarningDataType.生产数据,
+                                    //        null, new List<WarningItemType> { WarningItemType.SingleQualifiedRate }).ToList();
+
+                                    var logs = WarningLogHelper.GetWarningLogs(startTime, endTime, 0, 0, WarningType.设备, WarningDataType.生产数据,
+                                            null, new List<WarningItemType> { WarningItemType.SingleQualifiedRate }, 1).ToList();
+                                    MonitoringKanBanDic[id].ItemData[key].AddRange(logs.GroupBy(x => new { x.ItemId, x.SetId, x.SetName, x.Range, x.Item })
+                                        .Select(x => new WarningStatistic
+                                        {
+                                            Time = startTime.Date,
+                                            SetId = x.Key.ItemId,
+                                            SetName = x.Key.SetName,
+                                            ItemId = x.Key.ItemId,
+                                            Item = x.Key.Item,
+                                            Range = x.Key.Range,
+                                            Count = x.Count()
+                                        }));
+                                }
+                                else if (type == KanBanItemEnum.设备状态反馈)
+                                {
+                                    var idleSecond = RedisHelper.Get<int>(aIdleSecondKey);
+                                    var devices = MonitoringProcessHelper.GetMonitoringProcesses();
+                                    var idleDevices = devices.Where(x => x.State == 0 && x.TotalTime > idleSecond);
+                                    MonitoringKanBanDic[id].ItemData[key].AddRange(idleDevices.Select(x => new DeviceStateInfo
+                                    {
+                                        DeviceId = x.DeviceId,
+                                        Code = x.Code,
+                                        IdleSecond = x.TotalTime,
+                                    }).OrderBy(x => x.IdleSecond));
+                                }
+                                else if (type == KanBanItemEnum.设备预警状态)
+                                {
+                                    var deviceList = WarningHelper.GetMonitoringProcesses(set.DeviceIdList);
+                                    var warningList = deviceList.Where(device => device.DeviceWarning);
+                                    MonitoringKanBanDic[id].ItemData[key].AddRange(warningList.Select(device =>
+                                    {
+                                        var warnings = new List<MonitoringProcessWarningLog>();
+                                        //warnings.AddRange(device.DeviceWarningList.Values.Concat(device.ProductWarningList.Values));
+                                        warnings.AddRange(device.DeviceWarningList.Values);
+                                        var warning = warnings.OrderByDescending(x => x.WarningTime).First();
+                                        return new WarningDeviceInfo
+                                        {
+                                            Time = warning.WarningTime,
+                                            DeviceId = device.DeviceId,
+                                            Code = device.Code,
+                                            ItemId = warning.ItemId,
+                                            Item = warning.Item,
+                                            SetId = warning.SetId,
+                                            SetName = warning.SetName,
+                                            Range = warning.Range,
+                                            Value = warning.Value,
+                                        };
+                                    }).OrderByDescending(x => x.Time));
+                                }
+                                else if (type == KanBanItemEnum.计划号日进度表)
+                                {
+                                    var reports = FlowCardReportGetHelper.GetReport(startTime, endTime, 18, null, 0, set.DeviceIdList)
+                                        .GroupBy(x => x.ProductionId)
+                                        .ToDictionary(x => x.Key, x => x.Sum(y => y.HeGe));
+                                    var productionPlans = ProductionPlanHelper.GetDetails(startTime.Date, startTime.Date, "蓝玻璃发抛光").Where(x => x.ProductionId != 0);
+                                    var existProductionPlanIds = reports.Select(x => x.Key)
+                                        .Where(y => y != 0 && productionPlans.All(z => z.ProductionId != y));
+                                    var existProductionPlans = ProductionPlanHelper.GetDetails(startTime.Date, startTime.Date, 0, 0, existProductionPlanIds).Where(x => x.ProductionId != 0);
+                                    var productions = ProductionHelper.GetMenus(reports.Keys);
+                                    var pp = reports.Where(x => productions.Any(y => y.Id == x.Key))
+                                        .Select(x =>
+                                        {
+                                            var production = productions.First(p => p.Id == x.Key);
+                                            var plan = productionPlans.FirstOrDefault(p => p.ProductionId == x.Key) ??
+                                                       existProductionPlans.FirstOrDefault(p => p.ProductionId == x.Key);
+                                            return new ProductionSchedule
+                                            {
+                                                ProductionId = x.Key,
+                                                Production = production.ProductionProcessName,
+                                                Plan = plan?.Plan ?? 0,
+                                                Actual = x.Value,
+                                            };
+                                        }).ToList();
+                                    var not = productionPlans.Where(x => pp.All(y => y.ProductionId != x.ProductionId)).ToList();
+                                    pp.AddRange(not.Select(z => new ProductionSchedule
+                                    {
+                                        ProductionId = z.ProductionId,
+                                        Production = z.ProductionProcessName,
+                                        Plan = z.Plan,
+                                        Actual = 0
+                                    }));
+                                    MonitoringKanBanDic[id].ItemData[key].AddRange(pp.OrderByDescending(x => x.Plan).ThenByDescending(x => x.Actual));
+                                }
+                                else if (type == KanBanItemEnum.设备日进度表)
+                                {
+                                    var reports = FlowCardReportGetHelper.GetReport(startTime, endTime, 18, null, 0, set.DeviceIdList)
+                                        .GroupBy(x => x.DeviceId)
+                                        .ToDictionary(x => x.Key, x => x.Sum(y => y.HeGe));
+                                    var deviceLibraries = DeviceLibraryHelper.GetMenus(reports.Keys);
+                                    MonitoringKanBanDic[id].ItemData[key].AddRange(reports.Where(x => deviceLibraries.Any(y => y.Id == x.Key))
+                                        .Select(x =>
+                                        {
+                                            var deviceLibrary = deviceLibraries.First(p => p.Id == x.Key);
+                                            return new DeviceSchedule
+                                            {
+                                                DeviceId = x.Key,
+                                                Code = deviceLibrary.Code,
+                                                Plan = 0,
+                                                Actual = x.Value,
+                                            };
+                                        }).OrderByDescending(x => x.Actual));
+                                }
+                                else if (type == KanBanItemEnum.操作工日进度表)
+                                {
+                                    var reports = FlowCardReportGetHelper.GetReport(startTime, endTime, 18, null, 0, set.DeviceIdList)
+                                        .GroupBy(x => x.ProcessorId)
+                                        .ToDictionary(x => x.Key, x => x.Sum(y => y.HeGe));
+                                    var processes = AccountInfoHelper.GetAccountInfoByAccountIds(reports.Keys);
+                                    MonitoringKanBanDic[id].ItemData[key].AddRange(reports.Where(x => processes.Any(y => y.Id == x.Key))
+                                        .Select(x =>
+                                        {
+                                            var process = processes.First(p => p.Id == x.Key);
+                                            return new ProcessorSchedule
+                                            {
+                                                ProcessorId = x.Key,
+                                                Processor = process.Name,
+                                                Plan = 0,
+                                                Actual = x.Value,
+                                            };
+                                        }).OrderByDescending(x => x.Actual));
+                                }
+                            }
+                            MonitoringKanBanDic[id].Check(set.ItemList);
+                            #endregion
+                        }
                     }
                 }
+                #endregion
             }
-            #endregion
+            catch (Exception e)
+            {
+                Log.Error(e);
+            }
         }
 
         /// <summary>

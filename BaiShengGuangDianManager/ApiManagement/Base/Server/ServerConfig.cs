@@ -43,7 +43,6 @@ namespace ApiManagement.Base.Server
             AccountInfoHelper.Init(configuration);
             WarningHelper.Init();
             HFlowCardHelper.Init();
-            //HFlowCardHelper.UseFlowCardReport();
             WorkFlowHelper.Init();
             SimulateHelper.Init();
             HScheduleHelper.Init();

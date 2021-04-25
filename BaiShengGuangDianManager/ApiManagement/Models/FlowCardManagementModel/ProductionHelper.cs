@@ -2,6 +2,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using ApiManagement.Base.Server;
 using ApiManagement.Models.BaseModel;
 
 namespace ApiManagement.Models.FlowCardManagementModel
@@ -78,6 +79,13 @@ namespace ApiManagement.Models.FlowCardManagementModel
                 args.Add(new Tuple<string, string, dynamic>("Id", "NOT IN", ids));
             }
             return Instance.CommonHaveSame(args);
+        }
+        public static Production GetProduction(int fId)
+        {
+            return ServerConfig.ApiDb
+                .Query<Production>(
+                    "SELECT a.Id, b.ProductionProcessName FROM flowcard_library a JOIN production_library b ON a.ProductionProcessId = b.Id WHERE a.Id = @fId", new{ fId })
+                .FirstOrDefault();
         }
         #endregion
 

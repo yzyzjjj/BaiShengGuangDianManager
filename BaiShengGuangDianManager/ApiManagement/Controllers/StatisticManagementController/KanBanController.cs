@@ -46,15 +46,14 @@ namespace ApiManagement.Controllers.StatisticManagementController
                     Order = -1,
                     IsShow = true
                 });
-                var item = MonitoringKanBanSetHelper.Instance.Configs.ToDictionary(x => (int)x.Key,
-                    x => x.Value.Select(y => new
-                    { Id = (int)y, Type = y.GetAttribute<DescriptionAttribute>()?.Description ?? "" }));
+                var item = MonitoringKanBanSetHelper.Instance.Configs.ToDictionary(x => (int)x.Key, x => x.Value);
                 return new
                 {
                     errno = 0,
                     errmsg = "成功",
                     menu = EnumHelper.EnumToList<KanBanEnum>().Select(x => new { Id = x.EnumValue, Type = x.EnumName }),
                     item,
+                    shift = EnumHelper.EnumToList<KanBanShiftsEnum>(true).Select(x => new { Id = x.EnumValue, Type = x.EnumName }),
                     data
                 };
             }
@@ -87,15 +86,16 @@ namespace ApiManagement.Controllers.StatisticManagementController
                             var idList = set.DeviceIdList;
                             var deviceLibraryDetails = ServerConfig.ApiDb.Query<DeviceLibraryDetail>(
                                 "SELECT a.*, b.ModelName, b.DeviceCategoryId, b.CategoryName, c.FirmwareName, d.ApplicationName, e.HardwareName, f.SiteName, f.Region, " +
-                                "g.ScriptName, IFNULL(h.`Name`, '')  AdministratorName, i.`Class` FROM device_library a " +
+                                "g.ScriptName, IFNULL(h.`Name`, '')  AdministratorName, i.`Class`, j.FlowCardId, j.FlowCard, j.LastFlowCardId, j.LastFlowCard FROM device_library a " +
                                 $"JOIN (SELECT a.*, b.CategoryName FROM device_model a JOIN device_category b ON a.DeviceCategoryId = b.Id) b ON a.DeviceModelId = b.Id " +
                                 "JOIN firmware_library c ON a.FirmwareId = c.Id " +
                                 "JOIN application_library d ON a.ApplicationId = d.Id " +
                                 "JOIN hardware_library e ON a.HardwareId = e.Id " +
                                 "JOIN site f ON a.SiteId = f.Id " +
                                 "JOIN script_version g ON a.ScriptId = g.Id " +
-                                "JOIN device_class i ON a.ClassId = i.Id " +
                                 "LEFT JOIN (SELECT * FROM(SELECT * FROM maintainer ORDER BY MarkedDelete)a GROUP BY a.Account) h ON a.Administrator = h.Account " +
+                                "JOIN device_class i ON a.ClassId = i.Id " +
+                                "JOIN `npc_proxy_link` j ON a.Id = j.DeviceId " +
                                 $"WHERE a.`MarkedDelete` = 0" +
                                 $"{(idList.Any() ? " AND a.Id IN @idList" : "")}" +
                                 $" ORDER BY a.Id;", new { idList }).ToDictionary(x => x.Id);
@@ -255,12 +255,16 @@ namespace ApiManagement.Controllers.StatisticManagementController
                                                 var v = (decimal)(bl.ElementAt(x.PointerAddress - 1) / chu);
                                                 if (dn.VariableTypeId == 1 && (dn.VariableNameId == AnalysisHelper.flowCardDId || dn.VariableNameId == AnalysisHelper.nextFlowCardDId))
                                                 {
-                                                    var flowCard = FlowCardHelper.Instance.Get<FlowCard>((int)v);
-                                                    r.V = flowCard?.FlowCardName ?? "";
+                                                    //var flowCard = FlowCardHelper.Instance.Get<FlowCard>((int)v);
+                                                    //r.V = flowCard?.FlowCardName ?? "";
+                                                    r.V = device.LastFlowCard;
                                                 }
                                                 else if (dn.VariableTypeId == 1 && dn.VariableNameId == AnalysisHelper.currentProductDId)
                                                 {
-                                                    var production = ProductionHelper.Instance.Get<Production>((int)v);
+                                                    //var production = ProductionHelper.Instance.Get<Production>((int)v);
+                                                    //r.V = production?.ProductionProcessName ?? "";
+
+                                                    var production = ProductionHelper.GetProduction(device.LastFlowCardId);
                                                     r.V = production?.ProductionProcessName ?? "";
                                                 }
                                                 else
@@ -306,6 +310,7 @@ namespace ApiManagement.Controllers.StatisticManagementController
                             errmsg = "成功",
                             time = kanBan?.Time ?? DateTime.Now,
                             items = set.ItemList,
+                            colSet = set.ColSet,
                             data = kanBan
                         };
                 }
@@ -402,6 +407,22 @@ namespace ApiManagement.Controllers.StatisticManagementController
                         x.SubOrder,
                         x.Delimiter,
                     }).ToJSON();
+                }
+            }else if (set.Type == KanBanEnum.生产相关看板)
+            {
+                if (set.Col <= 0)
+                {
+                    return Result.GenError<Result>(Error.MonitoringKanBanSetColError);
+                }
+
+                if (set.ItemList.Count == 0)
+                {
+                    return Result.GenError<Result>(Error.MonitoringKanBanNoItem);
+                }
+
+                if (set.ItemList.GroupBy(x => new { x.Col, x.Order }).Any(x => x.Count() > 1))
+                {
+                    return Result.GenError<Result>(Error.MonitoringKanBanItemOrderDuplicate);
                 }
             }
 

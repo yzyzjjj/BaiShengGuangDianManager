@@ -37,6 +37,14 @@ namespace ApiManagement.Models.StatisticManagementModel
         /// 当前流程卡
         /// </summary>
         public string FlowCard { get; set; } = "";
+        /// <summary>
+        /// 上次加工流程卡
+        /// </summary>
+        public int LastFlowCardId { get; set; }
+        /// <summary>
+        /// 上次加工流程卡
+        /// </summary>
+        public string LastFlowCard { get; set; } = "";
 
         /// <summary>
         /// 日总加工次数
@@ -325,6 +333,14 @@ namespace ApiManagement.Models.StatisticManagementModel
         /// 当前流程卡
         /// </summary>
         public string FlowCard { get; set; } = "";
+        /// <summary>
+        /// 上次加工流程卡
+        /// </summary>
+        public int LastFlowCardId { get; set; }
+        /// <summary>
+        /// 上次加工流程卡
+        /// </summary>
+        public string LastFlowCard { get; set; } = "";
 
         /// <summary>
         /// 日总加工次数
@@ -758,12 +774,12 @@ namespace ApiManagement.Models.StatisticManagementModel
         /// <summary>
         /// 每日重置
         /// </summary>
-        public void DayRest(DateTime time = default(DateTime))
+        public void DayRest(bool init = true)
         {
             NormalDevice = 0;
             ProcessDevice = 0;
             FaultDevice = 0;
-            if (time == default(DateTime) || !time.InSameDay(Time))
+            if (init)
             {
                 DayTotal = 0;
                 DayQualified = 0;
