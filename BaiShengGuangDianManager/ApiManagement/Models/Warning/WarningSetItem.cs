@@ -352,7 +352,6 @@ namespace ApiManagement.Models.Warning
         /// 满足预警条件的数据
         /// </summary>
         public string Values { get; set; }
-        [JsonIgnore]
         private List<WarningData> _warningData;
         public List<WarningData> WarningData
         {
@@ -369,6 +368,11 @@ namespace ApiManagement.Models.Warning
         {
             Values = _warningData.ToJson();
         }
+
+        /// <summary>
+        /// 组成前端所需的数据
+        /// </summary>
+        public string Info { get; set; } = "";
     }
 
     public class WarningCurrentDetail : WarningCurrent
@@ -379,6 +383,22 @@ namespace ApiManagement.Models.Warning
 
     public class WarningData
     {
+        public WarningData()
+        {
+        }
+
+        public void Deserialize()
+        {
+            if (!Param.IsNullOrEmpty())
+            {
+                ParamList.AddRange(JsonConvert.DeserializeObject<List<string>>(Param));
+            }
+
+            if (!OtherParam.IsNullOrEmpty())
+            {
+                OtherParamList.AddRange(JsonConvert.DeserializeObject<List<object>>(OtherParam));
+            }
+        }
         public WarningData(DateTime t, decimal v)
         {
             T = t;

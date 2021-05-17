@@ -4,12 +4,12 @@ using ApiManagement.Models.RepairManagementModel;
 using Microsoft.AspNetCore.Mvc;
 using ModelBase.Base.EnumConfig;
 using ModelBase.Base.Utils;
+using ModelBase.Models.BaseModel;
 using ModelBase.Models.Result;
 using ServiceStack;
 using System;
 using System.Collections.Generic;
 using System.Linq;
-using ModelBase.Models.BaseModel;
 
 namespace ApiManagement.Controllers.RepairManagementController
 {
@@ -213,8 +213,8 @@ namespace ApiManagement.Controllers.RepairManagementController
             }
             else
             {
-                var cnt =
-                    ServerConfig.ApiDb.Query<int>("SELECT COUNT(1) FROM `maintainer` WHERE Id IN @ids AND `MarkedDelete` = 0;", new { ids = maintainers.Select(x => x.Id) }).FirstOrDefault();
+                var ids = maintainers.Select(x => x.Id);
+                var cnt = MaintainerHelper.Instance.GetCountByIds(ids);
                 if (cnt != maintainers.Count())
                 {
                     return Result.GenError<Result>(Error.MaintainerNotExist);
@@ -229,9 +229,7 @@ namespace ApiManagement.Controllers.RepairManagementController
                     maintainer.MarkedDateTime = markedDateTime;
                     maintainer.Phone = (maintainer.Phone.IsNullOrEmpty() || !maintainer.Phone.IsPhone()) ? "" : maintainer.Phone;
                 }
-                sql =
-                    "UPDATE maintainer SET `MarkedDateTime` = @MarkedDateTime, `Phone` = @Phone, `Remark` = @Remark, `Order` = @Order WHERE `Id` = @Id;";
-                ServerConfig.ApiDb.Execute(sql, maintainers);
+                MaintainerHelper.Instance.Update(maintainers);
             }
             TimerHelper.DoMaintainerSchedule();
             return Result.GenError<Result>(Error.Success);
@@ -291,8 +289,7 @@ namespace ApiManagement.Controllers.RepairManagementController
             //{
             //    return Result.GenError<Result>(Error.PhoneError);
             //}
-            var cnt =
-                ServerConfig.ApiDb.Query<int>("SELECT COUNT(1) FROM `maintainer` WHERE Account IN @Account AND `MarkedDelete` = 0;", new { Account = acc }).FirstOrDefault();
+            var cnt = MaintainerHelper.GetCountByAccounts(acc);
             if (cnt > 0)
             {
                 return Result.GenError<Result>(Error.MaintainerIsExist);
@@ -308,11 +305,7 @@ namespace ApiManagement.Controllers.RepairManagementController
                 maintainer.Remark = maintainer.Remark ?? "";
             }
 
-            var sql =
-                "INSERT INTO maintainer (`CreateUserId`, `MarkedDateTime`, `Name`, `Account`, `Phone`, `Remark`, `Order`) " +
-                "VALUES (@CreateUserId, @MarkedDateTime, @Name, @Account, @Phone, @Remark, @Order);";
-            ServerConfig.ApiDb.Execute(sql, maintainers);
-
+            MaintainerHelper.Instance.Add(maintainers);
             TimerHelper.DoMaintainerSchedule();
             return Result.GenError<Result>(Error.Success);
         }
@@ -325,8 +318,9 @@ namespace ApiManagement.Controllers.RepairManagementController
             {
                 return Result.GenError<Result>(Error.MaintainerNotExist);
             }
-            var cnt =
-                ServerConfig.ApiDb.Query<int>("SELECT COUNT(1) FROM `maintainer` WHERE Id IN @MaintainerId AND `MarkedDelete` = 0;", new { MaintainerId = maintainers.Select(x => x.MaintainerId) }).FirstOrDefault();
+
+            var ids = maintainers.Select(x => x.MaintainerId);
+            var cnt = MaintainerHelper.Instance.GetCountByIds(ids);
             if (cnt < maintainers.Count())
             {
                 return Result.GenError<Result>(Error.MaintainerNotExist);
@@ -359,20 +353,13 @@ namespace ApiManagement.Controllers.RepairManagementController
         public Result DeleteMaintainer([FromBody] BatchDelete batchDelete)
         {
             var ids = batchDelete.ids;
-            var cnt =
-                ServerConfig.ApiDb.Query<int>("SELECT * FROM `maintainer` WHERE Id IN @id AND `MarkedDelete` = 0;", new { id = ids }).FirstOrDefault();
+
+            var cnt = MaintainerHelper.Instance.GetCountByIds(ids);
             if (cnt == 0)
             {
                 return Result.GenError<Result>(Error.MaintainerIsExist);
             }
-            ServerConfig.ApiDb.Execute(
-                "UPDATE `maintainer` SET `MarkedDateTime`= @MarkedDateTime, `MarkedDelete`= @MarkedDelete WHERE Id IN @id", new
-                {
-                    MarkedDateTime = DateTime.Now,
-                    MarkedDelete = true,
-                    Id = ids
-                });
-
+            MaintainerHelper.Instance.Delete(ids);
             TimerHelper.DoMaintainerSchedule();
             return Result.GenError<Result>(Error.Success);
         }

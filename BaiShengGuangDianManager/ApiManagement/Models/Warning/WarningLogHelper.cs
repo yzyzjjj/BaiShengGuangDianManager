@@ -15,8 +15,8 @@ namespace ApiManagement.Models.Warning
             Table = "warning_log";
 
             InsertSql =
-                "INSERT INTO `warning_log` (`Id`, `IsWarning`, `WarningTime`, `WarningType`, `StepId`, `ClassId`, `SetName`, `ItemId`, `Item`, `DeviceId`, `DataType`, `SetId`, `ScriptId`, `CategoryId`, `StartTime`, `EndTime`, `Frequency`, `Interval`, `Count`, `Condition1`, `Value1`, `Condition2`, `Value2`, `Range`, `DictionaryId`, `Current`, `Value`, `Param`, `Values`, `DeviceIds`) " +
-                "VALUES (@Id, @IsWarning, @WarningTime, @WarningType, @StepId, @ClassId, @SetName, @ItemId, @Item, @DeviceId, @DataType, @SetId, @ScriptId, @CategoryId, @StartTime, @EndTime, @Frequency, @Interval, @Count, @Condition1, @Value1, @Condition2, @Value2, @Range, @DictionaryId, @Current, @Value, @Param, @Values, @DeviceIds);";
+                "INSERT INTO `warning_log` (`Id`, `IsWarning`, `WarningTime`, `WarningType`, `StepId`, `ClassId`, `SetName`, `ItemId`, `Item`, `DeviceId`, `DataType`, `SetId`, `ScriptId`, `CategoryId`, `StartTime`, `EndTime`, `Frequency`, `Interval`, `Count`, `Condition1`, `Value1`, `Condition2`, `Value2`, `Range`, `DictionaryId`, `Current`, `Value`, `Param`, `Values`, `DeviceIds`, `ExtraIds`) " +
+                "VALUES (@Id, @IsWarning, @WarningTime, @WarningType, @StepId, @ClassId, @SetName, @ItemId, @Item, @DeviceId, @DataType, @SetId, @ScriptId, @CategoryId, @StartTime, @EndTime, @Frequency, @Interval, @Count, @Condition1, @Value1, @Condition2, @Value2, @Range, @DictionaryId, @Current, @Value, @Param, @Values, @DeviceIds, @ExtraIds);";
             UpdateSql =
                 "";
 
@@ -50,65 +50,81 @@ namespace ApiManagement.Models.Warning
         /// <param name="deviceIds"></param>
         /// <param name="itemTypes"></param>
         /// <param name="isWarning">-1all 0  1 </param>
+        /// <param name="setIds"></param>
+        /// <param name="itemIds"></param>
         /// <returns></returns>
         public static IEnumerable<WarningLog> GetWarningLogs(DateTime startTime, DateTime endTime, int setId, int itemId,
-            WarningType warningType, WarningDataType dataType, IEnumerable<int> deviceIds, IEnumerable<WarningItemType> itemTypes, int isWarning = -1)
+            WarningType warningType, WarningDataType dataType, IEnumerable<int> deviceIds, IEnumerable<WarningItemType> itemTypes, IEnumerable<int> setIds, IEnumerable<int> itemIds, int isWarning = -1)
         {
             var param = new List<string>();
             if (startTime != default(DateTime))
             {
-                param.Add("WarningTime >= @startTime");
+                param.Add("a.WarningTime >= @startTime");
             }
             if (endTime != default(DateTime))
             {
-                param.Add("WarningTime <= @endTime");
+                param.Add("a.WarningTime <= @endTime");
             }
             if (setId != 0)
             {
-                param.Add("SetId = @setId");
+                param.Add("a.SetId = @setId");
+            }
+            if (setIds != null && setIds.Any())
+            {
+                param.Add("a.SetId IN @setIds");
             }
             if (itemId != 0)
             {
-                param.Add("ItemId = @itemId");
+                param.Add("a.ItemId = @itemId");
             }
             if (warningType != WarningType.默认)
             {
-                param.Add("WarningType = @warningType");
+                param.Add("a.WarningType = @warningType");
             }
             if (dataType != WarningDataType.默认)
             {
-                param.Add("DataType = @dataType");
+                param.Add("a.DataType = @dataType");
             }
             if (deviceIds != null && deviceIds.Any())
             {
-                param.Add("DeviceId IN @deviceIds");
+                param.Add("a.DeviceId IN @deviceIds");
             }
             if (isWarning != -1)
             {
-                param.Add("IsWarning = @isWarning");
+                param.Add("a.IsWarning = @isWarning");
             }
 
-            IEnumerable<int> itemIds = null;
             if (itemTypes != null && itemTypes.Any())
             {
-                var args = new List<Tuple<string, string, dynamic>>
-                {
-                    new Tuple<string, string, dynamic>("ItemType", "IN", itemTypes)
-                };
-                if (setId != 0)
-                {
-                    args.Add(new Tuple<string, string, dynamic>("SetId", "=", setId));
-                }
-                itemIds = WarningSetItemHelper.Instance.CommonGet<WarningSetItem>(args).Select(x => x.Id);
-                if (!itemIds.Any())
-                {
-                    return new List<WarningLog>();
-                }
-                param.Add("ItemId IN @itemIds");
+                param.Add("b.ItemType = @itemTypes");
+                //var args = new List<Tuple<string, string, dynamic>>
+                //{
+                //    new Tuple<string, string, dynamic>("ItemType", "IN", itemTypes)
+                //};
+                //if (setId != 0)
+                //{
+                //    args.Add(new Tuple<string, string, dynamic>("SetId", "=", setId));
+                //}
+                //var tItemIds = WarningSetItemHelper.Instance.CommonGet<WarningSetItem>(args).Select(x => x.Id);
+                //if (!tItemIds.Any())
+                //{
+                //    return new List<WarningLog>();
+                //}
+                //param.Add("a.ItemId IN @itemIds");
+                //if (itemIds.Any())
+                //{
+                //    itemIds = tItemIds.Intersect(itemIds);
+                //}
+            }
+            if (itemIds != null && itemIds.Any())
+            {
+                param.Add("a.ItemId IN @itemIds");
             }
             var r = ServerConfig.ApiDb.Query<WarningLog>(
-                $"SELECT * FROM `warning_log`{(param.Any() ? $" WHERE {param.Join(" AND ")}" : "")} ORDER BY WarningTime DESC;",
-                new { startTime, endTime, setId, itemId, warningType, dataType, deviceIds, itemIds, isWarning });
+                $"SELECT a.*, b.ItemType FROM `warning_log` a " +
+                $"JOIN (SELECT a.*, b.StepId FROM warning_set_item a JOIN `warning_set` b ON a.SetId = b.Id) b ON a.ItemId = b.Id " +
+                $"{(param.Any() ? $" WHERE {param.Join(" AND ")}" : "")} ORDER BY a.WarningTime DESC;",
+                new { startTime, endTime, setId, itemId, warningType, dataType, deviceIds, setIds, itemIds, itemTypes, isWarning });
 
             if (r != null && r.Any())
             {

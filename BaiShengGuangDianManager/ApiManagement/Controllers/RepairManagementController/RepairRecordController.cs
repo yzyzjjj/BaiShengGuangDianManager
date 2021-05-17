@@ -26,42 +26,8 @@ namespace ApiManagement.Controllers.RepairManagementController
         public DataResult GetRepairRecord([FromQuery]DateTime startTime, DateTime endTime, int condition,
             string code, DateTime fStartTime, DateTime fEndTime, DateTime eStartTime, DateTime eEndTime, int qId, string maintainer = "-1", string faultSolver = "-1", int faultType = -1, int priority = -1, int grade = -1)
         {
-            if (!maintainer.IsNullOrEmpty() && maintainer != "-1")
-            {
-                maintainer = $"%{maintainer},%";
-            }
-            if (!faultSolver.IsNullOrEmpty() && faultSolver != "-1")
-            {
-                faultSolver = $"%{faultSolver},%";
-            }
-            var field = RepairRecord.GetField(new List<string> { "DeviceCode" }, "a.");
-            var sql =
-                $"SELECT {field}, IFNULL(d.`Code`, a.DeviceCode) DeviceCode, b.FaultTypeName, b.FaultDescription, c.FaultTypeName FaultTypeName1, c.FaultDescription FaultDescription1 FROM `fault_device_repair` a " +
-                $"JOIN `fault_type` b ON a.FaultTypeId = b.Id " +
-                $"JOIN `fault_type` c ON a.FaultTypeId1 = c.Id " +
-                $"LEFT JOIN `device_library` d ON a.DeviceId = d.Id";
-
-            sql += $" WHERE a.MarkedDelete = 0 AND `State` = @fState " +
-                   $"{((startTime == default(DateTime) || endTime == default(DateTime)) ? "" : " AND a.SolveTime >= @startTime AND a.SolveTime <= @endTime")}" +
-                   $"{(code.IsNullOrEmpty() ? "" : (" AND a.DeviceCode " + (condition == 0 ? "=" : "!=") + " @code"))}" +
-                   $"{((fStartTime == default(DateTime) || fEndTime == default(DateTime)) ? "" : " AND a.FaultTime >= @startTime AND a.FaultTime <= @endTime")}" +
-                   $"{(faultType == -1 ? "" : (" AND a.FaultTypeId " + (condition == 0 ? "=" : "!=") + " @faultType"))}" +
-                   $"{(priority == -1 ? "" : (" AND a.Priority " + (condition == 0 ? "=" : "!=") + " @priority"))}" +
-                   $"{(grade == -1 ? "" : (" AND a.Grade " + (condition == 0 ? "=" : "!=") + " @grade"))}" +
-                   $"{((maintainer.IsNullOrEmpty() || maintainer == "-1") ? "" : (" AND CONCAT(a.Maintainer, \",\") " + (condition == 0 ? "LIKE " : " NOT LIKE ") + " @maintainer"))}" +
-                   $"{((faultSolver.IsNullOrEmpty() || faultSolver == "-1") ? "" : (" AND CONCAT(a.FaultSolver, \",\") " + (condition == 0 ? "LIKE " : " NOT LIKE ") + " @faultSolver"))}" +
-                   $"{((eStartTime == default(DateTime) || eEndTime == default(DateTime)) ? "" : " AND a.EstimatedTime >= @eStartTime AND a.EstimatedTime <= @eEndTime")}" +
-                   $"{(qId == 0 ? "" : (" AND a.Id " + (condition == 0 ? "=" : "!=") + " @qId"))}";
-            var faults = ServerConfig.ApiDb.Query<RepairRecordDetail>(sql,
-                new { fState = RepairStateEnum.Complete, startTime, endTime, condition, code, fStartTime, fEndTime, faultType, priority, grade, maintainer, faultSolver, eStartTime, eEndTime, qId });
-            var maintainers = ServerConfig.ApiDb.Query<Maintainer>("SELECT * FROM `maintainer` WHERE `MarkedDelete` = 0;").ToArray();
-            foreach (var fault in faults)
-            {
-                var mans = maintainers.Where(x => fault.Maintainers.Any(y => y == x.Account));
-                fault.Name = mans.Select(x => x.Name).Join() ?? "";
-                fault.Account = mans.Select(x => x.Account).Join() ?? "";
-                fault.Phone = mans.Select(x => x.Phone).Join() ?? "";
-            }
+            var faults = RepairRecordHelper.GetRepairRecordDetails(startTime, endTime, condition,
+                code, fStartTime, fEndTime, eStartTime, eEndTime, qId, maintainer, faultSolver, faultType, priority, grade);
             var result = new DataResult();
             result.datas.AddRange(faults.OrderByDescending(x => x.SolveTime).ThenByDescending(x => x.DeviceCode));
             if (qId != 0 && !result.datas.Any())
@@ -80,38 +46,8 @@ namespace ApiManagement.Controllers.RepairManagementController
         public DataResult GetRepairRecordDeleteLog([FromQuery]DateTime startTime, DateTime endTime, int condition,
             string code, DateTime fStartTime, DateTime fEndTime, DateTime eStartTime, DateTime eEndTime, int qId, string maintainer = "-1", string faultSolver = "-1", int faultType = -1, int priority = -1, int grade = -1)
         {
-            if (!maintainer.IsNullOrEmpty() && maintainer != "-1")
-            {
-                maintainer = $"%{maintainer},%";
-            }
-            var field = RepairRecord.GetField(new List<string> { "DeviceCode" }, "a.");
-            var sql =
-                $"SELECT {field}, IFNULL(d.`Code`, a.DeviceCode) DeviceCode, b.FaultTypeName, b.FaultDescription, c.FaultTypeName FaultTypeName1, c.FaultDescription FaultDescription1 FROM `fault_device_repair` a " +
-                $"JOIN `fault_type` b ON a.FaultTypeId = b.Id " +
-                $"JOIN `fault_type` c ON a.FaultTypeId1 = c.Id " +
-                $"LEFT JOIN `device_library` d ON a.DeviceId = d.Id";
-
-            sql += $" WHERE a.MarkedDelete = 1 AND `State` = @fState AND a.Cancel = 1 " +
-                   $"{((startTime == default(DateTime) || endTime == default(DateTime)) ? "" : " AND a.SolveTime >= @startTime AND a.SolveTime <= @endTime")}" +
-                   $"{(code.IsNullOrEmpty() ? "" : (" AND a.DeviceCode " + (condition == 0 ? "=" : "!=") + " @code"))}" +
-                   $"{((fStartTime == default(DateTime) || fEndTime == default(DateTime)) ? "" : " AND a.FaultTime >= @startTime AND a.FaultTime <= @endTime")}" +
-                   $"{(faultType == -1 ? "" : (" AND a.FaultTypeId " + (condition == 0 ? "=" : "!=") + " @faultType"))}" +
-                   $"{(priority == -1 ? "" : (" AND a.Priority " + (condition == 0 ? "=" : "!=") + " @priority"))}" +
-                   $"{(grade == -1 ? "" : (" AND a.Grade " + (condition == 0 ? "=" : "!=") + " @grade"))}" +
-                   $"{((maintainer.IsNullOrEmpty() || maintainer == "-1") ? "" : (" AND CONCAT(a.Maintainer, \",\") " + (condition == 0 ? "LIKE " : " NOT LIKE ") + " @maintainer"))}" +
-                   $"{((faultSolver.IsNullOrEmpty() || faultSolver == "-1") ? "" : (" AND CONCAT(a.FaultSolver, \",\") " + (condition == 0 ? "LIKE " : " NOT LIKE ") + " @faultSolver"))}" +
-                   $"{((eStartTime == default(DateTime) || eEndTime == default(DateTime)) ? "" : " AND a.EstimatedTime >= @eStartTime AND a.EstimatedTime <= @eEndTime")}" +
-                   $"{(qId == 0 ? "" : (" AND a.Id " + (condition == 0 ? "=" : "!=") + " @qId"))}";
-            var faults = ServerConfig.ApiDb.Query<RepairRecordDetail>(sql,
-                new { fState = RepairStateEnum.Complete, startTime, endTime, condition, code, fStartTime, fEndTime, faultType, priority, grade, maintainer, faultSolver, eStartTime, eEndTime, qId });
-            var maintainers = ServerConfig.ApiDb.Query<Maintainer>("SELECT * FROM `maintainer` WHERE `MarkedDelete` = 0;").ToArray();
-            foreach (var fault in faults)
-            {
-                var mans = maintainers.Where(x => fault.Maintainers.Any(y => y == x.Account));
-                fault.Name = mans.Select(x => x.Name).Join() ?? "";
-                fault.Account = mans.Select(x => x.Account).Join() ?? "";
-                fault.Phone = mans.Select(x => x.Phone).Join() ?? "";
-            }
+            var faults = RepairRecordHelper.GetDeleteRepairRecordDetails(startTime, endTime, condition,
+                code, fStartTime, fEndTime, eStartTime, eEndTime, qId, maintainer, faultSolver, faultType, priority, grade);
             var result = new DataResult();
             result.datas.AddRange(faults.OrderByDescending(x => x.SolveTime).ThenByDescending(x => x.DeviceCode));
             return result;
@@ -137,11 +73,10 @@ namespace ApiManagement.Controllers.RepairManagementController
                 $"LEFT JOIN (SELECT * FROM (SELECT * FROM maintainer ORDER BY MarkedDelete) a GROUP BY a.Account) c ON a.Maintainer = c.Account " +
                 $"LEFT JOIN `fault_type` d ON a.FaultTypeId1 = d.Id ";
 
-            sql += $" WHERE a.MarkedDelete = 0 " +
-                   $"{((startTime == default(DateTime) || endTime == default(DateTime)) ? "" : " AND a.FaultTime >= @startTime AND a.FaultTime <= @endTime")}" +
-                   $"{(state == -1 ? "" : " AND `State` = @state")}" +
-                   $"{(account.IsNullOrEmpty() ? "" : " AND `Proposer` = @account")}" +
-                   $"{(qId == 0 ? "" : " AND a.Id = @qId")};";
+            sql += $" WHERE a.FaultTime >= @startTime AND a.FaultTime <= @endTime AND " +
+                   $"{(state == -1 ? "" : "`State` = @state AND ")}" +
+                   $"{(account.IsNullOrEmpty() ? "" : "`Proposer` = @account AND ")}" +
+                   $"{(qId == 0 ? "" : "a.Id = @qId AND ")}" + " a.MarkedDelete = 0 AND a.IsAdd = 1;";
 
             var result = new DataResult();
             result.datas.AddRange(ServerConfig.ApiDb.Query<RepairRecordDetail>(sql, new { startTime, endTime, state, account, qId })

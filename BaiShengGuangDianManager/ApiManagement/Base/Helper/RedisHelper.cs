@@ -17,7 +17,7 @@ namespace ApiManagement.Base.Helper
         //public static readonly RedisHelper Instance = new RedisHelper();
         private static PooledRedisClientManager _pool;
         private static dynamic _redisConfig;
-        private static bool _closeWrite = false;
+        public static bool CloseWrite = false;
         public RedisHelper()
         {
 
@@ -149,7 +149,7 @@ namespace ApiManagement.Base.Helper
 
         public static void Set<T>(string key, T value, DateTime expiry)
         {
-            if (_closeWrite)
+            if (CloseWrite)
             {
                 return;
             }
@@ -187,7 +187,7 @@ namespace ApiManagement.Base.Helper
         /// <param name="value"></param>
         public static void Set<T>(string key, T value)
         {
-            if (_closeWrite)
+            if (CloseWrite)
             {
                 return;
             }
@@ -196,7 +196,7 @@ namespace ApiManagement.Base.Helper
 
         public static void Set<T>(string key, T value, TimeSpan slidingExpiration)
         {
-            if (_closeWrite)
+            if (CloseWrite)
             {
                 return;
             }
@@ -226,7 +226,7 @@ namespace ApiManagement.Base.Helper
 
         public static void SetForever<T>(string key, T value)
         {
-            if (_closeWrite)
+            if (CloseWrite)
             {
                 return;
             }

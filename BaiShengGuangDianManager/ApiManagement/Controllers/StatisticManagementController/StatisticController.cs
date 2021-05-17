@@ -983,7 +983,7 @@ namespace ApiManagement.Controllers.StatisticManagementController
                     flowCardIs
                 }, 60).OrderByDescending(x => x.StartTime);
                 var Counts = ServerConfig.ApiDb.Query<dynamic>(
-                    "SELECT b.DeviceId, COUNT(1) Count FROM (SELECT * FROM flowcard_report WHERE Time >= @StartTime1 AND Time <= @StartTime2) a JOIN (SELECT Id DeviceId, `Code` FROM device_library WHERE Id IN @DeviceId AND MarkedDelete = 0) b ON a.`Code` = b.`Code` GROUP BY b.DeviceId;",
+                    "SELECT b.DeviceId, COUNT(1) Count FROM (SELECT * FROM flowcard_report_get WHERE Time >= @StartTime1 AND Time <= @StartTime2) a JOIN (SELECT Id DeviceId, `Code` FROM device_library WHERE Id IN @DeviceId AND MarkedDelete = 0) b ON a.`Code` = b.`Code` GROUP BY b.DeviceId;",
                     new
                     {
                         DeviceId = deviceIds,

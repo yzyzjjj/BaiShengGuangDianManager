@@ -464,6 +464,11 @@ namespace ApiManagement.Base.Helper
                                                         var ss = warningLogs.Where(x => x.ItemId == warningLog.ItemId
                                                                                         && x.WarningTime == warningLog.WarningTime).ToList();
                                                     }
+
+                                                    if (deviceWarning.Interval == WarningInterval.每次)
+                                                    {
+                                                        warningLog.AddExtraId(data.Id);
+                                                    }
                                                     warningLogs.Add(warningLog);
                                                     allDeviceList[deviceId].UpdateWarningData(WarningDataType.设备数据, warningLog);
                                                     deviceWarning.Reset();
@@ -638,8 +643,13 @@ namespace ApiManagement.Base.Helper
                         });
                     if (mData.Any(x => x.State == 0))
                     {
-                        RedisHelper.Remove(pLockKey);
-                        return;
+                        var t = mData.OrderBy(x => x.Id).FirstOrDefault(x => x.State == 0);
+                        mData = mData.Where(x => x.Id < t.Id);
+                        if (!mData.Any())
+                        {
+                            RedisHelper.Remove(pLockKey);
+                            return;
+                        }
                     }
                     if (mData.Any())
                     {
@@ -657,7 +667,7 @@ namespace ApiManagement.Base.Helper
                                     if (!report.Code.IsNullOrEmpty() && deviceId == 0)
                                     {
                                         Log.Error($"Nod Device,{report.Id}");
-                                        continue;
+                                         continue;
                                     }
                                     var deviceSingleData = singleData.Where(x => x.Key.Item5 == stepId);
                                     if (deviceId != 0)
@@ -745,9 +755,10 @@ namespace ApiManagement.Base.Helper
 
                                                     if (warning != null)
                                                     {
-                                                        warningLog.Id = warning.LogId;
-                                                        warningLog.ItemId = warning.ItemId;
-                                                        allDeviceList[deviceId].UpdateWarningData(WarningDataType.生产数据, warningLog, false);
+                                                        var dWarningLog = ClassExtension.CopyTo<WarningLog, WarningLog>(warningLog);
+                                                        dWarningLog.Id = warning.LogId;
+                                                        dWarningLog.ItemId = warning.ItemId;
+                                                        allDeviceList[deviceId].UpdateWarningData(WarningDataType.生产数据, dWarningLog, false);
                                                     }
                                                 }
                                             }
@@ -787,6 +798,12 @@ namespace ApiManagement.Base.Helper
                                                 {
                                                     var ss = warningLogs.Where(x => x.ItemId == warningLog.ItemId
                                                                                     && x.WarningTime == warningLog.WarningTime).ToList();
+                                                }
+                                                if (deviceWarning.Interval == WarningInterval.每次)
+                                                {
+                                                    warningLog.AddExtraId(report.Id);
+                                                    warningLog.AddExtraId(report.FlowCardId);
+                                                    warningLog.AddExtraId(report.OldFlowCardId);
                                                 }
                                                 warningLogs.Add(warningLog);
 
@@ -993,6 +1010,12 @@ namespace ApiManagement.Base.Helper
                                             warningLog.Id = Interlocked.Increment(ref LogId);
                                             warningLog.IsWarning = true;
                                             warningLog.WarningTime = pDayTime;
+                                            //if (deviceWarning.Interval == WarningInterval.每次)
+                                            //{
+                                            //    warningLog.AddExtraId(report.Id);
+                                            //    warningLog.AddExtraId(report.FlowCardId);
+                                            //    warningLog.AddExtraId(report.OldFlowCardId);
+                                            //}
                                             warningLogs.Add(warningLog);
                                             if (生产数据合计字段.All(x => x.Item2 != deviceWarning.ItemType))
                                             {

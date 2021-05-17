@@ -13,6 +13,10 @@ namespace ApiManagement.Models.RepairManagementModel
     public class FaultDevice : CommonBase
     {
         /// <summary>
+        /// 车间id
+        /// </summary>
+        public int WorkshopId { get; set; }
+        /// <summary>
         /// 是否取消
         /// </summary>
         public bool Cancel { get; set; }
@@ -68,6 +72,10 @@ namespace ApiManagement.Models.RepairManagementModel
 
         [Ignore]
         public string StateDesc => State.GetAttribute<DescriptionAttribute>()?.Description ?? "";
+        /// <summary>
+        /// 维修开始处理时间
+        /// </summary>
+        public DateTime StartTime { get; set; }
         /// <summary>
         /// 预计时间
         /// </summary>

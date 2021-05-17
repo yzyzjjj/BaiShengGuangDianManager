@@ -11,6 +11,7 @@ using ModelBase.Base.Logger;
 using ModelBase.Base.Utils;
 using ModelBase.Models.Control;
 using ModelBase.Models.Device;
+using Newtonsoft.Json;
 using ServiceStack;
 using System;
 using System.Collections.Generic;
@@ -201,9 +202,9 @@ namespace ApiManagement.Base.Helper
         private static Timer _timer10S;
         private static Timer _timer60S;
 #if DEBUG
-        private static int _dealLength = 1000;
+        private static int _dealLength = 100;
 #else        
-        private static int _dealLength = 1000;
+        private static int _dealLength = 4000;
 #endif
         //public static MonitoringKanBan MonitoringKanBan;
         //private static MonitoringKanBan _monitoringKanBan;
@@ -704,7 +705,7 @@ namespace ApiManagement.Base.Helper
 
                     //var currentWorkTime = DateTimeExtend.GetCurrentWorkTimeRanges(workshop.Shifts, workshop.ShiftTimeList, kanBanTime);
                     //var todayWorkDay = DateTimeExtend.GetDayWorkDayRange(workshop.Shifts, workshop.ShiftTimeList, now);
-                    var kanBanWorkTime = DateTimeExtend.GetDayWorkDayRange(workshop.Shifts, workshop.ShiftTimeList, kanBanTime);
+                    var kanBanWorkTime = DateTimeExtend.GetDayWorkDayRange(workshop.ShiftTimeList, kanBanTime);
                     var kanBanWorkDayEndTime = kanBanWorkTime.Item1.AddDays(1).AddSeconds(-1);
                     //var kanBanNextWorkStartTime = kanBanWorkTime.Item1.AddDays(1);
 
@@ -740,18 +741,31 @@ namespace ApiManagement.Base.Helper
                     {
                         minTime = mData.Min(x => x.SendTime);
                         maxTime = mData.Max(x => x.SendTime);
-                        var sameDay = minTime.InSameDay(kanBanWorkTime);
+                        var minSameDay = minTime.InSameWorkDay(kanBanWorkTime);
+                        var maxSameDay = maxTime.InSameWorkDay(kanBanWorkTime);
                         //tData = !sameDay ? mData.Where(x => x.SendTime.Date < minTime.Date.AddDays(1))
-                        tData = !sameDay ? mData.Where(x => x.SendTime < kanBanWorkTime.Item2)
-                            : mData;
+                        if (minSameDay && maxSameDay)
+                        {
+                            tData = mData.OrderBy(x => x.SendTime).ToList();
+                        }
+                        else if (minSameDay && !maxSameDay)
+                        {
+                            tData = mData.Where(x => x.SendTime < kanBanWorkTime.Item2).OrderBy(x => x.SendTime).ToList();
+                        }
+                        else if (!minSameDay && maxSameDay)
+                        {
+                            tData = mData.Where(x => x.SendTime < kanBanWorkTime.Item1).OrderBy(x => x.SendTime).ToList();
+                        }
+                        else
+                        {
+                            tData = mData.OrderBy(x => x.SendTime).ToList();
+                        }
 
                         if (tData.Any())
                         {
-                            tData = tData.OrderBy(x => x.SendTime).ToList();
-                            endId = tData.Last().Id;
-                            kanBanTime = sameDay ? tData.Last().SendTime.NoMillisecond() : kanBanWorkDayEndTime;
                             minTime = tData.Min(x => x.SendTime);
-                            maxTime = kanBanTime;
+                            kanBanTime = maxTime = tData.Max(x => x.SendTime);
+                            endId = tData.Last().Id;
                             if (endId <= startId)
                             {
                                 tData = new List<MonitoringData>();
@@ -763,7 +777,7 @@ namespace ApiManagement.Base.Helper
                         else
                         {
                             kanBanTime = minTime;
-                            if (!sameDay)
+                            if (!minSameDay)
                             {
                                 foreach (var device in allDeviceList.Values)
                                 {
@@ -1698,7 +1712,7 @@ namespace ApiManagement.Base.Helper
                                     ShiftTimes = "[\"00:00:00\",\"24:00:00\"]"
                                 };
                             var currentWorkTimes = DateTimeExtend.GetCurrentWorkTimeRanges(workshop.Shifts, workshop.ShiftTimeList, time);
-                            var workTime = DateTimeExtend.GetDayWorkDayRange(workshop.Shifts, workshop.ShiftTimeList, time);
+                            var workTime = DateTimeExtend.GetDayWorkDayRange(workshop.ShiftTimeList, time);
                             foreach (var item in set.ItemList)
                             {
                                 var type = item.Item;
@@ -1715,7 +1729,7 @@ namespace ApiManagement.Base.Helper
                                 MonitoringKanBanDic[id].Times[key] = time;
                                 var startTime = time.DayBeginTime();
                                 var endTime = time.DayEndTime();
-                                switch (item.Shits)
+                                switch (item.Shifts)
                                 {
                                     case KanBanShiftsEnum.当前班次:
                                         startTime = currentWorkTimes.ElementAt(1).Item1;
@@ -1751,16 +1765,79 @@ namespace ApiManagement.Base.Helper
                                     MonitoringKanBanDic[id].ItemData.Add(key, new List<dynamic>());
                                 }
                                 MonitoringKanBanDic[id].ItemData[key].Clear();
-                                if (type == KanBanItemEnum.合格率异常报警)
+                                if (type == KanBanItemEnum.异常报警)
                                 {
                                     //MonitoringKanBanDic[id].WarningLogs =
                                     //    WarningLogHelper.GetWarningLogs(startTime, endTime, 0, 0, WarningType.设备, WarningDataType.生产数据,
                                     //        set.DeviceIdList, new List<WarningItemType> { WarningItemType.SingleQualifiedRate }, 1).ToList();
-                                    MonitoringKanBanDic[id].ItemData[key].AddRange(
-                                        WarningLogHelper.GetWarningLogs(startTime, endTime, 0, 0, WarningType.设备, WarningDataType.生产数据,
-                                            null, new List<WarningItemType> { WarningItemType.SingleQualifiedRate }, 1));
+                                    //if (item.ConfigList.Length == 0)
+                                    {
+                                        var configs1 = item.ConfigList.Length > 0 ? item.ConfigList[0] : new int[0];
+                                        var configs2 = item.ConfigList.Length > 1 ? item.ConfigList[1] : new int[0];
+                                        var data = WarningLogHelper.GetWarningLogs(startTime, endTime, 0, 0,
+                                            WarningType.设备, WarningDataType.生产数据, null, null, configs1, configs2, 1);
+                                        var wgData = data.Where(x => x.StepId == 32);
+                                        var oldFcIds = wgData.Where(x => x.Interval == WarningInterval.每次
+                                                                         && (x.ItemType == WarningItemType.SingleQualifiedRate || x.ItemType == WarningItemType.SingleUnqualifiedRate)
+                                                                         && x.ExtraIdList.Count > 2)
+                                            .Select(y => y.ExtraIdList.ElementAt(2));
+                                        var stepReport = FlowCardReportGetHelper.GetReport(default(DateTime), default(DateTime), 18, null, 0,
+                                            null, 0, null, 0, oldFcIds);
+
+                                        foreach (var log in data)
+                                        {
+                                            if (log.ItemType == WarningItemType.SingleQualifiedRate || log.ItemType == WarningItemType.SingleUnqualifiedRate)
+                                            {
+                                                //外观检验
+                                                if (log.StepId == 32 && log.ExtraIdList.Count > 2)
+                                                {
+                                                    var oldFcId = log.ExtraIdList.ElementAt(2);
+                                                    var report = stepReport.FirstOrDefault(x => x.OldFlowCardId == oldFcId);
+                                                    log.Code = report?.Code ?? log.Code;
+                                                    if (log.WarningData.Any())
+                                                    {
+                                                        try
+                                                        {
+                                                            var tp = JsonConvert
+                                                                .DeserializeObject<string[]>(
+                                                                    log.WarningData.First().Param);
+                                                            tp[1] = report.Processor;
+                                                            log.WarningData.First().Param = tp.ToJSON();
+                                                        }
+                                                        catch (Exception e)
+                                                        {
+                                                            Log.Error(e);
+                                                        }
+                                                    }
+                                                }
+
+                                                if (log.WarningData.Any())
+                                                {
+                                                    var wd = log.WarningData.First();
+                                                    var t = new List<string>();
+                                                    if (!wd.Param.IsNullOrEmpty() && wd.Param != "[]")
+                                                    {
+                                                        var tp = JsonConvert
+                                                            .DeserializeObject<IEnumerable<string>>(
+                                                                wd.Param);
+                                                        t.AddRange(tp);
+                                                    }
+                                                    if (!wd.OtherParam.IsNullOrEmpty() && wd.OtherParam != "[]")
+                                                    {
+                                                        var tp = JsonConvert
+                                                            .DeserializeObject<IEnumerable<BadTypeCount>>(
+                                                                wd.OtherParam);
+                                                        t.AddRange(tp.Where(x => x.count > 0).Select(y => $"{y.comment}:{ y.count}"));
+                                                    }
+                                                    log.Info = t.Join();
+                                                }
+                                            }
+
+                                        }
+                                        MonitoringKanBanDic[id].ItemData[key].AddRange(data);
+                                    }
                                 }
-                                else if (type == KanBanItemEnum.合格率异常统计)
+                                else if (type == KanBanItemEnum.异常统计)
                                 {
                                     //相关设备
                                     //MonitoringKanBanDic[id].WarningStatistics =
@@ -1771,31 +1848,37 @@ namespace ApiManagement.Base.Helper
                                     //MonitoringKanBanDic[id].WarningStatistics =
                                     //    WarningStatisticHelper.GetWarningStatistic(WarningStatisticTime.天, startTime, null, WarningDataType.生产数据,
                                     //        null, new List<WarningItemType> { WarningItemType.SingleQualifiedRate }).ToList();
-
-                                    var logs = WarningLogHelper.GetWarningLogs(startTime, endTime, 0, 0, WarningType.设备, WarningDataType.生产数据,
-                                            null, new List<WarningItemType> { WarningItemType.SingleQualifiedRate }, 1).ToList();
-                                    MonitoringKanBanDic[id].ItemData[key].AddRange(logs.GroupBy(x => new { x.ItemId, x.SetId, x.SetName, x.Range, x.Item })
-                                        .Select(x => new WarningStatistic
-                                        {
-                                            Time = startTime.Date,
-                                            SetId = x.Key.ItemId,
-                                            SetName = x.Key.SetName,
-                                            ItemId = x.Key.ItemId,
-                                            Item = x.Key.Item,
-                                            Range = x.Key.Range,
-                                            Count = x.Count()
-                                        }));
+                                    //if (item.ConfigList.Length > 0)
+                                    {
+                                        var configs1 = item.ConfigList.Length > 0 ? item.ConfigList[0] : new int[0];
+                                        var configs2 = item.ConfigList.Length > 1 ? item.ConfigList[1] : new int[0];
+                                        var logs = WarningLogHelper.GetWarningLogs(startTime, endTime, 0, 0, WarningType.设备, WarningDataType.生产数据,
+                                            null, null, configs1, configs2, 1);
+                                        MonitoringKanBanDic[id].ItemData[key].AddRange(logs.GroupBy(x => new { x.ItemId, x.SetId, x.SetName, x.Range, x.Item })
+                                            .Select(x => new WarningStatistic
+                                            {
+                                                Time = startTime.Date,
+                                                SetId = x.Key.SetId,
+                                                SetName = x.Key.SetName,
+                                                ItemId = x.Key.ItemId,
+                                                Item = x.Key.Item,
+                                                Range = x.Key.Range,
+                                                Count = x.Count()
+                                            }));
+                                    }
                                 }
                                 else if (type == KanBanItemEnum.设备状态反馈)
                                 {
                                     var idleSecond = RedisHelper.Get<int>(aIdleSecondKey);
                                     var devices = MonitoringProcessHelper.GetMonitoringProcesses();
                                     var idleDevices = devices.Where(x => x.State == 0 && x.TotalTime > idleSecond);
+                                    //var idleDevices = devices.Where(x => x.State == 0);
                                     MonitoringKanBanDic[id].ItemData[key].AddRange(idleDevices.Select(x => new DeviceStateInfo
                                     {
                                         DeviceId = x.DeviceId,
                                         Code = x.Code,
                                         IdleSecond = x.TotalTime,
+                                        //IdleSecond = RandomSeed.Next(100000),
                                     }).OrderBy(x => x.IdleSecond));
                                 }
                                 else if (type == KanBanItemEnum.设备预警状态)
@@ -1893,6 +1976,12 @@ namespace ApiManagement.Base.Helper
                                                 Actual = x.Value,
                                             };
                                         }).OrderByDescending(x => x.Actual));
+                                }
+                                else if (type == KanBanItemEnum.故障状态反馈)
+                                {
+                                    //var faults = RepairRecordHelper.GetKanBan(workshop.Id);
+                                    var faults = RepairRecordHelper.GetKanBan();
+                                    MonitoringKanBanDic[id].ItemData[key].AddRange(faults.OrderByDescending(x => x.FaultTime));
                                 }
                             }
                             MonitoringKanBanDic[id].Check(set.ItemList);

@@ -1,5 +1,6 @@
 ﻿using ApiManagement.Base.Helper;
 using ApiManagement.Base.Server;
+using ApiManagement.Models.AccountManagementModel;
 using ApiManagement.Models.DeviceManagementModel;
 using ApiManagement.Models.FlowCardManagementModel;
 using ApiManagement.Models.ProcessManagementModel;
@@ -14,13 +15,12 @@ using ModelBase.Base.Utils;
 using ModelBase.Models.Control;
 using ModelBase.Models.Device;
 using ModelBase.Models.Result;
-using Newtonsoft.Json;using ModelBase.Models.BaseModel;
+using Newtonsoft.Json;
 using ServiceStack;
 using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Net;
-using ApiManagement.Models.AccountManagementModel;
 
 namespace ApiManagement.Controllers.DeviceManagementController
 {
@@ -31,26 +31,33 @@ namespace ApiManagement.Controllers.DeviceManagementController
     {
         // GET: api/DeviceLibrary
         [HttpGet]
-        public DataResult GetDeviceLibrary([FromQuery] bool detail, bool other, bool state, bool work, string ids, int scriptId, int categoryId)
+        public DataResult GetDeviceLibrary([FromQuery] bool script, bool detail, bool other, bool state, bool work, string ids, int scriptId, int categoryId)
         {
             var idList = !ids.IsNullOrEmpty() ? ids.Split(",").Select(int.Parse) : new int[0];
             if (!detail)
             {
-                var models = new List<int>();
-                if (categoryId != 0)
-                {
-                    models.AddRange(ServerConfig.ApiDb.Query<int>("SELECT Id FROM `device_model` WHERE MarkedDelete = 0 AND DeviceCategoryId = @categoryId;", new { categoryId }));
-                }
                 var result = new DataResult();
-                if (categoryId != 0 && !models.Any())
+                if (script)
                 {
-                    return result;
+                    result.datas.AddRange(DeviceLibraryHelper.GetMenus(0, idList, 0, true));
                 }
-                result.datas.AddRange(ServerConfig.ApiDb.Query<DeviceLibrary>($"SELECT * FROM `device_library` WHERE MarkedDelete = 0" +
-                                                                              $"{(idList.Any() ? " AND Id IN @idList" : "")}" +
-                                                                              $"{(scriptId != 0 ? " AND ScriptId = @scriptId" : "")}" +
-                                                                              $"{(categoryId != 0 ? " AND DeviceModelId IN @models" : "")};",
-                    new { idList, scriptId, models }));
+                else
+                {
+                    var models = new List<int>();
+                    if (categoryId != 0)
+                    {
+                        models.AddRange(ServerConfig.ApiDb.Query<int>("SELECT Id FROM `device_model` WHERE MarkedDelete = 0 AND DeviceCategoryId = @categoryId;", new { categoryId }));
+                    }
+                    if (categoryId != 0 && !models.Any())
+                    {
+                        return result;
+                    }
+                    result.datas.AddRange(ServerConfig.ApiDb.Query<DeviceLibrary>($"SELECT * FROM `device_library` WHERE MarkedDelete = 0" +
+                                                                                  $"{(idList.Any() ? " AND Id IN @idList" : "")}" +
+                                                                                  $"{(scriptId != 0 ? " AND ScriptId = @scriptId" : "")}" +
+                                                                                  $"{(categoryId != 0 ? " AND DeviceModelId IN @models" : "")};",
+                        new { idList, scriptId, models }));
+                }
                 return result;
             }
             else
@@ -300,7 +307,7 @@ namespace ApiManagement.Controllers.DeviceManagementController
                                                               "JOIN application_library d ON a.ApplicationId = d.Id " +
                                                               "JOIN hardware_library e ON a.HardwareId = e.Id " +
                                                               "JOIN site f ON a.SiteId = f.Id " +
-                                                              "JOIN device_class i ON a.ClassId = i.Id " + 
+                                                              "JOIN device_class i ON a.ClassId = i.Id " +
                                                               "JOIN workshop j ON a.WorkshopId = j.Id " +
                                                               "JOIN script_version g ON a.ScriptId = g.Id WHERE a.Code = @code AND a.`MarkedDelete` = 0;", new { code }).FirstOrDefault();
             if (data == null)

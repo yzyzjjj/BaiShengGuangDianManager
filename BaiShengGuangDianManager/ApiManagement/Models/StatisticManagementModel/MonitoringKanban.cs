@@ -33,10 +33,10 @@ namespace ApiManagement.Models.StatisticManagementModel
         [Description("无")]
         无 = 0,
         #region 生产相关看板
-        [Description("合格率异常报警")]
-        合格率异常报警 = 1,
-        [Description("合格率异常统计")]
-        合格率异常统计,
+        [Description("异常报警")]
+        异常报警 = 1,
+        [Description("异常统计")]
+        异常统计,
         [Description("设备状态反馈")]
         设备状态反馈,
         [Description("设备预警状态")]
@@ -47,6 +47,8 @@ namespace ApiManagement.Models.StatisticManagementModel
         设备日进度表,
         [Description("操作工日进度表")]
         操作工日进度表,
+        [Description("故障状态反馈")]
+        故障状态反馈,
         #endregion
 
 
@@ -262,6 +264,9 @@ namespace ApiManagement.Models.StatisticManagementModel
         public string Code { get; set; }
         public decimal Rate { get; set; }
     }
+    /// <summary>
+    /// 看板设置
+    /// </summary>
     public class MonitoringKanBanSet : CommonBase
     {
         /// <summary>
@@ -412,7 +417,7 @@ namespace ApiManagement.Models.StatisticManagementModel
                         {
                             Item = x,
                             Order = i++,
-                            Shits = KanBanShiftsEnum.当前班次
+                            Shifts = KanBanShiftsEnum.当前班次
                         }));
                     }
                     catch (Exception)
@@ -427,26 +432,185 @@ namespace ApiManagement.Models.StatisticManagementModel
         }
     }
 
+    /// <summary>
+    /// 看板设置 子选项设置
+    /// </summary>
     public class KanBanItemSet
     {
         public KanBanItemEnum Item { get; set; }
+        /// <summary>
+        /// 列序
+        /// </summary>
         public int Col { get; set; }
+        /// <summary>
+        /// 顺序
+        /// </summary>
         public int Order { get; set; }
-        public KanBanShiftsEnum Shits { get; set; }
+        public KanBanShiftsEnum Shifts { get; set; }
 
         #region 显示时长
         public int Hour { get; set; }
         public int Min { get; set; }
+        /// <summary>
+        /// 其他参数
+        /// </summary>
+        //public string Configs { get; set; }
+        public int[][] ConfigList { get; set; } = new int[0][];
+        //{
+        //    get
+        //    {
+        //        try
+        //        {
+        //            if (!Configs.IsNullOrEmpty())
+        //            {
+        //                return JsonConvert.DeserializeObject<int[][]>(Configs);
+        //            }
+        //        }
+        //        catch (Exception)
+        //        {
+        //            // ignored
+        //        }
+
+        //        return new int[0][];
+        //    }
+        //}
+        /// <summary>
+        /// 字段配置
+        /// </summary>
+        //public string Fields { get; set; }
+        public List<KanBanTableFieldSet> FieldList { get; set; } = new List<KanBanTableFieldSet>();
+        //{
+        //    get
+        //    {
+        //        var vl = new List<KanBanTableFieldSet>();
+        //        try
+        //        {
+        //            if (!Fields.IsNullOrEmpty())
+        //            {
+        //                vl.AddRange(JsonConvert.DeserializeObject<IEnumerable<KanBanTableFieldSet>>(Fields));
+        //            }
+        //        }
+        //        catch (Exception)
+        //        {
+        //            // ignored
+        //        }
+
+        //        Fields = vl.ToJSON();
+        //        return vl;
+        //    }
+        //}
         #endregion
     }
+
+    public class MonitoringKanBanSetWeb : CommonBase
+    {
+        /// <summary>
+        /// 车间Id
+        /// </summary>
+        public int WorkshopId { get; set; }
+        /// <summary>
+        /// 看板名
+        /// </summary>
+        public string Name { get; set; }
+        public bool IsShow { get; set; }
+        /// <summary>
+        /// 0
+        /// </summary>
+        public KanBanEnum Type { get; set; }
+        /// <summary>
+        /// 顺序
+        /// </summary>
+        public int Order { get; set; }
+        /// <summary>
+        /// 界面刷新时间(s)
+        /// </summary>
+        public int UI { get; set; }
+        /// <summary>
+        /// 数据刷新间隔(s)
+        /// </summary>
+        public int Second { get; set; }
+        /// <summary>
+        /// 单行显示数量
+        /// </summary>
+        public int Row { get; set; }
+        /// <summary>
+        /// 单列显示数量
+        /// </summary>
+        public int Col { get; set; }
+        /// <summary>
+        /// 设备看板内容列数量
+        /// </summary>
+        public int ContentCol { get; set; }
+        /// <summary>
+        /// 设备看板内容列名
+        /// </summary>
+        public List<string> ColNameList { get; set; }
+        /// <summary>
+        /// 设备看板内容配置
+        /// </summary>
+        public string ColSet { get; set; }
+        /// <summary>
+        /// 每页显示条数
+        /// </summary>
+        public int Length => Row * Col;
+
+        /// <summary>
+        /// 设备
+        /// </summary>
+        public List<int> DeviceIdList { get; set; }
+        /// <summary>
+        /// data_name_dictionary，含生产数据设置
+        /// </summary>
+        public List<DataNameDictionaryOrder> VariableList { get; set; }
+        /// <summary>
+        /// 子选项配置
+        /// </summary>
+        public List<KanBanItemSetWeb> ItemList { get; set; }
+    }
+
+    public class KanBanItemSetWeb
+    {
+        public KanBanItemEnum Item { get; set; }
+        /// <summary>
+        /// 列序
+        /// </summary>
+        public int Col { get; set; }
+        /// <summary>
+        /// 顺序
+        /// </summary>
+        public int Order { get; set; }
+        public KanBanShiftsEnum Shifts { get; set; }
+
+        #region 显示时长
+        public int Hour { get; set; }
+        public int Min { get; set; }
+        /// <summary>
+        /// 其他参数
+        /// </summary>
+        public int[][] ConfigList { get; set; } = new int[0][];
+        /// <summary>
+        /// 字段配置
+        /// </summary>
+        public List<KanBanTableFieldSet> FieldList { get; set; } = new List<KanBanTableFieldSet>();
+        #endregion
+    }
+
     public class KanBanItemConfig
     {
-        public KanBanItemConfig(KanBanItemEnum item, bool haveShits, bool haveDuration)
+        public KanBanItemConfig(KanBanItemEnum item, bool bShifts, bool bDuration)
         {
             Item = item;
-            HaveShits = haveShits;
-            HaveDuration = haveDuration;
+            BShifts = bShifts;
+            BDuration = bDuration;
         }
+        public KanBanItemConfig(KanBanItemEnum item, bool bShifts, bool bDuration, List<KanBanTableFieldConfig> fieldList)
+        {
+            Item = item;
+            BShifts = bShifts;
+            BDuration = bDuration;
+            FieldList = fieldList;
+        }
+
         /// <summary>
         /// 看板子选项类型
         /// </summary>
@@ -454,7 +618,7 @@ namespace ApiManagement.Models.StatisticManagementModel
         /// <summary>
         /// 是否可配置班制
         /// </summary>
-        public bool HaveShits { get; set; }
+        public bool BShifts { get; set; }
         /// <summary>
         /// 是否可配置班制
         /// </summary>
@@ -462,8 +626,129 @@ namespace ApiManagement.Models.StatisticManagementModel
         /// <summary>
         /// 是否可配置时长
         /// </summary>
-        public bool HaveDuration { get; set; }
+        public bool BDuration { get; set; }
+        public List<KanBanTableFieldConfig> FieldList { get; set; } = new List<KanBanTableFieldConfig>();
     }
+
+    public class KanBanTableFieldCommon
+    {
+        public KanBanTableFieldCommon()
+        {
+        }
+        public KanBanTableFieldCommon(string field, string column)
+        {
+            Field = field;
+            Column = column;
+        }
+        /// <summary>
+        /// 字段
+        /// </summary>
+        //[JsonProperty("Fie")]
+        public string Field { get; set; } = "";
+        /// <summary>
+        /// 名称
+        /// </summary>
+        //[JsonProperty("Cmt")]
+        public string Column { get; set; } = "";
+    }
+
+    public class KanBanTableFieldSet : KanBanTableFieldCommon
+    {
+        public KanBanTableFieldSet()
+        {
+        }
+        public KanBanTableFieldSet(KanBanTableFieldConfig config)
+            : base(config.Field, config.Column)
+        {
+        }
+
+        /// <summary>
+        /// 顺序
+        /// </summary>
+        public int Order { get; set; }
+        /// <summary>
+        /// 宽度
+        /// </summary>
+        public string Width { get; set; } = "";
+        /// <summary>
+        /// 颜色
+        /// </summary>
+        public string Color { get; set; } = "";
+        /// <summary>
+        /// 处理方式
+        /// </summary>
+        public string Func { get; set; } = "";
+        /// <summary>
+        /// 前缀
+        /// </summary>
+        public string Pre { get; set; } = "";
+        /// <summary>
+        /// 后缀
+        /// </summary>
+        public string Suffix { get; set; } = "";
+        /// <summary>
+        /// 子字段
+        /// </summary>
+        //[JsonProperty("FieL")]
+        public List<KanBanTableFieldSet> FieldList { get; set; } = new List<KanBanTableFieldSet>();
+    }
+
+    public class KanBanTableFieldConfig : KanBanTableFieldCommon
+    {
+        public KanBanTableFieldConfig(KanBanTableFieldConfig config)
+            : base(config.Field, config.Column)
+        {
+            DataType = config.DataType;
+            Special = config.Special;
+        }
+
+        public KanBanTableFieldConfig(string type, string field, string column)
+            : base(field, column)
+        {
+            DataType = type;
+        }
+
+        public KanBanTableFieldConfig(string type, string special, string field, string column)
+            : base(field, column)
+        {
+            DataType = type;
+            Special = special;
+        }
+        public KanBanTableFieldConfig(string type, string field, string column, List<KanBanTableFieldConfig> fieldList)
+            : base(field, column)
+        {
+            DataType = type;
+            FieldList = fieldList;
+        }
+        public KanBanTableFieldConfig(string type, string special, string field, string column, List<KanBanTableFieldConfig> fieldList)
+            : base(field, column)
+        {
+            DataType = type;
+            Special = special;
+            FieldList = fieldList;
+        }
+        /// <summary>
+        /// 顺序
+        /// </summary>
+        public int Order { get; set; }
+        /// <summary>
+        /// 字段类型
+        /// </summary>
+        //[JsonProperty("DType")]
+        public string DataType { get; set; } = "";
+
+        /// <summary>
+        /// 字段处理类型
+        /// </summary>
+        //[JsonProperty("Spec")]
+        public string Special { get; set; } = "";
+        /// <summary>
+        /// 子字段
+        /// </summary>
+        //[JsonProperty("FieL")]
+        public List<KanBanTableFieldConfig> FieldList { get; set; } = new List<KanBanTableFieldConfig>();
+    }
+
     public class MonitoringProductionData
     {
         public int DeviceId { get; set; }
@@ -591,35 +876,5 @@ namespace ApiManagement.Models.StatisticManagementModel
         /// 预警值
         /// </summary>
         public decimal Value { get; set; }
-    }
-    /// <summary>
-    /// 计划号进度表
-    /// </summary>
-    public class ProductionSchedule
-    {
-        public int ProductionId { get; set; }
-        public string Production { get; set; }
-        public decimal Plan { get; set; }
-        public decimal Actual { get; set; }
-    }
-    /// <summary>
-    /// 设备进度表
-    /// </summary>
-    public class DeviceSchedule
-    {
-        public int DeviceId { get; set; }
-        public string Code { get; set; }
-        public decimal Plan { get; set; }
-        public decimal Actual { get; set; }
-    }
-    /// <summary>
-    /// 操作工进度表
-    /// </summary>
-    public class ProcessorSchedule
-    {
-        public int ProcessorId { get; set; }
-        public string Processor { get; set; }
-        public decimal Plan { get; set; }
-        public decimal Actual { get; set; }
     }
 }

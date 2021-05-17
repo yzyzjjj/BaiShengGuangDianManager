@@ -102,7 +102,7 @@ namespace ApiManagement.Models.DeviceManagementModel
 
     public class BadType
     {
-        public BadType() 
+        public BadType()
         {
 
         }
@@ -111,13 +111,13 @@ namespace ApiManagement.Models.DeviceManagementModel
             name = bad.name;
             comment = bad.comment;
         }
-        public string name;
-        public string comment;
+        public string name { get; set; }
+        public string comment { get; set; }
     }
 
     public class BadTypeCount : BadType
     {
-        public BadTypeCount():base()
+        public BadTypeCount() : base()
         {
 
         }
@@ -125,6 +125,12 @@ namespace ApiManagement.Models.DeviceManagementModel
         {
             this.count = count;
         }
-        public int count;
+        public BadTypeCount(BadTypeCount bad)
+        {
+            name = bad.name;
+            comment = bad.comment;
+            count = bad.count;
+        }
+        public int count { get; set; }
     }
 }

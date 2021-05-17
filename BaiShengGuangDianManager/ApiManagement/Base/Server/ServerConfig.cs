@@ -1,5 +1,5 @@
 ﻿using ApiManagement.Base.Helper;
-using ApiManagement.Models.SmartFactoryModel;
+using ApiManagement.Models.AccountManagementModel;
 using Microsoft.Extensions.Configuration;
 using ModelBase.Base.Dapper;
 using ModelBase.Base.Logger;
@@ -8,12 +8,12 @@ using ModelBase.Models.Server;
 using System;
 using System.Collections.Generic;
 using System.Linq;
-using ApiManagement.Models.AccountManagementModel;
 
 namespace ApiManagement.Base.Server
 {
     public class ServerConfig
     {
+        private static bool _close = false;
         public static DataBase ApiDb;
         public static DataBase DataReadDb;
         public static string GateUrl;
@@ -23,7 +23,9 @@ namespace ApiManagement.Base.Server
         public static void Init(IConfiguration configuration)
         {
             RedisHelper.Init(configuration);
+            RedisHelper.CloseWrite = _close;
             ApiDb = new DataBase(configuration.GetConnectionString("ApiDb"));
+            ApiDb.CloseWrite = _close;
             Loads = new Dictionary<string, Action>
             {
                 //{PermissionHelper.TableName, PermissionHelper.LoadConfig},

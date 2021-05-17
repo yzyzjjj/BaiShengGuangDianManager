@@ -16,7 +16,6 @@ using Newtonsoft.Json;
 using ServiceStack;
 using System;
 using System.Collections.Generic;
-using System.ComponentModel;
 using System.Linq;
 
 namespace ApiManagement.Controllers.StatisticManagementController
@@ -46,7 +45,42 @@ namespace ApiManagement.Controllers.StatisticManagementController
                     Order = -1,
                     IsShow = true
                 });
-                var item = MonitoringKanBanSetHelper.Instance.Configs.ToDictionary(x => (int)x.Key, x => x.Value);
+                var item = MonitoringKanBanSetHelper.Instance.Configs.ToDictionary(x => (int)x.Key, x =>
+               {
+                   foreach (var v in x.Value)
+                   {
+                       v.FieldList = v.FieldList.Select(MonitoringKanBanSetHelper.ConvertFieldConfig).ToList();
+                   }
+                   return x.Value;
+               });
+                foreach (var d in data)
+                {
+                    if (d.Type != KanBanEnum.生产相关看板)
+                    {
+                        continue;
+                    }
+
+                    var t = new List<KanBanItemSet>();
+                    foreach (var list in d.ItemList)
+                    {
+                        if ((list.FieldList == null || !list.FieldList.Any()) && MonitoringKanBanSetHelper.Instance.Configs.ContainsKey(d.Type))
+                        {
+                            var configs = MonitoringKanBanSetHelper.Instance.Configs[d.Type];
+                            var list1 = list;
+                            var config = configs.FirstOrDefault(x => x.Item == list1.Item);
+                            if (config == null)
+                            {
+                                continue;
+                            }
+
+                            list.FieldList = (config.FieldList.Select(MonitoringKanBanSetHelper.ConvertFieldSet).ToList());
+                        }
+
+                        t.Add(list);
+                    }
+
+                    d.Items = t.ToJSON();
+                }
                 return new
                 {
                     errno = 0,
@@ -54,7 +88,20 @@ namespace ApiManagement.Controllers.StatisticManagementController
                     menu = EnumHelper.EnumToList<KanBanEnum>().Select(x => new { Id = x.EnumValue, Type = x.EnumName }),
                     item,
                     shift = EnumHelper.EnumToList<KanBanShiftsEnum>(true).Select(x => new { Id = x.EnumValue, Type = x.EnumName }),
-                    data
+                    //data
+                    data = data.Select(x =>
+                    {
+                        var t = ClassExtension.CopyTo<MonitoringKanBanSet, MonitoringKanBanSetWeb>(x);
+                        t.DeviceIdList = x.DeviceIdList;
+                        t.VariableList = x.VariableList;
+                        t.ItemList = x.ItemList.Select(y =>
+                        {
+                            var ty = ClassExtension.CopyTo<KanBanItemSet, KanBanItemSetWeb>(y);
+                            ty.FieldList = y.FieldList;
+                            return ty;
+                        }).ToList();
+                        return t;
+                    })
                 };
             }
 
@@ -309,9 +356,14 @@ namespace ApiManagement.Controllers.StatisticManagementController
                             errno = 0,
                             errmsg = "成功",
                             time = kanBan?.Time ?? DateTime.Now,
-                            items = set.ItemList,
+                            items = set.ItemList.Select(y =>
+                            {
+                                var ty = ClassExtension.CopyTo<KanBanItemSet, KanBanItemSetWeb>(y);
+                                ty.FieldList = y.FieldList;
+                                return ty;
+                            }).ToList(),
                             colSet = set.ColSet,
-                            data = kanBan
+                            data = kanBan?.ItemData ?? new Dictionary<string, List<dynamic>>()
                         };
                 }
             }
@@ -334,10 +386,10 @@ namespace ApiManagement.Controllers.StatisticManagementController
             }
             var sames = new List<string> { set.Name };
             var ids = new List<int> { set.Id };
-            if (MonitoringKanBanSetHelper.GetHaveSame((int)set.Type, sames, ids))
-            {
-                return Result.GenError<Result>(Error.MonitoringKanBanSetIsExist);
-            }
+            //if (MonitoringKanBanSetHelper.GetHaveSame((int)set.Type, sames, ids))
+            //{
+            //    return Result.GenError<Result>(Error.MonitoringKanBanSetIsExist);
+            //}
             var cnt = MonitoringKanBanSetHelper.Instance.GetCountById(set.Id);
             if (cnt != 1)
             {
@@ -408,7 +460,8 @@ namespace ApiManagement.Controllers.StatisticManagementController
                         x.Delimiter,
                     }).ToJSON();
                 }
-            }else if (set.Type == KanBanEnum.生产相关看板)
+            }
+            else if (set.Type == KanBanEnum.生产相关看板)
             {
                 if (set.Col <= 0)
                 {

@@ -52,7 +52,7 @@ namespace ApiManagement.Models.RepairManagementModel
             return except == null ? result : result.Where(x => !except.Contains(x));
         }
 
-        public new static string GetField(IEnumerable<string> except = null, string pre = "")
+        public static new string GetField(IEnumerable<string> except = null, string pre = "")
         {
             return GetMembers(except).Select(x => $"{pre}`{x}`").Join(", ");
         }
@@ -74,5 +74,23 @@ namespace ApiManagement.Models.RepairManagementModel
         public string Name { get; set; }
         public string Account { get; set; }
         public string Phone { get; set; }
+        /// <summary>
+        /// 故障未指派 等待耗时(秒)
+        /// </summary>
+        public int NoAssignTime => AssignTime == default(DateTime) ? (int)(DateTime.Now - FaultTime).TotalSeconds : (int)(AssignTime - FaultTime).TotalSeconds;
+        /// <summary>
+        /// 故障已指派未维修耗时(秒)
+        /// </summary>
+        public int WaitTime => AssignTime != default(DateTime) && State == RepairStateEnum.Default ? (int)(DateTime.Now - AssignTime).TotalSeconds : (int)(StartTime - AssignTime).TotalSeconds;
+        /// <summary>
+        /// 故障维修耗时(秒)
+        /// </summary>
+        public int RepairCostTime => AssignTime != default(DateTime) && State != RepairStateEnum.Default
+            ? (State == RepairStateEnum.Complete ? (int)(SolveTime - StartTime).TotalSeconds
+                : (State > RepairStateEnum.Default ? (int)(DateTime.Now - StartTime).TotalSeconds : 0)) : 0;
+        /// <summary>
+        /// 故障时间
+        /// </summary>
+        public int TotalCostTime => State != RepairStateEnum.Complete ? (int)(DateTime.Now - FaultTime).TotalSeconds : (int)(SolveTime - FaultTime).TotalSeconds;
     }
 }

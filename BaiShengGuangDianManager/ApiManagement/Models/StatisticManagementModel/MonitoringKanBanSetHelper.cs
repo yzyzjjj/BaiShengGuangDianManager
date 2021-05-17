@@ -12,13 +12,88 @@ namespace ApiManagement.Models.StatisticManagementModel
             {
                 KanBanEnum.生产相关看板, new List<KanBanItemConfig>
                 {
-                    new KanBanItemConfig(KanBanItemEnum.合格率异常报警, true, true),
-                    new KanBanItemConfig(KanBanItemEnum.合格率异常统计, true, false),
-                    new KanBanItemConfig(KanBanItemEnum.设备状态反馈, false, false),
-                    new KanBanItemConfig(KanBanItemEnum.设备预警状态, false, false),
-                    new KanBanItemConfig(KanBanItemEnum.计划号日进度表, true, false),
-                    new KanBanItemConfig(KanBanItemEnum.设备日进度表, true, false),
-                    new KanBanItemConfig(KanBanItemEnum.操作工日进度表, true, false),
+                    new KanBanItemConfig(KanBanItemEnum.异常报警, true, true, new List<KanBanTableFieldConfig>
+                    {
+                        new KanBanTableFieldConfig("datetime", "time", "WarningTime", "预警时间"),
+                        new KanBanTableFieldConfig("string", "SetName", "预警设置名称"),
+                        new KanBanTableFieldConfig("string", "Item", "预警项名称"),
+                        new KanBanTableFieldConfig("string", "Code", "机台号"),
+                        new KanBanTableFieldConfig("datetime", "StartTime", "首次出现时间"),
+                        new KanBanTableFieldConfig("int", "Count", "达标次数"),
+                        new KanBanTableFieldConfig("string", "Range", "条件"),
+                        new KanBanTableFieldConfig("int", "Current", "当前次数"),
+                        new KanBanTableFieldConfig("decimal", "Value", "当前值"),
+                        new KanBanTableFieldConfig("string", "Info", "信息"),
+                        //new KanBanTableFieldConfig("list", "WarningData", "数据集",
+                        //    new List<KanBanTableFieldConfig>
+                        //    {
+                        //        new KanBanTableFieldConfig("datetime", "DT", "时间"),
+                        //        new KanBanTableFieldConfig("string", "V", "数值"),
+                        //        new KanBanTableFieldConfig("array", "ParamList", "参数"),
+                        //        new KanBanTableFieldConfig("list", "OtherParamList", "参数",
+                        //            new List<KanBanTableFieldConfig>
+                        //            {
+                        //                new KanBanTableFieldConfig("int", "count", "数量"),
+                        //                new KanBanTableFieldConfig("string", "name", "不良类型"),
+                        //            }),
+                        //    }),
+                    }),
+                    new KanBanItemConfig(KanBanItemEnum.异常统计, true, false, new List<KanBanTableFieldConfig>
+                    {
+                        new KanBanTableFieldConfig("datetime", "date", "Time", "预警时间"),
+                        new KanBanTableFieldConfig("string", "SetName", "预警设置名称"),
+                        new KanBanTableFieldConfig("string", "Item", "预警项名称"),
+                        new KanBanTableFieldConfig("string", "Range", "条件"),
+                        new KanBanTableFieldConfig("int", "Count", "预警次数"),
+                    }),
+                    new KanBanItemConfig(KanBanItemEnum.设备状态反馈, false, false, new List<KanBanTableFieldConfig>
+                    {
+                        new KanBanTableFieldConfig("string", "Code", "机台号"),
+                        new KanBanTableFieldConfig("int", "time", "IdleSecond", "闲置时间(秒)"),
+                    }),
+                    new KanBanItemConfig(KanBanItemEnum.设备预警状态, false, false, new List<KanBanTableFieldConfig>
+                    {
+                        new KanBanTableFieldConfig("datetime", "Time", "预警时间"),
+                        new KanBanTableFieldConfig("string", "Code", "机台号"),
+                        new KanBanTableFieldConfig("string", "Item", "预警项名称"),
+                        new KanBanTableFieldConfig("string", "SetName", "预警设置名称"),
+                        new KanBanTableFieldConfig("string", "Range", "条件"),
+                        new KanBanTableFieldConfig("decimal", "Value", "当前值"),
+                    }),
+                    new KanBanItemConfig(KanBanItemEnum.计划号日进度表, true, false, new List<KanBanTableFieldConfig>
+                    {
+                        new KanBanTableFieldConfig("string", "Production", "计划号"),
+                        new KanBanTableFieldConfig("decimal", "Plan", "计划加工"),
+                        new KanBanTableFieldConfig("decimal", "Actual", "实际加工"),
+                    }),
+                    new KanBanItemConfig(KanBanItemEnum.设备日进度表, true, false, new List<KanBanTableFieldConfig>
+                    {
+                        new KanBanTableFieldConfig("string", "Code", "机台号"),
+                        new KanBanTableFieldConfig("decimal", "Plan", "计划加工"),
+                        new KanBanTableFieldConfig("decimal", "Actual", "实际加工"),
+                    }),
+                    new KanBanItemConfig(KanBanItemEnum.操作工日进度表, true, false, new List<KanBanTableFieldConfig>
+                    {
+                        new KanBanTableFieldConfig("string", "Processor", "操作工"),
+                        new KanBanTableFieldConfig("decimal", "Plan", "计划加工"),
+                        new KanBanTableFieldConfig("decimal", "Actual", "实际加工"),
+                    }),
+                    new KanBanItemConfig(KanBanItemEnum.故障状态反馈, false, false, new List<KanBanTableFieldConfig>
+                    {
+                        new KanBanTableFieldConfig("string", "DeviceCode", "机台号"),
+                        new KanBanTableFieldConfig("datetime", "FaultTime", "故障时间"),
+                        new KanBanTableFieldConfig("string", "StateDesc", "故障状态"),
+                        new KanBanTableFieldConfig("string", "Proposer", "报修人"),
+                        new KanBanTableFieldConfig("string", "FaultTypeName", "故障类型"),
+                        new KanBanTableFieldConfig("string", "FaultDescription", "故障描述"),
+                        new KanBanTableFieldConfig("string", "Supplement", "故障补充"),
+                        new KanBanTableFieldConfig("string", "Name", "维修工"),
+                        new KanBanTableFieldConfig("string", "Phone", "手机"),
+                        new KanBanTableFieldConfig("int", "time", "NoAssignTime", "未指派耗时(秒)"),
+                        new KanBanTableFieldConfig("int", "time", "WaitTime", "已指派未维修耗时(秒)"),
+                        new KanBanTableFieldConfig("int", "time", "RepairCostTime", "维修耗时(秒)"),
+                        new KanBanTableFieldConfig("int", "time", "TotalCostTime", "总故障时间(秒)"),
+                    }),
                 }
             },
             {
@@ -62,6 +137,26 @@ namespace ApiManagement.Models.StatisticManagementModel
             MenuFields.AddRange(new[] { "Id", "Name", "Type" });
         }
         public static readonly MonitoringKanBanSetHelper Instance = new MonitoringKanBanSetHelper();
+
+        public static KanBanTableFieldSet ConvertFieldSet(KanBanTableFieldConfig config, int order)
+        {
+            var c = new KanBanTableFieldSet(config) { Order = order + 1 };
+            if (config.FieldList.Any())
+            {
+                c.FieldList.AddRange(config.FieldList.Select(ConvertFieldSet));
+            }
+            return c;
+        }
+
+        public static KanBanTableFieldConfig ConvertFieldConfig(KanBanTableFieldConfig config, int order)
+        {
+            var c = new KanBanTableFieldConfig(config) { Order = order + 1 };
+            if (config.FieldList.Any())
+            {
+                c.FieldList.AddRange(config.FieldList.Select(ConvertFieldConfig));
+            }
+            return c;
+        }
         #region Get
         /// <summary>
         /// 菜单

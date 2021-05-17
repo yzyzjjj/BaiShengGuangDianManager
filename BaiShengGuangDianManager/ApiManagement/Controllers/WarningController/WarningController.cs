@@ -453,7 +453,7 @@ namespace ApiManagement.Controllers.WarningController
                 endTime = endTime.DayEndTime();
             }
 
-            result.datas.AddRange(WarningLogHelper.GetWarningLogs(startTime, endTime, sId, 0, type, dataType, deviceIdList, null, 1));
+            result.datas.AddRange(WarningLogHelper.GetWarningLogs(startTime, endTime, sId, 0, type, dataType, deviceIdList, null, null, null, 1));
             return result;
         }
 

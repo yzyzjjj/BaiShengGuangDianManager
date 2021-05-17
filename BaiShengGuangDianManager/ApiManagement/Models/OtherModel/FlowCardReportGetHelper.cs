@@ -14,10 +14,10 @@ namespace ApiManagement.Models.OtherModel
             Table = "flowcard_report_get";
 
             InsertSql =
-                "INSERT INTO `flowcard_report_get` (`OtherId`, `InsertTime`, `Time`, `Step`, `StepName`, `StepAbbrev`, `FlowCardId`, `FlowCard`, `OldFlowCardId`, `OldFlowCard`, `ProductionId`, `Production`, `DeviceId`, `Code`, `Back`, `ProcessorId`, `Processor`, `Total`, `HeGe`, `LiePian`, `Reason`, `State`) " +
-                "VALUES (@OtherId, @InsertTime, @Time, @Step, @StepName, @StepAbbrev, @FlowCardId, @FlowCard, @OldFlowCardId, @OldFlowCard, @ProductionId, @Production, @DeviceId, @Code, @Back, @ProcessorId, @Processor, @Total, @HeGe, @LiePian, @Reason, @State);";
+                "INSERT INTO `flowcard_report_get` (`MarkedDateTime`, `OtherId`, `InsertTime`, `Time`, `Step`, `StepName`, `StepAbbrev`, `FlowCardId`, `FlowCard`, `OldFlowCardId`, `OldFlowCard`, `ProductionId`, `Production`, `DeviceId`, `Code`, `Back`, `ProcessorId`, `Processor`, `Total`, `HeGe`, `LiePian`, `Reason`, `State`) " +
+                "VALUES (@MarkedDateTime, @OtherId, @InsertTime, @Time, @Step, @StepName, @StepAbbrev, @FlowCardId, @FlowCard, @OldFlowCardId, @OldFlowCard, @ProductionId, @Production, @DeviceId, @Code, @Back, @ProcessorId, @Processor, @Total, @HeGe, @LiePian, @Reason, @State);";
             UpdateSql =
-                "UPDATE `flowcard_report_get` SET `Total` = @Total, `HeGe` = @HeGe, `LiePian` = @LiePian, `Reason` = @Reason WHERE `Id` = @Id;";
+                "UPDATE `flowcard_report_get` SET `MarkedDateTime` = @MarkedDateTime, `Total` = @Total, `HeGe` = @HeGe, `LiePian` = @LiePian, `Reason` = @Reason WHERE `Id` = @Id;";
 
             SameField = "FlowCard";
             MenuFields.AddRange(new[] { "Id", "FlowCard" });
@@ -62,6 +62,7 @@ namespace ApiManagement.Models.OtherModel
             int stepId = 0, IEnumerable<int> stepIds = null,
             int deviceId = 0, IEnumerable<int> deviceIds = null,
             int flowCardId = 0, IEnumerable<int> flowCardIds = null,
+            int oldFlowCardId = 0, IEnumerable<int> oldFlowCardIds = null,
             int productionId = 0, IEnumerable<int> productionIds = null,
             int processorId = 0, IEnumerable<int> processorIds = null)
         {
@@ -89,6 +90,14 @@ namespace ApiManagement.Models.OtherModel
             if (flowCardIds != null && flowCardIds.Any())
             {
                 args.Add(new Tuple<string, string, dynamic>("FlowCardId", "IN", flowCardIds));
+            }
+            if (oldFlowCardId != 0)
+            {
+                args.Add(new Tuple<string, string, dynamic>("OldFlowCardId", "=", oldFlowCardId));
+            }
+            if (oldFlowCardIds != null && oldFlowCardIds.Any())
+            {
+                args.Add(new Tuple<string, string, dynamic>("OldFlowCardId", "IN", oldFlowCardIds));
             }
             if (productionId != 0)
             {
@@ -118,7 +127,7 @@ namespace ApiManagement.Models.OtherModel
         }
         public static IEnumerable<DeviceProcessStepDetail> GetStepFromId()
         {
-            return ServerConfig.ApiDb.Query<DeviceProcessStepDetail>("SELECT MAX(OtherId) FromId, Step Id, StepAbbrev Abbrev, StepName FROM `flowcard_report_get` GROUP BY StepAbbrev", null, 120);
+            return ServerConfig.ApiDb.Query<DeviceProcessStepDetail>("SELECT MAX(OtherId) FromId, Step Id, StepAbbrev Abbrev, StepName FROM `flowcard_report_get` GROUP BY StepAbbrev", null, 220);
         }
         #endregion
 

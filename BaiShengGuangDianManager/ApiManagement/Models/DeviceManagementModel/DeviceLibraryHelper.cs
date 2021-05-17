@@ -24,35 +24,80 @@ namespace ApiManagement.Models.DeviceManagementModel
                         "`Remark` = @Remark, `Icon` = @Icon WHERE `Id` = @Id";
 
             SameField = "Code";
-            MenuFields.AddRange(new[] { "Id", "Code" });
+            MenuFields.AddRange(new[] { "Id", "Code", "ClassId", "DeviceModelId", "ScriptId", "FirmwareId", "HardwareId", "ApplicationId", "SiteId" });
         }
         public static readonly DeviceLibraryHelper Instance = new DeviceLibraryHelper();
         #region Get
-        ///// <summary>
-        ///// 菜单
-        ///// </summary>
-        ///// <param name="id"></param>
-        ///// <param name="cId"></param>
-        ///// <param name="wId"></param>
-        ///// <returns></returns>
-        //public static IEnumerable<dynamic> GetMenu(int id = 0, int cId = 0, int wId = 0)
-        //{
-        //    var args = new List<Tuple<string, string, dynamic>>();
-        //    if (id != 0)
-        //    {
-        //        args.Add(new Tuple<string, string, dynamic>("Id", "=", id));
-        //    }
-        //    if (cId != 0)
-        //    {
-        //        args.Add(new Tuple<string, string, dynamic>("CategoryId", "=", cId));
-        //    }
-        //    if (wId != 0)
-        //    {
-        //        args.Add(new Tuple<string, string, dynamic>("WorkshopId", "=", wId));
-        //    }
+        /// <summary>
+        /// 菜单
+        /// </summary>
+        /// <returns></returns>
+        public static IEnumerable<dynamic> GetMenus(int wId = 1, int id = 0, int cId = 0, bool script = false)
+        {
+            if (script)
+            {
+                var sql = "SELECT a.*, b.ScriptName FROM device_library a JOIN script_version b ON a.ScriptId = b.Id " +
+                          "Where " +
+                           $"{(id == 0 ? "" : "a.Id = @id AND ")}" +
+                           $"{(wId == 0 ? "" : "a.WorkshopId = @wId AND ")}" +
+                           $"{(cId == 0 ? "" : "a.CategoryId = @cId AND ")}" +
+                          "a.`MarkedDelete` = 0";
+                return ServerConfig.ApiDb.Query<DeviceLibraryDetail>(sql, new { id, wId, cId }).Select(x => new { x.Id, x.Code, x.ScriptId, x.ScriptName });
+            }
+            else
+            {
+                var args = new List<Tuple<string, string, dynamic>>();
+                if (id != 0)
+                {
+                    args.Add(new Tuple<string, string, dynamic>("Id", "=", id));
+                }
+                if (wId != 0)
+                {
+                    args.Add(new Tuple<string, string, dynamic>("WorkshopId", "=", wId));
+                }
+                if (cId != 0)
+                {
+                    args.Add(new Tuple<string, string, dynamic>("CategoryId", "=", cId));
+                }
 
-        //    return Instance.CommonGet<DeviceLibrary>(args, true).Select(x => new { x.Id, x.Model, x.CategoryId });
-        //}
+                return Instance.CommonGet<DeviceLibrary>(args, true).Select(x => new { x.Id, x.ClassId, x.DeviceModelId, x.ScriptId, x.FirmwareId, x.HardwareId, x.ApplicationId, x.SiteId });
+            }
+        }
+        /// <summary>
+        /// 菜单
+        /// </summary>
+        /// <returns></returns>
+        public static IEnumerable<dynamic> GetMenus(int wId = 1, IEnumerable<int> ids = null, int cId = 0, bool script = false)
+        {
+            if (script)
+            {
+                var sql = "SELECT a.*, b.ScriptName FROM device_library a JOIN script_version b ON a.ScriptId = b.Id " +
+                          "Where " +
+                          $"{(ids != null && ids.Any() ? "a.Id IN @ids AND " : "")}" +
+                          $"{(wId == 0 ? "" : "a.WorkshopId = @wId AND ")}" +
+                          $"{(cId == 0 ? "" : "a.CategoryId = @cId AND ")}" +
+                          "a.`MarkedDelete` = 0";
+                return ServerConfig.ApiDb.Query<DeviceLibraryDetail>(sql, new { ids, wId, cId }).Select(x => new { x.Id, x.Code, x.ScriptId, x.ScriptName });
+            }
+            else
+            {
+                var args = new List<Tuple<string, string, dynamic>>();
+                if (ids != null && ids.Any())
+                {
+                    args.Add(new Tuple<string, string, dynamic>("Id", "IN", ids));
+                }
+                if (wId != 0)
+                {
+                    args.Add(new Tuple<string, string, dynamic>("WorkshopId", "=", wId));
+                }
+                if (cId != 0)
+                {
+                    args.Add(new Tuple<string, string, dynamic>("CategoryId", "=", cId));
+                }
+
+                return Instance.CommonGet<DeviceLibrary>(args, true).Select(x => new { x.Id, x.ClassId, x.DeviceModelId, x.ScriptId, x.FirmwareId, x.HardwareId, x.ApplicationId, x.SiteId });
+            }
+        }
         /// <summary>
         /// 菜单
         /// </summary>

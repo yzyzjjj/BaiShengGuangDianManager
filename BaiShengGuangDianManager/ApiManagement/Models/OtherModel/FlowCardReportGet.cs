@@ -15,6 +15,7 @@ namespace ApiManagement.Models.OtherModel
         }
         public FlowCardReportGet(ErpFlowCardReportGet report, DeviceProcessStepDetail step, DateTime now)
         {
+            MarkedDateTime = now;
             InsertTime = now;
             Step = step.Id;
             StepName = step.StepName;
@@ -136,6 +137,16 @@ namespace ApiManagement.Models.OtherModel
         public int Id1 { get; set; }
         public ProcessType ProcessType { get; set; }
         public DateTime StartTime { get; set; }
+        /// <summary>
+        /// 更新
+        /// </summary>
+        [JsonIgnore]
+        public bool Update { get; set; }
+        /// <summary>
+        /// 是否需要更新
+        /// </summary>
+        [JsonIgnore]
+        public bool NeedUpdate => FlowCardId == 0 || OldFlowCardId == 0 || ProductionId == 0 || DeviceId == 0 || ProcessorId == 0;
     }
 
 
