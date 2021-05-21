@@ -6,23 +6,23 @@ using ApiManagement.Models.BaseModel;
 
 namespace ApiManagement.Models.StatisticManagementModel
 {
-    public class MonitoringProcessLogHelper : DataHelper
+    public class StatisticProcessHelper : DataHelper
     {
-        private MonitoringProcessLogHelper()
+        private StatisticProcessHelper()
         {
             Table = "npc_monitoring_process_log";
             //InsertSql =
             //    "INSERT INTO  `npc_monitoring_process_log` (`Id`, `OpName`, `DeviceId`, `StartTime`, `EndTime`, `FlowCardId`, `FlowCard`, `ProcessorId`, `Processor`, `ProcessData`, `RequirementMid`, `ActualThickness`) " +
             //    "VALUES (@Id, @OpName, @DeviceId, @StartTime, @EndTime, @FlowCardId, @FlowCard, @ProcessorId, @Processor, @ProcessData, @RequirementMid, @ActualThickness);";
             InsertSql =
-                "INSERT INTO  `npc_monitoring_process_log` (`Id`, `ProcessType`, `OpName`, `DeviceId`, `StartTime`, `EndTime`, `FlowCardId`, `FlowCard`, `ProcessorId`, `ProcessData`, `RequirementMid`, `ActualThickness`) " +
+                "INSERT INTO `npc_monitoring_process_log` (`Id`, `ProcessType`, `OpName`, `DeviceId`, `StartTime`, `EndTime`, `FlowCardId`, `FlowCard`, `ProcessorId`, `ProcessData`, `RequirementMid`, `ActualThickness`) " +
                 "VALUES (@Id, @ProcessType, @OpName, @DeviceId, @StartTime, IF(@EndTime = '0001-01-01 00:00:00', NULL, @EndTime), @FlowCardId, @FlowCard, @ProcessorId, @ProcessData, @RequirementMid, @ActualThickness);";
             UpdateSql = "UPDATE `npc_monitoring_process_log` SET `EndTime` = @EndTime WHERE `Id` = @Id;";
 
             SameField = "OpName";
             MenuFields.AddRange(new[] { "Id", "ProcessType", "OpName", "DeviceId", "StartTime", "EndTime" });
         }
-        public static readonly MonitoringProcessLogHelper Instance = new MonitoringProcessLogHelper();
+        public static readonly StatisticProcessHelper Instance = new StatisticProcessHelper();
         #region Get
         ///// <summary>
         ///// 菜单
@@ -47,11 +47,11 @@ namespace ApiManagement.Models.StatisticManagementModel
         //        args.Add(new Tuple<string, string, dynamic>("DictionaryId", "=", vType));
         //    }
 
-        //    return Instance.CommonGet<MonitoringProcessLog>(args, true).Select(x => new { x.Id, x.ScriptId, x.VariableNameId, x.DictionaryId, x.VariableTypeId });
+        //    return Instance.CommonGet<StatisticProcess>(args, true).Select(x => new { x.Id, x.ScriptId, x.VariableNameId, x.DictionaryId, x.VariableTypeId });
         //}
-        //public static IEnumerable<MonitoringProcessLogDetail> GetDetail(int id = 0, int cId = 0, int wId = 0)
+        //public static IEnumerable<StatisticProcessDetail> GetDetail(int id = 0, int cId = 0, int wId = 0)
         //{
-        //    return ServerConfig.ApiDb.Query<MonitoringProcessLogDetail>(
+        //    return ServerConfig.ApiDb.Query<StatisticProcessDetail>(
         //        $"SELECT a.*, b.`Category` FROM `usually_dictionary` a JOIN `t_device_category` b ON a.CategoryId = b.Id " +
         //        $"WHERE {(id == 0 ? "" : "a.Id = @id AND ")}{(cId == 0 ? "" : "a.CategoryId = @cId AND ")}{(wId == 0 ? "" : "a.WorkshopId = @wId AND ")}a.MarkedDelete = 0 ORDER BY a.CategoryId;",
         //        new { id, cId, wId });
@@ -73,9 +73,9 @@ namespace ApiManagement.Models.StatisticManagementModel
         /// 
         /// </summary>
         /// <returns></returns>
-        public static IEnumerable<MonitoringProcessLogFlag> GetDistinctProcessLogs(bool valid)
+        public static IEnumerable<StatisticProcessFlag> GetDistinctProcessLogs(bool valid)
         {
-            return ServerConfig.ApiDb.Query<MonitoringProcessLogFlag>(
+            return ServerConfig.ApiDb.Query<StatisticProcessFlag>(
                 valid ? "SELECT * FROM (SELECT * FROM (SELECT * FROM `npc_monitoring_process_log` ORDER BY Id DESC) a GROUP BY a.DeviceId) a WHERE ISNULL(EndTime);"
                     : "SELECT * FROM (SELECT * FROM `npc_monitoring_process_log` ORDER BY Id DESC) a GROUP BY a.DeviceId;", null, 1000);
         }
@@ -83,54 +83,28 @@ namespace ApiManagement.Models.StatisticManagementModel
         /// 
         /// </summary>
         /// <returns></returns>
-        public static IEnumerable<MonitoringProcessLog> GetProcessLogs(IEnumerable<int> ids = null)
+        public static IEnumerable<StatisticProcess> GetProcessLogs(IEnumerable<int> ids = null)
         {
-            return Instance.GetByIds<MonitoringProcessLog>(ids,
+            return Instance.GetByIds<StatisticProcess>(ids,
                 $"SELECT * FROM `npc_monitoring_process_log`{(ids != null && ids.Any() ? " Where Id IN @ids" : "")};");
-            //return ServerConfig.ApiDb.Query<MonitoringProcessLog>($"SELECT * FROM `npc_monitoring_process_log`{(ids != null && ids.Any() ? " Where Id IN @ids" : "")};", new { ids });
+            //return ServerConfig.ApiDb.Query<StatisticProcess>($"SELECT * FROM `npc_monitoring_process_log`{(ids != null && ids.Any() ? " Where Id IN @ids" : "")};", new { ids });
         }
         /// <summary>
         /// 
         /// </summary>
         /// <returns></returns>
-        public static IEnumerable<MonitoringProcessLogFlag> GetProcessLogFlags(IEnumerable<int> ids = null)
+        public static IEnumerable<StatisticProcessFlag> GetProcessLogFlags(IEnumerable<int> ids = null)
         {
-            return Instance.GetByIds<MonitoringProcessLogFlag>(ids,
+            return Instance.GetByIds<StatisticProcessFlag>(ids,
                 $"SELECT * FROM `npc_monitoring_process_log`{(ids != null && ids.Any() ? " Where Id IN @ids" : "")};");
-            //return ServerConfig.ApiDb.Query<MonitoringProcessLog>($"SELECT * FROM `npc_monitoring_process_log`{(ids != null && ids.Any() ? " Where Id IN @ids" : "")};", new { ids });
+            //return ServerConfig.ApiDb.Query<StatisticProcess>($"SELECT * FROM `npc_monitoring_process_log`{(ids != null && ids.Any() ? " Where Id IN @ids" : "")};", new { ids });
         }
         #endregion
 
         #region Add
-        /// <summary>
-        /// 
-        /// </summary>
-        /// <returns></returns>
-        public static void Add(IEnumerable<MonitoringProcessLog> processLogs)
-        {
-            if (processLogs != null && processLogs.Any())
-            {
-                var processLogsNoEndTime = processLogs.Where(x => x.EndTime == default(DateTime));
-                if (processLogsNoEndTime.Any())
-                {
-                    AddNoEndTime(processLogsNoEndTime);
-                }
 
-                var processLogsWithEndTime = processLogs.Where(x => x.EndTime != default(DateTime));
-                if (processLogsWithEndTime.Any())
-                {
-                    Instance.Add<MonitoringProcessLog>(processLogsWithEndTime);
-                }
-            }
-        }
-        /// <summary>
-        /// 
-        /// </summary>
-        /// <returns></returns>
-        private static void AddNoEndTime(IEnumerable<MonitoringProcessLog> processLogs)
+        public void Add(IEnumerable<StatisticProcess>)
         {
-            ServerConfig.ApiDb.Execute("INSERT INTO `npc_monitoring_process_log` (`Id`, `ProcessType`, `OpName`, `DeviceId`, `StartTime`, `FlowCardId`, `FlowCard`, `ProcessorId`, `ProcessData`, `RequirementMid`, `ActualThickness`) " +
-                                       "VALUES (@Id, @ProcessType, @OpName, @DeviceId, @StartTime, @FlowCardId, @FlowCard, @ProcessorId, @ProcessData, @RequirementMid, @ActualThickness);", processLogs);
 
         }
         #endregion

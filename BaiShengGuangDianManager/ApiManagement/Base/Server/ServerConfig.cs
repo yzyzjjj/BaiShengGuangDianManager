@@ -90,7 +90,7 @@ namespace ApiManagement.Base.Server
                 throw new Exception($"LoadDateBase Read DataBase, {dataRead.Count()}!!!");
             }
 
-            DataReadDb = new DataBase(dataRead.First().DataBase);
+            DataReadDb = new DataBase(dataRead.First().DataBase, dataRead.First().Table);
         }
     }
 }

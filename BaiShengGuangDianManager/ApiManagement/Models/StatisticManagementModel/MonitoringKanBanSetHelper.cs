@@ -94,6 +94,36 @@ namespace ApiManagement.Models.StatisticManagementModel
                         new KanBanTableFieldConfig("int", "time", "RepairCostTime", "维修耗时(秒)"),
                         new KanBanTableFieldConfig("int", "time", "TotalCostTime", "总故障时间(秒)"),
                     }),
+                    new KanBanItemConfig(KanBanItemEnum.计划号工序推移图, false, false, new List<KanBanTableFieldConfig>
+                    {
+                        new KanBanTableFieldConfig("datetime", "Time", "时间"),
+                        new KanBanTableFieldConfig("string", "Production", "计划号"),
+                        new KanBanTableFieldConfig("int", "Total", "加工数"),
+                        new KanBanTableFieldConfig("int", "Qualified", "合格数"),
+                        new KanBanTableFieldConfig("int", "Unqualified", "次品数"),
+                        new KanBanTableFieldConfig("decimal", "QualifiedRate", "合格率(%)"),
+                        new KanBanTableFieldConfig("decimal", "UnqualifiedRate", "次品率(%)"),
+                    }, KanBanItemDisplayEnum.Chart),
+                    new KanBanItemConfig(KanBanItemEnum.设备工序推移图, false, false, new List<KanBanTableFieldConfig>
+                    {
+                        new KanBanTableFieldConfig("datetime", "Time", "时间"),
+                        new KanBanTableFieldConfig("string", "Code", "机台号"),
+                        new KanBanTableFieldConfig("int", "Total", "加工数"),
+                        new KanBanTableFieldConfig("int", "Qualified", "合格数"),
+                        new KanBanTableFieldConfig("int", "Unqualified", "次品数"),
+                        new KanBanTableFieldConfig("decimal", "QualifiedRate", "合格率(%)"),
+                        new KanBanTableFieldConfig("decimal", "UnqualifiedRate", "次品率(%)"),
+                    }, KanBanItemDisplayEnum.Chart),
+                    new KanBanItemConfig(KanBanItemEnum.操作工工序推移图, false, false, new List<KanBanTableFieldConfig>
+                    {
+                        new KanBanTableFieldConfig("datetime", "Time", "时间"),
+                        new KanBanTableFieldConfig("string", "Processor", "操作工"),
+                        new KanBanTableFieldConfig("int", "Total", "加工数"),
+                        new KanBanTableFieldConfig("int", "Qualified", "合格数"),
+                        new KanBanTableFieldConfig("int", "Unqualified", "次品数"),
+                        new KanBanTableFieldConfig("decimal", "QualifiedRate", "合格率(%)"),
+                        new KanBanTableFieldConfig("decimal", "UnqualifiedRate", "次品率(%)"),
+                    }, KanBanItemDisplayEnum.Chart),
                 }
             },
             {

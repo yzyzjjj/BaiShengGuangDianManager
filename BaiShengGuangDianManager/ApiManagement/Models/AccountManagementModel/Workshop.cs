@@ -21,6 +21,15 @@ namespace ApiManagement.Models.AccountManagementModel
         /// </summary>
         public int Shifts { get; set; }
         /// <summary>
+        /// 班次名称
+        /// 例子：1班次1个名称
+        /// 例子：2班次2个名称
+        /// 例子：3班次3个名称
+        /// </summary>
+        public string ShiftNames { get; set; }
+        public List<string> ShiftNameList => ShiftNames.IsNullOrEmpty() ? new List<string>()
+            : ShiftNames.Split(",").ToList();
+        /// <summary>
         /// 班次时间
         /// 例子：1班次2个时间（t1,t2），上班时间为(t1,t2)
         /// 例子：2班次2个时间（t1,t2），上班时间为(t1,t2)(t2,下一天的t1) 
@@ -33,11 +42,14 @@ namespace ApiManagement.Models.AccountManagementModel
         /// 备注
         /// </summary>
         public string Remark { get; set; }
-
+        /// <summary>
+        /// 设置是否正确
+        /// </summary>
+        /// <returns></returns>
         public bool ValidShifts()
         {
-            return Shifts != 0 && (Shifts == 1 && ShiftTimeList.Count != 2) &&
-                   (Shifts >= 2 && Shifts != ShiftTimeList.Count);
+            return Shifts != 0 || (Shifts == 1 && (ShiftNameList.Count == 1 && ShiftTimeList.Count == 2)) ||
+                   (Shifts >= 2 && (Shifts == ShiftTimeList.Count && Shifts == ShiftTimeList.Count));
         }
     }
 }

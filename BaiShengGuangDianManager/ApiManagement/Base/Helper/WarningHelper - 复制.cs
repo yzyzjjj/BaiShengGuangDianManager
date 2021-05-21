@@ -318,7 +318,7 @@
 //                    {
 //                        rTime = now;
 //                        RedisHelper.SetForever(dTimeKey, rTime.ToStr());
-//                        dId = ServerConfig.DataReadDb.Query<int>("SELECT Id FROM `npc_monitoring_analysis` WHERE SendTime < @rTime ORDER BY Id DESC LIMIT 1;",
+//                        dId = ServerConfig.DataReadDb.Query<int>($"SELECT Id FROM `{ServerConfig.DataReadDb.Table}` WHERE SendTime < @rTime ORDER BY Id DESC LIMIT 1;",
 //                            new { rTime }).FirstOrDefault();
 //                        if (dId == 0)
 //                        {
@@ -330,7 +330,7 @@
 //                    }
 
 //                    var mData = ServerConfig.DataReadDb.Query<MonitoringData>(
-//                        "SELECT * FROM `npc_monitoring_analysis` WHERE Id > @dId AND UserSend = 0 ORDER BY Id LIMIT @limit;", new
+//                        $"SELECT * FROM `{ServerConfig.DataReadDb.Table}` WHERE Id > @dId AND UserSend = 0 ORDER BY Id LIMIT @limit;", new
 //                        {
 //                            dId,
 //                            limit = _dealLength
@@ -457,7 +457,7 @@
 //                    {
 //                        if (!bCal.Any())
 //                        {
-//                            endId = ServerConfig.DataReadDb.Query<int>("SELECT Id FROM `npc_monitoring_analysis` WHERE SendTime < @now ORDER BY Id DESC LIMIT 1;",
+//                            endId = ServerConfig.DataReadDb.Query<int>($"SELECT Id FROM `{ServerConfig.DataReadDb.Table}` WHERE SendTime < @now ORDER BY Id DESC LIMIT 1;",
 //                            new { now }).FirstOrDefault();
 //                        }
 //                    }

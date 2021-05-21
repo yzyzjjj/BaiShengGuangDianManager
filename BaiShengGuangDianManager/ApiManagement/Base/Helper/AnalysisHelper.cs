@@ -569,17 +569,17 @@ namespace ApiManagement.Base.Helper
             //    {
             //        RedisHelper.SetExpireAt(redisLock, DateTime.Now.AddMinutes(5));
             //        ServerConfig.DataReadDb.Execute(
-            //        "DELETE FROM npc_monitoring_analysis WHERE SendTime < @SendTime LIMIT 1000;", new
+            //        $"DELETE FROM {ServerConfig.DataReadDb.Table} WHERE SendTime < @SendTime LIMIT 1000;", new
             //        {
             //            SendTime = DateTime.Today.AddDays(-3)
             //        }, 60);
             //        //ServerConfig.DataReadDb.Execute(
-            //        //    "DELETE FROM npc_monitoring_analysis WHERE SendTime < @SendTime LIMIT 1000;OPTIMIZE TABLE npc_monitoring_analysis;", new
+            //        //    $"DELETE FROM {ServerConfig.DataReadDb.Table} WHERE SendTime < @SendTime LIMIT 1000;OPTIMIZE TABLE {ServerConfig.DataReadDb.Table};", new
             //        //    {
             //        //        SendTime = DateTime.Today.AddDays(-3)
             //        //    }, 60);
             //        //ServerConfig.DataReadDb.Execute(
-            //        //    "DELETE FROM npc_monitoring_analysis WHERE SendTime < @SendTime LIMIT 1000;OPTIMIZE TABLE npc_monitoring_analysis;", new
+            //        //    $"DELETE FROM {ServerConfig.DataReadDb.Table} WHERE SendTime < @SendTime LIMIT 1000;OPTIMIZE TABLE {ServerConfig.DataReadDb.Table};", new
             //        //    {
             //        //        SendTime = DateTime.Today.AddMonths(-3)
             //        //    }, 60);
@@ -726,7 +726,7 @@ namespace ApiManagement.Base.Helper
                     }
 
                     var mData = ServerConfig.DataReadDb.Query<MonitoringData>(
-                        "SELECT * FROM `npc_monitoring_analysis` WHERE Id > @Id AND UserSend = 0 ORDER BY Id LIMIT @limit;",
+                        $"SELECT * FROM `{ServerConfig.DataReadDb.Table}` WHERE Id > @Id AND UserSend = 0 ORDER BY Id LIMIT @limit;",
                         new
                         {
                             Id = startId,
@@ -2628,7 +2628,7 @@ namespace ApiManagement.Base.Helper
                                     if (sendTime1 < sendTime2)
                                     {
                                         r.AddRange(ServerConfig.DataReadDb.Query<MonitoringAnalysis>(
-                                            "SELECT * FROM `npc_monitoring_analysis` WHERE DeviceId = @DeviceId AND UserSend = 0 AND SendTime BETWEEN @SendTime1 AND @SendTime2;",
+                                            $"SELECT * FROM `{ServerConfig.DataReadDb.Table}` WHERE DeviceId = @DeviceId AND UserSend = 0 AND SendTime BETWEEN @SendTime1 AND @SendTime2;",
                                             new
                                             {
                                                 DeviceId = a.DeviceId,

@@ -1,11 +1,13 @@
 ﻿using ApiManagement.Base.Server;
 using ApiManagement.Models._6sModel;
 using ApiManagement.Models.AccountManagementModel;
+using ApiManagement.Models.DeviceManagementModel;
 using ApiManagement.Models.DeviceSpotCheckModel;
 using ApiManagement.Models.ManufactureModel;
 using ApiManagement.Models.MaterialManagementModel;
 using ApiManagement.Models.OtherModel;
 using ApiManagement.Models.RepairManagementModel;
+using ApiManagement.Models.StatisticManagementModel;
 using Microsoft.EntityFrameworkCore.Internal;
 using ModelBase.Base.HttpServer;
 using ModelBase.Base.Logger;
@@ -87,6 +89,8 @@ namespace ApiManagement.Base.Helper
                 return;
             }
 #endif
+            Console.WriteLine("StatisticProcess 发布模式已开启");
+            StatisticProcess();
             WorkFlowHelper.Instance.OnBillNeedUpdate();
             Console.WriteLine("GetErpDepartment 发布模式已开启");
             GetErpDepartment();
@@ -122,6 +126,8 @@ namespace ApiManagement.Base.Helper
                 return;
             }
 #endif
+            //Console.WriteLine("StatisticProcess 发布模式已开启");
+            StatisticProcess();
             WorkFlowHelper.Instance.OnBillNeedUpdate();
             //Console.WriteLine("GetErpDepartment 调试模式已开启");
             GetErpDepartment();
@@ -543,7 +549,7 @@ namespace ApiManagement.Base.Helper
         {
             var _pre = "GetErpPurchase";
             var redisLock = $"{_pre}:Lock";
-            if (RedisHelper.SetIfNotExist(redisLock, DateTime.Now.ToStr()))
+           if (RedisHelper.SetIfNotExist(redisLock, DateTime.Now.ToStr()))
             {
                 RedisHelper.SetExpireAt(redisLock, DateTime.Now.AddMinutes(30));
                 ErpPurchaseFunc();
@@ -2382,6 +2388,122 @@ namespace ApiManagement.Base.Helper
             public string f_ifdelete;
             public bool ifdelete => f_ifdelete == "1";
             public string f_ygbh;
+        }
+        #endregion
+
+        #region 工序统计
+        private static int _dealLength = 2000;
+        /// <summary>
+        /// 工序统计
+        /// </summary>
+        private static void StatisticProcess()
+        {
+            var statisticProcessPre = "StatisticProcess";
+            var statisticProcessLock = $"{statisticProcessPre}:Lock";
+            var statisticProcessId = $"{statisticProcessPre}:Id";
+            //if (RedisHelper.SetIfNotExist(statisticProcessLock, DateTime.Now.ToStr()))
+            {
+                try
+                {
+                    RedisHelper.SetExpireAt(statisticProcessLock, DateTime.Now.AddMinutes(10));
+
+                    var now = DateTime.Now;
+                    var spId = RedisHelper.Get<int>(statisticProcessId);
+                    var mData = ServerConfig.ApiDb.Query<FlowCardReportGet>("SELECT * FROM `flowcard_report_get` WHERE Id > @spId ORDER BY Id LIMIT @limit;",
+                        new
+                        {
+                            spId,
+                            limit = _dealLength
+                        });
+                    var endId = spId;
+                    if (mData.Any())
+                    {
+                        endId = mData.Max(x => x.Id);
+                        var spProductions = new List<StatisticProcessProduction>();
+                        var spDevices = new List<StatisticProcessDevice>();
+                        var spProcessors = new List<StatisticProcessProcessor>();
+                        var workshops = WorkshopHelper.Instance.GetAll<Workshop>();
+                        var timeTypes = EnumHelper.EnumToList<StatisticProcessTimeEnum>(true);
+                        foreach (var workshop in workshops)
+                        {
+                            var wData = mData.Where(x => x.WorkshopId == workshop.Id);
+                            foreach (var timeType in timeTypes)
+                            {
+                                switch ((StatisticProcessTimeEnum)timeType.EnumValue)
+                                {
+                                    case StatisticProcessTimeEnum.小时:
+                                        wData
+
+
+
+
+
+
+
+                                        break;
+                                    case StatisticProcessTimeEnum.日:
+
+
+
+                                        break;
+                                    case StatisticProcessTimeEnum.周:
+
+
+
+                                        break;
+                                    case StatisticProcessTimeEnum.月:
+
+
+
+                                        break;
+                                    case StatisticProcessTimeEnum.年:
+
+
+
+                                        break;
+                                }
+                            }
+                        }
+
+                        if (spProductions.Any())
+                        {
+                            ServerConfig.ApiDb.Execute(
+                                "INSERT INTO `statistic_process_product` (`MarkedDateTime`, `WorkshopId`, `Type`, `Time`, `Step`, `StepName`, `StepAbbrev`, `ProductionId`, `Production`, " +
+                                "`Total`, `Qualified`, `Unqualified`, `QualifiedRate`, `UnqualifiedRate`) " +
+                                "VALUES (@MarkedDateTime, @WorkshopId, @Type, @Time, @Step, @StepName, @StepAbbrev, @ProductionId, @Production, " +
+                                "@Total, @Qualified, @Unqualified, @QualifiedRate, @UnqualifiedRate) " +
+                                "ON DUPLICATE KEY UPDATE `MarkedDateTime` = @MarkedDateTime, `Total` = @Total, `Qualified` = @Qualified, `Unqualified` = @Unqualified, `QualifiedRate` = @QualifiedRate, `UnqualifiedRate` = @UnqualifiedRate;",
+                                spProductions);
+                        }
+                        if (spDevices.Any())
+                        {
+                            ServerConfig.ApiDb.Execute(
+                                "INSERT INTO `statistic_process_device` (`MarkedDateTime`, `WorkshopId`, `Type`, `Time`, `Step`, `StepName`, `StepAbbrev`, `DeviceId`, `Code`, " +
+                                "`Total`, `Qualified`, `Unqualified`, `QualifiedRate`, `UnqualifiedRate`) " +
+                                "VALUES (@MarkedDateTime, @WorkshopId, @Type, @Time, @Step, @StepName, @StepAbbrev, @ProductionId, @Production, " +
+                                "@Total, @Qualified, @Unqualified, @QualifiedRate, @UnqualifiedRate) " +
+                                "ON DUPLICATE KEY UPDATE `MarkedDateTime` = @MarkedDateTime, `Total` = @Total, `Qualified` = @Qualified, `Unqualified` = @Unqualified, `QualifiedRate` = @QualifiedRate, `UnqualifiedRate` = @UnqualifiedRate;",
+                                spDevices);
+                        }
+                        if (spProcessors.Any())
+                        {
+                            ServerConfig.ApiDb.Execute(
+                                "INSERT INTO `statistic_process_processor` (`MarkedDateTime`, `WorkshopId`, `Type`, `Time`, `Step`, `StepName`, `StepAbbrev`, `ProcessorId`, `Processor`, " +
+                                "`Total`, `Qualified`, `Unqualified`, `QualifiedRate`, `UnqualifiedRate`) " +
+                                "VALUES (@MarkedDateTime, @WorkshopId, @Type, @Time, @Step, @StepName, @StepAbbrev, @ProductionId, @Production, " +
+                                "@Total, @Qualified, @Unqualified, @QualifiedRate, @UnqualifiedRate) " +
+                                "ON DUPLICATE KEY UPDATE `MarkedDateTime` = @MarkedDateTime, `Total` = @Total, `Qualified` = @Qualified, `Unqualified` = @Unqualified, `QualifiedRate` = @QualifiedRate, `UnqualifiedRate` = @UnqualifiedRate;",
+                                spProcessors);
+                        }
+                    }
+                    RedisHelper.SetForever(statisticProcessId, endId);
+                }
+                catch (Exception e)
+                {
+                    Log.Error(e);
+                }
+                RedisHelper.Remove(statisticProcessLock);
+            }
         }
         #endregion
     }

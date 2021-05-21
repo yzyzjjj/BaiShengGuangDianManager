@@ -84,7 +84,7 @@ namespace ApiManagement.Controllers.StatisticManagementController
                 var endTime = requestBody.EndTime;
 
                 var sql =
-                    "SELECT Id, SendTime, `Data`, `DeviceId`, ScriptId FROM `npc_monitoring_analysis` WHERE DeviceId = @DeviceId AND SendTime >= @startTime AND SendTime <= @endTime ORDER BY SendTime";
+                    $"SELECT Id, SendTime, `Data`, `DeviceId`, ScriptId FROM `{ServerConfig.DataReadDb.Table}` WHERE DeviceId = @DeviceId AND SendTime >= @startTime AND SendTime <= @endTime ORDER BY SendTime";
                 var cha = 30;
                 var data = new List<MonitoringAnalysis>();
                 var tStartTime = startTime;
@@ -238,12 +238,12 @@ namespace ApiManagement.Controllers.StatisticManagementController
             //            if (requestBody.Compare == 0)
             //            {
             //                sql =
-            //                    "SELECT Id, SendTime, `Data`, `DeviceId`, ScriptId FROM `npc_monitoring_analysis` WHERE DeviceId = @DeviceId AND SendTime >= @startTime AND SendTime <= @endTime ORDER BY SendTime";
+            //                    $"SELECT Id, SendTime, `Data`, `DeviceId`, ScriptId FROM `{ServerConfig.DataReadDb.Table}` WHERE DeviceId = @DeviceId AND SendTime >= @startTime AND SendTime <= @endTime ORDER BY SendTime";
             //            }
             //            else
             //            {
             //                sql =
-            //                    "SELECT Id, SendTime, `Data`, `DeviceId`, ScriptId FROM `npc_monitoring_analysis` WHERE DeviceId IN @DeviceId AND SendTime >= @startTime AND SendTime <= @endTime ORDER BY SendTime";
+            //                    $"SELECT Id, SendTime, `Data`, `DeviceId`, ScriptId FROM `{ServerConfig.DataReadDb.Table}` WHERE DeviceId IN @DeviceId AND SendTime >= @startTime AND SendTime <= @endTime ORDER BY SendTime";
             //            }
 
             //            break;
@@ -258,12 +258,12 @@ namespace ApiManagement.Controllers.StatisticManagementController
             //            if (requestBody.Compare == 0)
             //            {
             //                sql =
-            //                    "SELECT Id, DATE_FORMAT(SendTime, '%Y-%m-%d %H:00:00') SendTime, `Data`, `DeviceId`, ScriptId FROM `npc_monitoring_analysis` WHERE DeviceId = @DeviceId AND SendTime >= @startTime AND SendTime <= @endTime GROUP BY DATE(SendTime), HOUR (SendTime) ORDER BY SendTime";
+            //                    $"SELECT Id, DATE_FORMAT(SendTime, '%Y-%m-%d %H:00:00') SendTime, `Data`, `DeviceId`, ScriptId FROM `{ServerConfig.DataReadDb.Table}` WHERE DeviceId = @DeviceId AND SendTime >= @startTime AND SendTime <= @endTime GROUP BY DATE(SendTime), HOUR (SendTime) ORDER BY SendTime";
             //            }
             //            else
             //            {
             //                sql =
-            //                    "SELECT Id, DATE_FORMAT(SendTime, '%Y-%m-%d %H:00:00') SendTime, `Data`, `DeviceId`, ScriptId FROM `npc_monitoring_analysis` WHERE DeviceId IN @DeviceId AND SendTime >= @startTime AND SendTime <= @endTime GROUP BY `DeviceId`, DATE(SendTime), HOUR (SendTime) ORDER BY SendTime";
+            //                    $"SELECT Id, DATE_FORMAT(SendTime, '%Y-%m-%d %H:00:00') SendTime, `Data`, `DeviceId`, ScriptId FROM `{ServerConfig.DataReadDb.Table}` WHERE DeviceId IN @DeviceId AND SendTime >= @startTime AND SendTime <= @endTime GROUP BY `DeviceId`, DATE(SendTime), HOUR (SendTime) ORDER BY SendTime";
             //            }
 
             //            #endregion
@@ -276,13 +276,13 @@ namespace ApiManagement.Controllers.StatisticManagementController
             //            if (requestBody.Compare == 0)
             //            {
             //                sql =
-            //                    "SELECT Id, DATE(SendTime) SendTime, `Data`, `DeviceId`, ScriptId FROM `npc_monitoring_analysis` WHERE DeviceId = @DeviceId AND SendTime >= @startTime AND SendTime <= @endTime GROUP BY DATE(SendTime) ORDER BY SendTime";
+            //                    $"SELECT Id, DATE(SendTime) SendTime, `Data`, `DeviceId`, ScriptId FROM `{ServerConfig.DataReadDb.Table}` WHERE DeviceId = @DeviceId AND SendTime >= @startTime AND SendTime <= @endTime GROUP BY DATE(SendTime) ORDER BY SendTime";
 
             //            }
             //            else
             //            {
             //                sql =
-            //                    "SELECT Id, DATE(SendTime) SendTime, `Data`, `DeviceId`, ScriptId FROM `npc_monitoring_analysis` WHERE DeviceId = @DeviceId AND SendTime >= @startTime AND SendTime <= @endTime GROUP BY `DeviceId`, DATE(SendTime) ORDER BY SendTime";
+            //                    $"SELECT Id, DATE(SendTime) SendTime, `Data`, `DeviceId`, ScriptId FROM `{ServerConfig.DataReadDb.Table}` WHERE DeviceId = @DeviceId AND SendTime >= @startTime AND SendTime <= @endTime GROUP BY `DeviceId`, DATE(SendTime) ORDER BY SendTime";
             //            }
             //            #endregion
             //            break;
@@ -391,7 +391,7 @@ namespace ApiManagement.Controllers.StatisticManagementController
                         endTime = requestBody.EndTime;
 
                         sql =
-                            "SELECT Id, SendTime, `Data`, `DeviceId`, ScriptId FROM `npc_monitoring_analysis` WHERE DeviceId = @DeviceId AND SendTime >= @startTime AND SendTime <= @endTime ORDER BY SendTime";
+                            $"SELECT Id, SendTime, `Data`, `DeviceId`, ScriptId FROM `{ServerConfig.DataReadDb.Table}` WHERE DeviceId = @DeviceId AND SendTime >= @startTime AND SendTime <= @endTime ORDER BY SendTime";
 
                         break;
                     #endregion
@@ -403,7 +403,7 @@ namespace ApiManagement.Controllers.StatisticManagementController
                         endTime = requestBody.EndTime.NoMinute();
 
                         sql =
-                            "SELECT Id, DATE_FORMAT(SendTime, '%Y-%m-%d %H:00:00') SendTime, `Data`, `DeviceId`, ScriptId FROM `npc_monitoring_analysis` WHERE DeviceId = @DeviceId AND SendTime >= @startTime AND SendTime <= @endTime GROUP BY DATE(SendTime), HOUR (SendTime) ORDER BY SendTime";
+                            $"SELECT Id, DATE_FORMAT(SendTime, '%Y-%m-%d %H:00:00') SendTime, `Data`, `DeviceId`, ScriptId FROM `{ServerConfig.DataReadDb.Table}` WHERE DeviceId = @DeviceId AND SendTime >= @startTime AND SendTime <= @endTime GROUP BY DATE(SendTime), HOUR (SendTime) ORDER BY SendTime";
 
                         #endregion
                         break;
@@ -413,7 +413,7 @@ namespace ApiManagement.Controllers.StatisticManagementController
                         endTime = requestBody.EndTime.StartOfNextMonth().DayBeginTime();
 
                         sql =
-                            "SELECT Id, DATE(SendTime) SendTime, `Data`, `DeviceId`, ScriptId FROM `npc_monitoring_analysis` WHERE DeviceId = @DeviceId AND SendTime >= @startTime AND SendTime <= @endTime GROUP BY DATE(SendTime) ORDER BY SendTime";
+                            $"SELECT Id, DATE(SendTime) SendTime, `Data`, `DeviceId`, ScriptId FROM `{ServerConfig.DataReadDb.Table}` WHERE DeviceId = @DeviceId AND SendTime >= @startTime AND SendTime <= @endTime GROUP BY DATE(SendTime) ORDER BY SendTime";
 
                         #endregion
                         break;
@@ -435,7 +435,7 @@ namespace ApiManagement.Controllers.StatisticManagementController
                         endTime = requestBody.EndTime1;
 
                         sql =
-                            "SELECT Id, SendTime, `Data`, `DeviceId`, ScriptId FROM `npc_monitoring_analysis` WHERE DeviceId = @DeviceId AND SendTime >= @startTime AND SendTime <= @endTime ORDER BY SendTime";
+                            $"SELECT Id, SendTime, `Data`, `DeviceId`, ScriptId FROM `{ServerConfig.DataReadDb.Table}` WHERE DeviceId = @DeviceId AND SendTime >= @startTime AND SendTime <= @endTime ORDER BY SendTime";
 
                         break;
                     #endregion
@@ -447,7 +447,7 @@ namespace ApiManagement.Controllers.StatisticManagementController
                         endTime = requestBody.EndTime1.NoMinute();
 
                         sql =
-                            "SELECT Id, DATE_FORMAT(SendTime, '%Y-%m-%d %H:00:00') SendTime, `Data`, `DeviceId`, ScriptId FROM `npc_monitoring_analysis` WHERE DeviceId = @DeviceId AND SendTime >= @startTime AND SendTime <= @endTime GROUP BY DATE(SendTime), HOUR (SendTime) ORDER BY SendTime";
+                            $"SELECT Id, DATE_FORMAT(SendTime, '%Y-%m-%d %H:00:00') SendTime, `Data`, `DeviceId`, ScriptId FROM `{ServerConfig.DataReadDb.Table}` WHERE DeviceId = @DeviceId AND SendTime >= @startTime AND SendTime <= @endTime GROUP BY DATE(SendTime), HOUR (SendTime) ORDER BY SendTime";
 
                         #endregion
                         break;
@@ -457,7 +457,7 @@ namespace ApiManagement.Controllers.StatisticManagementController
                         endTime = requestBody.EndTime1.StartOfNextMonth().DayBeginTime();
 
                         sql =
-                            "SELECT Id, DATE(SendTime) SendTime, `Data`, `DeviceId`, ScriptId FROM `npc_monitoring_analysis` WHERE DeviceId = @DeviceId AND SendTime >= @startTime AND SendTime <= @endTime GROUP BY DATE(SendTime) ORDER BY SendTime";
+                            $"SELECT Id, DATE(SendTime) SendTime, `Data`, `DeviceId`, ScriptId FROM `{ServerConfig.DataReadDb.Table}` WHERE DeviceId = @DeviceId AND SendTime >= @startTime AND SendTime <= @endTime GROUP BY DATE(SendTime) ORDER BY SendTime";
 
                         #endregion
                         break;
@@ -591,7 +591,7 @@ namespace ApiManagement.Controllers.StatisticManagementController
                     return Result.GenError<DataResult>(Error.DeviceNotExist);
                 }
 
-                var sql = "SELECT Id, SendTime, `DATA`, ScriptId FROM `npc_monitoring_analysis` WHERE DeviceId = @DeviceId AND SendTime >= @startTime AND SendTime <= @endTime ORDER BY SendTime";
+                var sql = $"SELECT Id, SendTime, `DATA`, ScriptId FROM `{ServerConfig.DataReadDb.Table}` WHERE DeviceId = @DeviceId AND SendTime >= @startTime AND SendTime <= @endTime ORDER BY SendTime";
                 var data = new List<MonitoringAnalysis>();
                 var tStartTime = startTime;
                 var tEndTime = tStartTime.AddMinutes(30);
@@ -1786,7 +1786,7 @@ namespace ApiManagement.Controllers.StatisticManagementController
 
                 var data = new Dictionary<DateTime, DeviceTrueData>();
                 sql =
-                   "SELECT * FROM `npc_monitoring_analysis` WHERE DeviceId = @DeviceId AND SendTime >= @StartTime AND SendTime < @EndTime AND UserSend = 0;";
+                    $"SELECT * FROM `{ServerConfig.DataReadDb.Table}` WHERE DeviceId = @DeviceId AND SendTime >= @StartTime AND SendTime < @EndTime AND UserSend = 0;";
                 var cha = 240;
                 var tStartTime = requestBody.StartTime;
                 var tEndTime = tStartTime.AddMinutes(cha);

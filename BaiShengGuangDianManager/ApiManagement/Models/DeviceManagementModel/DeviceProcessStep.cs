@@ -39,6 +39,7 @@ namespace ApiManagement.Models.DeviceManagementModel
         {
 
         }
+
         public DeviceProcessStepDetail(HFlowCardHelper.ErpStep step, string createUserId, DateTime now)
         {
             CreateUserId = createUserId;
@@ -98,6 +99,10 @@ namespace ApiManagement.Models.DeviceManagementModel
         /// 自增
         /// </summary>
         public int Api { get; set; }
+        /// <summary>
+        /// 自增
+        /// </summary>
+        public DateTime UpdateTime { get; set; }
     }
 
     public class BadType

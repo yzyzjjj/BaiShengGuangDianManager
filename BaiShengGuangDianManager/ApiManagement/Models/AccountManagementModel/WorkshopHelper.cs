@@ -11,10 +11,10 @@ namespace ApiManagement.Models.AccountManagementModel
         {
             Table = "workshop";
             InsertSql =
-                "INSERT INTO `workshop` (`CreateUserId`, `MarkedDateTime`, `Name`, `Abbrev`, `Shifts`, `ShiftTimes`) " +
-                "VALUES (@CreateUserId, @MarkedDateTime, @Name, @Abbrev, @Shifts, @ShiftTimes);";
+                "INSERT INTO `workshop` (`CreateUserId`, `MarkedDateTime`, `Name`, `Abbrev`, `Shifts`, `ShiftNames`, `ShiftTimes`) " +
+                "VALUES (@CreateUserId, @MarkedDateTime, @Name, @Abbrev, @Shifts, @ShiftNames, @ShiftTimes);";
             UpdateSql = "UPDATE `workshop` SET `MarkedDateTime` = @MarkedDateTime, `Name` = @Name, `Abbrev` = @Abbrev, `Shifts` = @Shifts, " +
-                        "`ShiftTimes` = @ShiftTimes, `Remark` = @Remark WHERE `Id` = @Id;";
+                        "`ShiftNames` = @ShiftNames, `ShiftTimes` = @ShiftTimes, `Remark` = @Remark WHERE `Id` = @Id;";
 
             SameField = "Name";
             MenuFields.AddRange(new[] { "Id", "Name" });

@@ -54,6 +54,7 @@ namespace ApiManagement.Base.Helper
         private static bool _isUpdateProductionProcessStep;
         private static bool _isUpdateProcessStep;
         private static bool _isGetFlowCardReport;
+        private static bool _isGetUpdateFlowCardReport;
         private static bool _isGetProductionPlan;
         private static bool _isUpdateProductionProcess;
         private static bool _isUpdateProductionSpecification;
@@ -141,6 +142,8 @@ namespace ApiManagement.Base.Helper
                     Insert();
                     Update();
                     UpdateFlowCardProcessStep();
+
+                    GetUpdateFlowCardReport();
                 }
                 catch (Exception e)
                 {
@@ -1252,6 +1255,179 @@ namespace ApiManagement.Base.Helper
             _isGetFlowCardReport = false;
         }
 
+        /// <summary>
+        /// 主动获取已更新报表
+        /// </summary>
+        private static void GetUpdateFlowCardReport()
+        {
+            if (_isGetUpdateFlowCardReport)
+            {
+                return;
+            }
+
+            _isGetUpdateFlowCardReport = true;
+            try
+            {
+                //工序
+                //var updateStep = new List<DeviceProcessStepDetail>();
+                //var steps = DeviceProcessStepHelper.GetDetailsFrom(DataFrom.Erp);
+                //if (steps.Any())
+                //{
+                //    var now = DateTime.Now;
+                //    var specials = new List<string> { "fp", "fx", "-" };
+                //    var add = new List<FlowCardReportGet>();
+                //    var update = new List<FlowCardReportGet>();
+                //    foreach (var step in steps)
+                //    {
+                //        if (step.Abbrev.IsNullOrEmpty())
+                //        {
+                //            continue;
+                //        }
+
+                //        var from = tFromIds.FirstOrDefault(x => x.Id == step.Id);
+                //        var change = false;
+                //        var f = HttpServer.Get(_url, new Dictionary<string, string>
+                //        {
+                //            { "type", "getGwData" },
+                //            { "gxid", step.Abbrev },
+                //            { "id", ((from?.FromId??step.FromId)+1).ToString() },
+                //        });
+                //        if (f != "fail")
+                //        {
+                //            try
+                //            {
+                //                var rrr = HttpUtility.UrlDecode(f);
+                //                if (rrr != "[][]" && rrr != "[]")
+                //                {
+                //                    var erpReports = JsonConvert.DeserializeObject<ErpFlowCardReportGet[]>(rrr);
+                //                    if (erpReports.Any())
+                //                    {
+                //                        step.FromId = erpReports.Max(x => x.f_id);
+                //                        change = true;
+
+                //                        foreach (var report in erpReports)
+                //                        {
+                //                            var fc = new FlowCardReportGet(report, step, now);
+                //                            var b = report.bl.ToString();
+                //                            if (b != "[]")
+                //                            {
+                //                                var bc = new List<BadTypeCount>();
+                //                                var bllb = JObject.Parse(b);
+                //                                foreach (var bl in bllb)
+                //                                {
+                //                                    var name = bl.Key;
+                //                                    var bad = step.ErrorList.FirstOrDefault(x => x.name == name);
+                //                                    if (bad != null)
+                //                                    {
+                //                                        var v = bl.Value.ToString();
+                //                                        if (int.TryParse(v, out var count))
+                //                                        {
+                //                                        }
+                //                                        bc.Add(new BadTypeCount(bad, count));
+                //                                    }
+                //                                }
+
+                //                                fc.LiePian = bc.Sum(x => x.count);
+                //                                if (fc.LiePian > 0)
+                //                                {
+                //                                    bc = bc.OrderByDescending(x => x.count).ToList();
+                //                                }
+
+                //                                fc.Reason = bc.ToJSON();
+                //                            }
+                //                            add.Add(fc);
+                //                        }
+                //                    }
+                //                }
+
+                //                if (step.Api == 1)
+                //                {
+                //                    step.Api = 0;
+                //                    change = true;
+                //                }
+                //            }
+                //            catch (Exception e)
+                //            {
+                //                step.Api = 1;
+                //                change = true;
+                //                Log.ErrorFormat("GetFlowCardReport erp数据解析失败,原因:{0},错误:{1}", e.Message, e.StackTrace);
+                //            }
+
+                //            if (change)
+                //            {
+                //                updateStep.Add(step);
+                //            }
+                //        }
+                //        else
+                //        {
+                //            Log.Error($"GetFlowCardReport 请求erp获取报表数据失败,step:{step.StepName},Id:{step.Id},url:{_url}");
+                //        }
+
+                //    }
+
+
+                //    if (updateStep.Any())
+                //    {
+                //        DeviceProcessStepHelper.UpdateFromId(updateStep);
+                //    }
+
+                //    if (add.Any())
+                //    {
+                //        var devices = DeviceLibraryHelper.GetDetails(1, add.Where(x => !x.Code.IsNullOrEmpty()).Select(x => x.Code).Distinct()).ToDictionary(x => x.Code);
+                //        var reportFlowCards = add.Where(x => !x.FlowCard.IsNullOrEmpty()).Select(x => x.FlowCard).Concat(add.Where(x => !x.OldFlowCard.IsNullOrEmpty()).Select(x => x.OldFlowCard)).Distinct();
+                //        var flowCards = FlowCardHelper.GetFlowCards(reportFlowCards).ToDictionary(x => x.FlowCardName);
+                //        var processors = AccountInfoHelper.GetAccountInfoByNames(add.Where(x => !x.Processor.IsNullOrEmpty()).Select(x => x.Processor).Distinct()).GroupBy(x => x.Name).ToDictionary(x => x.Key, x => x.First());
+                //        var productions = flowCards.Any()
+                //            ? ProductionHelper.Instance.GetByIds<Production>(flowCards.Values.Select(x => x.ProductionProcessId).Distinct()).ToDictionary(x => x.Id)
+                //            : new Dictionary<int, Production>();
+                //        foreach (var fc in add)
+                //        {
+                //            var flowCard = flowCards.ContainsKey(fc.FlowCard) ? flowCards[fc.FlowCard] : null;
+                //            var flowCardId = flowCard?.Id ?? 0;
+                //            fc.FlowCardId = flowCardId;
+                //            if (!specials.Any(x => fc.FlowCard.Contains(x)) && fc.FlowCardId == 0)
+                //            {
+                //                var dfc = FlowCardHelper.GetFlowCardAll(fc.FlowCard);
+                //                fc.FlowCardId = dfc?.Id ?? 0;
+                //            }
+                //            var oldFlowCard = flowCards.ContainsKey(fc.OldFlowCard) ? flowCards[fc.OldFlowCard] : null;
+                //            var oldFlowCardId = oldFlowCard?.Id ?? 0;
+                //            fc.OldFlowCardId = oldFlowCardId;
+                //            var productionProcessId = oldFlowCard?.ProductionProcessId ?? 0;
+                //            if (!specials.Any(x => fc.OldFlowCard.Contains(x)) && fc.OldFlowCardId == 0)
+                //            {
+                //                var dfc = FlowCardHelper.GetFlowCardAll(fc.OldFlowCard);
+                //                fc.OldFlowCardId = dfc?.Id ?? 0;
+                //                productionProcessId = dfc?.ProductionProcessId ?? 0;
+                //            }
+
+                //            var production = productions.ContainsKey(productionProcessId) ? productions[productionProcessId] : null;
+                //            var productionId = production?.Id ?? 0;
+                //            fc.ProductionId = productionId;
+                //            fc.Production = production?.ProductionProcessName ?? "";
+
+                //            var deviceId = devices.ContainsKey(fc.Code) ? devices[fc.Code].Id : 0;
+                //            fc.DeviceId = deviceId;
+                //            var processor = processors.ContainsKey(fc.Processor) ? processors[fc.Processor] : null;
+                //            var processorId = processor?.Id ?? 0;
+                //            fc.ProcessorId = processorId;
+                //            fc.State = (fc.FlowCardId == 0 || fc.OldFlowCardId == 0) ? 2 : (fc.ProcessorId == 0 && !fc.Processor.IsNullOrEmpty() ? 3 : (fc.DeviceId == 0 && !fc.Code.IsNullOrEmpty() ? 4 : 1));
+                //            if ((!specials.Any(x => fc.FlowCard.Contains(x)) || !specials.Any(x => fc.FlowCard.Contains(x)))
+                //                && fc.State == 2 && (now - fc.Time).TotalMinutes < 10)
+                //            {
+                //                fc.State = 0;
+                //            }
+                //        }
+                //        FlowCardReportGetHelper.Instance.Add(add.OrderBy(x => x.Time));
+                //    }
+                //}
+            }
+            catch (Exception e)
+            {
+                Log.Error(e);
+            }
+            _isGetUpdateFlowCardReport = false;
+        }
 
         /// <summary>
         /// 主动获取计划

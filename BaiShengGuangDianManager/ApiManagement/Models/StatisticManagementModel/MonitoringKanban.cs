@@ -49,6 +49,12 @@ namespace ApiManagement.Models.StatisticManagementModel
         操作工日进度表,
         [Description("故障状态反馈")]
         故障状态反馈,
+        [Description("计划号工序推移图")]
+        计划号工序推移图,
+        [Description("设备工序推移图")]
+        设备工序推移图,
+        [Description("操作工工序推移图")]
+        操作工工序推移图,
         #endregion
 
 
@@ -95,6 +101,30 @@ namespace ApiManagement.Models.StatisticManagementModel
         昨日合格率预警,
         #endregion
 
+    }
+
+    /// <summary>
+    /// 看板子选项显示类型
+    /// </summary>
+    public enum KanBanItemDisplayEnum
+    {
+        [Description("表格")]
+        Table = 0,
+        [Description("图表")]
+        Chart = 1,
+    }
+
+    /// <summary>
+    /// 看板子选项显示类型
+    /// </summary>
+    public enum KanBanItemDisplayTypeEnum
+    {
+        [Description("折线/面积图")]
+        Line = 0,
+        [Description("柱状/条形图")]
+        Bar = 1,
+        [Description("饼图")]
+        Pie = 2,
     }
     /// <summary>
     /// 看板班次配置
@@ -603,14 +633,26 @@ namespace ApiManagement.Models.StatisticManagementModel
             BShifts = bShifts;
             BDuration = bDuration;
         }
-        public KanBanItemConfig(KanBanItemEnum item, bool bShifts, bool bDuration, List<KanBanTableFieldConfig> fieldList)
+
+        public KanBanItemConfig(KanBanItemEnum item, bool bShifts, bool bDuration, List<KanBanTableFieldConfig> fieldList, 
+            KanBanItemDisplayEnum display = KanBanItemDisplayEnum.Table, KanBanItemDisplayTypeEnum displayType = KanBanItemDisplayTypeEnum.Line)
         {
+            Display = display;
+            DisplayType = displayType;
             Item = item;
             BShifts = bShifts;
             BDuration = bDuration;
             FieldList = fieldList;
         }
 
+        /// <summary>
+        /// 显示方式
+        /// </summary>
+        public KanBanItemDisplayEnum Display { get; set; }
+        /// <summary>
+        /// 图表方式
+        /// </summary>
+        public KanBanItemDisplayTypeEnum DisplayType { get; set; }
         /// <summary>
         /// 看板子选项类型
         /// </summary>

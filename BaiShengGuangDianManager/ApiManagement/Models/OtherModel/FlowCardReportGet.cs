@@ -35,6 +35,10 @@ namespace ApiManagement.Models.OtherModel
 
         public int Id { get; set; }
         /// <summary>
+        /// 车间Id
+        /// </summary>
+        public int WorkshopId { get; set; }
+        /// <summary>
         /// 数据源Id
         /// </summary>
         public int OtherId { get; set; }
