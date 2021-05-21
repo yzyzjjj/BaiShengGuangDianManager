@@ -1,13 +1,13 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using ApiManagement.Base.Helper;
+﻿using ApiManagement.Base.Helper;
 using ApiManagement.Base.Server;
 using ApiManagement.Models.DeviceManagementModel;
 using Microsoft.AspNetCore.Mvc;
 using ModelBase.Base.EnumConfig;
 using ModelBase.Base.Utils;
 using ModelBase.Models.Result;
+using System;
+using System.Collections.Generic;
+using System.Linq;
 
 namespace ApiManagement.Controllers.DeviceManagementController
 {
@@ -20,10 +20,23 @@ namespace ApiManagement.Controllers.DeviceManagementController
     {
         // GET: api/UsuallyDictionary
         [HttpGet]
-        public DataResult GetUsuallyDictionary()
+        public DataResult GetUsuallyDictionary([FromQuery] int qId, int sId)
         {
+            var cnt = ScriptVersionHelper.Instance.GetCountById(sId);
+            if (cnt == 0)
+            {
+                return Result.GenError<DataResult>(Error.ScriptVersionNotExist);
+            }
             var result = new DataResult();
-            result.datas.AddRange(ServerConfig.ApiDb.Query<UsuallyDictionary>("SELECT * FROM `usually_dictionary` WHERE `MarkedDelete` = 0;"));
+            if (qId != 0)
+            {
+                result.datas.AddRange(UsuallyDictionaryHelper.GetMenu(qId));
+            }
+            else if (sId != 0)
+            {
+                result.datas.AddRange(UsuallyDictionaryHelper.GetUsuallyDictionaryDetails(new List<int> { sId }));
+            }
+
             return result;
         }
 
@@ -36,8 +49,7 @@ namespace ApiManagement.Controllers.DeviceManagementController
         [HttpGet("{scriptId}")]
         public DataResult GetUsuallyDictionary([FromRoute] int scriptId)
         {
-            var cnt =
-                ServerConfig.ApiDb.Query<int>("SELECT COUNT(1) FROM `script_version` WHERE Id = @id AND `MarkedDelete` = 0;", new { id = scriptId }).FirstOrDefault();
+            var cnt = ScriptVersionHelper.Instance.GetCountById(scriptId);
             if (cnt == 0)
             {
                 return Result.GenError<DataResult>(Error.ScriptVersionNotExist);
@@ -92,8 +104,7 @@ namespace ApiManagement.Controllers.DeviceManagementController
             }
 
             var scriptId = scriptIds.First();
-            var cnt =
-                ServerConfig.ApiDb.Query<int>("SELECT COUNT(1) FROM `script_version` WHERE Id = @id AND `MarkedDelete` = 0;", new { id = scriptId }).FirstOrDefault();
+            var cnt = ScriptVersionHelper.Instance.GetCountById(scriptId);
             if (cnt == 0)
             {
                 return Result.GenError<Result>(Error.ScriptVersionNotExist);
@@ -101,31 +112,40 @@ namespace ApiManagement.Controllers.DeviceManagementController
 
             var createUserId = Request.GetIdentityInformation();
             var time = DateTime.Now;
-            var exist = ServerConfig.ApiDb.Query<UsuallyDictionary>("SELECT * FROM `usually_dictionary` WHERE `MarkedDelete` = 0 AND ScriptId = @ScriptId;", new { ScriptId = scriptId });
+            var exist = UsuallyDictionaryHelper.GetDetail(new List<int> { scriptId });
+            //var exist = ServerConfig.ApiDb.Query<UsuallyDictionary>("SELECT * FROM `usually_dictionary` WHERE `MarkedDelete` = 0 AND ScriptId = @ScriptId;", new { ScriptId = scriptId });
 
-
-            var add = usuallyDictionaries.Where(x => exist.All(y => y.Id == x.Id));
+            var exist_not0 = exist.Where(e => e.ScriptId != 0);
+            var exist_0 = exist.Where(e => e.ScriptId == 0);
+            var add = usuallyDictionaries.Where(x => exist.All(y => y.Id != x.Id)).ToList();
+            add.AddRange(usuallyDictionaries.Where(x => exist_0.Any(y => y.Id == x.Id && (y.VariableNameId != x.VariableNameId || y.DictionaryId != x.DictionaryId || y.VariableTypeId != x.VariableTypeId))));
             foreach (var usuallyDictionary in add)
             {
                 usuallyDictionary.CreateUserId = createUserId;
                 usuallyDictionary.MarkedDateTime = time;
             }
-            ServerConfig.ApiDb.Execute(
-                "INSERT INTO usually_dictionary (`CreateUserId`, `MarkedDateTime`, `MarkedDelete`, `ModifyId`, `ScriptId`, `VariableNameId`, `DictionaryId`, `VariableTypeId`) " +
-                "VALUES (@CreateUserId, @MarkedDateTime, @MarkedDelete, @ModifyId, @ScriptId, @VariableNameId, @DictionaryId, @VariableTypeId);",
-                add);
-
-            var update = usuallyDictionaries.Where(x => exist.Any(y => y.Id == x.Id && (y.VariableNameId != x.VariableNameId || y.DictionaryId != x.DictionaryId || y.VariableTypeId != x.VariableTypeId))).ToList();
-            foreach (var usuallyDictionary in update)
+            if (add.Any())
             {
-                usuallyDictionary.CreateUserId = createUserId;
-                usuallyDictionary.MarkedDateTime = time;
+                UsuallyDictionaryHelper.Instance.Add(add);
             }
 
-            ServerConfig.ApiDb.Execute(
-                    "UPDATE usually_dictionary SET `CreateUserId` = @CreateUserId, `MarkedDateTime` = @MarkedDateTime, `MarkedDelete` = @MarkedDelete, `ModifyId` = " +
-                    "@ModifyId, `ScriptId` = @ScriptId, `VariableNameId` = @VariableNameId, `DictionaryId` = @DictionaryId, `VariableTypeId` = @VariableTypeId WHERE `Id` = @Id;",
-                update);
+            var update = usuallyDictionaries.Where(x => !exist_0.Any(y => y.Id != x.Id && y.VariableNameId == x.VariableNameId && y.DictionaryId == x.DictionaryId && y.VariableTypeId == x.VariableTypeId)
+                                                       && exist_not0.Any(y => y.Id == x.Id && (y.VariableNameId != x.VariableNameId || y.DictionaryId != x.DictionaryId || y.VariableTypeId != x.VariableTypeId))).ToList();
+            foreach (var usuallyDictionary in update)
+            {
+                usuallyDictionary.MarkedDateTime = time;
+            }
+            if (update.Any())
+            {
+                UsuallyDictionaryHelper.Instance.Update<UsuallyDictionary>(update);
+            }
+
+            var del = usuallyDictionaries.Where(x => exist_0.Any(y => y.Id != x.Id && y.VariableNameId == x.VariableNameId && y.DictionaryId == x.DictionaryId && y.VariableTypeId == x.VariableTypeId)).ToList();
+            if (del.Any())
+            {
+                UsuallyDictionaryHelper.Instance.Delete(del.Select(x => x.Id));
+            }
+
             RedisHelper.PublishToTable();
             return Result.GenError<Result>(Error.Success);
         }
