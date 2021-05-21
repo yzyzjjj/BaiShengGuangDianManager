@@ -2,6 +2,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using ApiManagement.Base.Server;
 
 namespace ApiManagement.Models.DeviceManagementModel
 {
@@ -13,7 +14,7 @@ namespace ApiManagement.Models.DeviceManagementModel
             InsertSql =
                 "INSERT INTO usually_dictionary (`CreateUserId`, `MarkedDateTime`, `ScriptId`, `VariableNameId`, `VariableTypeId`, `DictionaryId`) " +
                 "VALUES (@CreateUserId, @MarkedDateTime, @ScriptId, @VariableNameId, @VariableTypeId, @DictionaryId);";
-            UpdateSql = "UPDATE usually_dictionary SET `MarkedDateTime` = @MarkedDateTime, `VariableTypeId` = @VariableTypeId, `DictionaryId` = @DictionaryId WHERE `Id` = @Id;";
+            UpdateSql = "UPDATE usually_dictionary SET `MarkedDateTime` = @MarkedDateTime, `VariableNameId` = @VariableNameId, `VariableTypeId` = @VariableTypeId, `DictionaryId` = @DictionaryId WHERE `Id` = @Id;";
 
             SameField = "VariableNameId";
             MenuFields.AddRange(new[] { "Id", "ScriptId", "VariableNameId", "DictionaryId", "VariableTypeId" });
@@ -68,6 +69,18 @@ namespace ApiManagement.Models.DeviceManagementModel
         //    }
         //    return Instance.CommonHaveSame(args);
         //}
+
+        public static IEnumerable<UsuallyDictionaryDetail> GetDetail(IEnumerable<int> scriptIds, IEnumerable<int> variableNameIds = null)
+        {
+            var sIds = new List<int> { 0 };
+            sIds.AddRange(scriptIds);
+            return ServerConfig.ApiDb.Query<UsuallyDictionaryDetail>(
+                "SELECT a.*, b.VariableName FROM `usually_dictionary` a " +
+                "JOIN `usually_dictionary_type` b ON a.VariableNameId = b.Id " +
+                $"WHERE ScriptId IN @sIds {(variableNameIds != null && variableNameIds.Any() ? " AND a.VariableNameId IN @variableNameIds" : "")} AND a.MarkedDelete = 0;",
+                new { sIds, variableNameIds });
+        }
+
         /// <summary>
         /// 获取常用脚本
         /// </summary>
@@ -91,7 +104,29 @@ namespace ApiManagement.Models.DeviceManagementModel
             foreach (var scriptId in scriptIds)
             {
                 var tmp = data.Where(x => x.ScriptId == 0 || x.ScriptId == scriptId).ToList();
-                var tTmp = tmp.OrderByDescending(x => x.ScriptId).GroupBy(y => new { y.ScriptId, y.VariableNameId }).Select(z => z.First());
+                var tTmp = tmp.OrderByDescending(x => x.ScriptId).GroupBy(y => new { y.VariableNameId }).Select(z => z.First());
+                tData.AddRange(tTmp.Select(x =>
+                {
+                    x.ScriptId = scriptId;
+                    return x;
+                }));
+            }
+            return tData;
+        }
+        /// <summary>
+        /// 获取常用脚本
+        /// </summary>
+        /// <param name="scriptIds"></param>
+        /// <param name="variableNameIds"></param>
+        /// <returns></returns>
+        public static IEnumerable<UsuallyDictionaryDetail> GetUsuallyDictionaryDetails(IEnumerable<int> scriptIds, IEnumerable<int> variableNameIds = null)
+        {
+            var data = GetDetail(scriptIds, variableNameIds);
+            var tData = new List<UsuallyDictionaryDetail>();
+            foreach (var scriptId in scriptIds)
+            {
+                var tmp = data.Where(x => x.ScriptId == 0 || x.ScriptId == scriptId).ToList();
+                var tTmp = tmp.OrderByDescending(x => x.ScriptId).GroupBy(y => new { y.VariableNameId }).Select(z => z.First());
                 tData.AddRange(tTmp.Select(x =>
                 {
                     x.ScriptId = scriptId;
