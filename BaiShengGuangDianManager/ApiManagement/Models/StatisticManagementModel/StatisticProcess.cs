@@ -1,4 +1,5 @@
-﻿using ModelBase.Models.BaseModel;
+﻿using ModelBase.Base.Utils;
+using ModelBase.Models.BaseModel;
 using System;
 using System.ComponentModel;
 
@@ -17,6 +18,15 @@ namespace ApiManagement.Models.StatisticManagementModel
         月 = 3,
         [Description("年")]
         年 = 4,
+    }
+    public enum StatisticProcessTypeEnum
+    {
+        [Description("设备")]
+        设备 = 0,
+        [Description("计划号")]
+        计划号 = 1,
+        [Description("操作工")]
+        操作工 = 2,
     }
 
     /// <summary>
@@ -63,23 +73,41 @@ namespace ApiManagement.Models.StatisticManagementModel
         /// <summary>
         /// 合格率(%)
         /// </summary>
-        public decimal QualifiedRate { get; set; }
+        public decimal QualifiedRate => Total == 0 ? 0 : ((decimal)Qualified * 100 / Total).ToRound();
         /// <summary>
         /// 次品率(%)
         /// </summary>
-        public decimal UnqualifiedRate { get; set; }
-
+        public decimal UnqualifiedRate => Total == 0 ? 0 : ((decimal)Unqualified * 100 / Total).ToRound();
+        /// <summary>
+        /// 是否是老数据（数据库数据）
+        /// </summary>
+        public bool Old { get; set; } = true;
+        /// <summary>
+        /// 是否更新（数据库数据）
+        /// </summary>
+        public bool Update { get; set; }
     }
+
     /// <summary>
-    /// 计划号工序加工统计
+    /// 操作工工序加工统计
     /// </summary>
-    public class StatisticProcessProduction : StatisticProcessBase
+    public class StatisticProcessAll : StatisticProcessBase
     {
+        public int DeviceId { get; set; }
+        /// <summary>
+        /// 机台号
+        /// </summary>
+        public string Code { get; set; }
         public int ProductionId { get; set; }
         /// <summary>
         /// 计划号
         /// </summary>
         public string Production { get; set; }
+        public int ProcessorId { get; set; }
+        /// <summary>
+        /// 加工人
+        /// </summary>
+        public string Processor { get; set; }
     }
     /// <summary>
     /// 设备工序加工统计
@@ -93,6 +121,17 @@ namespace ApiManagement.Models.StatisticManagementModel
         public string Code { get; set; }
     }
     /// <summary>
+    /// 计划号工序加工统计
+    /// </summary>
+    public class StatisticProcessProduction : StatisticProcessBase
+    {
+        public int ProductionId { get; set; }
+        /// <summary>
+        /// 计划号
+        /// </summary>
+        public string Production { get; set; }
+    }
+    /// <summary>
     /// 操作工工序加工统计
     /// </summary>
     public class StatisticProcessProcessor : StatisticProcessBase
@@ -103,4 +142,8 @@ namespace ApiManagement.Models.StatisticManagementModel
         /// </summary>
         public string Processor { get; set; }
     }
+
+
+
+
 }

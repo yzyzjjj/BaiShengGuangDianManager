@@ -17,6 +17,7 @@ using ServiceStack;
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using ApiManagement.Models.AccountManagementModel;
 
 namespace ApiManagement.Controllers.StatisticManagementController
 {
@@ -32,11 +33,11 @@ namespace ApiManagement.Controllers.StatisticManagementController
         /// <returns></returns>
         // POST: api/KanBan
         [HttpGet]
-        public object GetSet([FromQuery] bool init = false, int qId = 0, int page = 0)
+        public object GetSet([FromQuery] bool init = false, int wId = 1, int qId = 0, int page = 0)
         {
             if (init)
             {
-                var data = MonitoringKanBanSetHelper.GetDetail().ToList();
+                var data = MonitoringKanBanSetHelper.GetDetail(wId).ToList();
                 data.Insert(0, new MonitoringKanBanSet
                 {
                     Id = 0,
@@ -46,13 +47,13 @@ namespace ApiManagement.Controllers.StatisticManagementController
                     IsShow = true
                 });
                 var item = MonitoringKanBanSetHelper.Instance.Configs.ToDictionary(x => (int)x.Key, x =>
-               {
+                {
                    foreach (var v in x.Value)
                    {
                        v.FieldList = v.FieldList.Select(MonitoringKanBanSetHelper.ConvertFieldConfig).ToList();
                    }
                    return x.Value;
-               });
+                });
                 foreach (var d in data)
                 {
                     if (d.Type != KanBanEnum.生产相关看板)
@@ -98,6 +99,7 @@ namespace ApiManagement.Controllers.StatisticManagementController
                         {
                             var ty = ClassExtension.CopyTo<KanBanItemSet, KanBanItemSetWeb>(y);
                             ty.FieldList = y.FieldList;
+                            ty.ConfigList = y.ConfigList;
                             return ty;
                         }).ToList();
                         return t;

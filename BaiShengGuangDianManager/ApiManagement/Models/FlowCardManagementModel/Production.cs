@@ -12,6 +12,10 @@ namespace ApiManagement.Models.FlowCardManagementModel
     public class Production : CommonBase
     {
         /// <summary>
+        /// 车间Id
+        /// </summary>
+        public int WorkshopId { get; set; }
+        /// <summary>
         /// 计划号
         /// </summary>
         public string ProductionProcessName { get; set; }

@@ -1706,7 +1706,7 @@ namespace ApiManagement.Base.Helper
 
                 if (fcs.Any())
                 {
-                    var devices = DeviceLibraryHelper.GetDetails(0, fcs.Select(x => x.Code).Distinct()).ToDictionary(x => x.Code);
+                    var devices = DeviceLibraryHelper.GetDetails(1, fcs.Select(x => x.Code).Distinct()).ToDictionary(x => x.Code);
                     var flowCards = FlowCardHelper.GetFlowCards(fcs.Select(x => x.FlowCard).Distinct()).ToDictionary(x => x.FlowCardName);
                     var processors = AccountInfoHelper.GetAccountInfoByNames(fcs.Select(x => x.Processor).Distinct()).GroupBy(x => x.Name).ToDictionary(x => x.Key, x => x.First());
                     var productions = flowCards.Any()
@@ -1862,7 +1862,7 @@ namespace ApiManagement.Base.Helper
                 if (fcs.Any())
                 {
                     var specials = new List<string> { "fp", "fx", "-" };
-                    var devices = DeviceLibraryHelper.GetDetails(0, fcs.Select(x => x.Code).Distinct()).ToDictionary(x => x.Code);
+                    var devices = DeviceLibraryHelper.GetDetails(1, fcs.Select(x => x.Code).Distinct()).ToDictionary(x => x.Code);
                     var reportFlowCards = fcs.Select(x => x.FlowCard).Concat(fcs.Select(x => x.OldFlowCard)).Distinct();
                     var flowCards = FlowCardHelper.GetFlowCards(reportFlowCards).ToDictionary(x => x.FlowCardName);
                     var processors = AccountInfoHelper.GetAccountInfoByNames(fcs.Select(x => x.Processor).Distinct()).GroupBy(x => x.Name).ToDictionary(x => x.Key, x => x.First());

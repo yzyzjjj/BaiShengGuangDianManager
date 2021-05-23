@@ -904,7 +904,7 @@ namespace ApiManagement.Controllers.DeviceManagementController
                 deviceLibrary.MarkedDateTime = markedDateTime;
             }
             DeviceLibraryHelper.Instance.Add(deviceLibraries);
-            var data = DeviceLibraryHelper.GetDetails(0, codes);
+            var data = DeviceLibraryHelper.GetDetails(1, codes);
 
             ServerConfig.ApiDb.Execute("INSERT INTO npc_proxy_link (`DeviceId`) VALUES (@DeviceId);", data.Select(x => new { DeviceId = x.Id }));
 

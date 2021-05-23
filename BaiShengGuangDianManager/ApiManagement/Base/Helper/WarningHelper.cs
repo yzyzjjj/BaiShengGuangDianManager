@@ -627,13 +627,6 @@ namespace ApiManagement.Base.Helper
                         RedisHelper.Remove(pLockKey);
                         return;
                     }
-                    #region 预警检验
-                    var keys = CurrentData.Keys.Where(x => x.Item3 == WarningDataType.生产数据
-                                                           && x.Item4 == WarningType.设备).ToList();
-
-                    var singleData = CurrentData.Where(x => keys.Contains(x.Key))
-                        .Where(x => 生产数据单次字段.Any(y => y.Item2 == x.Value.ItemType)).ToDictionary(x => x.Key, x => x.Value);
-                    #region 预警检验  单次加工相关预警
                     var endId = pId;
                     var mData = ServerConfig.ApiDb.Query<FlowCardReportGet>("SELECT * FROM `flowcard_report_get` WHERE Id > @pId ORDER BY Id LIMIT @limit;",
                         new
@@ -651,6 +644,13 @@ namespace ApiManagement.Base.Helper
                             return;
                         }
                     }
+                    #region 预警检验
+                    var keys = CurrentData.Keys.Where(x => x.Item3 == WarningDataType.生产数据
+                                                           && x.Item4 == WarningType.设备).ToList();
+
+                    var singleData = CurrentData.Where(x => keys.Contains(x.Key))
+                        .Where(x => 生产数据单次字段.Any(y => y.Item2 == x.Value.ItemType)).ToDictionary(x => x.Key, x => x.Value);
+                    #region 预警检验  单次加工相关预警
                     if (mData.Any())
                     {
                         endId = mData.Max(x => x.Id);

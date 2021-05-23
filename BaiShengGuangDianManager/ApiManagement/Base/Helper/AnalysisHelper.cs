@@ -1983,6 +1983,49 @@ namespace ApiManagement.Base.Helper
                                     var faults = RepairRecordHelper.GetKanBan();
                                     MonitoringKanBanDic[id].ItemData[key].AddRange(faults.OrderByDescending(x => x.FaultTime));
                                 }
+                                else if (type == KanBanItemEnum.计划号工序推移图 || type == KanBanItemEnum.设备工序推移图 || type == KanBanItemEnum.操作工工序推移图)
+                                {
+                                    var shift = 0;
+                                    var timeType = StatisticProcessTimeEnum.小时;
+                                    var range = 10;
+                                    List<int> steps = null;
+                                    var deviceIds = set.DeviceIdList;
+                                    List<int> productionIds = null;
+                                    List<int> processorIds = null;
+                                    //item.ConfigList 工序推移图[0][0] 班制[0][1]数据类型[0][2]时间范围;[1][...]工序
+                                    var index = 0;
+                                    if (item.ConfigList.Length > index)
+                                    {
+                                        //班制
+                                        shift = item.ConfigList[index].Length > 0 ? item.ConfigList[index][0] : shift;
+                                        //时间类型
+                                        timeType = item.ConfigList[index].Length > 1 ? (StatisticProcessTimeEnum)item.ConfigList[index][1] : timeType;
+                                        //时间范围
+                                        range = item.ConfigList[index].Length > 2 ? item.ConfigList[index][2] : range;
+                                    }
+                                    //工序
+                                    index = 1;
+                                    if (item.ConfigList.Length > index && item.ConfigList[index].Length > 0)
+                                    {
+                                        steps = item.ConfigList[index].ToList();
+                                    }
+                                    //计划号
+                                    index = 2;
+                                    if (item.ConfigList.Length > index && item.ConfigList[index].Length > 0)
+                                    {
+                                        productionIds = item.ConfigList[index].ToList();
+                                    }
+                                    //操作工
+                                    index = 3;
+                                    if (item.ConfigList.Length > index && item.ConfigList[index].Length > 0)
+                                    {
+                                        processorIds = item.ConfigList[index].ToList();
+                                    }
+
+                                    var processes = StatisticProcessHelper.StatisticProcesses(type, workshop, shift, timeType,
+                                        range, steps, deviceIds, productionIds, processorIds);
+                                    MonitoringKanBanDic[id].ItemData[key].AddRange(processes.OrderByDescending(x => x.Time));
+                                }
                             }
                             MonitoringKanBanDic[id].Check(set.ItemList);
                             #endregion

@@ -52,9 +52,12 @@ namespace ApiManagement.Models.DeviceManagementModel
                 $"JOIN `device_process_step_other` b ON a.Id = b.Id " +
                 $"LEFT JOIN `device_category` c ON a.DeviceCategoryId = c.Id WHERE b.From = @from AND a.MarkedDelete = 0;", new { from });
         }
-        public static IEnumerable<DeviceProcessStepDetail> GetDetails(int wId, IEnumerable<string> codes)
+        public static IEnumerable<DeviceProcessStepDetail> GetDetails(int wId, IEnumerable<int> steps)
         {
-            return ServerConfig.ApiDb.Query<DeviceProcessStepDetail>($"SELECT b.*, a.* FROM `device_process_step` a JOIN `device_process_step_other` b ON a.Id = b.Id WHERE a.MarkedDelete = 0;", new { wId, codes });
+            return ServerConfig.ApiDb.Query<DeviceProcessStepDetail>($"SELECT * FROM `device_process_step` " +
+                                                                     $"WHERE " +
+                                                                     $"{(wId == 0 ? "" : " WorkshopId = @wId AND ")}" +
+                                                                     $"{(steps == null || !steps.Any() ? "" : " Id IN @steps AND ")}MarkedDelete = 0;", new { wId, steps });
         }
         //public static bool GetHaveSame(int wId, IEnumerable<string> sames, IEnumerable<int> ids = null)
         //{

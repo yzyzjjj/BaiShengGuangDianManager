@@ -120,13 +120,26 @@ namespace ApiManagement.Models.DeviceManagementModel
                 $"{(code.IsNullOrEmpty() ? "" : "Code = @code AND ")}" +
                 $"MarkedDelete = 0;", new { wId, code }).FirstOrDefault();
         }
-        public static IEnumerable<DeviceLibrary> GetDetails(int wId, IEnumerable<string> codes = null)
+        public static IEnumerable<DeviceLibrary> GetDetails(int wId, IEnumerable<string> codes, IEnumerable<int> deviceIds)
         {
             return ServerConfig.ApiDb.Query<DeviceLibrary>(
                 $"SELECT * FROM `device_library` WHERE " +
                 $"{(wId == 0 ? "" : "WorkshopId = @wId AND ")}" +
-                $"{(codes != null ? "" : "Code IN @codes AND ")}" +
+                $"{(codes == null || !codes.Any() ? "" : "Code IN @codes AND ")}" +
+                $"{(deviceIds == null || !deviceIds.Any() ? "" : "Id IN @deviceIds AND ")}" +
                 $"MarkedDelete = 0;", new { wId, codes });
+        }
+        public static IEnumerable<DeviceLibrary> GetDetails(int wId)
+        {
+            return GetDetails(wId);
+        }
+        public static IEnumerable<DeviceLibrary> GetDetails(int wId, IEnumerable<string> codes)
+        {
+            return GetDetails(wId, codes);
+        }
+        public static IEnumerable<DeviceLibrary> GetDetails(int wId, IEnumerable<int> deviceIds)
+        {
+            return GetDetails(wId, null, deviceIds);
         }
         public static int GetCountByClass(int classId)
         {

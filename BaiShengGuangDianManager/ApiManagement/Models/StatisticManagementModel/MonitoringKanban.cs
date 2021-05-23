@@ -483,6 +483,7 @@ namespace ApiManagement.Models.StatisticManagementModel
         public int Min { get; set; }
         /// <summary>
         /// 其他参数
+        /// 工序推移图  [0][0] 班制 [0][1]数据类型 [0][2]时间范围;[1][...] 工序;[2][...] 计划号;[3][...] 操作工
         /// </summary>
         //public string Configs { get; set; }
         public int[][] ConfigList { get; set; } = new int[0][];

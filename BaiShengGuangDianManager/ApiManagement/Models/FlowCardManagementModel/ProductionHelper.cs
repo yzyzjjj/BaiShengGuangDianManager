@@ -51,7 +51,7 @@ namespace ApiManagement.Models.FlowCardManagementModel
             args.Add(new Tuple<string, string, dynamic>("Id", "IN", ids));
             return Instance.CommonGet<Production>(args, true);
         }
-        public static IEnumerable<ProductionDetail> GetDetail(int id = 0, DateTime startTime = default(DateTime), DateTime endTime = default(DateTime))
+        public static IEnumerable<ProductionDetail> GetDetails(int id = 0, DateTime startTime = default(DateTime), DateTime endTime = default(DateTime))
         {
             var args = new List<Tuple<string, string, dynamic>>();
             if (id != 0)
@@ -67,6 +67,21 @@ namespace ApiManagement.Models.FlowCardManagementModel
                 args.Add(new Tuple<string, string, dynamic>("MarkedDateTime", "<=", endTime.DayEndTime()));
             }
             return Instance.CommonGet<ProductionDetail>(args).OrderByDescending(x => x.MarkedDateTime).ThenByDescending(x => x.Id);
+        }
+        public static IEnumerable<Production> GetDetails(int wId, IEnumerable<int> ids)
+        {
+            var args = new List<Tuple<string, string, dynamic>>();
+            if (wId != 0)
+            {
+                args.Add(new Tuple<string, string, dynamic>("WorkshopId", "=", wId));
+            }
+
+            if (ids != null && ids.Any())
+            {
+                args.Add(new Tuple<string, string, dynamic>("Id", "IN", ids));
+            }
+
+            return Instance.CommonGet<Production>(args).OrderByDescending(x => x.MarkedDateTime).ThenByDescending(x => x.Id);
         }
         public static bool GetHaveSame(IEnumerable<string> sames, IEnumerable<int> ids = null)
         {

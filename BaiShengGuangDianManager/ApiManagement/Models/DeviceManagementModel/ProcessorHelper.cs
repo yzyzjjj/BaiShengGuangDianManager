@@ -2,6 +2,23 @@
 
 namespace ApiManagement.Models.DeviceManagementModel
 {
+
+
+    /// <summary>
+    /// 用AccountHelper
+    /// </summary>
+
+
+
+
+
+
+
+
+
+
+
+
     public class ProcessorHelper : DataHelper
     {
         //private ProcessorHelper()

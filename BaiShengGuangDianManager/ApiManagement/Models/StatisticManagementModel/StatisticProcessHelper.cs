@@ -1,8 +1,11 @@
 ﻿using ApiManagement.Base.Server;
+using ApiManagement.Models.AccountManagementModel;
+using ApiManagement.Models.BaseModel;
+using ApiManagement.Models.DeviceManagementModel;
+using ApiManagement.Models.FlowCardManagementModel;
 using System;
 using System.Collections.Generic;
 using System.Linq;
-using ApiManagement.Models.BaseModel;
 
 namespace ApiManagement.Models.StatisticManagementModel
 {
@@ -10,106 +13,231 @@ namespace ApiManagement.Models.StatisticManagementModel
     {
         private StatisticProcessHelper()
         {
-            Table = "npc_monitoring_process_log";
-            //InsertSql =
-            //    "INSERT INTO  `npc_monitoring_process_log` (`Id`, `OpName`, `DeviceId`, `StartTime`, `EndTime`, `FlowCardId`, `FlowCard`, `ProcessorId`, `Processor`, `ProcessData`, `RequirementMid`, `ActualThickness`) " +
-            //    "VALUES (@Id, @OpName, @DeviceId, @StartTime, @EndTime, @FlowCardId, @FlowCard, @ProcessorId, @Processor, @ProcessData, @RequirementMid, @ActualThickness);";
-            InsertSql =
-                "INSERT INTO `npc_monitoring_process_log` (`Id`, `ProcessType`, `OpName`, `DeviceId`, `StartTime`, `EndTime`, `FlowCardId`, `FlowCard`, `ProcessorId`, `ProcessData`, `RequirementMid`, `ActualThickness`) " +
-                "VALUES (@Id, @ProcessType, @OpName, @DeviceId, @StartTime, IF(@EndTime = '0001-01-01 00:00:00', NULL, @EndTime), @FlowCardId, @FlowCard, @ProcessorId, @ProcessData, @RequirementMid, @ActualThickness);";
-            UpdateSql = "UPDATE `npc_monitoring_process_log` SET `EndTime` = @EndTime WHERE `Id` = @Id;";
+            Table = "";
+            InsertSql = "";
+            UpdateSql = "";
 
-            SameField = "OpName";
-            MenuFields.AddRange(new[] { "Id", "ProcessType", "OpName", "DeviceId", "StartTime", "EndTime" });
+            SameField = "";
+            //MenuFields.AddRange(new[] { "Id", "Time", "OpName", "DeviceId", "StartTime", "EndTime" });
         }
         public static readonly StatisticProcessHelper Instance = new StatisticProcessHelper();
         #region Get
-        ///// <summary>
-        ///// 菜单
-        ///// </summary>
-        ///// <param name="sId">脚本</param>
-        ///// <param name="vId">常用变量类型id</param>
-        ///// <param name="vType">1 变量 2输入口 3输出口</param>
-        ///// <returns></returns>
-        //public static IEnumerable<dynamic> GetMenu(int sId = -1, int vId = 0, int vType = 0)
-        //{
-        //    var args = new List<Tuple<string, string, dynamic>>();
-        //    if (sId != -1)
-        //    {
-        //        args.Add(new Tuple<string, string, dynamic>("ScriptId", "=", sId));
-        //    }
-        //    if (vId != 0)
-        //    {
-        //        args.Add(new Tuple<string, string, dynamic>("VariableNameId", "=", vId));
-        //    }
-        //    if (vType != 0)
-        //    {
-        //        args.Add(new Tuple<string, string, dynamic>("DictionaryId", "=", vType));
-        //    }
+        public static IEnumerable<StatisticProcessAll> GetDetails(int wId, StatisticProcessTimeEnum timeType,
+            DateTime startTime, DateTime endTime, List<int> steps, List<int> deviceIds, List<int> productionIds, List<int> processorIds)
+        {
+            var args = new List<Tuple<string, string, dynamic>>();
+            if (wId != 0)
+            {
+                args.Add(new Tuple<string, string, dynamic>("WorkshopId", "=", wId));
+            }
 
-        //    return Instance.CommonGet<StatisticProcess>(args, true).Select(x => new { x.Id, x.ScriptId, x.VariableNameId, x.DictionaryId, x.VariableTypeId });
-        //}
-        //public static IEnumerable<StatisticProcessDetail> GetDetail(int id = 0, int cId = 0, int wId = 0)
+            if (startTime != default(DateTime))
+            {
+                args.Add(new Tuple<string, string, dynamic>("Time", ">=", startTime));
+            }
+            if (endTime != default(DateTime))
+            {
+                args.Add(new Tuple<string, string, dynamic>("Time", "<", endTime));
+            }
+            if (steps != null && steps.Any())
+            {
+                args.Add(new Tuple<string, string, dynamic>("Step", "IN", steps));
+            }
+            if (deviceIds != null && deviceIds.Any())
+            {
+                args.Add(new Tuple<string, string, dynamic>("DeviceId", "IN", deviceIds));
+            }
+            if (productionIds != null && productionIds.Any())
+            {
+                args.Add(new Tuple<string, string, dynamic>("ProductionId", "IN", productionIds));
+            }
+            if (processorIds != null && processorIds.Any())
+            {
+                args.Add(new Tuple<string, string, dynamic>("ProcessorId", "IN", processorIds));
+            }
+
+            return Instance.CommonGet<StatisticProcessAll>(args);
+        }
+
+        /// <summary>
+        /// 获取设备数据
+        /// <param name="shift">班制 0 前天</param>
+        /// </summary>
+        /// <returns></returns>
+        public static IEnumerable<StatisticProcessAll> StatisticProcesses(KanBanItemEnum itemType, Workshop workshop, int shift, StatisticProcessTimeEnum timeType
+            , int range, List<int> steps, List<int> deviceIds, List<int> productionIds, List<int> processorIds)
+        {
+            var workshopId = workshop.Id;
+            //DateTime startTime, DateTime endTime
+            var stepList = steps != null && steps.Any()
+                ? DeviceProcessStepHelper.GetDetails(workshopId, steps).ToDictionary(x => x.Id, x => x.StepName)
+                : new Dictionary<int, string>();
+            var productionList = productionIds != null && productionIds.Any()
+                ? ProductionHelper.GetDetails(workshopId, productionIds).ToDictionary(x => x.Id, x => x.ProductionProcessName)
+                : new Dictionary<int, string>();
+            var deviceList = processorIds != null && deviceIds.Any()
+                ? DeviceLibraryHelper.GetDetails(workshopId, deviceIds).ToDictionary(x => x.Id, x => x.Code)
+                : new Dictionary<int, string>();
+            var processorList = processorIds != null && processorIds.Any()
+                ? AccountInfoHelper.GetAccountInfoByAccountIds(processorIds).ToDictionary(x => x.Id, x => x.Name)
+                : new Dictionary<int, string>();
+
+            var res = new List<StatisticProcessAll>();
+            //switch (timeType)
+            //{
+            //    case StatisticProcessTimeEnum.小时:
+            //        var data = ServerConfig.ApiDb.Query<StatisticProcessDevice>(
+            //            $"SELECT * FROM `{config[0]}` WHERE Time >= @startTime AND Time < @endTime;",
+            //            new
+            //            {
+            //                startTime,
+            //                endTime,
+            //            }, 1000);
+            //        var hours = (endTime - startTime).TotalHours;
+            //        for (var i = 0; i < hours; i++)
+            //        {
+            //            var tPre = startTime.AddHours(i - 1);
+            //            var t = startTime.AddHours(i);
+            //            foreach (var p in paramList)
+            //            {
+            //                var tPreData = data.FirstOrDefault(x => x.Time == tPre && x.DeviceId == p.Item1);
+            //                var tData = data.FirstOrDefault(x => x.Time == t && x.DeviceId == p.Item1);
+            //                if (tData == null)
+            //                {
+            //                    var nData = new StatisticProcessDevice
+            //                    {
+            //                        Time = p.Item1,
+            //                        DeviceId = p.Item1,
+            //                        Code = p.Item2
+            //                    };
+            //                    res.Add(nData);
+            //                }
+            //                else
+            //                {
+            //                    res.Add(tData);
+            //                }
+
+            //            }
+            //        }
+            //        break;
+            //    case StatisticProcessTimeEnum.日: break;
+            //}
+            return res;
+        }
+        ///// <summary>
+        ///// 获取计划号数据
+        ///// </summary>
+        ///// <returns></returns>
+        //public static IEnumerable<StatisticProcessProduction> GetProductions(StatisticProcessTimeEnum timeType, DateTime startTime, DateTime endTime)
         //{
-        //    return ServerConfig.ApiDb.Query<StatisticProcessDetail>(
-        //        $"SELECT a.*, b.`Category` FROM `usually_dictionary` a JOIN `t_device_category` b ON a.CategoryId = b.Id " +
-        //        $"WHERE {(id == 0 ? "" : "a.Id = @id AND ")}{(cId == 0 ? "" : "a.CategoryId = @cId AND ")}{(wId == 0 ? "" : "a.WorkshopId = @wId AND ")}a.MarkedDelete = 0 ORDER BY a.CategoryId;",
-        //        new { id, cId, wId });
+        //    return Get<StatisticProcessProduction>(StatisticProcessTypeEnum.计划号, timeType, startTime, endTime);
         //}
-        //public static bool GetHaveSame(int cId, IEnumerable<string> sames, IEnumerable<int> ids = null)
+        ///// <summary>
+        ///// 获取操作工数据
+        ///// </summary>
+        ///// <returns></returns>
+        //public static IEnumerable<StatisticProcessProcessor> GetProcessors(StatisticProcessTimeEnum timeType, DateTime startTime, DateTime endTime)
         //{
-        //    var args = new List<Tuple<string, string, dynamic>>
+        //    return Get<StatisticProcessProcessor>(StatisticProcessTypeEnum.操作工, timeType, startTime, endTime);
+        //}
+
+        ///// <summary>
+        ///// 
+        ///// </summary>
+        ///// <returns></returns>
+        //private static IEnumerable<T> Get<T>(StatisticProcessTypeEnum type, StatisticProcessTimeEnum timeType, DateTime startTime, DateTime endTime, List<Tuple<int, string>> paramList)
+        //{
+        //    var res = new List<T>();
+        //    if (Configs.ContainsKey(type))
         //    {
-        //        new Tuple<string, string, dynamic>("CategoryId", "=", cId),
-        //        new Tuple<string, string, dynamic>("Model", "IN", sames)
-        //    };
-        //    if (ids != null)
-        //    {
-        //        args.Add(new Tuple<string, string, dynamic>("Id", "NOT IN", ids));
+        //        var config = Configs[type];
+        //        switch (timeType)
+        //        {
+        //            case StatisticProcessTimeEnum.小时:
+        //                var data = ServerConfig.ApiDb.Query<T>(
+        //                    $"SELECT * FROM `{config[0]}` WHERE Time >= @startTime AND Time < @endTime;",
+        //                    new
+        //                    {
+        //                        startTime,
+        //                        endTime,
+        //                    }, 1000);
+        //                var hours = (endTime - startTime).TotalHours;
+        //                for (var i = 0; i < hours; i++)
+        //                {
+        //                    var t = startTime.AddHours(i);
+        //                    switch (type)
+        //                    {
+        //                        case StatisticProcessTypeEnum.设备:
+        //                            foreach (var p in paramList)
+        //                            {
+        //                                var tData = data.FirstOrDefault(x => (x as StatisticProcessDevice).DeviceId == p.Item1);
+        //                                if (tData == null)
+        //                                {
+        //                                    var nData = new StatisticProcessDevice
+        //                                    {
+        //                                        DeviceId = p.Item1,
+        //                                        Code = p.Item2
+        //                                    };
+        //                                    res.Add(nData);
+        //                                }
+        //                                else
+        //                                {
+        //                                    res.Add(tData);
+        //                                }
+
+        //                            }
+
+        //                    }
+        //                }
+        //                break;
+        //            case StatisticProcessTimeEnum.日: break;
+        //        }
         //    }
-        //    return Instance.CommonHaveSame(args);
+        //    return res;
         //}
+
         /// <summary>
         /// 
         /// </summary>
         /// <returns></returns>
-        public static IEnumerable<StatisticProcessFlag> GetDistinctProcessLogs(bool valid)
+        public static IEnumerable<StatisticProcessAll> GetMax(Tuple<DateTime, DateTime> workDays)
         {
-            return ServerConfig.ApiDb.Query<StatisticProcessFlag>(
-                valid ? "SELECT * FROM (SELECT * FROM (SELECT * FROM `npc_monitoring_process_log` ORDER BY Id DESC) a GROUP BY a.DeviceId) a WHERE ISNULL(EndTime);"
-                    : "SELECT * FROM (SELECT * FROM `npc_monitoring_process_log` ORDER BY Id DESC) a GROUP BY a.DeviceId;", null, 1000);
-        }
-        /// <summary>
-        /// 
-        /// </summary>
-        /// <returns></returns>
-        public static IEnumerable<StatisticProcess> GetProcessLogs(IEnumerable<int> ids = null)
-        {
-            return Instance.GetByIds<StatisticProcess>(ids,
-                $"SELECT * FROM `npc_monitoring_process_log`{(ids != null && ids.Any() ? " Where Id IN @ids" : "")};");
-            //return ServerConfig.ApiDb.Query<StatisticProcess>($"SELECT * FROM `npc_monitoring_process_log`{(ids != null && ids.Any() ? " Where Id IN @ids" : "")};", new { ids });
-        }
-        /// <summary>
-        /// 
-        /// </summary>
-        /// <returns></returns>
-        public static IEnumerable<StatisticProcessFlag> GetProcessLogFlags(IEnumerable<int> ids = null)
-        {
-            return Instance.GetByIds<StatisticProcessFlag>(ids,
-                $"SELECT * FROM `npc_monitoring_process_log`{(ids != null && ids.Any() ? " Where Id IN @ids" : "")};");
-            //return ServerConfig.ApiDb.Query<StatisticProcess>($"SELECT * FROM `npc_monitoring_process_log`{(ids != null && ids.Any() ? " Where Id IN @ids" : "")};", new { ids });
+            var res = new List<StatisticProcessAll>();
+            //res.AddRange(ServerConfig.ApiDb.Query<T>($"SELECT *, MAX(Time) Time FROM `{config[0]}` WHERE Time >= @st AND Time < @ed GROUP BY WorkshopId, Type, Step, {config[1]};",
+            //res.AddRange(ServerConfig.ApiDb.Query<T>($"SELECT * FROM `{config[0]}` WHERE Time >= @st AND Time < @ed GROUP BY WorkshopId, Type, Step, {config[1]};",
+            res.AddRange(ServerConfig.ApiDb.Query<StatisticProcessAll>($"SELECT * FROM `statistic_process` WHERE Time >= @st AND Time < @ed;",
+                new
+                {
+                    st = workDays.Item1,
+                    ed = workDays.Item2,
+                }, 1000));
+            return res;
         }
         #endregion
 
         #region Add
-
-        public void Add(IEnumerable<StatisticProcess>)
+        public static void Add(IEnumerable<StatisticProcessAll> data)
         {
-
+            ServerConfig.ApiDb.Execute($"INSERT INTO `statistic_process` (`MarkedDateTime`, `WorkshopId`, `Type`, `Time`, `Step`, `StepName`, `StepAbbrev`, `DeviceId`, `Code`, `ProcessorId`, `Processor`, `ProductionId`, `Production`, `Total`, `Qualified`, `Unqualified`, `QualifiedRate`, `UnqualifiedRate`) " +
+                                       $"VALUES (@MarkedDateTime, @WorkshopId, @Type, @Time, @Step, @StepName, @StepAbbrev, @DeviceId, @Code, @ProcessorId, @Processor, @ProductionId, @Production, @Total, @Qualified, @Unqualified, @QualifiedRate, @UnqualifiedRate);", data);
         }
         #endregion
 
         #region Update
+        public static void Update(IEnumerable<StatisticProcessAll> data)
+        {
+            ServerConfig.ApiDb.Execute($"UPDATE `statistic_process` SET `MarkedDateTime` = @MarkedDateTime, `Total` = @Total, `Qualified` = @Qualified, `Unqualified` = @Unqualified, `QualifiedRate` = @QualifiedRate, `UnqualifiedRate` = @UnqualifiedRate " +
+                                       $"WHERE `WorkshopId` = @WorkshopId AND `Type` = @Type AND `Time` = @Time AND `Step` = @Step AND `DeviceId` = @DeviceId AND `ProcessorId` = @ProcessorId AND `ProductionId` = @ProductionId;", data);
+        }
+        #endregion
+
+        #region AddOrUpdate
+        public static void AddOrUpdate(IEnumerable<StatisticProcessAll> data)
+        {
+            ServerConfig.ApiDb.Execute($"INSERT INTO `statistic_process` (`MarkedDateTime`, `WorkshopId`, `Type`, `Time`, `Step`, `StepName`, `StepAbbrev`, `DeviceId`, `Code`, `ProcessorId`, `Processor`, `ProductionId`, `Production`, `Total`, `Qualified`, `Unqualified`, `QualifiedRate`, `UnqualifiedRate`) " +
+                                       $"VALUES (@MarkedDateTime, @WorkshopId, @Type, @Time, @Step, @StepName, @StepAbbrev, @DeviceId, @Code, @ProcessorId, @Processor, @ProductionId, @Production, @Total, @Qualified, @Unqualified, @QualifiedRate, @UnqualifiedRate) " +
+                                       $"ON DUPLICATE KEY UPDATE `MarkedDateTime` = @MarkedDateTime, `Total` = @Total, `Qualified` = @Qualified, `Unqualified` = @Unqualified, `QualifiedRate` = @QualifiedRate, `UnqualifiedRate` = @UnqualifiedRate;", data);
+        }
         #endregion
 
         #region Delete

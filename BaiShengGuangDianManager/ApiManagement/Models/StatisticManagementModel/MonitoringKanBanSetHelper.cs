@@ -94,7 +94,7 @@ namespace ApiManagement.Models.StatisticManagementModel
                         new KanBanTableFieldConfig("int", "time", "RepairCostTime", "维修耗时(秒)"),
                         new KanBanTableFieldConfig("int", "time", "TotalCostTime", "总故障时间(秒)"),
                     }),
-                    new KanBanItemConfig(KanBanItemEnum.计划号工序推移图, false, false, new List<KanBanTableFieldConfig>
+                    new KanBanItemConfig(KanBanItemEnum.计划号工序推移图, true, true, new List<KanBanTableFieldConfig>
                     {
                         new KanBanTableFieldConfig("datetime", "Time", "时间"),
                         new KanBanTableFieldConfig("string", "Production", "计划号"),
@@ -104,7 +104,7 @@ namespace ApiManagement.Models.StatisticManagementModel
                         new KanBanTableFieldConfig("decimal", "QualifiedRate", "合格率(%)"),
                         new KanBanTableFieldConfig("decimal", "UnqualifiedRate", "次品率(%)"),
                     }, KanBanItemDisplayEnum.Chart),
-                    new KanBanItemConfig(KanBanItemEnum.设备工序推移图, false, false, new List<KanBanTableFieldConfig>
+                    new KanBanItemConfig(KanBanItemEnum.设备工序推移图, true, true, new List<KanBanTableFieldConfig>
                     {
                         new KanBanTableFieldConfig("datetime", "Time", "时间"),
                         new KanBanTableFieldConfig("string", "Code", "机台号"),
@@ -114,7 +114,7 @@ namespace ApiManagement.Models.StatisticManagementModel
                         new KanBanTableFieldConfig("decimal", "QualifiedRate", "合格率(%)"),
                         new KanBanTableFieldConfig("decimal", "UnqualifiedRate", "次品率(%)"),
                     }, KanBanItemDisplayEnum.Chart),
-                    new KanBanItemConfig(KanBanItemEnum.操作工工序推移图, false, false, new List<KanBanTableFieldConfig>
+                    new KanBanItemConfig(KanBanItemEnum.操作工工序推移图, true, true, new List<KanBanTableFieldConfig>
                     {
                         new KanBanTableFieldConfig("datetime", "Time", "时间"),
                         new KanBanTableFieldConfig("string", "Processor", "操作工"),
@@ -203,12 +203,16 @@ namespace ApiManagement.Models.StatisticManagementModel
 
             return Instance.CommonGet<MonitoringKanBanSet>(args, true).Select(x => new { x.Id, x.Name });
         }
-        public static IEnumerable<MonitoringKanBanSet> GetDetail(int id = 0)
+        public static IEnumerable<MonitoringKanBanSet> GetDetail(int wId = 0, int id = 0)
         {
             var args = new List<Tuple<string, string, dynamic>>();
             if (id != 0)
             {
                 args.Add(new Tuple<string, string, dynamic>("Id", "=", id));
+            }
+            if (wId != 0)
+            {
+                args.Add(new Tuple<string, string, dynamic>("WorkshopId", "=", wId));
             }
 
             return Instance.CommonGet<MonitoringKanBanSet>(args).OrderBy(x => x.Order);
