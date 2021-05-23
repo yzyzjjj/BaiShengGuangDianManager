@@ -1794,7 +1794,7 @@ namespace ApiManagement.Base.Helper
                                                     var oldFcId = log.ExtraIdList.ElementAt(2);
                                                     var report = stepReport.FirstOrDefault(x => x.OldFlowCardId == oldFcId);
                                                     log.Code = report?.Code ?? log.Code;
-                                                    if (log.WarningData.Any())
+                                                    if (log.WarningData.Any() && report != null)
                                                     {
                                                         try
                                                         {
