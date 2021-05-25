@@ -29,21 +29,25 @@ namespace ApiManagement.Models.DeviceManagementModel
         /// 菜单
         /// </summary>
         /// <param name="id"></param>
-        public static IEnumerable<dynamic> GetMenu(int id = 0)
+        public static IEnumerable<dynamic> GetMenu(int wId, int id)
         {
             var args = new List<Tuple<string, string, dynamic>>();
+            if (wId != 0)
+            {
+                args.Add(new Tuple<string, string, dynamic>("WorkshopId", "=", wId));
+            }
             if (id != 0)
             {
                 args.Add(new Tuple<string, string, dynamic>("Id", "=", id));
             }
             return Instance.CommonGet<DeviceProcessStep>(args, true).Select(x => new { x.Id, x.DeviceCategoryId, x.StepName }).OrderByDescending(x => x.Id);
         }
-        public static IEnumerable<DeviceProcessStepDetail> GetDetails(int id = 0)
+        public static IEnumerable<DeviceProcessStepDetail> GetDetails(int wId, int id = 0)
         {
             return ServerConfig.ApiDb.Query<DeviceProcessStepDetail>(
                 $"SELECT b.*, a.*, IFNULL(c.CategoryName, '') CategoryName FROM `device_process_step` a " +
                 $"JOIN `device_process_step_other` b ON a.Id = b.Id " +
-                $"LEFT JOIN `device_category` c ON a.DeviceCategoryId = c.Id WHERE {(id == 0 ? "" : " a.Id = @id AND ")} a.MarkedDelete = 0;", new { id });
+                $"LEFT JOIN `device_category` c ON a.DeviceCategoryId = c.Id WHERE {(id == 0 ? "" : " a.WorkshopId = @wId AND ")} {(id == 0 ? "" : " a.Id = @id AND ")} a.MarkedDelete = 0;", new { wId, id });
         }
         public static IEnumerable<DeviceProcessStepDetail> GetDetailsFrom(DataFrom from)
         {

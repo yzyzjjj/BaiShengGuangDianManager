@@ -1,12 +1,13 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using ApiManagement.Base.Server;
+﻿using ApiManagement.Base.Server;
+using ApiManagement.Models.AccountManagementModel;
 using ApiManagement.Models.DeviceManagementModel;
 using Microsoft.AspNetCore.Mvc;
 using ModelBase.Base.EnumConfig;
 using ModelBase.Base.Utils;
 using ModelBase.Models.Result;
+using System;
+using System.Collections.Generic;
+using System.Linq;
 
 namespace ApiManagement.Controllers.DeviceManagementController
 {
@@ -19,10 +20,17 @@ namespace ApiManagement.Controllers.DeviceManagementController
     {
         // GET: api/Processor
         [HttpGet]
-        public DataResult GetProcessor()
+        public DataResult GetProcessor([FromQuery]int qId, bool menu)
         {
             var result = new DataResult();
-            result.datas.AddRange(ServerConfig.ApiDb.Query<Processor>("SELECT * FROM `processor` WHERE MarkedDelete = 0;"));
+            result.datas.AddRange(menu
+                ? AccountInfoHelper.GetProcessorMenu(qId)
+                : AccountInfoHelper.GetProcessorDetails(qId));
+            if (qId != 0 && !result.datas.Any())
+            {
+                result.errno = Error.ProcessorNotExist;
+                return result;
+            }
             return result;
         }
 
@@ -59,7 +67,7 @@ namespace ApiManagement.Controllers.DeviceManagementController
         [HttpPut("{account}")]
         public Result PutProcessor([FromRoute] string account, [FromBody] Processor processor)
         {
-            var data = 
+            var data =
                 ServerConfig.ApiDb.Query<Processor>("SELECT * FROM `processor` WHERE Account = @Account;", new { Account = account }).FirstOrDefault();
             if (data == null)
             {

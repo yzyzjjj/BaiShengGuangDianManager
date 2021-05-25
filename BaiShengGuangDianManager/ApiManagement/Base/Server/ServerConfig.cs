@@ -43,11 +43,11 @@ namespace ApiManagement.Base.Server
             ErpUrl = configuration.GetAppSettings<string>("ErpUrl");
             GlobalConfig.LoadGlobalConfig();
             AccountInfoHelper.Init(configuration);
-            WarningHelper.Init();
-            HFlowCardHelper.Init();
-            WorkFlowHelper.Init();
-            SimulateHelper.Init();
-            HScheduleHelper.Init();
+            //WarningHelper.Init();
+            //HFlowCardHelper.Init();
+            //WorkFlowHelper.Init();
+            //SimulateHelper.Init();
+            //HScheduleHelper.Init();
             TimerHelper.Init();
             AnalysisHelper.Init();
             if (!RedisHelper.Exists(IsSetProcessDataKey))

@@ -96,33 +96,33 @@ namespace ApiManagement.Models.StatisticManagementModel
                     }),
                     new KanBanItemConfig(KanBanItemEnum.计划号工序推移图, true, true, new List<KanBanTableFieldConfig>
                     {
-                        new KanBanTableFieldConfig("datetime", "Time", "时间"),
-                        new KanBanTableFieldConfig("string", "Production", "计划号"),
-                        new KanBanTableFieldConfig("int", "Total", "加工数"),
-                        new KanBanTableFieldConfig("int", "Qualified", "合格数"),
-                        new KanBanTableFieldConfig("int", "Unqualified", "次品数"),
-                        new KanBanTableFieldConfig("decimal", "QualifiedRate", "合格率(%)"),
-                        new KanBanTableFieldConfig("decimal", "UnqualifiedRate", "次品率(%)"),
+                        new KanBanTableFieldConfig("datetime", "Time", "时间", KanBanItemTableAxisEnum.X),
+                        //new KanBanTableFieldConfig("string", "Production", "计划号"),
+                        new KanBanTableFieldConfig("int", "Total", "加工数", KanBanItemTableAxisEnum.Y),
+                        new KanBanTableFieldConfig("int", "Qualified", "合格数", KanBanItemTableAxisEnum.Y),
+                        new KanBanTableFieldConfig("int", "Unqualified", "次品数", KanBanItemTableAxisEnum.Y),
+                        new KanBanTableFieldConfig("decimal", "QualifiedRate", "合格率(%)", KanBanItemTableAxisEnum.Y),
+                        new KanBanTableFieldConfig("decimal", "UnqualifiedRate", "次品率(%)", KanBanItemTableAxisEnum.Y),
                     }, KanBanItemDisplayEnum.Chart),
                     new KanBanItemConfig(KanBanItemEnum.设备工序推移图, true, true, new List<KanBanTableFieldConfig>
                     {
-                        new KanBanTableFieldConfig("datetime", "Time", "时间"),
-                        new KanBanTableFieldConfig("string", "Code", "机台号"),
-                        new KanBanTableFieldConfig("int", "Total", "加工数"),
-                        new KanBanTableFieldConfig("int", "Qualified", "合格数"),
-                        new KanBanTableFieldConfig("int", "Unqualified", "次品数"),
-                        new KanBanTableFieldConfig("decimal", "QualifiedRate", "合格率(%)"),
-                        new KanBanTableFieldConfig("decimal", "UnqualifiedRate", "次品率(%)"),
+                        new KanBanTableFieldConfig("datetime", "Time", "时间", KanBanItemTableAxisEnum.X),
+                        //new KanBanTableFieldConfig("string", "Code", "机台号"),
+                        new KanBanTableFieldConfig("int", "Total", "加工数", KanBanItemTableAxisEnum.Y),
+                        new KanBanTableFieldConfig("int", "Qualified", "合格数", KanBanItemTableAxisEnum.Y),
+                        new KanBanTableFieldConfig("int", "Unqualified", "次品数", KanBanItemTableAxisEnum.Y),
+                        new KanBanTableFieldConfig("decimal", "QualifiedRate", "合格率(%)", KanBanItemTableAxisEnum.Y),
+                        new KanBanTableFieldConfig("decimal", "UnqualifiedRate", "次品率(%)", KanBanItemTableAxisEnum.Y),
                     }, KanBanItemDisplayEnum.Chart),
                     new KanBanItemConfig(KanBanItemEnum.操作工工序推移图, true, true, new List<KanBanTableFieldConfig>
                     {
-                        new KanBanTableFieldConfig("datetime", "Time", "时间"),
-                        new KanBanTableFieldConfig("string", "Processor", "操作工"),
-                        new KanBanTableFieldConfig("int", "Total", "加工数"),
-                        new KanBanTableFieldConfig("int", "Qualified", "合格数"),
-                        new KanBanTableFieldConfig("int", "Unqualified", "次品数"),
-                        new KanBanTableFieldConfig("decimal", "QualifiedRate", "合格率(%)"),
-                        new KanBanTableFieldConfig("decimal", "UnqualifiedRate", "次品率(%)"),
+                        new KanBanTableFieldConfig("datetime", "Time", "时间", KanBanItemTableAxisEnum.X),
+                        //new KanBanTableFieldConfig("string", "Processor", "操作工"),
+                        new KanBanTableFieldConfig("int", "Total", "加工数", KanBanItemTableAxisEnum.Y),
+                        new KanBanTableFieldConfig("int", "Qualified", "合格数", KanBanItemTableAxisEnum.Y),
+                        new KanBanTableFieldConfig("int", "Unqualified", "次品数", KanBanItemTableAxisEnum.Y),
+                        new KanBanTableFieldConfig("decimal", "QualifiedRate", "合格率(%)", KanBanItemTableAxisEnum.Y),
+                        new KanBanTableFieldConfig("decimal", "UnqualifiedRate", "次品率(%)", KanBanItemTableAxisEnum.Y),
                     }, KanBanItemDisplayEnum.Chart),
                 }
             },
@@ -168,22 +168,31 @@ namespace ApiManagement.Models.StatisticManagementModel
         }
         public static readonly MonitoringKanBanSetHelper Instance = new MonitoringKanBanSetHelper();
 
-        public static KanBanTableFieldSet ConvertFieldSet(KanBanTableFieldConfig config, int order)
+        public static KanBanTableFieldSet ConvertFieldSet(KanBanTableFieldConfig config, int order, bool sort)
         {
-            var c = new KanBanTableFieldSet(config) { Order = order + 1 };
+            var c = new KanBanTableFieldSet(config);
+            if (sort)
+            {
+                c.Order = order + 1;
+            }
+
             if (config.FieldList.Any())
             {
-                c.FieldList.AddRange(config.FieldList.Select(ConvertFieldSet));
+                c.FieldList.AddRange(config.FieldList.Select((x, i) => ConvertFieldSet(x, i, sort)));
             }
             return c;
         }
 
-        public static KanBanTableFieldConfig ConvertFieldConfig(KanBanTableFieldConfig config, int order)
+        public static KanBanTableFieldConfig ConvertFieldConfig(KanBanTableFieldConfig config, int order, bool sort)
         {
-            var c = new KanBanTableFieldConfig(config) { Order = order + 1 };
+            var c = new KanBanTableFieldConfig(config);
+            if (sort)
+            {
+                c.Order = order + 1;
+            }
             if (config.FieldList.Any())
             {
-                c.FieldList.AddRange(config.FieldList.Select(ConvertFieldConfig));
+                c.FieldList.AddRange(config.FieldList.Select((x, i) => ConvertFieldConfig(x, i, sort)));
             }
             return c;
         }

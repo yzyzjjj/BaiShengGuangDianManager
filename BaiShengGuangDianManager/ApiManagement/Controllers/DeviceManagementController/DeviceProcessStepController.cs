@@ -15,12 +15,12 @@ namespace ApiManagement.Controllers.DeviceManagementController
     {
         // GET: api/DeviceProcessStep
         [HttpGet]
-        public DataResult GetDeviceProcessStep([FromQuery]int qId, bool menu)
+        public DataResult GetDeviceProcessStep([FromQuery]int wId, int qId, bool menu)
         {
             var result = new DataResult();
             result.datas.AddRange(menu
-                ? DeviceProcessStepHelper.GetMenu(qId)
-                : DeviceProcessStepHelper.GetDetails(qId));
+                ? DeviceProcessStepHelper.GetMenu( wId, qId)
+                : DeviceProcessStepHelper.GetDetails(wId, qId));
             if (qId != 0 && !result.datas.Any())
             {
                 result.errno = Error.DeviceProcessStepNotExist;

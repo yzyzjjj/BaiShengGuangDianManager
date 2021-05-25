@@ -115,6 +115,16 @@ namespace ApiManagement.Models.StatisticManagementModel
     }
 
     /// <summary>
+    /// 看板子选项图表字段显示位置
+    /// </summary>
+    public enum KanBanItemTableAxisEnum
+    {
+        [Description("x轴")]
+        X = 0,
+        [Description("y轴")]
+        Y = 1,
+    }
+    /// <summary>
     /// 看板子选项显示类型
     /// </summary>
     public enum KanBanItemDisplayTypeEnum
@@ -635,7 +645,7 @@ namespace ApiManagement.Models.StatisticManagementModel
             BDuration = bDuration;
         }
 
-        public KanBanItemConfig(KanBanItemEnum item, bool bShifts, bool bDuration, List<KanBanTableFieldConfig> fieldList, 
+        public KanBanItemConfig(KanBanItemEnum item, bool bShifts, bool bDuration, List<KanBanTableFieldConfig> fieldList,
             KanBanItemDisplayEnum display = KanBanItemDisplayEnum.Table, KanBanItemDisplayTypeEnum displayType = KanBanItemDisplayTypeEnum.Line)
         {
             Display = display;
@@ -743,12 +753,20 @@ namespace ApiManagement.Models.StatisticManagementModel
         {
             DataType = config.DataType;
             Special = config.Special;
+            Axis = config.Axis;
         }
 
         public KanBanTableFieldConfig(string type, string field, string column)
             : base(field, column)
         {
             DataType = type;
+        }
+
+        public KanBanTableFieldConfig(string type, string field, string column, KanBanItemTableAxisEnum axis)
+            : base(field, column)
+        {
+            DataType = type;
+            Axis = axis;
         }
 
         public KanBanTableFieldConfig(string type, string special, string field, string column)
@@ -779,7 +797,10 @@ namespace ApiManagement.Models.StatisticManagementModel
         /// </summary>
         //[JsonProperty("DType")]
         public string DataType { get; set; } = "";
-
+        /// <summary>
+        /// 坐标轴
+        /// </summary>
+        public KanBanItemTableAxisEnum Axis { get; set; }
         /// <summary>
         /// 字段处理类型
         /// </summary>

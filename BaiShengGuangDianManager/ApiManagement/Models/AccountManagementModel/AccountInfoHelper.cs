@@ -30,7 +30,7 @@ namespace ApiManagement.Models.AccountManagementModel
                       "`SelfPermissions` = @SelfPermissions, `AllDevice` = @AllDevice, `DeviceIds` = @DeviceIds, `Default` = @Default, `ProductionRole` = @ProductionRole, `MaxProductionRole` = @MaxProductionRole WHERE `Id` = @Id;";
 
             SameField = "Account";
-            MenuFields.AddRange(new[] { "Id", "Account", "Name" });
+            MenuFields.AddRange(new[] { "Id", "Account", "Name", "Phone" });
         }
 
         public static readonly AccountInfoHelper Instance = new AccountInfoHelper();
@@ -259,6 +259,26 @@ namespace ApiManagement.Models.AccountManagementModel
         public static IEnumerable<AccountInfo> GetAccountInfoByImport()
         {
             return ServerConfig.ApiDb.Query<AccountInfo>("SELECT * FROM `accounts` WHERE `IsErp` = 1");
+        }
+
+        public static IEnumerable<dynamic> GetProcessorMenu(int id = 0)
+        {
+            return ServerConfig.ApiDb
+                .Query<AccountInfo>(
+                    "SELECT * FROM `accounts` WHERE " +
+                    $"{(id == 0 ? "" : "Id = @id AND ")}" +
+                    "FIND_IN_SET('0', `ProductionRole`) AND MarkedDelete = 0;", new { id })
+                .Select(x => new { x.Id, x.Name, x.Account, x.Phone }).OrderByDescending(x => x.Id);
+        }
+
+        public static IEnumerable<AccountInfo> GetProcessorDetails(int id = 0)
+        {
+            return ServerConfig.ApiDb
+                .Query<AccountInfo>(
+                    "SELECT * FROM `accounts` WHERE " +
+                    $"{(id == 0 ? "" : "Id = @id AND ")}" +
+                    "FIND_IN_SET('0', `ProductionRole`) AND MarkedDelete = 0;", new { id })
+                .OrderByDescending(x => x.Id);
         }
         ///// <summary>
         ///// 根据名字获取账号信息

@@ -35,13 +35,13 @@ namespace ApiManagement.Controllers.FlowCardManagementController
         /// <param name="bPassRate">总合格率</param>
         /// <returns></returns>
         [HttpGet]
-        public DataResult GetProductionLibrary([FromQuery]bool menu, int qId, DateTime startTime, DateTime endTime,
+        public DataResult GetProductionLibrary([FromQuery]bool menu, int wId, int qId, DateTime startTime, DateTime endTime,
             bool bFlowCard, bool bComplete, bool bRawMaterial, bool bCompleteRawMaterial, bool bQualifiedNumber, bool bPassRate)
         {
             var result = new DataResult();
             if (menu)
             {
-                result.datas.AddRange(ProductionHelper.GetMenu(qId));
+                result.datas.AddRange(ProductionHelper.GetMenu(wId, qId));
             }
             else
             {
@@ -65,7 +65,7 @@ namespace ApiManagement.Controllers.FlowCardManagementController
                 //    sql =
                 //        "SELECT a.*, IFNULL(b.FlowCardCount, 0) FlowCardCount, IFNULL(b.RawMaterialQuantity, 0) AllRawMaterialQuantity, IFNULL(c.RawMaterialQuantity, 0) RawMaterialQuantity, IFNULL(c.Complete, 0) Complete, IFNULL(c.QualifiedNumber, 0) QualifiedNumber FROM `production_library` a LEFT JOIN ( SELECT ProductionProcessId, COUNT(1) FlowCardCount, SUM(RawMaterialQuantity) RawMaterialQuantity FROM `flowcard_library` WHERE MarkedDelete = 0 GROUP BY ProductionProcessId ) b ON a.Id = b.ProductionProcessId LEFT JOIN ( SELECT a.ProductionProcessId, COUNT(1) Complete, SUM(a.QualifiedNumber) QualifiedNumber, SUM(a.RawMaterialQuantity) RawMaterialQuantity FROM ( SELECT * FROM ( SELECT b.ProductionProcessId, b.RawMaterialQuantity, FlowCardId, ProcessStepOrder, QualifiedNumber, ProcessTime FROM `flowcard_process_step` a JOIN `flowcard_library` b ON a.FlowCardId = b.Id WHERE a.MarkedDelete = 0 ORDER BY ProcessStepOrder DESC ) a GROUP BY a.FlowCardId ) a WHERE NOT ISNULL(a.ProcessTime) || a.ProcessTime = '0001-01-01 00:00:00' GROUP BY a.ProductionProcessId ) c ON a.Id = c.ProductionProcessId WHERE a.MarkedDelete = 0;";
                 //}
-                var productionLibraryDetails = ProductionHelper.GetDetails(qId, startTime, endTime);
+                var productionLibraryDetails = ProductionHelper.GetDetails(wId, qId, startTime, endTime);
                 if (qId != 0 && productionLibraryDetails.Any())
                 {
                     var production = productionLibraryDetails.First();
@@ -202,7 +202,7 @@ namespace ApiManagement.Controllers.FlowCardManagementController
                         "UPDATE production_process_step SET `MarkedDateTime` = @MarkedDateTime, `MarkedDelete` = @MarkedDelete, `ModifyId` = @ModifyId, `ProductionProcessId` = " +
                     "@ProductionProcessId, `ProcessStepOrder` = @ProcessStepOrder, `ProcessStepId` = @ProcessStepId, `ProcessStepRequirements` = @ProcessStepRequirements, `ProcessStepRequirementMid` = @ProcessStepRequirementMid " +
                     "WHERE `Id` = @Id;", update);
-            }
+                }
             }
 
             if (change || ClassExtension.HaveChange(production, data))

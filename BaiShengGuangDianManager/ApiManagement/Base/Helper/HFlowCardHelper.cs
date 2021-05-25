@@ -1018,7 +1018,7 @@ namespace ApiManagement.Base.Helper
             _isUpdateProcessStep = true;
 
             //旧工序
-            var oldSteps = DeviceProcessStepHelper.GetDetails();
+            var oldSteps = DeviceProcessStepHelper.GetDetails(1);
             var f = HttpServer.Get(_url, new Dictionary<string, string>
             {
                 { "type", "getGxlb" },

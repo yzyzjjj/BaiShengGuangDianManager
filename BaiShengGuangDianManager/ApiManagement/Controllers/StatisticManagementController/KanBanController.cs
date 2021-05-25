@@ -17,7 +17,6 @@ using ServiceStack;
 using System;
 using System.Collections.Generic;
 using System.Linq;
-using ApiManagement.Models.AccountManagementModel;
 
 namespace ApiManagement.Controllers.StatisticManagementController
 {
@@ -46,13 +45,13 @@ namespace ApiManagement.Controllers.StatisticManagementController
                     Order = -1,
                     IsShow = true
                 });
-                var item = MonitoringKanBanSetHelper.Instance.Configs.ToDictionary(x => (int)x.Key, x =>
+                var item = MonitoringKanBanSetHelper.Instance.Configs.ToDictionary(c => (int)c.Key, c =>
                 {
-                   foreach (var v in x.Value)
-                   {
-                       v.FieldList = v.FieldList.Select(MonitoringKanBanSetHelper.ConvertFieldConfig).ToList();
-                   }
-                   return x.Value;
+                    foreach (var v in c.Value)
+                    {
+                        v.FieldList = v.FieldList.Select((x, i) => MonitoringKanBanSetHelper.ConvertFieldConfig(x, i, v.Display != KanBanItemDisplayEnum.Chart)).ToList();
+                    }
+                    return c.Value;
                 });
                 foreach (var d in data)
                 {
@@ -67,14 +66,13 @@ namespace ApiManagement.Controllers.StatisticManagementController
                         if ((list.FieldList == null || !list.FieldList.Any()) && MonitoringKanBanSetHelper.Instance.Configs.ContainsKey(d.Type))
                         {
                             var configs = MonitoringKanBanSetHelper.Instance.Configs[d.Type];
-                            var list1 = list;
-                            var config = configs.FirstOrDefault(x => x.Item == list1.Item);
+                            var config = configs.FirstOrDefault(x => x.Item == list.Item);
                             if (config == null)
                             {
                                 continue;
                             }
 
-                            list.FieldList = (config.FieldList.Select(MonitoringKanBanSetHelper.ConvertFieldSet).ToList());
+                            list.FieldList = (config.FieldList.Select((x, i) => MonitoringKanBanSetHelper.ConvertFieldSet(x, i, config.Display != KanBanItemDisplayEnum.Chart)).ToList());
                         }
 
                         t.Add(list);

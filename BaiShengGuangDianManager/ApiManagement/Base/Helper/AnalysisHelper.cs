@@ -1991,6 +1991,7 @@ namespace ApiManagement.Base.Helper
                                     List<int> steps = null;
                                     var deviceIds = set.DeviceIdList;
                                     List<int> productionIds = null;
+                                    List<Production> productions = new List<Production>();
                                     List<int> processorIds = null;
                                     //item.ConfigList 工序推移图[0][0] 班制[0][1]数据类型[0][2]时间范围;[1][...]工序
                                     var index = 0;
@@ -2014,6 +2015,10 @@ namespace ApiManagement.Base.Helper
                                     if (item.ConfigList.Length > index && item.ConfigList[index].Length > 0)
                                     {
                                         productionIds = item.ConfigList[index].ToList();
+                                        if (productionIds.Any())
+                                        {
+                                            productions.AddRange(ProductionHelper.Instance.GetByIds<Production>(productionIds));
+                                        }
                                     }
                                     //操作工
                                     index = 3;
@@ -2023,7 +2028,30 @@ namespace ApiManagement.Base.Helper
                                     }
 
                                     var processes = StatisticProcessHelper.StatisticProcesses(type, workshop, shift, timeType,
-                                        range, steps, deviceIds, productionIds, processorIds);
+                                        range, steps, deviceIds, productionIds, processorIds).ToList();
+                                    if (item.Item == KanBanItemEnum.计划号工序推移图)
+                                    {
+                                        for (var i = -range; i < 0; i++)
+                                        {
+                                            var ds = time.Date.AddDays(-i);
+                                            foreach (var production in productions)
+                                            {
+                                                var m = 1000;
+                                                var t = RandomSeed.Next(1000);
+                                                var q = RandomSeed.Next(t);
+                                                var u = t - q;
+                                                processes.Add(new StatisticProcessAll
+                                                {
+                                                    Time = ds,
+                                                    ProductionId = production.Id,
+                                                    Production = production.ProductionProcessName,
+                                                    Total =t,
+                                                    Qualified = q,
+                                                    Unqualified = u,
+                                                });
+                                            }
+                                        }
+                                    }
                                     MonitoringKanBanDic[id].ItemData[key].AddRange(processes.OrderByDescending(x => x.Time));
                                 }
                             }
