@@ -199,7 +199,8 @@ namespace ApiManagement.Controllers.StatisticManagementController
                             //    ? deviceLibraryDetails.Values.OrderByDescending(x => x.DeviceState).ThenByDescending(x => x.DeviceStateStr).ThenBy(x => int.Parse(x.Code))
                             //    : deviceLibraryDetails.Values.OrderByDescending(x => x.DeviceState).ThenByDescending(x => x.DeviceStateStr).ThenBy(x => x.Code);
 
-                            var allDevices = deviceLibraryDetails.Values;
+                            var allDevices = deviceLibraryDetails.Values.OrderBy(x => int.TryParse(x.Code, out var a) ? a : 9999999).ThenBy(x => x.Code).ToList();
+
                             var sum = allDevices.Count;
                             var gz = allDevices.Count(x => x.RepairState != -1);
                             var other = allDevices.Where(x => x.RepairState == -1);
