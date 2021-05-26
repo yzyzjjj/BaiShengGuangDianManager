@@ -2031,9 +2031,9 @@ namespace ApiManagement.Base.Helper
                                         range, steps, deviceIds, productionIds, processorIds).ToList();
                                     if (item.Item == KanBanItemEnum.计划号工序推移图)
                                     {
-                                        for (var i = -range; i < 0; i++)
+                                        for (var i = -range; i <= 0; i++)
                                         {
-                                            var ds = time.Date.AddDays(-i);
+                                            var ds = time.Date.AddDays(i);
                                             foreach (var production in productions)
                                             {
                                                 var m = 1000;
