@@ -688,8 +688,8 @@ namespace ApiManagement.Base.Helper
                     updateMaterialBill = new List<MaterialBill>();
                 }
                 var now = DateTime.Now;
-                var rr = HttpUtility.UrlDecode(f);
-                var res = JsonConvert.DeserializeObject<IEnumerable<ErpPurchase>>(rr).OrderBy(x => x.f_id);
+                //var rr = HttpUtility.UrlDecode(f);
+                var res = JsonConvert.DeserializeObject<IEnumerable<ErpPurchase>>(f).OrderBy(x => x.f_id);
                 //var bz = res.GroupBy(x => x.f_bz).Select(y => y.Key).Join();
                 //var zt = res.GroupBy(x => x.f_zt).Select(y => y.Key).Join();
                 var existPurchases = res.Where(x => havePurchases.Any(y => y.ErpId == x.f_id)).ToList();
