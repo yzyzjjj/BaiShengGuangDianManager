@@ -80,6 +80,7 @@ namespace ApiManagement.Controllers.StatisticManagementController
 
                     d.Items = t.ToJSON();
                 }
+
                 return new
                 {
                     errno = 0,
@@ -109,6 +110,8 @@ namespace ApiManagement.Controllers.StatisticManagementController
             {
                 Type = KanBanEnum.设备详情看板
             };
+            if (qId == 16)
+                AnalysisHelper.ttt++;
             if (set != null)
             {
                 MonitoringKanBan kanBan;

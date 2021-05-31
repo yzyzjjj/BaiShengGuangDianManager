@@ -30,9 +30,12 @@ namespace ApiManagement.Base.Helper
         private static readonly string Debug = "Debug";
         #region Analysis
         private static readonly string aRedisPre = "Analysis";
+        private static bool aRun = false;
         private static readonly string aLockKey = $"{aRedisPre}:Lock";
         private static readonly string aIdKey = $"{aRedisPre}:Id";
         private static readonly string aDeviceKey = $"{aRedisPre}:Device";
+        private static readonly string aKanBanKey = $"{aRedisPre}:KanBan";
+        private static readonly string aKanBanDeviceKey = $"{aRedisPre}:KanBanDevice";
         private static readonly string aIdleSecondKey = $"{aRedisPre}:IdleSecond";
         private static readonly string aExceptDeviceKey = $"{aRedisPre}:ExceptDevice";
         private static readonly string aTimeKey = $"{aRedisPre}:Time";
@@ -204,7 +207,7 @@ namespace ApiManagement.Base.Helper
 #if DEBUG
         private static int _dealLength = 100;
 #else        
-        private static int _dealLength = 4000;
+        private static int _dealLength = 2000;
 #endif
         //public static MonitoringKanBan MonitoringKanBan;
         //private static MonitoringKanBan _monitoringKanBan;
@@ -603,6 +606,7 @@ namespace ApiManagement.Base.Helper
                 try
                 {
                     RedisHelper.SetExpireAt(aLockKey, DateTime.Now.AddMinutes(5));
+                    aRun = true;
                     var now = DateTime.Now;
                     var workshop = WorkshopHelper.Instance.Get<Workshop>(1);
 
@@ -1377,12 +1381,16 @@ namespace ApiManagement.Base.Helper
                     }
 
                     UpdateKanBan(allDeviceList, kanBanTime);
-                    monitoringKanBanDeviceList.AddRange(MonitoringKanBanDeviceDic.Values);
                     monitoringKanBanList.AddRange(MonitoringKanBanDic.Values);
+                    monitoringKanBanDeviceList.AddRange(MonitoringKanBanDeviceDic.Values);
 
                     //RedisHelper.SetForever(aDeviceKey, deviceList.Values.Select(x => new
                     RedisHelper.SetForever(aDeviceKey, allDeviceList.Values
                         .Select(ClassExtension.CopyTo<MonitoringProcess, MonitoringProcessAnalysis>).OrderBy(x => x.DeviceId).ToJSON());
+
+                    RedisHelper.SetForever(aKanBanKey, monitoringKanBanList.ToJSON());
+
+                    RedisHelper.SetForever(aKanBanDeviceKey, monitoringKanBanDeviceList.ToJSON());
 
                     var changeLogs = oldProcessLogs.Where(x => x.Change);
                     if (changeLogs.Any())
@@ -1432,7 +1440,25 @@ namespace ApiManagement.Base.Helper
                 {
                     Log.Error(e);
                 }
+                aRun = false;
                 RedisHelper.Remove(aLockKey);
+            }
+            else
+            {
+                if (aRun)
+                {
+                    return;
+                }
+                if (RedisHelper.Exists(aKanBanDeviceKey))
+                {
+                    var t = RedisHelper.Get<string>(aKanBanDeviceKey).ToClass<IEnumerable<MonitoringKanBanDevice>>();
+                    MonitoringKanBanDeviceDic = t.ToDictionary(x => x.DeviceId);
+                }
+                if (RedisHelper.Exists(aKanBanKey))
+                {
+                    var t = RedisHelper.Get<string>(aKanBanKey).ToClass<IEnumerable<MonitoringKanBan>>();
+                    MonitoringKanBanDic = t.ToDictionary(x => x.Id);
+                }
             }
         }
 
@@ -1524,7 +1550,6 @@ namespace ApiManagement.Base.Helper
         {
             try
             {
-
                 var sets = MonitoringKanBanSetHelper.Instance.GetAll<MonitoringKanBanSet>().ToList();
                 sets.Add(new MonitoringKanBanSet
                 {
@@ -1711,8 +1736,8 @@ namespace ApiManagement.Base.Helper
                                     Shifts = 1,
                                     ShiftTimes = "[\"00:00:00\",\"24:00:00\"]"
                                 };
-                            var currentWorkTimes = DateTimeExtend.GetCurrentWorkTimeRanges(workshop.Shifts, workshop.ShiftTimeList, time);
-                            var workTime = DateTimeExtend.GetDayWorkDayRange(workshop.ShiftTimeList, time);
+                            var currentWorkTimes = DateTimeExtend.GetCurrentWorkTimeRanges(workshop.Shifts, workshop.StatisticTimeList, time);
+                            var workTime = DateTimeExtend.GetDayWorkDayRange(workshop.StatisticTimeList, time);
                             foreach (var item in set.ItemList)
                             {
                                 var type = item.Item;
@@ -1944,7 +1969,7 @@ namespace ApiManagement.Base.Helper
                                     var reports = FlowCardReportGetHelper.GetReport(startTime, endTime, 18, null, 0, set.DeviceIdList)
                                         .GroupBy(x => x.DeviceId)
                                         .ToDictionary(x => x.Key, x => x.Sum(y => y.HeGe));
-                                    var deviceLibraries = DeviceLibraryHelper.GetMenus(reports.Keys);
+                                    var deviceLibraries = DeviceLibraryHelper.GetMenu(reports.Keys);
                                     MonitoringKanBanDic[id].ItemData[key].AddRange(reports.Where(x => deviceLibraries.Any(y => y.Id == x.Key))
                                         .Select(x =>
                                         {
@@ -1988,6 +2013,7 @@ namespace ApiManagement.Base.Helper
                                     var shift = 0;
                                     var timeType = StatisticProcessTimeEnum.小时;
                                     var range = 10;
+                                    var isSum = 0;
                                     List<int> steps = null;
                                     var deviceIds = set.DeviceIdList;
                                     List<int> productionIds = null;
@@ -2003,12 +2029,14 @@ namespace ApiManagement.Base.Helper
                                         timeType = item.ConfigList[index].Length > 1 ? (StatisticProcessTimeEnum)item.ConfigList[index][1] : timeType;
                                         //时间范围
                                         range = item.ConfigList[index].Length > 2 ? item.ConfigList[index][2] : range;
+                                        //合计
+                                        isSum = item.ConfigList[index].Length > 3 ? item.ConfigList[index][3] : isSum;
                                     }
                                     //工序
                                     index = 1;
                                     if (item.ConfigList.Length > index && item.ConfigList[index].Length > 0)
                                     {
-                                        steps = item.ConfigList[index].ToList();
+                                        steps = new List<int> { item.ConfigList[index][0] };
                                     }
                                     //计划号
                                     index = 2;
@@ -2027,32 +2055,16 @@ namespace ApiManagement.Base.Helper
                                         processorIds = item.ConfigList[index].ToList();
                                     }
 
-                                    var processes = StatisticProcessHelper.StatisticProcesses(type, workshop, shift, timeType,
-                                        range, steps, deviceIds, productionIds, processorIds).ToList();
-                                    if (item.Item == KanBanItemEnum.计划号工序推移图)
+                                    try
                                     {
-                                        for (var i = -range; i <= 0; i++)
-                                        {
-                                            var ds = time.Date.AddDays(i);
-                                            foreach (var production in productions)
-                                            {
-                                                var m = 1000;
-                                                var t = RandomSeed.Next(1000);
-                                                var q = RandomSeed.Next(t);
-                                                var u = t - q;
-                                                processes.Add(new StatisticProcessAll
-                                                {
-                                                    Time = ds,
-                                                    ProductionId = production.Id,
-                                                    Production = production.ProductionProcessName,
-                                                    Total =t,
-                                                    Qualified = q,
-                                                    Unqualified = u,
-                                                });
-                                            }
-                                        }
+                                        var processes = StatisticProcessHelper.StatisticProcesses(type, time, workshop, shift, timeType,
+                                            range, isSum == 1, steps, deviceIds, productionIds, processorIds).ToList();
+                                        MonitoringKanBanDic[id].ItemData[key].AddRange(processes);
                                     }
-                                    MonitoringKanBanDic[id].ItemData[key].AddRange(processes.OrderByDescending(x => x.Time));
+                                    catch (Exception e)
+                                    {
+                                        Log.Error(e);
+                                    }
                                 }
                             }
                             MonitoringKanBanDic[id].Check(set.ItemList);
@@ -2068,6 +2080,7 @@ namespace ApiManagement.Base.Helper
             }
         }
 
+        public static int ttt = 0;
         /// <summary>
         /// 获取设备当前加工数据
         /// </summary>

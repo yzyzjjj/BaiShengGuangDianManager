@@ -38,6 +38,16 @@ namespace ApiManagement.Models.AccountManagementModel
         public string ShiftTimes { get; set; }
         public List<TimeSpan> ShiftTimeList => ShiftTimes.IsNullOrEmpty() ? new List<TimeSpan>()
             : ShiftTimes.Split(",").Select(x => TimeSpan.TryParse(x, out var a) ? a : default(TimeSpan)).Where(y => y != default(TimeSpan)).OrderBy(x => x).ToList();
+        
+        /// <summary>
+        /// 班次数据统计时间。 后延30分钟
+        /// 例子：1班次2个时间（t1,t2），上班时间为(t1,t2)
+        /// 例子：2班次2个时间（t1,t2），上班时间为(t1,t2)(t2,下一天的t1) 
+        /// 例子：3班次3个时间（t1,t2,t3），上班时间为(t1,t2)(t2,t3)(t3,下一天的t1) 
+        /// </summary>
+        public List<TimeSpan> StatisticTimeList => ShiftTimeList.Any() ? ShiftTimeList.Select(x => x.Add(new TimeSpan(0, 30, 0))).ToList()
+            : new List<TimeSpan> { new TimeSpan(0, 30, 0) };
+
         /// <summary>
         /// 备注
         /// </summary>

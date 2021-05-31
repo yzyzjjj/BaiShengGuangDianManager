@@ -131,7 +131,7 @@ namespace ApiManagement.Models.RepairManagementModel
         public static void Cancel(IEnumerable<int> ids)
         {
             ServerConfig.ApiDb.Execute(
-                "UPDATE `fault_device_repair` SET `MarkedDateTime`= @MarkedDateTime, `MarkedDelete`= true, `Cancel`= true WHERE `Id`IN @ids;", ids);
+                "UPDATE `fault_device_repair` SET `MarkedDateTime`= NOW(), `MarkedDelete`= true, `Cancel`= true WHERE `Id`IN @ids;", new{ids});
         }
         #endregion
     }

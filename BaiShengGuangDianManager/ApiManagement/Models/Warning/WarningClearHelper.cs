@@ -67,7 +67,7 @@ namespace ApiManagement.Models.Warning
             if (clears.Any())
             {
                 var sets = WarningSetHelper.GetMenus(clears.Select(x => x.SetId).Distinct()).ToDictionary(x => x.Id);
-                var devices = DeviceLibraryHelper.GetMenus(clears.SelectMany(x => x.DeviceIdList).Distinct()).ToDictionary(x => x.Id);
+                var devices = DeviceLibraryHelper.GetMenu(clears.SelectMany(x => x.DeviceIdList).Distinct()).ToDictionary(x => x.Id);
                 var createUserIds = AccountInfoHelper.GetAccountInfoByAccounts(clears.Select(x => x.CreateUserId).Distinct()).ToDictionary(x => x.Account);
                 foreach (var d in clears)
                 {

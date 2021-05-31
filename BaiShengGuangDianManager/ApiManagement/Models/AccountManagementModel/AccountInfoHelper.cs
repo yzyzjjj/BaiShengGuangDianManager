@@ -212,6 +212,20 @@ namespace ApiManagement.Models.AccountManagementModel
         /// <summary>
         /// 菜单
         /// </summary>
+        public static IEnumerable<AccountInfo> GetMenu(IEnumerable<int> accountIds)
+        {
+            if (accountIds == null || !accountIds.Any())
+            {
+                return new List<AccountInfo>();
+            }
+            var args = new List<Tuple<string, string, dynamic>>();
+            args.Add(new Tuple<string, string, dynamic>("Id", "IN", accountIds));
+
+            return Instance.CommonGet<AccountInfo>(args, true);
+        }
+        /// <summary>
+        /// 菜单
+        /// </summary>
         public static IEnumerable<AccountInfo> GetAccountInfoByAccountIds(IEnumerable<int> accountIds)
         {
             if (accountIds == null || !accountIds.Any())

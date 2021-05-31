@@ -55,6 +55,23 @@ namespace ApiManagement.Models.FlowCardManagementModel
 
             return Instance.CommonGet<Production>(args, true).Select(x => new { x.Id, x.MarkedDateTime, x.ProductionProcessName }).OrderByDescending(x => x.Id);
         }
+
+        public static IEnumerable<Production> GetMenu(int wId, IEnumerable<int> ids)
+        {
+            var args = new List<Tuple<string, string, dynamic>>();
+            if (wId != 0)
+            {
+                args.Add(new Tuple<string, string, dynamic>("WorkshopId", "=", wId));
+            }
+
+            if (ids != null && ids.Any())
+            {
+                args.Add(new Tuple<string, string, dynamic>("Id", "IN", ids));
+            }
+
+            return Instance.CommonGet<Production>(args, true).OrderByDescending(x => x.MarkedDateTime).ThenByDescending(x => x.Id);
+        }
+
         /// <summary>
         /// 菜单
         /// </summary>

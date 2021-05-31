@@ -84,7 +84,7 @@ namespace ApiManagement.Controllers.WarningController
 
             if (r.Any())
             {
-                var device = DeviceLibraryHelper.GetMenus(r.SelectMany(x => x.DeviceList).Distinct()).OrderBy(x => x.Id);
+                var device = DeviceLibraryHelper.GetMenu(r.SelectMany(x => x.DeviceList).Distinct()).OrderBy(x => x.Id);
                 var categories = DeviceCategoryHelper.GetMenus(r.Select(x => x.CategoryId).Distinct()).OrderBy(x => x.Id);
                 var script = ScriptVersionHelper.GetMenus(r.Select(x => x.ScriptId).Distinct()).OrderBy(x => x.Id);
                 foreach (var dd in r)
@@ -404,7 +404,7 @@ namespace ApiManagement.Controllers.WarningController
                 if (r.Any())
                 {
                     var sets = WarningSetHelper.GetMenus(r.Select(x => x.SetId));
-                    var devices = DeviceLibraryHelper.GetMenus(r.Select(x => x.DeviceId));
+                    var devices = DeviceLibraryHelper.GetMenu(r.Select(x => x.DeviceId));
                     var categories = DeviceCategoryHelper.GetMenus(r.Select(x => x.CategoryId));
                     //var classes = ServerConfig.ApiDb.Query<DeviceClass>("SELECT `Id`, `Class` FROM `device_class` WHERE `MarkedDelete` = 0 AND Id IN @Id;", new
                     //{

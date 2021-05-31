@@ -39,7 +39,7 @@ namespace ApiManagement.Controllers.DeviceManagementController
                 var result = new DataResult();
                 if (script)
                 {
-                    result.datas.AddRange(DeviceLibraryHelper.GetMenus(0, idList, 0, true));
+                    result.datas.AddRange(DeviceLibraryHelper.GetMenu(0, idList, 0, true));
                 }
                 else
                 {

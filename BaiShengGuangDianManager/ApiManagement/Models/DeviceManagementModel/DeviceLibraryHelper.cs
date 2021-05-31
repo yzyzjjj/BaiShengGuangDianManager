@@ -32,7 +32,7 @@ namespace ApiManagement.Models.DeviceManagementModel
         /// 菜单
         /// </summary>
         /// <returns></returns>
-        public static IEnumerable<dynamic> GetMenus(int wId = 1, int id = 0, int cId = 0, bool script = false)
+        public static IEnumerable<dynamic> GetMenu(int wId = 1, int id = 0, int cId = 0, bool script = false)
         {
             if (script)
             {
@@ -67,7 +67,7 @@ namespace ApiManagement.Models.DeviceManagementModel
         /// 菜单
         /// </summary>
         /// <returns></returns>
-        public static IEnumerable<dynamic> GetMenus(int wId = 1, IEnumerable<int> ids = null, int cId = 0, bool script = false)
+        public static IEnumerable<dynamic> GetMenu(int wId, IEnumerable<int> ids, int cId, bool script = false)
         {
             if (script)
             {
@@ -102,7 +102,7 @@ namespace ApiManagement.Models.DeviceManagementModel
         /// 菜单
         /// </summary>
         /// <param name="ids"></param>
-        public static IEnumerable<DeviceLibrary> GetMenus(IEnumerable<int> ids)
+        public static IEnumerable<DeviceLibrary> GetMenu(IEnumerable<int> ids)
         {
             var args = new List<Tuple<string, string, dynamic>>();
             if (ids == null || !ids.Any())
@@ -112,6 +112,22 @@ namespace ApiManagement.Models.DeviceManagementModel
             args.Add(new Tuple<string, string, dynamic>("Id", "IN", ids));
             return Instance.CommonGet<DeviceLibrary>(args, true);
         }
+
+        public static IEnumerable<DeviceLibrary> GetMenu(int wId, IEnumerable<int> ids)
+        {
+            var args = new List<Tuple<string, string, dynamic>>();
+            if (wId != 0)
+            {
+                args.Add(new Tuple<string, string, dynamic>("WorkshopId", "=", wId));
+            }
+            if (ids != null && ids.Any())
+            {
+                args.Add(new Tuple<string, string, dynamic>("Id", "IN", ids));
+            }
+
+            return Instance.CommonGet<DeviceLibrary>(args, true);
+        }
+
         public static DeviceLibrary GetDetail(int wId, string code)
         {
             return ServerConfig.ApiDb.Query<DeviceLibrary>(
@@ -120,6 +136,25 @@ namespace ApiManagement.Models.DeviceManagementModel
                 $"{(code.IsNullOrEmpty() ? "" : "Code = @code AND ")}" +
                 $"MarkedDelete = 0;", new { wId, code }).FirstOrDefault();
         }
+        public static IEnumerable<DeviceLibrary> GetDetails(int wId)
+        {
+            return GetDetails(wId, new List<string>(), new List<int>());
+        }
+        public static IEnumerable<DeviceLibrary> GetDetails(int wId, IEnumerable<string> codes)
+        {
+            return GetDetails(wId, codes, new List<int>());
+        }
+        public static IEnumerable<DeviceLibrary> GetDetails(int wId, IEnumerable<int> deviceIds)
+        {
+            return GetDetails(wId, null, deviceIds);
+        }
+        /// <summary>
+        /// 获取设备
+        /// </summary>
+        /// <param name="wId"></param>
+        /// <param name="codes"></param>
+        /// <param name="deviceIds"></param>
+        /// <returns></returns>
         public static IEnumerable<DeviceLibrary> GetDetails(int wId, IEnumerable<string> codes, IEnumerable<int> deviceIds)
         {
             return ServerConfig.ApiDb.Query<DeviceLibrary>(
@@ -127,19 +162,7 @@ namespace ApiManagement.Models.DeviceManagementModel
                 $"{(wId == 0 ? "" : "WorkshopId = @wId AND ")}" +
                 $"{(codes == null || !codes.Any() ? "" : "Code IN @codes AND ")}" +
                 $"{(deviceIds == null || !deviceIds.Any() ? "" : "Id IN @deviceIds AND ")}" +
-                $"MarkedDelete = 0;", new { wId, codes });
-        }
-        public static IEnumerable<DeviceLibrary> GetDetails(int wId)
-        {
-            return GetDetails(wId);
-        }
-        public static IEnumerable<DeviceLibrary> GetDetails(int wId, IEnumerable<string> codes)
-        {
-            return GetDetails(wId, codes);
-        }
-        public static IEnumerable<DeviceLibrary> GetDetails(int wId, IEnumerable<int> deviceIds)
-        {
-            return GetDetails(wId, null, deviceIds);
+                $"MarkedDelete = 0;", new { wId, codes, deviceIds });
         }
         public static int GetCountByClass(int classId)
         {

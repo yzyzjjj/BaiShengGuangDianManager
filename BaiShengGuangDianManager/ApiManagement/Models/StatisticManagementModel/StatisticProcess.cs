@@ -107,7 +107,7 @@ namespace ApiManagement.Models.StatisticManagementModel
         /// <summary>
         /// 加工人
         /// </summary>
-        public string Processor { get; set; }
+        public string Processor { get; set; } = "";
     }
     /// <summary>
     /// 设备工序加工统计
@@ -118,7 +118,7 @@ namespace ApiManagement.Models.StatisticManagementModel
         /// <summary>
         /// 机台号
         /// </summary>
-        public string Code { get; set; }
+        public string Code { get; set; } = "";
     }
     /// <summary>
     /// 计划号工序加工统计
@@ -126,10 +126,11 @@ namespace ApiManagement.Models.StatisticManagementModel
     public class StatisticProcessProduction : StatisticProcessBase
     {
         public int ProductionId { get; set; }
+
         /// <summary>
         /// 计划号
         /// </summary>
-        public string Production { get; set; }
+        public string Production { get; set; } = "";
     }
     /// <summary>
     /// 操作工工序加工统计

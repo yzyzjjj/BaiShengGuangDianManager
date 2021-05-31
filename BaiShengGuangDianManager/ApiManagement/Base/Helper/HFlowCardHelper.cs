@@ -1122,10 +1122,10 @@ namespace ApiManagement.Base.Helper
                         {
                             try
                             {
-                                var rrr = HttpUtility.UrlDecode(f);
-                                if (rrr != "[][]" && rrr != "[]")
+                                //var rrr = HttpUtility.UrlDecode(f);
+                                if (f != "[][]" && f != "[]")
                                 {
-                                    var erpReports = JsonConvert.DeserializeObject<ErpFlowCardReportGet[]>(rrr);
+                                    var erpReports = JsonConvert.DeserializeObject<ErpFlowCardReportGet[]>(f);
                                     if (erpReports.Any())
                                     {
                                         step.FromId = erpReports.Max(x => x.f_id);
@@ -1199,10 +1199,12 @@ namespace ApiManagement.Base.Helper
 
                     if (add.Any())
                     {
-                        var devices = DeviceLibraryHelper.GetDetails(1, add.Where(x => !x.Code.IsNullOrEmpty()).Select(x => x.Code).Distinct()).ToDictionary(x => x.Code);
+                        var codes = add.Where(x => !x.Code.IsNullOrEmpty()).Select(x => x.Code).Distinct();
+                        var devices = DeviceLibraryHelper.GetDetails(1, codes).ToDictionary(x => x.Code);
                         var reportFlowCards = add.Where(x => !x.FlowCard.IsNullOrEmpty()).Select(x => x.FlowCard).Concat(add.Where(x => !x.OldFlowCard.IsNullOrEmpty()).Select(x => x.OldFlowCard)).Distinct();
                         var flowCards = FlowCardHelper.GetFlowCards(reportFlowCards).ToDictionary(x => x.FlowCardName);
-                        var processors = AccountInfoHelper.GetAccountInfoByNames(add.Where(x => !x.Processor.IsNullOrEmpty()).Select(x => x.Processor).Distinct()).GroupBy(x => x.Name).ToDictionary(x => x.Key, x => x.First());
+                        var accs = add.Where(x => !x.Processor.IsNullOrEmpty()).Select(x => x.Processor).Distinct();
+                        var processors = AccountInfoHelper.GetAccountInfoByNames(accs).GroupBy(x => x.Name).ToDictionary(x => x.Key, x => x.First());
                         var productions = flowCards.Any()
                             ? ProductionHelper.Instance.GetByIds<Production>(flowCards.Values.Select(x => x.ProductionProcessId).Distinct()).ToDictionary(x => x.Id)
                             : new Dictionary<int, Production>();
@@ -1839,10 +1841,11 @@ namespace ApiManagement.Base.Helper
                     //        }
                     //    }
                     //}
-                    //if (updateAcs.Any())
-                    //{
-                    //    ServerConfig.ApiDb.Execute("UPDATE `accounts` SET `ProductionRole` = @ProductionRole, `MaxProductionRole` = @MaxProductionRole WHERE `Id` = @Id;", updateAcs.Values);
-                    //}
+                    if (updateAcs.Any())
+                    {
+                        ServerConfig.ApiDb.Execute("UPDATE `accounts` SET `ProductionRole` = @ProductionRole WHERE `Id` = @Id;", updateAcs.Values);
+                        //ServerConfig.ApiDb.Execute("UPDATE `accounts` SET `ProductionRole` = @ProductionRole, `MaxProductionRole` = @MaxProductionRole WHERE `Id` = @Id;", updateAcs.Values);
+                    }
                 }
             }
             catch (Exception e)
@@ -1953,15 +1956,23 @@ namespace ApiManagement.Base.Helper
                                             change = true;
                                             processor.ProductionRole += ",0";
                                         }
+#pragma warning disable CS0618 // “AccountInfo.MaxProductionRole”已过时:“弃用”
                                         if (processor.MaxProductionRole.IsNullOrEmpty())
+#pragma warning restore CS0618 // “AccountInfo.MaxProductionRole”已过时:“弃用”
                                         {
                                             change = true;
+#pragma warning disable CS0618 // “AccountInfo.MaxProductionRole”已过时:“弃用”
                                             processor.MaxProductionRole = "0";
+#pragma warning restore CS0618 // “AccountInfo.MaxProductionRole”已过时:“弃用”
                                         }
+#pragma warning disable CS0618 // “AccountInfo.MaxProductionRole”已过时:“弃用”
                                         else if (processor.MaxProductionRole.Contains('0'))
+#pragma warning restore CS0618 // “AccountInfo.MaxProductionRole”已过时:“弃用”
                                         {
                                             change = true;
+#pragma warning disable CS0618 // “AccountInfo.MaxProductionRole”已过时:“弃用”
                                             processor.MaxProductionRole += ",0";
+#pragma warning restore CS0618 // “AccountInfo.MaxProductionRole”已过时:“弃用”
                                         }
                                         if (change && !updateAcs.ContainsKey(processorId))
                                         {

@@ -1,9 +1,9 @@
 ﻿using ApiManagement.Base.Server;
+using ApiManagement.Models.BaseModel;
+using ApiManagement.Models.DeviceManagementModel;
 using System;
 using System.Collections.Generic;
 using System.Linq;
-using ApiManagement.Models.BaseModel;
-using ApiManagement.Models.DeviceManagementModel;
 
 namespace ApiManagement.Models.OtherModel
 {
@@ -39,7 +39,7 @@ namespace ApiManagement.Models.OtherModel
 
         //    return Instance.CommonGet<FlowCardReportGet>(args, true).Select(x => new { x.Id, x.Name });
         //}
-        public static IEnumerable<FlowCardReportGet> GetDetail(int deviceId)
+        public static IEnumerable<FlowCardReportGet> GetDetails(int deviceId)
         {
             return ServerConfig.ApiDb.Query<FlowCardReportGet>(
                 "SELECT * FROM `flowcard_report` WHERE DeviceId = @deviceId ORDER BY Id DESC LIMIT 1;", new { deviceId });
@@ -74,6 +74,14 @@ namespace ApiManagement.Models.OtherModel
             if (endTime != default(DateTime))
             {
                 args.Add(new Tuple<string, string, dynamic>("Time", "<=", endTime));
+            }
+            if (stepId != 0)
+            {
+                args.Add(new Tuple<string, string, dynamic>("Step", "=", stepId));
+            }
+            if (stepIds != null && stepIds.Any())
+            {
+                args.Add(new Tuple<string, string, dynamic>("Step", "IN", stepIds));
             }
             if (deviceId != 0)
             {
@@ -115,19 +123,11 @@ namespace ApiManagement.Models.OtherModel
             {
                 args.Add(new Tuple<string, string, dynamic>("ProcessorId", "IN", processorIds));
             }
-            if (stepId != 0)
-            {
-                args.Add(new Tuple<string, string, dynamic>("Step", "=", stepId));
-            }
-            if (stepIds != null && stepIds.Any())
-            {
-                args.Add(new Tuple<string, string, dynamic>("Step", "IN", stepIds));
-            }
-            return Instance.CommonGet<FlowCardReportGet>(args);
+            return Instance.CommonGet<FlowCardReportGet>(args, false, 1000);
         }
         public static IEnumerable<DeviceProcessStepDetail> GetStepFromId()
         {
-            return ServerConfig.ApiDb.Query<DeviceProcessStepDetail>("SELECT MAX(OtherId) FromId, Step Id, StepAbbrev Abbrev, StepName FROM `flowcard_report_get` GROUP BY StepAbbrev", null, 220);
+            return ServerConfig.ApiDb.Query<DeviceProcessStepDetail>("SELECT MAX(OtherId) FromId, Step Id, StepAbbrev Abbrev, StepName FROM `flowcard_report_get` GROUP BY Step", null, 1000);
         }
         #endregion
 

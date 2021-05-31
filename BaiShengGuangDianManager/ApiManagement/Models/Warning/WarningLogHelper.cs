@@ -129,7 +129,7 @@ namespace ApiManagement.Models.Warning
             if (r != null && r.Any())
             {
                 var sets = WarningSetHelper.GetMenus(r.Select(x => x.SetId).Distinct()).ToDictionary(x => x.Id);
-                var devices = DeviceLibraryHelper.GetMenus(r.Select(x => x.DeviceId).Distinct()).ToDictionary(x => x.Id);
+                var devices = DeviceLibraryHelper.GetMenu(r.Select(x => x.DeviceId).Distinct()).ToDictionary(x => x.Id);
                 var categories = DeviceCategoryHelper.GetMenus(r.Select(x => x.CategoryId).Distinct()).ToDictionary(x => x.Id);
                 foreach (var d in r)
                 {
