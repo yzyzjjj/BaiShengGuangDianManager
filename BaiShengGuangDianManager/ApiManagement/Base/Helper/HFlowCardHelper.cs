@@ -1291,6 +1291,11 @@ namespace ApiManagement.Base.Helper
                 //工序
                 var steps = DeviceProcessStepHelper.GetDetailsFrom(DataFrom.Erp);
                 var maxTime = FlowCardReportGetHelper.GetMaxTime();
+                if (maxTime == default(DateTime))
+                {
+                    maxTime = now;
+                }
+
                 var dbLastTime = FlowCardReportUpdateHelper.GetMaxTime().AddSeconds(1);
                 var lastTime = RedisHelper.Get<DateTime>(uTimeKey);
                 if (lastTime != default(DateTime))
@@ -1298,7 +1303,7 @@ namespace ApiManagement.Base.Helper
                     var minTime = lastTime.Min(dbLastTime);
                     if (steps.Any())
                     {
-                        var specials = new List<string> {"fp", "fx", "-"};
+                        var specials = new List<string> { "fp", "fx", "-" };
                         var old = new List<FlowCardReportGet>();
                         var add = new List<FlowCardReportUpdate>();
                         var update = new List<FlowCardReportUpdate>();
