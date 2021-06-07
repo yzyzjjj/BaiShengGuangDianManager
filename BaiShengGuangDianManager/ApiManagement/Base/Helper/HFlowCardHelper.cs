@@ -42,6 +42,14 @@ namespace ApiManagement.Base.Helper
         private static readonly string pIdKey = $"{fRedisPre}:生产数据Id";
         #endregion
 
+        #region GetUpdateFlowCardReport
+        private static readonly string uTimeKey = $"{fRedisPre}:报表更新Time";
+        #endregion
+
+        #region UpdateFlowCardReportGet
+        private static readonly string uIdKey = $"{fRedisPre}:报表更新Id";
+        #endregion
+
         private static Timer _timer10;
         private static Timer _timer30;
         private static Timer _timer60;
@@ -55,6 +63,7 @@ namespace ApiManagement.Base.Helper
         private static bool _isUpdateProcessStep;
         private static bool _isGetFlowCardReport;
         private static bool _isGetUpdateFlowCardReport;
+        private static bool _isUpdateFlowCardReportGet;
         private static bool _isGetProductionPlan;
         private static bool _isUpdateProductionProcess;
         private static bool _isUpdateProductionSpecification;
@@ -72,6 +81,7 @@ namespace ApiManagement.Base.Helper
         {
 #if DEBUG
             Console.WriteLine("FlowCardHelper 调试模式已开启");
+            //GetFlowCardReportUpdate();
             //UpdateProcessStep();
             //GetFlowCardReport();
             //GetProductionPlan();
@@ -96,6 +106,7 @@ namespace ApiManagement.Base.Helper
                 RedisHelper.SetExpireAt(lock_10Key, DateTime.Now.AddMinutes(5));
                 UpdateProcessStep();
                 UseFlowCardReportGet();
+                UseFlowCardReportUpdate();
                 //UseFlowCardReport();
                 //UseFlowCardReportGet();
                 //DeviceLastFlowCard();
@@ -112,10 +123,13 @@ namespace ApiManagement.Base.Helper
             {
                 try
                 {
-                    RedisHelper.SetExpireAt(lock_30Key, DateTime.Now.AddMinutes(5));
-                    GetProductionPlan();
+                    RedisHelper.SetExpireAt(lock_30Key, DateTime.Now.AddMinutes(10));
+                    GetFlowCardReportUpdate();
                     GetFlowCardReport();
+                    GetProductionPlan();
+
                     DeviceLastFlowCard();
+                    UpdateFlowCardReportGet();
                 }
                 catch (Exception e)
                 {
@@ -143,7 +157,7 @@ namespace ApiManagement.Base.Helper
                     Update();
                     UpdateFlowCardProcessStep();
 
-                    GetUpdateFlowCardReport();
+                    //GetUpdateFlowCardReport();
                 }
                 catch (Exception e)
                 {
@@ -1096,13 +1110,12 @@ namespace ApiManagement.Base.Helper
                 //工序
                 var updateStep = new List<DeviceProcessStepDetail>();
                 var steps = DeviceProcessStepHelper.GetDetailsFrom(DataFrom.Erp);
-                var tFromIds = FlowCardReportGetHelper.GetStepFromId();
+                var tFromIds = DeviceProcessStepHelper.GetStepFromId();
                 if (steps.Any())
                 {
                     var now = DateTime.Now;
                     var specials = new List<string> { "fp", "fx", "-" };
                     var add = new List<FlowCardReportGet>();
-                    var update = new List<FlowCardReportGet>();
                     foreach (var step in steps)
                     {
                         if (step.Abbrev.IsNullOrEmpty())
@@ -1204,7 +1217,10 @@ namespace ApiManagement.Base.Helper
                         var reportFlowCards = add.Where(x => !x.FlowCard.IsNullOrEmpty()).Select(x => x.FlowCard).Concat(add.Where(x => !x.OldFlowCard.IsNullOrEmpty()).Select(x => x.OldFlowCard)).Distinct();
                         var flowCards = FlowCardHelper.GetFlowCards(reportFlowCards).ToDictionary(x => x.FlowCardName);
                         var accs = add.Where(x => !x.Processor.IsNullOrEmpty()).Select(x => x.Processor).Distinct();
-                        var processors = AccountInfoHelper.GetAccountInfoByNames(accs).GroupBy(x => x.Name).ToDictionary(x => x.Key, x => x.First());
+                        var processors = AccountInfoHelper.GetAccountInfoByNames(accs, true)
+                            .OrderBy(x => x.MarkedDelete).ThenBy(x => x.Id)
+                            .GroupBy(x => x.Name)
+                            .ToDictionary(x => x.Key, x => x.First());
                         var productions = flowCards.Any()
                             ? ProductionHelper.Instance.GetByIds<Production>(flowCards.Values.Select(x => x.ProductionProcessId).Distinct()).ToDictionary(x => x.Id)
                             : new Dictionary<int, Production>();
@@ -1234,6 +1250,7 @@ namespace ApiManagement.Base.Helper
                             fc.ProductionId = productionId;
                             fc.Production = production?.ProductionProcessName ?? "";
 
+                            fc.Code = int.TryParse(fc.Code, out var a) ? a.ToString() : fc.Code;
                             var deviceId = devices.ContainsKey(fc.Code) ? devices[fc.Code].Id : 0;
                             fc.DeviceId = deviceId;
                             var processor = processors.ContainsKey(fc.Processor) ? processors[fc.Processor] : null;
@@ -1260,7 +1277,7 @@ namespace ApiManagement.Base.Helper
         /// <summary>
         /// 主动获取已更新报表
         /// </summary>
-        private static void GetUpdateFlowCardReport()
+        private static void GetFlowCardReportUpdate()
         {
             if (_isGetUpdateFlowCardReport)
             {
@@ -1270,159 +1287,235 @@ namespace ApiManagement.Base.Helper
             _isGetUpdateFlowCardReport = true;
             try
             {
+                var now = DateTime.Now;
                 //工序
-                //var updateStep = new List<DeviceProcessStepDetail>();
-                //var steps = DeviceProcessStepHelper.GetDetailsFrom(DataFrom.Erp);
-                //if (steps.Any())
-                //{
-                //    var now = DateTime.Now;
-                //    var specials = new List<string> { "fp", "fx", "-" };
-                //    var add = new List<FlowCardReportGet>();
-                //    var update = new List<FlowCardReportGet>();
-                //    foreach (var step in steps)
-                //    {
-                //        if (step.Abbrev.IsNullOrEmpty())
-                //        {
-                //            continue;
-                //        }
+                var steps = DeviceProcessStepHelper.GetDetailsFrom(DataFrom.Erp);
+                var maxTime = FlowCardReportGetHelper.GetMaxTime();
+                var dbLastTime = FlowCardReportUpdateHelper.GetMaxTime().AddSeconds(1);
+                var lastTime = RedisHelper.Get<DateTime>(uTimeKey);
+                if (lastTime != default(DateTime))
+                {
+                    var minTime = lastTime.Min(dbLastTime);
+                    if (steps.Any())
+                    {
+                        var specials = new List<string> {"fp", "fx", "-"};
+                        var old = new List<FlowCardReportGet>();
+                        var add = new List<FlowCardReportUpdate>();
+                        var update = new List<FlowCardReportUpdate>();
+                        var get = new List<FlowCardReportUpdate>();
+                        foreach (var step in steps)
+                        {
+                            if (step.Abbrev.IsNullOrEmpty())
+                            {
+                                continue;
+                            }
 
-                //        var from = tFromIds.FirstOrDefault(x => x.Id == step.Id);
-                //        var change = false;
-                //        var f = HttpServer.Get(_url, new Dictionary<string, string>
-                //        {
-                //            { "type", "getGwData" },
-                //            { "gxid", step.Abbrev },
-                //            { "id", ((from?.FromId??step.FromId)+1).ToString() },
-                //        });
-                //        if (f != "fail")
-                //        {
-                //            try
-                //            {
-                //                var rrr = HttpUtility.UrlDecode(f);
-                //                if (rrr != "[][]" && rrr != "[]")
-                //                {
-                //                    var erpReports = JsonConvert.DeserializeObject<ErpFlowCardReportGet[]>(rrr);
-                //                    if (erpReports.Any())
-                //                    {
-                //                        step.FromId = erpReports.Max(x => x.f_id);
-                //                        change = true;
+                            var f = HttpServer.Get(_url, new Dictionary<string, string>
+                            {
+                                {"type", "getGwData"},
+                                {"gxid", step.Abbrev},
+                                {"t1", minTime.AddSeconds(1).ToStr()},
+                                {"t2", maxTime.ToStr()},
+                            });
+                            if (f != "fail")
+                            {
+                                try
+                                {
+                                    //var rrr = HttpUtility.UrlDecode(f);
+                                    if (f != "[][]" && f != "[]")
+                                    {
+                                        var erpReports = JsonConvert.DeserializeObject<ErpFlowCardReportUpdate[]>(f);
+                                        var upReports = erpReports.Where(x => x.f_inserttime != x.f_updatetime);
+                                        if (upReports.Any())
+                                        {
+                                            foreach (var report in upReports)
+                                            {
+                                                var fc = new FlowCardReportUpdate(report, step, now);
+                                                var b = report.bl.ToString();
+                                                if (b != "[]")
+                                                {
+                                                    var bc = new List<BadTypeCount>();
+                                                    var bllb = JObject.Parse(b);
+                                                    foreach (var bl in bllb)
+                                                    {
+                                                        var name = bl.Key;
+                                                        var bad = step.ErrorList.FirstOrDefault(x => x.name == name);
+                                                        if (bad != null)
+                                                        {
+                                                            var v = bl.Value.ToString();
+                                                            if (int.TryParse(v, out var count))
+                                                            {
+                                                            }
 
-                //                        foreach (var report in erpReports)
-                //                        {
-                //                            var fc = new FlowCardReportGet(report, step, now);
-                //                            var b = report.bl.ToString();
-                //                            if (b != "[]")
-                //                            {
-                //                                var bc = new List<BadTypeCount>();
-                //                                var bllb = JObject.Parse(b);
-                //                                foreach (var bl in bllb)
-                //                                {
-                //                                    var name = bl.Key;
-                //                                    var bad = step.ErrorList.FirstOrDefault(x => x.name == name);
-                //                                    if (bad != null)
-                //                                    {
-                //                                        var v = bl.Value.ToString();
-                //                                        if (int.TryParse(v, out var count))
-                //                                        {
-                //                                        }
-                //                                        bc.Add(new BadTypeCount(bad, count));
-                //                                    }
-                //                                }
+                                                            bc.Add(new BadTypeCount(bad, count));
+                                                        }
+                                                    }
 
-                //                                fc.LiePian = bc.Sum(x => x.count);
-                //                                if (fc.LiePian > 0)
-                //                                {
-                //                                    bc = bc.OrderByDescending(x => x.count).ToList();
-                //                                }
+                                                    fc.LiePian = bc.Sum(x => x.count);
+                                                    if (fc.LiePian > 0)
+                                                    {
+                                                        bc = bc.OrderByDescending(x => x.count).ToList();
+                                                    }
 
-                //                                fc.Reason = bc.ToJSON();
-                //                            }
-                //                            add.Add(fc);
-                //                        }
-                //                    }
-                //                }
+                                                    fc.Reason = bc.ToJSON();
+                                                }
 
-                //                if (step.Api == 1)
-                //                {
-                //                    step.Api = 0;
-                //                    change = true;
-                //                }
-                //            }
-                //            catch (Exception e)
-                //            {
-                //                step.Api = 1;
-                //                change = true;
-                //                Log.ErrorFormat("GetFlowCardReport erp数据解析失败,原因:{0},错误:{1}", e.Message, e.StackTrace);
-                //            }
+                                                get.Add(fc);
+                                            }
+                                        }
+                                    }
+                                }
+                                catch (Exception e)
+                                {
+                                    Log.ErrorFormat("GetFlowCardReportUpdate erp数据解析失败,原因:{0},错误:{1}", e.Message,
+                                        e.StackTrace);
+                                }
+                            }
+                            else
+                            {
+                                Log.Error(
+                                    $"GetFlowCardReportUpdate 请求erp获取报表数据失败,step:{step.StepName},Id:{step.Id},url:{_url}");
+                            }
+                        }
 
-                //            if (change)
-                //            {
-                //                updateStep.Add(step);
-                //            }
-                //        }
-                //        else
-                //        {
-                //            Log.Error($"GetFlowCardReport 请求erp获取报表数据失败,step:{step.StepName},Id:{step.Id},url:{_url}");
-                //        }
+                        if (get.Any())
+                        {
+                            var otherIds = get.Select(x => x.OtherId).Distinct();
+                            var stepIds = get.Select(x => x.Step).Distinct();
+                            old.AddRange(FlowCardReportGetHelper.GetReport(1, default(DateTime), default(DateTime),
+                                0, stepIds, 0, null, 0, null, 0, null, 0, null, 0, null, 0, otherIds));
+                            add.AddRange(get.Where(x => old.Any(o =>
+                                o.Step == x.Step && o.OtherId == x.OtherId && o.UpdateTime < x.UpdateTime)));
+                        }
 
-                //    }
+                        if (add.Any())
+                        {
+                            var codes = add.Where(x => !x.Code.IsNullOrEmpty()).Select(x => x.Code).Distinct();
+                            var devices = DeviceLibraryHelper.GetDetails(1, codes).ToDictionary(x => x.Code);
+                            var reportFlowCards = add.Where(x => !x.FlowCard.IsNullOrEmpty()).Select(x => x.FlowCard)
+                                .Concat(add.Where(x => !x.OldFlowCard.IsNullOrEmpty()).Select(x => x.OldFlowCard))
+                                .Distinct();
+                            var flowCards = FlowCardHelper.GetFlowCards(reportFlowCards)
+                                .ToDictionary(x => x.FlowCardName);
+                            var accs = add.Where(x => !x.Processor.IsNullOrEmpty()).Select(x => x.Processor).Distinct();
+                            var processors = AccountInfoHelper.GetAccountInfoByNames(accs, true)
+                                .OrderBy(x => x.MarkedDelete).ThenBy(x => x.Id)
+                                .GroupBy(x => x.Name)
+                                .ToDictionary(x => x.Key, x => x.First());
+                            var productions = flowCards.Any()
+                                ? ProductionHelper.Instance
+                                    .GetByIds<Production>(
+                                        flowCards.Values.Select(x => x.ProductionProcessId).Distinct())
+                                    .ToDictionary(x => x.Id)
+                                : new Dictionary<int, Production>();
+                            foreach (var fc in add)
+                            {
+                                var flowCard = flowCards.ContainsKey(fc.FlowCard) ? flowCards[fc.FlowCard] : null;
+                                var flowCardId = flowCard?.Id ?? 0;
+                                fc.FlowCardId = flowCardId;
+                                if (!specials.Any(x => fc.FlowCard.Contains(x)) && fc.FlowCardId == 0)
+                                {
+                                    var dfc = FlowCardHelper.GetFlowCardAll(fc.FlowCard);
+                                    fc.FlowCardId = dfc?.Id ?? 0;
+                                }
 
+                                var oldFlowCard = flowCards.ContainsKey(fc.OldFlowCard)
+                                    ? flowCards[fc.OldFlowCard]
+                                    : null;
+                                var oldFlowCardId = oldFlowCard?.Id ?? 0;
+                                fc.OldFlowCardId = oldFlowCardId;
+                                var productionProcessId = oldFlowCard?.ProductionProcessId ?? 0;
+                                if (!specials.Any(x => fc.OldFlowCard.Contains(x)) && fc.OldFlowCardId == 0)
+                                {
+                                    var dfc = FlowCardHelper.GetFlowCardAll(fc.OldFlowCard);
+                                    fc.OldFlowCardId = dfc?.Id ?? 0;
+                                    productionProcessId = dfc?.ProductionProcessId ?? 0;
+                                }
 
-                //    if (updateStep.Any())
-                //    {
-                //        DeviceProcessStepHelper.UpdateFromId(updateStep);
-                //    }
+                                var production = productions.ContainsKey(productionProcessId)
+                                    ? productions[productionProcessId]
+                                    : null;
+                                var productionId = production?.Id ?? 0;
+                                fc.ProductionId = productionId;
+                                fc.Production = production?.ProductionProcessName ?? "";
 
-                //    if (add.Any())
-                //    {
-                //        var devices = DeviceLibraryHelper.GetDetails(1, add.Where(x => !x.Code.IsNullOrEmpty()).Select(x => x.Code).Distinct()).ToDictionary(x => x.Code);
-                //        var reportFlowCards = add.Where(x => !x.FlowCard.IsNullOrEmpty()).Select(x => x.FlowCard).Concat(add.Where(x => !x.OldFlowCard.IsNullOrEmpty()).Select(x => x.OldFlowCard)).Distinct();
-                //        var flowCards = FlowCardHelper.GetFlowCards(reportFlowCards).ToDictionary(x => x.FlowCardName);
-                //        var processors = AccountInfoHelper.GetAccountInfoByNames(add.Where(x => !x.Processor.IsNullOrEmpty()).Select(x => x.Processor).Distinct()).GroupBy(x => x.Name).ToDictionary(x => x.Key, x => x.First());
-                //        var productions = flowCards.Any()
-                //            ? ProductionHelper.Instance.GetByIds<Production>(flowCards.Values.Select(x => x.ProductionProcessId).Distinct()).ToDictionary(x => x.Id)
-                //            : new Dictionary<int, Production>();
-                //        foreach (var fc in add)
-                //        {
-                //            var flowCard = flowCards.ContainsKey(fc.FlowCard) ? flowCards[fc.FlowCard] : null;
-                //            var flowCardId = flowCard?.Id ?? 0;
-                //            fc.FlowCardId = flowCardId;
-                //            if (!specials.Any(x => fc.FlowCard.Contains(x)) && fc.FlowCardId == 0)
-                //            {
-                //                var dfc = FlowCardHelper.GetFlowCardAll(fc.FlowCard);
-                //                fc.FlowCardId = dfc?.Id ?? 0;
-                //            }
-                //            var oldFlowCard = flowCards.ContainsKey(fc.OldFlowCard) ? flowCards[fc.OldFlowCard] : null;
-                //            var oldFlowCardId = oldFlowCard?.Id ?? 0;
-                //            fc.OldFlowCardId = oldFlowCardId;
-                //            var productionProcessId = oldFlowCard?.ProductionProcessId ?? 0;
-                //            if (!specials.Any(x => fc.OldFlowCard.Contains(x)) && fc.OldFlowCardId == 0)
-                //            {
-                //                var dfc = FlowCardHelper.GetFlowCardAll(fc.OldFlowCard);
-                //                fc.OldFlowCardId = dfc?.Id ?? 0;
-                //                productionProcessId = dfc?.ProductionProcessId ?? 0;
-                //            }
+                                fc.Code = int.TryParse(fc.Code, out var a) ? a.ToString() : fc.Code;
+                                var deviceId = devices.ContainsKey(fc.Code) ? devices[fc.Code].Id : 0;
+                                fc.DeviceId = deviceId;
+                                var processor = processors.ContainsKey(fc.Processor) ? processors[fc.Processor] : null;
+                                var processorId = processor?.Id ?? 0;
+                                fc.ProcessorId = processorId;
+                                fc.State = (fc.FlowCardId == 0 || fc.OldFlowCardId == 0)
+                                    ? 2
+                                    : (fc.ProcessorId == 0 && !fc.Processor.IsNullOrEmpty()
+                                        ? 3
+                                        : (fc.DeviceId == 0 && !fc.Code.IsNullOrEmpty() ? 4 : 1));
+                                if ((!specials.Any(x => fc.FlowCard.Contains(x)) ||
+                                     !specials.Any(x => fc.FlowCard.Contains(x)))
+                                    && fc.State == 2 && (now - fc.Time).TotalMinutes < 10)
+                                {
+                                    fc.State = 0;
+                                }
+                            }
+                        }
 
-                //            var production = productions.ContainsKey(productionProcessId) ? productions[productionProcessId] : null;
-                //            var productionId = production?.Id ?? 0;
-                //            fc.ProductionId = productionId;
-                //            fc.Production = production?.ProductionProcessName ?? "";
+                        var validAdd = add.Where(x => x.State != 0);
+                        var validOld = old.Where(x => x.State != 0);
+                        update.AddRange(validAdd
+                            .Where(x => validOld.Any(o => o.Step == x.Step && o.OtherId == x.OtherId)).Select(
+                                x =>
+                                {
+                                    var v = validOld.FirstOrDefault(o => o.Step == x.Step && o.OtherId == x.OtherId);
+                                    x.Id = v?.Id ?? x.Id;
+                                    x.MarkedDateTime = now;
+                                    return x;
+                                }));
 
-                //            var deviceId = devices.ContainsKey(fc.Code) ? devices[fc.Code].Id : 0;
-                //            fc.DeviceId = deviceId;
-                //            var processor = processors.ContainsKey(fc.Processor) ? processors[fc.Processor] : null;
-                //            var processorId = processor?.Id ?? 0;
-                //            fc.ProcessorId = processorId;
-                //            fc.State = (fc.FlowCardId == 0 || fc.OldFlowCardId == 0) ? 2 : (fc.ProcessorId == 0 && !fc.Processor.IsNullOrEmpty() ? 3 : (fc.DeviceId == 0 && !fc.Code.IsNullOrEmpty() ? 4 : 1));
-                //            if ((!specials.Any(x => fc.FlowCard.Contains(x)) || !specials.Any(x => fc.FlowCard.Contains(x)))
-                //                && fc.State == 2 && (now - fc.Time).TotalMinutes < 10)
-                //            {
-                //                fc.State = 0;
-                //            }
-                //        }
-                //        FlowCardReportGetHelper.Instance.Add(add.OrderBy(x => x.Time));
-                //    }
-                //}
+                        if (update.Any())
+                        {
+                            FlowCardReportGetHelper.UpdateReport(update);
+                        }
+
+                        if (add.Any())
+                        {
+                            FlowCardReportUpdateHelper.Instance.Add(add.OrderBy(x => x.Time).Select(x =>
+                            {
+                                var v = update.FirstOrDefault(o => o.Step == x.Step && o.OtherId == x.OtherId);
+                                x.IsUpdate = v != null ? 1 : 0;
+                                var oldR = validOld.FirstOrDefault(o => o.Step == x.Step && o.OtherId == x.OtherId);
+                                if (oldR != null)
+                                {
+                                    x.OldData = new
+                                    {
+                                        oldR.UpdateTime,
+                                        oldR.Time,
+                                        oldR.State,
+                                        oldR.Step,
+                                        oldR.FlowCardId,
+                                        oldR.FlowCard,
+                                        oldR.OldFlowCardId,
+                                        oldR.OldFlowCard,
+                                        oldR.ProductionId,
+                                        oldR.Production,
+                                        oldR.DeviceId,
+                                        oldR.Code,
+                                        oldR.ProcessorId,
+                                        oldR.Processor,
+                                        oldR.Total,
+                                        oldR.HeGe,
+                                        oldR.LiePian,
+                                        oldR.Reason,
+                                    }.ToJSON();
+                                }
+
+                                return x;
+                            }));
+                        }
+                    }
+                }
+                lastTime = maxTime;
+
+                RedisHelper.SetForever(uTimeKey, lastTime.ToStr());
             }
             catch (Exception e)
             {
@@ -1538,6 +1631,733 @@ namespace ApiManagement.Base.Helper
                 Log.ErrorFormat("GetFlowCardReport erp数据解析失败,原因:{0},错误:{1}", e.Message, e.StackTrace);
             }
             _isGetProductionPlan = false;
+        }
+
+        public static void UseFlowCardReport()
+        {
+            try
+            {
+                var fcs = ServerConfig.ApiDb.Query<FlowCardReport>(
+                    "SELECT * FROM `flowcard_report` WHERE State = 0 AND Time > @Time ORDER BY Time;", new { Time = DateTime.Today.AddDays(-5) });
+
+                if (fcs.Any())
+                {
+                    var devices = DeviceLibraryHelper.GetDetails(1, fcs.Select(x => x.Code).Distinct()).ToDictionary(x => x.Code);
+                    var flowCards = FlowCardHelper.GetFlowCards(fcs.Select(x => x.FlowCard).Distinct()).ToDictionary(x => x.FlowCardName);
+                    var processors = AccountInfoHelper.GetAccountInfoByNames(fcs.Select(x => x.Processor).Distinct(), true)
+                        .OrderBy(x => x.MarkedDelete).ThenBy(x => x.Id)
+                        .GroupBy(x => x.Name).ToDictionary(x => x.Key, x => x.First());
+                    var productions = flowCards.Any()
+                        ? ProductionHelper.Instance.GetByIds<Production>(flowCards.Values.Select(x => x.ProductionProcessId).Distinct()).ToDictionary(x => x.Id)
+                        : new Dictionary<int, Production>();
+
+                    var gxFcs = new Dictionary<int, List<ErpUpdateFlowCard>>();
+                    var updateAcs = new Dictionary<int, AccountInfo>();
+                    var fr = new List<FlowCardReport>();
+                    var updateLog = new List<MonitoringProcessLog>();
+
+                    var gxs = fcs.GroupBy(x => x.Step).Select(x => x.Key);
+                    foreach (var gx in gxs)
+                    {
+                        if (!gxFcs.ContainsKey(gx))
+                        {
+                            gxFcs.Add(gx, new List<ErpUpdateFlowCard>());
+                        }
+                        //研磨1 粗抛 2  精抛 3
+                        if (AnalysisHelper.ParamIntDic.ContainsKey(gx))
+                        {
+                            var fcc = fcs.Where(x => x.Step == gx);
+                            var flowCardInfos = fcc.Select(fc => new ErpUpdateFlowCard
+                            {
+                                Id = fc.FlowCardId,
+                                MarkedDateTime = fc.Time,
+                                FaChu = fc.Total,
+                                HeGe = fc.HeGe,
+                                LiePian = fc.LiePian,
+                                DeviceId = fc.DeviceId,
+                                Time = fc.Time,
+                                JiaGongRen = fc.Processor
+                            });
+                            gxFcs[gx].AddRange(flowCardInfos);
+                            fr.AddRange(fcc.Select(fc =>
+                            {
+                                fc.Code = int.TryParse(fc.Code, out var a) ? a.ToString() : fc.Code;
+                                var deviceId = devices.ContainsKey(fc.Code) ? devices[fc.Code].Id : 0;
+                                var flowCard = flowCards.ContainsKey(fc.FlowCard) ? flowCards[fc.FlowCard] : null;
+                                var flowCardId = flowCard?.Id ?? 0;
+                                var productionProcessId = flowCard?.ProductionProcessId ?? 0;
+                                var production = productions.ContainsKey(productionProcessId) ? productions[productionProcessId] : null;
+                                var productionId = production?.Id ?? 0;
+                                var processor = processors.ContainsKey(fc.Processor) ? processors[fc.Processor] : null;
+                                var processorId = processor?.Id ?? 0;
+                                fc.FlowCardId = flowCardId;
+                                fc.ProductionId = productionId;
+                                fc.Production = production?.ProductionProcessName ?? "";
+                                fc.DeviceId = deviceId;
+                                fc.ProcessorId = processorId;
+                                fc.State = fc.FlowCardId == 0 ? 2 : (fc.ProcessorId == 0 ? 3 : (fc.DeviceId == 0 ? 4 : 1));
+                                if (processor != null && processor.ProductionRole.IsNullOrEmpty())
+                                {
+                                    var change = false;
+                                    if (processor.ProductionRole.IsNullOrEmpty())
+                                    {
+                                        change = true;
+                                        processor.ProductionRole = "0";
+                                    }
+                                    else if (processor.ProductionRole.Contains('0'))
+                                    {
+                                        change = true;
+                                        processor.ProductionRole += ",0";
+                                    }
+                                    if (processor.MaxProductionRole.IsNullOrEmpty())
+                                    {
+                                        change = true;
+                                        processor.MaxProductionRole = "0";
+                                    }
+                                    else if (processor.MaxProductionRole.Contains('0'))
+                                    {
+                                        change = true;
+                                        processor.MaxProductionRole += ",0";
+                                    }
+                                    if (change && !updateAcs.ContainsKey(processorId))
+                                    {
+                                        updateAcs[processorId] = processor;
+                                    }
+                                }
+                                return fc;
+                            }));
+
+                            //foreach (var fc in fcc)
+                            //{
+                            //    if (fc.Back)
+                            //    {
+                            //        var processId = ServerConfig.ApiDb.Query<int>(
+                            //            "SELECT Id FROM `npc_monitoring_process_log` " +
+                            //            "WHERE DeviceId = @DeviceId AND ProcessType = @ProcessType AND NOT ISNULL(EndTime) AND FlowCardId != 0 ORDER BY StartTime DESC LIMIT 1;",
+                            //            new
+                            //            {
+                            //                DeviceId = fc.DeviceId,
+                            //                ProcessType = ProcessType.Process
+                            //            }).FirstOrDefault();
+                            //        if (processId != 0)
+                            //        {
+                            //            fc.Id1 = processId;
+                            //            fc.ProcessType = ProcessType.Process;
+                            //            ServerConfig.ApiDb.Execute(
+                            //                "UPDATE npc_monitoring_process_log SET `FlowCardId` = @FlowCardId, `FlowCard` = @FlowCard, `ProcessorId` = @ProcessorId, `Processor` = @Processor " +
+                            //                "WHERE `Id` > @Id1 AND StartTime < @Time AND DeviceId = @DeviceId AND ProcessType = @ProcessType AND NOT ISNULL(EndTime);",
+                            //                fc);
+                            //            Log.Debug($"UPDATE 流程卡:{fc.FlowCard}, 流程卡Id:{fc.FlowCardId}, 机台号:{fc.Code}, " +
+                            //                      $"设备Id:{fc.DeviceId}, 工序:{fc.Step}, 加工人:{fc.Processor}, Id:{fc.Id}");
+                            //        }
+                            //    }
+                            //}
+                        }
+                    }
+
+                    if (fr.Any())
+                    {
+                        FlowCardReportHelper.Update(fr);
+                        //ServerConfig.ApiDb.Execute($"UPDATE `flowcard_report` SET `State` = @State WHERE `Id` = @Id;", fr);
+                    }
+                    //if (gxFcs.Any())
+                    //{
+                    //    foreach (var (gx, fcis) in gxFcs)
+                    //    {
+                    //        if (fcis.Any())
+                    //        {
+                    //            ServerConfig.ApiDb.Execute(
+                    //                $"UPDATE `flowcard_library` SET `MarkedDateTime` = @MarkedDateTime, " +
+                    //                $"`{AnalysisHelper.ParamIntDic[gx][1]}` = @FaChu, " +
+                    //                $"`{AnalysisHelper.ParamIntDic[gx][2]}` = @HeGe, " +
+                    //                $"`{AnalysisHelper.ParamIntDic[gx][3]}` = @LiePian, " +
+                    //                $"`{AnalysisHelper.ParamIntDic[gx][4]}` = @DeviceId, " +
+                    //                $"`{AnalysisHelper.ParamIntDic[gx][0]}` = @Time, " +
+                    //                $"`{AnalysisHelper.ParamIntDic[gx][5]}` = @JiaGongRen WHERE `Id` = @Id;",
+                    //                fcis);
+                    //        }
+                    //    }
+                    //}
+                    if (updateAcs.Any())
+                    {
+                        ServerConfig.ApiDb.Execute("UPDATE `accounts` SET `ProductionRole` = @ProductionRole WHERE `Id` = @Id;", updateAcs.Values);
+                        //ServerConfig.ApiDb.Execute("UPDATE `accounts` SET `ProductionRole` = @ProductionRole, `MaxProductionRole` = @MaxProductionRole WHERE `Id` = @Id;", updateAcs.Values);
+                    }
+                }
+            }
+            catch (Exception e)
+            {
+                Log.ErrorFormat("UseFlowCardReport,原因:{0},错误:{1}", e.Message, e.StackTrace);
+            }
+        }
+
+        public static void UseFlowCardReportGet()
+        {
+            try
+            {
+                var now = DateTime.Now;
+                var fcs = ServerConfig.ApiDb.Query<FlowCardReportGet>(
+                    "SELECT * FROM `flowcard_report_get` WHERE State = 0 AND Time > @Time ORDER BY Time;", new { Time = now.Date.AddDays(-20) });
+
+                if (fcs.Any())
+                {
+                    var specials = new List<string> { "fp", "fx", "-" };
+                    var devices = DeviceLibraryHelper.GetDetails(1, fcs.Select(x => x.Code).Distinct()).ToDictionary(x => x.Code);
+                    var reportFlowCards = fcs.Select(x => x.FlowCard).Concat(fcs.Select(x => x.OldFlowCard)).Distinct();
+                    var flowCards = FlowCardHelper.GetFlowCards(reportFlowCards).ToDictionary(x => x.FlowCardName);
+                    var processors = AccountInfoHelper.GetAccountInfoByNames(fcs.Select(x => x.Processor).Distinct(), true)
+                        .OrderBy(x => x.MarkedDelete).ThenBy(x => x.Id)
+                        .GroupBy(x => x.Name).ToDictionary(x => x.Key, x => x.First());
+                    var productions = flowCards.Any()
+                        ? ProductionHelper.Instance.GetByIds<Production>(flowCards.Values.Select(x => x.ProductionProcessId).Distinct()).ToDictionary(x => x.Id)
+                        : new Dictionary<int, Production>();
+
+                    var gxFcs = new Dictionary<string, List<ErpUpdateFlowCardGet>>();
+                    var updateAcs = new Dictionary<int, AccountInfo>();
+                    var fr = new List<FlowCardReportGet>();
+                    var updateLog = new List<MonitoringProcessLog>();
+
+                    var gxs = fcs.GroupBy(x => x.StepAbbrev).Select(x => x.Key);
+                    foreach (var gx in gxs)
+                    {
+                        if (!gxFcs.ContainsKey(gx))
+                        {
+                            gxFcs.Add(gx, new List<ErpUpdateFlowCardGet>());
+                        }
+                        var fcc = fcs.Where(x => x.StepAbbrev == gx).Select(fc =>
+                        {
+                            if (fc.NeedUpdate)
+                            {
+                                fc.MarkedDateTime = now;
+                                if (fc.FlowCardId == 0 && !fc.FlowCard.IsNullOrEmpty())
+                                {
+                                    var flowCard = flowCards.ContainsKey(fc.FlowCard) ? flowCards[fc.FlowCard] : null;
+                                    fc.FlowCardId = flowCard?.Id ?? 0;
+                                    if (!specials.Any(x => fc.FlowCard.Contains(x)) && fc.FlowCardId == 0)
+                                    {
+                                        var dfc = FlowCardHelper.GetFlowCardAll(fc.FlowCard);
+                                        fc.FlowCardId = dfc?.Id ?? 0;
+                                    }
+                                    fc.Update = fc.Update || fc.FlowCardId != 0;
+                                }
+
+                                var productionProcessId = 0;
+                                if (fc.OldFlowCardId == 0 && !fc.OldFlowCard.IsNullOrEmpty())
+                                {
+                                    var oldFlowCard = flowCards.ContainsKey(fc.OldFlowCard) ? flowCards[fc.OldFlowCard] : null;
+                                    fc.OldFlowCardId = oldFlowCard?.Id ?? 0;
+                                    productionProcessId = oldFlowCard?.ProductionProcessId ?? 0;
+                                    if (!specials.Any(x => fc.OldFlowCard.Contains(x)) && fc.OldFlowCardId == 0)
+                                    {
+                                        var dfc = FlowCardHelper.GetFlowCardAll(fc.OldFlowCard);
+                                        fc.OldFlowCardId = dfc?.Id ?? 0;
+                                        productionProcessId = dfc?.ProductionProcessId ?? 0;
+                                    }
+                                    fc.Update = fc.Update || fc.OldFlowCardId != 0;
+                                }
+
+                                if (fc.ProductionId == 0)
+                                {
+                                    if (productionProcessId == 0)
+                                    {
+                                        var oldFlowCard = flowCards.ContainsKey(fc.OldFlowCard) ? flowCards[fc.OldFlowCard] : null;
+                                        productionProcessId = oldFlowCard?.ProductionProcessId ?? 0;
+                                    }
+                                    var production = productions.ContainsKey(productionProcessId) ? productions[productionProcessId] : null;
+                                    var productionId = production?.Id ?? 0;
+                                    fc.ProductionId = productionId;
+                                    fc.Production = production?.ProductionProcessName ?? "";
+                                    fc.Update = fc.Update || fc.ProductionId != 0;
+                                }
+
+                                fc.Code = int.TryParse(fc.Code, out var a) ? a.ToString() : fc.Code;
+                                if (fc.DeviceId == 0 && !fc.Code.IsNullOrEmpty())
+                                {
+                                    var deviceId = devices.ContainsKey(fc.Code) ? devices[fc.Code].Id : 0;
+                                    fc.DeviceId = deviceId;
+                                    fc.Update = fc.Update || fc.DeviceId != 0;
+                                }
+
+                                if (fc.ProcessorId == 0 && !fc.Processor.IsNullOrEmpty())
+                                {
+                                    var processor = processors.ContainsKey(fc.Processor) ? processors[fc.Processor] : null;
+                                    var processorId = processor?.Id ?? 0;
+                                    fc.ProcessorId = processorId;
+                                    if (processor != null && processor.ProductionRole.IsNullOrEmpty())
+                                    {
+                                        var change = false;
+                                        if (processor.ProductionRole.IsNullOrEmpty())
+                                        {
+                                            change = true;
+                                            processor.ProductionRole = "0";
+                                        }
+                                        else if (processor.ProductionRole.Contains('0'))
+                                        {
+                                            change = true;
+                                            processor.ProductionRole += ",0";
+                                        }
+#pragma warning disable CS0618 // “AccountInfo.MaxProductionRole”已过时:“弃用”
+                                        if (processor.MaxProductionRole.IsNullOrEmpty())
+#pragma warning restore CS0618 // “AccountInfo.MaxProductionRole”已过时:“弃用”
+                                        {
+                                            change = true;
+#pragma warning disable CS0618 // “AccountInfo.MaxProductionRole”已过时:“弃用”
+                                            processor.MaxProductionRole = "0";
+#pragma warning restore CS0618 // “AccountInfo.MaxProductionRole”已过时:“弃用”
+                                        }
+#pragma warning disable CS0618 // “AccountInfo.MaxProductionRole”已过时:“弃用”
+                                        else if (processor.MaxProductionRole.Contains('0'))
+#pragma warning restore CS0618 // “AccountInfo.MaxProductionRole”已过时:“弃用”
+                                        {
+                                            change = true;
+#pragma warning disable CS0618 // “AccountInfo.MaxProductionRole”已过时:“弃用”
+                                            processor.MaxProductionRole += ",0";
+#pragma warning restore CS0618 // “AccountInfo.MaxProductionRole”已过时:“弃用”
+                                        }
+                                        if (change && !updateAcs.ContainsKey(processorId))
+                                        {
+                                            updateAcs[processorId] = processor;
+                                        }
+                                    }
+                                    fc.Update = fc.Update || fc.ProcessorId != 0;
+                                }
+
+                                var oldState = fc.State;
+                                fc.State = (fc.FlowCardId == 0 || fc.OldFlowCardId == 0) ? 2 : (fc.ProcessorId == 0 && !fc.Processor.IsNullOrEmpty() ? 3 : (fc.DeviceId == 0 && !fc.Code.IsNullOrEmpty() ? 4 : 1));
+                                if (oldState != fc.State)
+                                {
+                                    fc.Update = true;
+                                }
+
+                                if ((!specials.Any(x => fc.FlowCard.Contains(x)) || !specials.Any(x => fc.OldFlowCard.Contains(x)))
+                                    && fc.State == 2 && (now - fc.Time).TotalMinutes < 10)
+                                {
+                                    fc.State = 0;
+                                }
+                            }
+                            return fc;
+                        });
+                        fr.AddRange(fcc.Where(x => x.Update));
+
+                        //研磨1 粗抛 2  精抛 3
+                        if (AnalysisHelper.ParamAbbrevDic.ContainsKey(gx))
+                        {
+                            var flowCardInfos = fcc.Select(fc => new ErpUpdateFlowCardGet
+                            {
+                                Id = fc.FlowCardId,
+                                MarkedDateTime = fc.Time,
+                                FaChu = fc.Total,
+                                HeGe = fc.HeGe,
+                                LiePian = fc.LiePian,
+                                DeviceId = fc.DeviceId,
+                                Time = fc.Time,
+                                JiaGongRen = fc.Processor
+                            });
+                            gxFcs[gx].AddRange(flowCardInfos);
+
+                            foreach (var fc in fcc)
+                            {
+                                if (fc.Back)
+                                {
+                                    var processId = ServerConfig.ApiDb.Query<int>(
+                                        "SELECT Id FROM `npc_monitoring_process_log` " +
+                                        "WHERE DeviceId = @DeviceId AND ProcessType = @ProcessType AND NOT ISNULL(EndTime) AND FlowCardId != 0 ORDER BY StartTime DESC LIMIT 1;",
+                                        new
+                                        {
+                                            DeviceId = fc.DeviceId,
+                                            ProcessType = ProcessType.Process
+                                        }).FirstOrDefault();
+                                    if (processId != 0)
+                                    {
+                                        fc.Id1 = processId;
+                                        fc.ProcessType = ProcessType.Process;
+                                        ServerConfig.ApiDb.Execute(
+                                            "UPDATE npc_monitoring_process_log SET `FlowCardId` = @FlowCardId, `FlowCard` = @FlowCard, `ProcessorId` = @ProcessorId, `Processor` = @Processor " +
+                                            "WHERE `Id` > @Id1 AND StartTime < @Time AND DeviceId = @DeviceId AND ProcessType = @ProcessType AND NOT ISNULL(EndTime);",
+                                            fc);
+                                        Log.Debug($"UPDATE 流程卡:{fc.FlowCard}, 流程卡Id:{fc.FlowCardId}, 机台号:{fc.Code}, " +
+                                                  $"设备Id:{fc.DeviceId}, 工序:{fc.Step}, 加工人:{fc.Processor}, Id:{fc.Id}");
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                    if (fr.Any())
+                    {
+                        FlowCardReportGetHelper.Update(fr);
+                        //ServerConfig.ApiDb.Execute($"UPDATE `flowcard_report` SET `State` = @State WHERE `Id` = @Id;", fr);
+                    }
+                    if (gxFcs.Any())
+                    {
+                        foreach (var (gx, fcis) in gxFcs)
+                        {
+                            if (fcis.Any())
+                            {
+                                ServerConfig.ApiDb.Execute(
+                                    $"UPDATE `flowcard_library` SET `MarkedDateTime` = @MarkedDateTime, " +
+                                    $"`{AnalysisHelper.ParamAbbrevDic[gx][1]}` = @FaChu, " +
+                                    $"`{AnalysisHelper.ParamAbbrevDic[gx][2]}` = @HeGe, " +
+                                    $"`{AnalysisHelper.ParamAbbrevDic[gx][3]}` = @LiePian, " +
+                                    $"`{AnalysisHelper.ParamAbbrevDic[gx][4]}` = @DeviceId, " +
+                                    $"`{AnalysisHelper.ParamAbbrevDic[gx][0]}` = @Time, " +
+                                    $"`{AnalysisHelper.ParamAbbrevDic[gx][5]}` = @JiaGongRen WHERE `Id` = @Id;",
+                                    fcis);
+                            }
+                        }
+                    }
+                    if (updateAcs.Any())
+                    {
+                        ServerConfig.ApiDb.Execute("UPDATE `accounts` SET `ProductionRole` = @ProductionRole, `MaxProductionRole` = @MaxProductionRole WHERE `Id` = @Id;", updateAcs.Values);
+                    }
+                }
+            }
+            catch (Exception e)
+            {
+                Log.ErrorFormat("UseFlowCardReportGet,原因:{0},错误:{1}", e.Message, e.StackTrace);
+            }
+        }
+
+        public static void UseFlowCardReportUpdate()
+        {
+            try
+            {
+                var now = DateTime.Now;
+                var fcs = ServerConfig.ApiDb.Query<FlowCardReportUpdate>(
+                    "SELECT * FROM `flowcard_report_update` WHERE State = 0 AND Time > @Time ORDER BY Time;", new { Time = now.Date.AddDays(-20) });
+
+                if (fcs.Any())
+                {
+                    var specials = new List<string> { "fp", "fx", "-" };
+                    var devices = DeviceLibraryHelper.GetDetails(1, fcs.Select(x => x.Code).Distinct()).ToDictionary(x => x.Code);
+                    var reportFlowCards = fcs.Select(x => x.FlowCard).Concat(fcs.Select(x => x.OldFlowCard)).Distinct();
+                    var flowCards = FlowCardHelper.GetFlowCards(reportFlowCards).ToDictionary(x => x.FlowCardName);
+                    var processors = AccountInfoHelper.GetAccountInfoByNames(fcs.Select(x => x.Processor).Distinct(), true)
+                        .OrderBy(x => x.MarkedDelete).ThenBy(x => x.Id)
+                        .GroupBy(x => x.Name).ToDictionary(x => x.Key, x => x.First());
+                    var productions = flowCards.Any()
+                        ? ProductionHelper.Instance.GetByIds<Production>(flowCards.Values.Select(x => x.ProductionProcessId).Distinct()).ToDictionary(x => x.Id)
+                        : new Dictionary<int, Production>();
+
+                    var gxFcs = new Dictionary<string, List<ErpUpdateFlowCardGet>>();
+                    var updateAcs = new Dictionary<int, AccountInfo>();
+                    var fr = new List<FlowCardReportUpdate>();
+
+                    var gxs = fcs.GroupBy(x => x.StepAbbrev).Select(x => x.Key);
+                    foreach (var gx in gxs)
+                    {
+                        if (!gxFcs.ContainsKey(gx))
+                        {
+                            gxFcs.Add(gx, new List<ErpUpdateFlowCardGet>());
+                        }
+                        var fcc = fcs.Where(x => x.StepAbbrev == gx).Select(fc =>
+                        {
+                            if (fc.NeedUpdate)
+                            {
+                                fc.MarkedDateTime = now;
+                                if (fc.FlowCardId == 0 && !fc.FlowCard.IsNullOrEmpty())
+                                {
+                                    var flowCard = flowCards.ContainsKey(fc.FlowCard) ? flowCards[fc.FlowCard] : null;
+                                    fc.FlowCardId = flowCard?.Id ?? 0;
+                                    if (!specials.Any(x => fc.FlowCard.Contains(x)) && fc.FlowCardId == 0)
+                                    {
+                                        var dfc = FlowCardHelper.GetFlowCardAll(fc.FlowCard);
+                                        fc.FlowCardId = dfc?.Id ?? 0;
+                                    }
+                                    fc.Update = fc.Update || fc.FlowCardId != 0;
+                                }
+
+                                var productionProcessId = 0;
+                                if (fc.OldFlowCardId == 0 && !fc.OldFlowCard.IsNullOrEmpty())
+                                {
+                                    var oldFlowCard = flowCards.ContainsKey(fc.OldFlowCard) ? flowCards[fc.OldFlowCard] : null;
+                                    fc.OldFlowCardId = oldFlowCard?.Id ?? 0;
+                                    productionProcessId = oldFlowCard?.ProductionProcessId ?? 0;
+                                    if (!specials.Any(x => fc.OldFlowCard.Contains(x)) && fc.OldFlowCardId == 0)
+                                    {
+                                        var dfc = FlowCardHelper.GetFlowCardAll(fc.OldFlowCard);
+                                        fc.OldFlowCardId = dfc?.Id ?? 0;
+                                        productionProcessId = dfc?.ProductionProcessId ?? 0;
+                                    }
+                                    fc.Update = fc.Update || fc.OldFlowCardId != 0;
+                                }
+
+                                if (fc.ProductionId == 0)
+                                {
+                                    if (productionProcessId == 0)
+                                    {
+                                        var oldFlowCard = flowCards.ContainsKey(fc.OldFlowCard) ? flowCards[fc.OldFlowCard] : null;
+                                        productionProcessId = oldFlowCard?.ProductionProcessId ?? 0;
+                                    }
+                                    var production = productions.ContainsKey(productionProcessId) ? productions[productionProcessId] : null;
+                                    var productionId = production?.Id ?? 0;
+                                    fc.ProductionId = productionId;
+                                    fc.Production = production?.ProductionProcessName ?? "";
+                                    fc.Update = fc.Update || fc.ProductionId != 0;
+                                }
+
+                                fc.Code = int.TryParse(fc.Code, out var a) ? a.ToString() : fc.Code;
+                                if (fc.DeviceId == 0 && !fc.Code.IsNullOrEmpty())
+                                {
+                                    var deviceId = devices.ContainsKey(fc.Code) ? devices[fc.Code].Id : 0;
+                                    fc.DeviceId = deviceId;
+                                    fc.Update = fc.Update || fc.DeviceId != 0;
+                                }
+
+                                if (fc.ProcessorId == 0 && !fc.Processor.IsNullOrEmpty())
+                                {
+                                    var processor = processors.ContainsKey(fc.Processor) ? processors[fc.Processor] : null;
+                                    var processorId = processor?.Id ?? 0;
+                                    fc.ProcessorId = processorId;
+                                    if (processor != null && processor.ProductionRole.IsNullOrEmpty())
+                                    {
+                                        var change = false;
+                                        if (processor.ProductionRole.IsNullOrEmpty())
+                                        {
+                                            change = true;
+                                            processor.ProductionRole = "0";
+                                        }
+                                        else if (processor.ProductionRole.Contains('0'))
+                                        {
+                                            change = true;
+                                            processor.ProductionRole += ",0";
+                                        }
+#pragma warning disable CS0618 // “AccountInfo.MaxProductionRole”已过时:“弃用”
+                                        if (processor.MaxProductionRole.IsNullOrEmpty())
+#pragma warning restore CS0618 // “AccountInfo.MaxProductionRole”已过时:“弃用”
+                                        {
+                                            change = true;
+#pragma warning disable CS0618 // “AccountInfo.MaxProductionRole”已过时:“弃用”
+                                            processor.MaxProductionRole = "0";
+#pragma warning restore CS0618 // “AccountInfo.MaxProductionRole”已过时:“弃用”
+                                        }
+#pragma warning disable CS0618 // “AccountInfo.MaxProductionRole”已过时:“弃用”
+                                        else if (processor.MaxProductionRole.Contains('0'))
+#pragma warning restore CS0618 // “AccountInfo.MaxProductionRole”已过时:“弃用”
+                                        {
+                                            change = true;
+#pragma warning disable CS0618 // “AccountInfo.MaxProductionRole”已过时:“弃用”
+                                            processor.MaxProductionRole += ",0";
+#pragma warning restore CS0618 // “AccountInfo.MaxProductionRole”已过时:“弃用”
+                                        }
+                                        if (change && !updateAcs.ContainsKey(processorId))
+                                        {
+                                            updateAcs[processorId] = processor;
+                                        }
+                                    }
+                                    fc.Update = fc.Update || fc.ProcessorId != 0;
+                                }
+
+                                var oldState = fc.State;
+                                fc.State = (fc.FlowCardId == 0 || fc.OldFlowCardId == 0) ? 2 : (fc.ProcessorId == 0 && !fc.Processor.IsNullOrEmpty() ? 3 : (fc.DeviceId == 0 && !fc.Code.IsNullOrEmpty() ? 4 : 1));
+                                if (oldState != fc.State)
+                                {
+                                    fc.Update = true;
+                                }
+
+                                if ((!specials.Any(x => fc.FlowCard.Contains(x)) || !specials.Any(x => fc.OldFlowCard.Contains(x)))
+                                    && fc.State == 2 && (now - fc.Time).TotalMinutes < 10)
+                                {
+                                    fc.State = 0;
+                                }
+                            }
+                            return fc;
+                        });
+                        fr.AddRange(fcc.Where(x => x.Update));
+
+                        if (AnalysisHelper.ParamAbbrevDic.ContainsKey(gx))
+                        {
+                            var flowCardInfos = fcc.Select(fc => new ErpUpdateFlowCardGet
+                            {
+                                Id = fc.FlowCardId,
+                                MarkedDateTime = fc.Time,
+                                FaChu = fc.Total,
+                                HeGe = fc.HeGe,
+                                LiePian = fc.LiePian,
+                                DeviceId = fc.DeviceId,
+                                Time = fc.Time,
+                                JiaGongRen = fc.Processor
+                            });
+                            gxFcs[gx].AddRange(flowCardInfos);
+                        }
+                    }
+                    if (fr.Any())
+                    {
+                        FlowCardReportUpdateHelper.Update(fr);
+                        //ServerConfig.ApiDb.Execute($"UPDATE `flowcard_report` SET `State` = @State WHERE `Id` = @Id;", fr);
+                    }
+                    //if (gxFcs.Any())
+                    //{
+                    //    foreach (var (gx, fcis) in gxFcs)
+                    //    {
+                    //        if (fcis.Any())
+                    //        {
+                    //            ServerConfig.ApiDb.Execute(
+                    //                $"UPDATE `flowcard_library` SET `MarkedDateTime` = @MarkedDateTime, " +
+                    //                $"`{AnalysisHelper.ParamAbbrevDic[gx][1]}` = @FaChu, " +
+                    //                $"`{AnalysisHelper.ParamAbbrevDic[gx][2]}` = @HeGe, " +
+                    //                $"`{AnalysisHelper.ParamAbbrevDic[gx][3]}` = @LiePian, " +
+                    //                $"`{AnalysisHelper.ParamAbbrevDic[gx][4]}` = @DeviceId, " +
+                    //                $"`{AnalysisHelper.ParamAbbrevDic[gx][0]}` = @Time, " +
+                    //                $"`{AnalysisHelper.ParamAbbrevDic[gx][5]}` = @JiaGongRen WHERE `Id` = @Id;",
+                    //                fcis);
+                    //        }
+                    //    }
+                    //}
+                    //if (updateAcs.Any())
+                    //{
+                    //    ServerConfig.ApiDb.Execute("UPDATE `accounts` SET `ProductionRole` = @ProductionRole, `MaxProductionRole` = @MaxProductionRole WHERE `Id` = @Id;", updateAcs.Values);
+                    //}
+                }
+            }
+            catch (Exception e)
+            {
+                Log.ErrorFormat("UseFlowCardReportUpdate,原因:{0},错误:{1}", e.Message, e.StackTrace);
+            }
+        }
+
+        private static int _dealLength = 1000;
+        /// <summary>
+        /// 更新设备流程卡加工记录
+        /// </summary>
+        private static void DeviceLastFlowCard()
+        {
+            try
+            {
+                var devices = new List<MonitoringProcess>();
+
+                var now = DateTime.Now;
+                var rTime = RedisHelper.Get<DateTime>(pTimeKey);
+                var pId = RedisHelper.Get<int>(pIdKey);
+                //var pDayId = RedisHelper.Get<int>(pDayIdKey);
+                if (rTime == default(DateTime))
+                {
+                    rTime = now;
+                    RedisHelper.SetForever(pTimeKey, rTime.ToStr());
+                    pId = ServerConfig.ApiDb.Query<int>("SELECT IFNULL(MAX(Id), 0) FROM `flowcard_report_get` WHERE Time < @rTime AND State != 0 ORDER BY Id DESC LIMIT 1;",
+                        new { rTime }).FirstOrDefault();
+                    RedisHelper.SetForever(pIdKey, pId);
+                    return;
+                }
+                var mData = ServerConfig.ApiDb.Query<FlowCardReportGet>("SELECT * FROM `flowcard_report_get` WHERE Id > @pId ORDER BY Id LIMIT @limit;",
+                    new
+                    {
+                        pId,
+                        limit = _dealLength
+                    });
+                if (mData.Any(x => x.State == 0))
+                {
+                    return;
+                }
+
+                var endId = pId;
+                if (mData.Any())
+                {
+                    endId = mData.Max(x => x.Id);
+                    mData = mData.OrderBy(x => x.Time);
+
+                    var drs = mData.GroupBy(x => x.DeviceId).ToDictionary(y => y.Key,
+                        y => y.OrderByDescending(x => x.Time).FirstOrDefault());
+
+                    devices.AddRange(drs.Select(x => new MonitoringProcess
+                    {
+                        DeviceId = x.Key,
+                        LastFlowCardId = x.Value.FlowCardId,
+                        LastFlowCard = x.Value.FlowCard,
+                    }));
+                }
+                RedisHelper.SetForever(pIdKey, endId);
+
+                if (devices.Any())
+                {
+                    ServerConfig.ApiDb.Execute(
+                        "UPDATE npc_proxy_link SET `LastFlowCardId` = @LastFlowCardId, `LastFlowCard` = @LastFlowCard WHERE `DeviceId` = @DeviceId;",
+                        devices);
+                }
+            }
+            catch (Exception e)
+            {
+                Log.Error(e);
+            }
+        }
+
+        /// <summary>
+        /// 根据获取的更新记录 更新工序上报数据
+        /// </summary>
+        private static void UpdateFlowCardReportGet()
+        {
+            if (_isUpdateFlowCardReportGet)
+            {
+                return;
+            }
+
+            _isUpdateFlowCardReportGet = true;
+            try
+            {
+                var now = DateTime.Now;
+                var lastId = RedisHelper.Get<int>(uIdKey);
+
+                var add = ServerConfig.ApiDb.Query<FlowCardReportUpdate>(
+                    "SELECT * FROM `flowcard_report_update` WHERE Id > @lastId ORDER BY Id;", new { lastId });
+                if (!add.Any())
+                {
+                    _isUpdateFlowCardReportGet = false;
+                    return;
+                }
+                if (add.All(x => x.State != 0 && x.IsUpdate == 1))
+                {
+                    lastId = add.Max(x => x.Id);
+                    RedisHelper.SetForever(uIdKey, lastId);
+                    _isUpdateFlowCardReportGet = false;
+                    return;
+                }
+
+                if (add.Any(x => x.State == 0 || x.IsUpdate == 1))
+                {
+                    var t = add.OrderBy(x => x.Id).FirstOrDefault(x => x.State == 0 || x.IsUpdate == 1);
+                    add = add.Where(x => x.Id < t.Id);
+                    if (!add.Any())
+                    {
+                        _isUpdateFlowCardReportGet = false;
+                        return;
+                    }
+                }
+
+                var updateIds = add.Select(x => x.Id).ToList();
+                var old = new List<FlowCardReportGet>();
+                var update = new List<FlowCardReportUpdate>();
+                if (add.Any())
+                {
+                    lastId = updateIds.Max(x => x);
+                    var otherIds = add.Select(x => x.OtherId).Distinct();
+                    var stepIds = add.Select(x => x.Step).Distinct();
+                    old.AddRange(FlowCardReportGetHelper.GetReport(1, default(DateTime), default(DateTime),
+                        0, stepIds, 0, null, 0, null, 0, null, 0, null, 0, null, 0, otherIds));
+                }
+                update.AddRange(add.Where(x => old.Any(o => o.Step == x.Step && o.OtherId == x.OtherId && o.UpdateTime < x.UpdateTime)).Select(
+                    x =>
+                    {
+                        var v = old.FirstOrDefault(o => o.Step == x.Step && o.OtherId == x.OtherId);
+                        x.Id = v?.Id ?? x.Id;
+                        x.MarkedDateTime = now;
+                        return x;
+                    }));
+
+                if (update.Any())
+                {
+                    FlowCardReportGetHelper.UpdateReport(update);
+                }
+                if (updateIds.Any())
+                {
+                    FlowCardReportUpdateHelper.IsUpdate(updateIds);
+                }
+                RedisHelper.SetForever(uIdKey, lastId);
+            }
+            catch (Exception e)
+            {
+                Log.ErrorFormat("UseFlowCardReportGet,原因:{0},错误:{1}", e.Message, e.StackTrace);
+            }
+            _isUpdateFlowCardReportGet = false;
         }
 
         public class ErpFlowCard
@@ -1699,448 +2519,5 @@ namespace ApiManagement.Base.Helper
             public decimal f_qty;
         }
 
-        public static void UseFlowCardReport()
-        {
-            try
-            {
-                var fcs = ServerConfig.ApiDb.Query<FlowCardReport>(
-                    "SELECT * FROM `flowcard_report` WHERE State = 0 AND Time > @Time ORDER BY Time;", new { Time = DateTime.Today.AddDays(-5) });
-
-                if (fcs.Any())
-                {
-                    var devices = DeviceLibraryHelper.GetDetails(1, fcs.Select(x => x.Code).Distinct()).ToDictionary(x => x.Code);
-                    var flowCards = FlowCardHelper.GetFlowCards(fcs.Select(x => x.FlowCard).Distinct()).ToDictionary(x => x.FlowCardName);
-                    var processors = AccountInfoHelper.GetAccountInfoByNames(fcs.Select(x => x.Processor).Distinct()).GroupBy(x => x.Name).ToDictionary(x => x.Key, x => x.First());
-                    var productions = flowCards.Any()
-                        ? ProductionHelper.Instance.GetByIds<Production>(flowCards.Values.Select(x => x.ProductionProcessId).Distinct()).ToDictionary(x => x.Id)
-                        : new Dictionary<int, Production>();
-
-                    var gxFcs = new Dictionary<int, List<ErpUpdateFlowCard>>();
-                    var updateAcs = new Dictionary<int, AccountInfo>();
-                    var fr = new List<FlowCardReport>();
-                    var updateLog = new List<MonitoringProcessLog>();
-
-                    var gxs = fcs.GroupBy(x => x.Step).Select(x => x.Key);
-                    foreach (var gx in gxs)
-                    {
-                        if (!gxFcs.ContainsKey(gx))
-                        {
-                            gxFcs.Add(gx, new List<ErpUpdateFlowCard>());
-                        }
-                        //研磨1 粗抛 2  精抛 3
-                        if (AnalysisHelper.ParamIntDic.ContainsKey(gx))
-                        {
-                            var fcc = fcs.Where(x => x.Step == gx);
-                            var flowCardInfos = fcc.Select(fc => new ErpUpdateFlowCard
-                            {
-                                Id = fc.FlowCardId,
-                                MarkedDateTime = fc.Time,
-                                FaChu = fc.Total,
-                                HeGe = fc.HeGe,
-                                LiePian = fc.LiePian,
-                                DeviceId = fc.DeviceId,
-                                Time = fc.Time,
-                                JiaGongRen = fc.Processor
-                            });
-                            gxFcs[gx].AddRange(flowCardInfos);
-                            fr.AddRange(fcc.Select(fc =>
-                            {
-                                var deviceId = devices.ContainsKey(fc.Code) ? devices[fc.Code].Id : 0;
-                                var flowCard = flowCards.ContainsKey(fc.FlowCard) ? flowCards[fc.FlowCard] : null;
-                                var flowCardId = flowCard?.Id ?? 0;
-                                var productionProcessId = flowCard?.ProductionProcessId ?? 0;
-                                var production = productions.ContainsKey(productionProcessId) ? productions[productionProcessId] : null;
-                                var productionId = production?.Id ?? 0;
-                                var processor = processors.ContainsKey(fc.Processor) ? processors[fc.Processor] : null;
-                                var processorId = processor?.Id ?? 0;
-                                fc.FlowCardId = flowCardId;
-                                fc.ProductionId = productionId;
-                                fc.Production = production?.ProductionProcessName ?? "";
-                                fc.DeviceId = deviceId;
-                                fc.ProcessorId = processorId;
-                                fc.State = fc.FlowCardId == 0 ? 2 : (fc.ProcessorId == 0 ? 3 : (fc.DeviceId == 0 ? 4 : 1));
-                                if (processor != null && processor.ProductionRole.IsNullOrEmpty())
-                                {
-                                    var change = false;
-                                    if (processor.ProductionRole.IsNullOrEmpty())
-                                    {
-                                        change = true;
-                                        processor.ProductionRole = "0";
-                                    }
-                                    else if (processor.ProductionRole.Contains('0'))
-                                    {
-                                        change = true;
-                                        processor.ProductionRole += ",0";
-                                    }
-                                    if (processor.MaxProductionRole.IsNullOrEmpty())
-                                    {
-                                        change = true;
-                                        processor.MaxProductionRole = "0";
-                                    }
-                                    else if (processor.MaxProductionRole.Contains('0'))
-                                    {
-                                        change = true;
-                                        processor.MaxProductionRole += ",0";
-                                    }
-                                    if (change && !updateAcs.ContainsKey(processorId))
-                                    {
-                                        updateAcs[processorId] = processor;
-                                    }
-                                }
-                                return fc;
-                            }));
-
-                            //foreach (var fc in fcc)
-                            //{
-                            //    if (fc.Back)
-                            //    {
-                            //        var processId = ServerConfig.ApiDb.Query<int>(
-                            //            "SELECT Id FROM `npc_monitoring_process_log` " +
-                            //            "WHERE DeviceId = @DeviceId AND ProcessType = @ProcessType AND NOT ISNULL(EndTime) AND FlowCardId != 0 ORDER BY StartTime DESC LIMIT 1;",
-                            //            new
-                            //            {
-                            //                DeviceId = fc.DeviceId,
-                            //                ProcessType = ProcessType.Process
-                            //            }).FirstOrDefault();
-                            //        if (processId != 0)
-                            //        {
-                            //            fc.Id1 = processId;
-                            //            fc.ProcessType = ProcessType.Process;
-                            //            ServerConfig.ApiDb.Execute(
-                            //                "UPDATE npc_monitoring_process_log SET `FlowCardId` = @FlowCardId, `FlowCard` = @FlowCard, `ProcessorId` = @ProcessorId, `Processor` = @Processor " +
-                            //                "WHERE `Id` > @Id1 AND StartTime < @Time AND DeviceId = @DeviceId AND ProcessType = @ProcessType AND NOT ISNULL(EndTime);",
-                            //                fc);
-                            //            Log.Debug($"UPDATE 流程卡:{fc.FlowCard}, 流程卡Id:{fc.FlowCardId}, 机台号:{fc.Code}, " +
-                            //                      $"设备Id:{fc.DeviceId}, 工序:{fc.Step}, 加工人:{fc.Processor}, Id:{fc.Id}");
-                            //        }
-                            //    }
-                            //}
-                        }
-                    }
-
-                    if (fr.Any())
-                    {
-                        FlowCardReportHelper.Update(fr);
-                        //ServerConfig.ApiDb.Execute($"UPDATE `flowcard_report` SET `State` = @State WHERE `Id` = @Id;", fr);
-                    }
-                    //if (gxFcs.Any())
-                    //{
-                    //    foreach (var (gx, fcis) in gxFcs)
-                    //    {
-                    //        if (fcis.Any())
-                    //        {
-                    //            ServerConfig.ApiDb.Execute(
-                    //                $"UPDATE `flowcard_library` SET `MarkedDateTime` = @MarkedDateTime, " +
-                    //                $"`{AnalysisHelper.ParamIntDic[gx][1]}` = @FaChu, " +
-                    //                $"`{AnalysisHelper.ParamIntDic[gx][2]}` = @HeGe, " +
-                    //                $"`{AnalysisHelper.ParamIntDic[gx][3]}` = @LiePian, " +
-                    //                $"`{AnalysisHelper.ParamIntDic[gx][4]}` = @DeviceId, " +
-                    //                $"`{AnalysisHelper.ParamIntDic[gx][0]}` = @Time, " +
-                    //                $"`{AnalysisHelper.ParamIntDic[gx][5]}` = @JiaGongRen WHERE `Id` = @Id;",
-                    //                fcis);
-                    //        }
-                    //    }
-                    //}
-                    if (updateAcs.Any())
-                    {
-                        ServerConfig.ApiDb.Execute("UPDATE `accounts` SET `ProductionRole` = @ProductionRole WHERE `Id` = @Id;", updateAcs.Values);
-                        //ServerConfig.ApiDb.Execute("UPDATE `accounts` SET `ProductionRole` = @ProductionRole, `MaxProductionRole` = @MaxProductionRole WHERE `Id` = @Id;", updateAcs.Values);
-                    }
-                }
-            }
-            catch (Exception e)
-            {
-                Log.ErrorFormat("UseFlowCardReport,原因:{0},错误:{1}", e.Message, e.StackTrace);
-            }
-        }
-
-        public static void UseFlowCardReportGet()
-        {
-            try
-            {
-                var now = DateTime.Now;
-                var fcs = ServerConfig.ApiDb.Query<FlowCardReportGet>(
-                    "SELECT * FROM `flowcard_report_get` WHERE State = 0 AND Time > @Time ORDER BY Time;", new { Time = now.Date.AddDays(-20) });
-
-                if (fcs.Any())
-                {
-                    var specials = new List<string> { "fp", "fx", "-" };
-                    var devices = DeviceLibraryHelper.GetDetails(1, fcs.Select(x => x.Code).Distinct()).ToDictionary(x => x.Code);
-                    var reportFlowCards = fcs.Select(x => x.FlowCard).Concat(fcs.Select(x => x.OldFlowCard)).Distinct();
-                    var flowCards = FlowCardHelper.GetFlowCards(reportFlowCards).ToDictionary(x => x.FlowCardName);
-                    var processors = AccountInfoHelper.GetAccountInfoByNames(fcs.Select(x => x.Processor).Distinct()).GroupBy(x => x.Name).ToDictionary(x => x.Key, x => x.First());
-                    var productions = flowCards.Any()
-                        ? ProductionHelper.Instance.GetByIds<Production>(flowCards.Values.Select(x => x.ProductionProcessId).Distinct()).ToDictionary(x => x.Id)
-                        : new Dictionary<int, Production>();
-
-                    var gxFcs = new Dictionary<string, List<ErpUpdateFlowCardGet>>();
-                    var updateAcs = new Dictionary<int, AccountInfo>();
-                    var fr = new List<FlowCardReportGet>();
-                    var updateLog = new List<MonitoringProcessLog>();
-
-                    var gxs = fcs.GroupBy(x => x.StepAbbrev).Select(x => x.Key);
-                    foreach (var gx in gxs)
-                    {
-                        if (!gxFcs.ContainsKey(gx))
-                        {
-                            gxFcs.Add(gx, new List<ErpUpdateFlowCardGet>());
-                        }
-                        var fcc = fcs.Where(x => x.StepAbbrev == gx).Select(fc =>
-                        {
-                            if (fc.NeedUpdate)
-                            {
-                                fc.MarkedDateTime = now;
-                                if (fc.FlowCardId == 0 && !fc.FlowCard.IsNullOrEmpty())
-                                {
-                                    var flowCard = flowCards.ContainsKey(fc.FlowCard) ? flowCards[fc.FlowCard] : null;
-                                    fc.FlowCardId = flowCard?.Id ?? 0;
-                                    if (!specials.Any(x => fc.FlowCard.Contains(x)) && fc.FlowCardId == 0)
-                                    {
-                                        var dfc = FlowCardHelper.GetFlowCardAll(fc.FlowCard);
-                                        fc.FlowCardId = dfc?.Id ?? 0;
-                                    }
-                                    fc.Update = fc.Update || fc.FlowCardId != 0;
-                                }
-
-                                var productionProcessId = 0;
-                                if (fc.OldFlowCardId == 0 && !fc.OldFlowCard.IsNullOrEmpty())
-                                {
-                                    var oldFlowCard = flowCards.ContainsKey(fc.OldFlowCard) ? flowCards[fc.OldFlowCard] : null;
-                                    fc.OldFlowCardId = oldFlowCard?.Id ?? 0;
-                                    productionProcessId = oldFlowCard?.ProductionProcessId ?? 0;
-                                    if (!specials.Any(x => fc.OldFlowCard.Contains(x)) && fc.OldFlowCardId == 0)
-                                    {
-                                        var dfc = FlowCardHelper.GetFlowCardAll(fc.OldFlowCard);
-                                        fc.OldFlowCardId = dfc?.Id ?? 0;
-                                        productionProcessId = dfc?.ProductionProcessId ?? 0;
-                                    }
-                                    fc.Update = fc.Update || fc.OldFlowCardId != 0;
-                                }
-
-                                if (fc.ProductionId == 0)
-                                {
-                                    if (productionProcessId == 0)
-                                    {
-                                        var oldFlowCard = flowCards.ContainsKey(fc.OldFlowCard) ? flowCards[fc.OldFlowCard] : null;
-                                        productionProcessId = oldFlowCard?.ProductionProcessId ?? 0;
-                                    }
-                                    var production = productions.ContainsKey(productionProcessId) ? productions[productionProcessId] : null;
-                                    var productionId = production?.Id ?? 0;
-                                    fc.ProductionId = productionId;
-                                    fc.Production = production?.ProductionProcessName ?? "";
-                                    fc.Update = fc.Update || fc.ProductionId != 0;
-                                }
-
-                                if (fc.DeviceId == 0 && !fc.Code.IsNullOrEmpty())
-                                {
-                                    var deviceId = devices.ContainsKey(fc.Code) ? devices[fc.Code].Id : 0;
-                                    fc.DeviceId = deviceId;
-                                    fc.Update = fc.Update || fc.DeviceId != 0;
-                                }
-
-                                if (fc.ProcessorId == 0 && !fc.Processor.IsNullOrEmpty())
-                                {
-                                    var processor = processors.ContainsKey(fc.Processor) ? processors[fc.Processor] : null;
-                                    var processorId = processor?.Id ?? 0;
-                                    fc.ProcessorId = processorId;
-                                    if (processor != null && processor.ProductionRole.IsNullOrEmpty())
-                                    {
-                                        var change = false;
-                                        if (processor.ProductionRole.IsNullOrEmpty())
-                                        {
-                                            change = true;
-                                            processor.ProductionRole = "0";
-                                        }
-                                        else if (processor.ProductionRole.Contains('0'))
-                                        {
-                                            change = true;
-                                            processor.ProductionRole += ",0";
-                                        }
-#pragma warning disable CS0618 // “AccountInfo.MaxProductionRole”已过时:“弃用”
-                                        if (processor.MaxProductionRole.IsNullOrEmpty())
-#pragma warning restore CS0618 // “AccountInfo.MaxProductionRole”已过时:“弃用”
-                                        {
-                                            change = true;
-#pragma warning disable CS0618 // “AccountInfo.MaxProductionRole”已过时:“弃用”
-                                            processor.MaxProductionRole = "0";
-#pragma warning restore CS0618 // “AccountInfo.MaxProductionRole”已过时:“弃用”
-                                        }
-#pragma warning disable CS0618 // “AccountInfo.MaxProductionRole”已过时:“弃用”
-                                        else if (processor.MaxProductionRole.Contains('0'))
-#pragma warning restore CS0618 // “AccountInfo.MaxProductionRole”已过时:“弃用”
-                                        {
-                                            change = true;
-#pragma warning disable CS0618 // “AccountInfo.MaxProductionRole”已过时:“弃用”
-                                            processor.MaxProductionRole += ",0";
-#pragma warning restore CS0618 // “AccountInfo.MaxProductionRole”已过时:“弃用”
-                                        }
-                                        if (change && !updateAcs.ContainsKey(processorId))
-                                        {
-                                            updateAcs[processorId] = processor;
-                                        }
-                                    }
-                                    fc.Update = fc.Update || fc.ProcessorId != 0;
-                                }
-
-                                var oldState = fc.State;
-                                fc.State = (fc.FlowCardId == 0 || fc.OldFlowCardId == 0) ? 2 : (fc.ProcessorId == 0 && !fc.Processor.IsNullOrEmpty() ? 3 : (fc.DeviceId == 0 && !fc.Code.IsNullOrEmpty() ? 4 : 1));
-                                if (oldState != fc.State)
-                                {
-                                    fc.Update = true;
-                                }
-
-                                if ((!specials.Any(x => fc.FlowCard.Contains(x)) || !specials.Any(x => fc.OldFlowCard.Contains(x)))
-                                    && fc.State == 2 && (now - fc.Time).TotalMinutes < 10)
-                                {
-                                    fc.State = 0;
-                                }
-                            }
-                            return fc;
-                        });
-                        fr.AddRange(fcc.Where(x => x.Update));
-
-                        //研磨1 粗抛 2  精抛 3
-                        if (AnalysisHelper.ParamAbbrevDic.ContainsKey(gx))
-                        {
-                            var flowCardInfos = fcc.Select(fc => new ErpUpdateFlowCardGet
-                            {
-                                Id = fc.FlowCardId,
-                                MarkedDateTime = fc.Time,
-                                FaChu = fc.Total,
-                                HeGe = fc.HeGe,
-                                LiePian = fc.LiePian,
-                                DeviceId = fc.DeviceId,
-                                Time = fc.Time,
-                                JiaGongRen = fc.Processor
-                            });
-                            gxFcs[gx].AddRange(flowCardInfos);
-
-                            foreach (var fc in fcc)
-                            {
-                                if (fc.Back)
-                                {
-                                    var processId = ServerConfig.ApiDb.Query<int>(
-                                        "SELECT Id FROM `npc_monitoring_process_log` " +
-                                        "WHERE DeviceId = @DeviceId AND ProcessType = @ProcessType AND NOT ISNULL(EndTime) AND FlowCardId != 0 ORDER BY StartTime DESC LIMIT 1;",
-                                        new
-                                        {
-                                            DeviceId = fc.DeviceId,
-                                            ProcessType = ProcessType.Process
-                                        }).FirstOrDefault();
-                                    if (processId != 0)
-                                    {
-                                        fc.Id1 = processId;
-                                        fc.ProcessType = ProcessType.Process;
-                                        ServerConfig.ApiDb.Execute(
-                                            "UPDATE npc_monitoring_process_log SET `FlowCardId` = @FlowCardId, `FlowCard` = @FlowCard, `ProcessorId` = @ProcessorId, `Processor` = @Processor " +
-                                            "WHERE `Id` > @Id1 AND StartTime < @Time AND DeviceId = @DeviceId AND ProcessType = @ProcessType AND NOT ISNULL(EndTime);",
-                                            fc);
-                                        Log.Debug($"UPDATE 流程卡:{fc.FlowCard}, 流程卡Id:{fc.FlowCardId}, 机台号:{fc.Code}, " +
-                                                  $"设备Id:{fc.DeviceId}, 工序:{fc.Step}, 加工人:{fc.Processor}, Id:{fc.Id}");
-                                    }
-                                }
-                            }
-                        }
-                    }
-
-                    if (fr.Any())
-                    {
-                        FlowCardReportGetHelper.Update(fr);
-                        //ServerConfig.ApiDb.Execute($"UPDATE `flowcard_report` SET `State` = @State WHERE `Id` = @Id;", fr);
-                    }
-                    if (gxFcs.Any())
-                    {
-                        foreach (var (gx, fcis) in gxFcs)
-                        {
-                            if (fcis.Any())
-                            {
-                                ServerConfig.ApiDb.Execute(
-                                    $"UPDATE `flowcard_library` SET `MarkedDateTime` = @MarkedDateTime, " +
-                                    $"`{AnalysisHelper.ParamAbbrevDic[gx][1]}` = @FaChu, " +
-                                    $"`{AnalysisHelper.ParamAbbrevDic[gx][2]}` = @HeGe, " +
-                                    $"`{AnalysisHelper.ParamAbbrevDic[gx][3]}` = @LiePian, " +
-                                    $"`{AnalysisHelper.ParamAbbrevDic[gx][4]}` = @DeviceId, " +
-                                    $"`{AnalysisHelper.ParamAbbrevDic[gx][0]}` = @Time, " +
-                                    $"`{AnalysisHelper.ParamAbbrevDic[gx][5]}` = @JiaGongRen WHERE `Id` = @Id;",
-                                    fcis);
-                            }
-                        }
-                    }
-                    if (updateAcs.Any())
-                    {
-                        ServerConfig.ApiDb.Execute("UPDATE `accounts` SET `ProductionRole` = @ProductionRole, `MaxProductionRole` = @MaxProductionRole WHERE `Id` = @Id;", updateAcs.Values);
-                    }
-                }
-            }
-            catch (Exception e)
-            {
-                Log.ErrorFormat("UseFlowCardReportGet,原因:{0},错误:{1}", e.Message, e.StackTrace);
-            }
-        }
-
-        private static int _dealLength = 1000;
-        /// <summary>
-        /// 更新设备流程卡加工记录
-        /// </summary>
-        private static void DeviceLastFlowCard()
-        {
-            try
-            {
-                var devices = new List<MonitoringProcess>();
-
-                var now = DateTime.Now;
-                var rTime = RedisHelper.Get<DateTime>(pTimeKey);
-                var pId = RedisHelper.Get<int>(pIdKey);
-                //var pDayId = RedisHelper.Get<int>(pDayIdKey);
-                if (rTime == default(DateTime))
-                {
-                    rTime = now;
-                    RedisHelper.SetForever(pTimeKey, rTime.ToStr());
-                    pId = ServerConfig.ApiDb.Query<int>("SELECT IFNULL(MAX(Id), 0) FROM `flowcard_report_get` WHERE Time < @rTime AND State != 0 ORDER BY Id DESC LIMIT 1;",
-                        new { rTime }).FirstOrDefault();
-                    RedisHelper.SetForever(pIdKey, pId);
-                    return;
-                }
-                var mData = ServerConfig.ApiDb.Query<FlowCardReportGet>("SELECT * FROM `flowcard_report_get` WHERE Id > @pId ORDER BY Id LIMIT @limit;",
-                    new
-                    {
-                        pId,
-                        limit = _dealLength
-                    });
-                if (mData.Any(x => x.State == 0))
-                {
-                    return;
-                }
-
-                var endId = pId;
-                if (mData.Any())
-                {
-                    endId = mData.Max(x => x.Id);
-                    mData = mData.OrderBy(x => x.Time);
-
-                    var drs = mData.GroupBy(x => x.DeviceId).ToDictionary(y => y.Key,
-                        y => y.OrderByDescending(x => x.Time).FirstOrDefault());
-
-                    devices.AddRange(drs.Select(x => new MonitoringProcess
-                    {
-                        DeviceId = x.Key,
-                        LastFlowCardId = x.Value.FlowCardId,
-                        LastFlowCard = x.Value.FlowCard,
-                    }));
-                }
-                RedisHelper.SetForever(pIdKey, endId);
-
-                if (devices.Any())
-                {
-                    ServerConfig.ApiDb.Execute(
-                        "UPDATE npc_proxy_link SET `LastFlowCardId` = @LastFlowCardId, `LastFlowCard` = @LastFlowCard WHERE `DeviceId` = @DeviceId;",
-                        devices);
-                }
-            }
-            catch (Exception e)
-            {
-                Log.Error(e);
-            }
-        }
     }
 }

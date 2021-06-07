@@ -195,7 +195,7 @@ namespace ApiManagement.Controllers.WarningController
 
             var names = new List<string> { set.Name };
             var ids = new List<int> { set.Id };
-            if (WarningSetHelper.GetHaveSame(names, ids))
+            if (WarningSetHelper.GetHaveSame(1, names, ids))
             {
                 return Result.GenError<Result>(Error.WarningSetIsExist);
             }
@@ -311,7 +311,7 @@ namespace ApiManagement.Controllers.WarningController
             }
 
             var names = new List<string> { set.Name };
-            if (WarningSetHelper.GetHaveSame(names))
+            if (WarningSetHelper.GetHaveSame(1, names))
             {
                 return Result.GenError<Result>(Error.WarningSetIsExist);
             }
@@ -403,8 +403,8 @@ namespace ApiManagement.Controllers.WarningController
                     : WarningHelper.CurrentData.Where(x => x.Key.Item3 == dataType && x.Key.Item4 == type).Where(y => y.Value.SetId == sId).Select(z => z.Value);
                 if (r.Any())
                 {
-                    var sets = WarningSetHelper.GetMenus(r.Select(x => x.SetId));
-                    var devices = DeviceLibraryHelper.GetMenu(r.Select(x => x.DeviceId));
+                    var sets = WarningSetHelper.GetMenus(1, r.Select(x => x.SetId));
+                    var devices = DeviceLibraryHelper.GetMenu(1, r.Select(x => x.DeviceId));
                     var categories = DeviceCategoryHelper.GetMenus(r.Select(x => x.CategoryId));
                     //var classes = ServerConfig.ApiDb.Query<DeviceClass>("SELECT `Id`, `Class` FROM `device_class` WHERE `MarkedDelete` = 0 AND Id IN @Id;", new
                     //{
@@ -453,7 +453,7 @@ namespace ApiManagement.Controllers.WarningController
                 endTime = endTime.DayEndTime();
             }
 
-            result.datas.AddRange(WarningLogHelper.GetWarningLogs(startTime, endTime, sId, 0, type, dataType, deviceIdList, null, null, null, 1));
+            result.datas.AddRange(WarningLogHelper.GetWarningLogs(1, startTime, endTime, sId, 0, type, dataType, deviceIdList, null, null, null, 1));
             return result;
         }
 
@@ -525,7 +525,7 @@ namespace ApiManagement.Controllers.WarningController
             startTime = startTime.DayBeginTime();
             endTime = endTime.DayEndTime();
             var deviceIdList = deviceIds.IsNullOrEmpty() ? null : deviceIds.Split(",").Select(x => int.TryParse(x, out var a) ? a : 0).Where(y => y != 0).ToList();
-            result.datas.AddRange(WarningClearHelper.GetWarningClears(startTime, endTime, sId, type, dataType, deviceIdList));
+            result.datas.AddRange(WarningClearHelper.GetWarningClears(1, startTime, endTime, sId, type, dataType, deviceIdList));
             return result;
         }
     }

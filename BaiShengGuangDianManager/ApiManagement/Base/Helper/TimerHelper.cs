@@ -90,6 +90,8 @@ namespace ApiManagement.Base.Helper
 #endif
             Console.WriteLine("StatisticProcess 发布模式已开启");
             StatisticProcess();
+            Console.WriteLine("StatisticProcessAfterUpdate 发布模式已开启");
+            StatisticProcessAfterUpdate();
             WorkFlowHelper.Instance.OnBillNeedUpdate();
             Console.WriteLine("GetErpDepartment 发布模式已开启");
             GetErpDepartment();
@@ -127,6 +129,8 @@ namespace ApiManagement.Base.Helper
 #endif
             Console.WriteLine("StatisticProcess 调试模式已开启");
             StatisticProcess();
+            Console.WriteLine("StatisticProcessAfterUpdate 发布模式已开启");
+            StatisticProcessAfterUpdate();
             WorkFlowHelper.Instance.OnBillNeedUpdate();
             Console.WriteLine("GetErpDepartment 调试模式已开启");
             GetErpDepartment();
@@ -2391,36 +2395,34 @@ namespace ApiManagement.Base.Helper
         #endregion
 
         #region 工序统计
-#pragma warning disable CS0414 // 字段“TimerHelper._dealLength”已被赋值，但从未使用过它的值
         private static int _dealLength = 1000;
-#pragma warning restore CS0414 // 字段“TimerHelper._dealLength”已被赋值，但从未使用过它的值
+        private static string StatisticProcessPre = "StatisticProcess";
         /// <summary>
         /// 工序统计
         /// </summary>
         private static void StatisticProcess()
         {
-            var statisticProcessPre = "StatisticProcess";
-            var statisticProcessLock = $"{statisticProcessPre}:Lock";
-            var statisticProcessId = $"{statisticProcessPre}:Id";
-            if (RedisHelper.SetIfNotExist(statisticProcessLock, DateTime.Now.ToStr()))
+            var lockKey = $"{StatisticProcessPre}:Lock";
+            var idKey = $"{StatisticProcessPre}:Id";
+            if (RedisHelper.SetIfNotExist(lockKey, DateTime.Now.ToStr()))
             {
                 try
                 {
-                    RedisHelper.SetExpireAt(statisticProcessLock, DateTime.Now.AddMinutes(10));
+                    RedisHelper.SetExpireAt(lockKey, DateTime.Now.AddMinutes(10));
 
                     var now = DateTime.Now;
                     var workshops = WorkshopHelper.Instance.GetAll<Workshop>();
                     foreach (var workshop in workshops)
                     {
-                        var statisticProcessTime = $"{statisticProcessPre}:Time_{workshop.Id}";
-                        var spTime = RedisHelper.Get<DateTime>(statisticProcessTime);
+                        var timeKey = $"{StatisticProcessPre}:Time_{workshop.Id}";
+                        var spTime = RedisHelper.Get<DateTime>(timeKey);
                         if (spTime == default(DateTime))
                         {
                             spTime = now;
                         }
 
                         var workDayTimes = DateTimeExtend.GetDayWorkDayRange(workshop.StatisticTimeList, spTime);
-                        var mData = FlowCardReportGetHelper.GetReport(workDayTimes.Item1, workDayTimes.Item2.AddSeconds(-1));
+                        var mData = FlowCardReportGetHelper.GetReport(workshop.Id, workDayTimes.Item1.NoMinute(), workDayTimes.Item2.NextHour(0, 1).AddSeconds(-1));
                         //ServerConfig.ApiDb.Query<FlowCardReportGet>("SELECT * FROM `flowcard_report_get` WHERE Time >= @st AND Time < @ed ORDER BY Time;",
                         //var mData = ServerConfig.ApiDb.Query<FlowCardReportGet>("SELECT * FROM `flowcard_report_get` WHERE Id > @spId ORDER BY Id LIMIT @limit;",
                         //var mData = ServerConfig.ApiDb.Query<FlowCardReportGet>("SELECT * FROM `flowcard_report_get` WHERE Id >= 180114 and Id <= 180115 ORDER BY Id LIMIT @limit;",
@@ -2429,11 +2431,11 @@ namespace ApiManagement.Base.Helper
                         //    st = workDayTimes.Item1,
                         //    ed = workDayTimes.Item2,
                         //});
-                        if (mData.Any(x => x.State == 0))
-                        {
-                            var t = mData.OrderBy(x => x.Id).FirstOrDefault(x => x.State == 0);
-                            mData = mData.Where(x => x.Id < t.Id);
-                        }
+                        //if (mData.Any(x => x.State == 0))
+                        //{
+                        //    var t = mData.OrderBy(x => x.Id).FirstOrDefault(x => x.State == 0);
+                        //    mData = mData.Where(x => x.Id < t.Id);
+                        //}
                         if (mData.Any())
                         {
                             var t = mData.Max(x => x.Time);
@@ -2445,14 +2447,98 @@ namespace ApiManagement.Base.Helper
                             spTime = workDayTimes.Item1.AddDays(1);
                         }
 
-                        RedisHelper.SetForever(statisticProcessTime, spTime.ToStr());
+                        RedisHelper.SetForever(timeKey, spTime.ToStr());
                     }
                 }
                 catch (Exception e)
                 {
                     Log.Error(e);
                 }
-                RedisHelper.Remove(statisticProcessLock);
+                RedisHelper.Remove(lockKey);
+            }
+        }
+
+        private static string StatisticProcessAfterUpdatePre = "StatisticProcessAfter";
+        /// <summary>
+        /// 工序统计  报表更新后重新统计
+        /// </summary>
+        private static void StatisticProcessAfterUpdate()
+        {
+            var lockKey = $"{StatisticProcessAfterUpdatePre}:Lock";
+            var idKey = $"{StatisticProcessAfterUpdatePre}:Id";
+            if (RedisHelper.SetIfNotExist(lockKey, DateTime.Now.ToStr()))
+            {
+                try
+                {
+                    RedisHelper.SetExpireAt(lockKey, DateTime.Now.AddMinutes(10));
+
+                    var now = DateTime.Now;
+                    var pId = RedisHelper.Get<int>(idKey);
+
+                    var data = ServerConfig.ApiDb.Query<FlowCardReportUpdate>("SELECT * FROM `flowcard_report_update` WHERE Id > @pId ORDER BY Id LIMIT @limit;",
+                        new
+                        {
+                            pId,
+                            limit = _dealLength
+                        });
+
+                    if (data.Any(x => x.State == 0 || x.IsUpdate == 0))
+                    {
+                        var t = data.OrderBy(x => x.Id).FirstOrDefault(x => x.State == 0 || x.IsUpdate == 0);
+                        data = data.Where(x => x.Id < t.Id);
+                        if (!data.Any())
+                        {
+                            RedisHelper.Remove(lockKey);
+                            return;
+                        }
+                    }
+
+                    if (data.Any())
+                    {
+                        pId = data.Max(x => x.Id);
+                        var workshopIds = data.GroupBy(x => x.WorkshopId).Select(x => x.Key);
+                        var workshops = WorkshopHelper.Instance.GetByIds<Workshop>(workshopIds);
+                        foreach (var workshop in workshops)
+                        {
+                            var wData = data.Where(x => x.WorkshopId == workshop.Id);
+                            var times = wData.GroupBy(x =>
+                            {
+                                var workDay = DateTimeExtend.GetDayWorkDayRange(workshop.StatisticTimeList, x.Time);
+                                return new Tuple<DateTime, DateTime>(workDay.Item1, workDay.Item2);
+                            }).Select(x => x.Key);
+
+                            var timeKey = $"{StatisticProcessPre}:Time_{workshop.Id}";
+                            var spTime = RedisHelper.Get<DateTime>(timeKey);
+                            var workDayTimes = DateTimeExtend.GetDayWorkDayRange(workshop.StatisticTimeList, spTime);
+                            foreach (var time in times)
+                            {
+                                if (time.Item1 == workDayTimes.Item1 && time.Item2 == workDayTimes.Item2)
+                                {
+                                    continue;
+                                }
+
+                                var mData = FlowCardReportGetHelper.GetReport(workshop.Id, time.Item1.NoMinute(), time.Item2.NextHour(0, 1).AddSeconds(-1));
+                                //var mData = wData.Where(x => x.Time >= time.Item1 && x.Time <= time.Item2.AddSeconds(-1));
+                                if (mData.Any(x => x.State == 0))
+                                {
+                                    var t = mData.OrderBy(x => x.Id).FirstOrDefault(x => x.State == 0);
+                                    mData = mData.Where(x => x.Id < t.Id);
+                                }
+                                if (mData.Any())
+                                {
+                                    StatisticProcess(mData, workshop, time);
+                                }
+                            }
+                        }
+
+                        RedisHelper.SetForever(idKey, pId);
+                    }
+                }
+                catch (Exception e)
+                {
+                    Log.Error(e);
+                }
+                RedisHelper.Remove(lockKey);
             }
         }
 
@@ -2460,183 +2546,188 @@ namespace ApiManagement.Base.Helper
         {
             try
             {
-
-                if (reportGets.Any())
+                var sps = new List<StatisticProcessAll>();
+                var notExist = new List<StatisticProcessAll>();
+                sps.AddRange(StatisticProcessHelper.GetMax(workDays));
+                notExist.AddRange(sps.Where(x => x.Type == StatisticProcessTimeEnum.小时
+                                               && x.Time.InSameRange(new Tuple<DateTime, DateTime>(workDays.Item1.NoMinute(), workDays.Item2.NextHour(0, 1)))
+                                               || (x.Type == StatisticProcessTimeEnum.日
+                                                  && x.Time.InSameDay(workDays.Item1))).ToList());
+                var timeTypes = EnumHelper.EnumToList<StatisticProcessTimeEnum>(true).Where(x => x.EnumValue < 2);
+                var wData = reportGets.Where(x => x.WorkshopId == workshop.Id);
+                foreach (var timeType in timeTypes)
                 {
-                    var sps = new List<StatisticProcessAll>();
-                    sps.AddRange(StatisticProcessHelper.GetMax(workDays));
-
-                    var timeTypes = EnumHelper.EnumToList<StatisticProcessTimeEnum>(true).Where(x => x.EnumValue < 2);
-                    var wData = reportGets.Where(x => x.WorkshopId == workshop.Id);
-                    foreach (var timeType in timeTypes)
+                    IEnumerable<IGrouping<dynamic, FlowCardReportGet>> gData = null;
+                    var type = (StatisticProcessTimeEnum)timeType.EnumValue;
+                    switch (type)
                     {
-                        IEnumerable<IGrouping<dynamic, FlowCardReportGet>> gData = null;
-                        var type = (StatisticProcessTimeEnum)timeType.EnumValue;
-                        switch (type)
-                        {
-                            case StatisticProcessTimeEnum.小时:
-                                #region 小时
-                                gData = wData
-                                    .GroupBy(x => new
-                                    {
-                                        Time = x.Time.NoMinute(),
-                                        Step = x.Step,
-                                        StepName = x.StepName,
-                                        StepAbbrev = x.StepAbbrev,
-                                        DeviceId = x.DeviceId,
-                                        Code = x.Code,
-                                        ProductionId = x.ProductionId,
-                                        Production = x.Production,
-                                        ProcessorId = x.ProcessorId,
-                                        Processor = x.Processor
-                                    });
-                                #endregion
-                                break;
-                            case StatisticProcessTimeEnum.日:
-                                #region 日
-                                gData = wData
-                                    .GroupBy(x =>
-                                    {
-                                    // 例：首班时间为8:00:00，统计延时30分钟时, 5月28日的数据为5月28日8:30:00(含)至5月29日8:30:00(不含)
-                                    var wdTime = DateTimeExtend.GetDayWorkDayStartTime(workshop.StatisticTimeList, x.Time);
-                                        return new
-                                        {
-                                            Time = wdTime.DayBeginTime(),
-                                            Step = x.Step,
-                                            StepName = x.StepName,
-                                            StepAbbrev = x.StepAbbrev,
-                                            DeviceId = x.DeviceId,
-                                            Code = x.Code,
-                                            ProductionId = x.ProductionId,
-                                            Production = x.Production,
-                                            ProcessorId = x.ProcessorId,
-                                            Processor = x.Processor
-                                        };
-                                    });
-                                #endregion
-                                break;
-                                #region 周
-                                //case StatisticProcessTimeEnum.周:
-                                //    #region 周
-                                //    gData = wData
-                                //        .GroupBy(x => new
-                                //        {
-                                //            Time = x.Time.WeekBeginTime(),
-                                //            Step = x.Step,
-                                //            StepName = x.StepName,
-                                //            StepAbbrev = x.StepAbbrev,
-                                //            DeviceId = x.DeviceId,
-                                //            Code = x.Code,
-                                //            ProductionId = x.ProductionId,
-                                //            Production = x.Production,
-                                //            ProcessorId = x.ProcessorId,
-                                //            Processor = x.Processor
-                                //        });
-                                //    #endregion
-                                //    break;
-                                //case StatisticProcessTimeEnum.月:
-                                //    #region 月
-                                //    gData = wData
-                                //        .GroupBy(x => new
-                                //        {
-                                //            Time = x.Time.StartOfMonth(),
-                                //            Step = x.Step,
-                                //            StepName = x.StepName,
-                                //            StepAbbrev = x.StepAbbrev,
-                                //            DeviceId = x.DeviceId,
-                                //            Code = x.Code,
-                                //            ProductionId = x.ProductionId,
-                                //            Production = x.Production,
-                                //            ProcessorId = x.ProcessorId,
-                                //            Processor = x.Processor
-                                //        });
-                                //    #endregion
-                                //    break;
-                                //case StatisticProcessTimeEnum.年:
-                                //    #region 年
-                                //    gData = wData
-                                //        .GroupBy(x => new
-                                //        {
-                                //            Time = x.Time.StartOfYear(),
-                                //            Step = x.Step,
-                                //            StepName = x.StepName,
-                                //            StepAbbrev = x.StepAbbrev,
-                                //            DeviceId = x.DeviceId,
-                                //            Code = x.Code,
-                                //            ProductionId = x.ProductionId,
-                                //            Production = x.Production,
-                                //            ProcessorId = x.ProcessorId,
-                                //            Processor = x.Processor
-                                //        });
-                                //    #endregion
-                                //    break;
-                                #endregion
-                        }
-                        #region 设备数据处理
-                        var spData = sps.Where(x => x.WorkshopId == workshop.Id && x.Type == type);
-                        var rgData = gData.ToDictionary(y => y.Key, y => new StatisticProcessAll
-                        {
-                            WorkshopId = workshop.Id,
-                            Type = (StatisticProcessTimeEnum)timeType.EnumValue,
-                            Time = y.Key.Time,
-                            Step = y.Key.Step,
-                            StepName = y.Key.StepName,
-                            StepAbbrev = y.Key.StepAbbrev,
-                            DeviceId = y.Key.DeviceId,
-                            Code = y.Key.Code,
-                            ProductionId = y.Key.ProductionId,
-                            Production = y.Key.Production,
-                            ProcessorId = y.Key.ProcessorId,
-                            Processor = y.Key.Processor,
-
-                            Total = (int)y.Sum(z => z.Total),
-                            Qualified = (int)y.Sum(z => z.HeGe),
-                            Unqualified = (int)y.Sum(z => z.LiePian),
-                        }).ToList();
-                        foreach (var (key, dData) in rgData)
-                        {
-                            var oldData =
-                                spData.FirstOrDefault(x =>
-                                    x.Time == key.Time && x.Step == key.Step
-                                    && x.DeviceId == key.DeviceId && x.ProductionId == key.ProductionId && x.ProcessorId == key.ProcessorId);
-                            if (oldData == null)
-                            {
-                                dData.Old = false;
-                                sps.Add(dData);
-                            }
-                            else
-                            {
-                                if (ClassExtension.HaveChange(oldData, dData))
+                        case StatisticProcessTimeEnum.小时:
+                            #region 小时
+                            gData = wData
+                                .GroupBy(x => new
                                 {
-                                    oldData.Update = true;
-                                    oldData.Total = dData.Total;
-                                    oldData.Qualified = dData.Qualified;
-                                    oldData.Unqualified = dData.Unqualified;
-                                }
+                                    Time = x.Time.NoMinute(),
+                                    Step = x.Step,
+                                    StepName = x.StepName,
+                                    StepAbbrev = x.StepAbbrev,
+                                    DeviceId = x.DeviceId,
+                                    Code = x.Code,
+                                    ProductionId = x.ProductionId,
+                                    Production = x.Production,
+                                    ProcessorId = x.ProcessorId,
+                                    Processor = x.Processor
+                                });
+                            #endregion
+                            break;
+                        case StatisticProcessTimeEnum.日:
+                            #region 日
+                            gData = wData.Where(x => x.Time.InSameRange(workDays))
+                               .GroupBy(x =>
+                               {
+                                    // 例：首班时间为8:00:00，统计延时30分钟时, 5月28日的数据为5月28日8:30:00(含)至5月29日8:30:00(不含)
+                                    //var wdTime = DateTimeExtend.GetDayWorkDayStartTime(workshop.StatisticTimeList, x.Time);
+                                    return new
+                                   {
+                                       Time = workDays.Item1.DayBeginTime(),
+                                       Step = x.Step,
+                                       StepName = x.StepName,
+                                       StepAbbrev = x.StepAbbrev,
+                                       DeviceId = x.DeviceId,
+                                       Code = x.Code,
+                                       ProductionId = x.ProductionId,
+                                       Production = x.Production,
+                                       ProcessorId = x.ProcessorId,
+                                       Processor = x.Processor
+                                   };
+                               });
+                            #endregion
+                            break;
+                            #region 周
+                            //case StatisticProcessTimeEnum.周:
+                            //    #region 周
+                            //    gData = wData
+                            //        .GroupBy(x => new
+                            //        {
+                            //            Time = x.Time.WeekBeginTime(),
+                            //            Step = x.Step,
+                            //            StepName = x.StepName,
+                            //            StepAbbrev = x.StepAbbrev,
+                            //            DeviceId = x.DeviceId,
+                            //            Code = x.Code,
+                            //            ProductionId = x.ProductionId,
+                            //            Production = x.Production,
+                            //            ProcessorId = x.ProcessorId,
+                            //            Processor = x.Processor
+                            //        });
+                            //    #endregion
+                            //    break;
+                            //case StatisticProcessTimeEnum.月:
+                            //    #region 月
+                            //    gData = wData
+                            //        .GroupBy(x => new
+                            //        {
+                            //            Time = x.Time.StartOfMonth(),
+                            //            Step = x.Step,
+                            //            StepName = x.StepName,
+                            //            StepAbbrev = x.StepAbbrev,
+                            //            DeviceId = x.DeviceId,
+                            //            Code = x.Code,
+                            //            ProductionId = x.ProductionId,
+                            //            Production = x.Production,
+                            //            ProcessorId = x.ProcessorId,
+                            //            Processor = x.Processor
+                            //        });
+                            //    #endregion
+                            //    break;
+                            //case StatisticProcessTimeEnum.年:
+                            //    #region 年
+                            //    gData = wData
+                            //        .GroupBy(x => new
+                            //        {
+                            //            Time = x.Time.StartOfYear(),
+                            //            Step = x.Step,
+                            //            StepName = x.StepName,
+                            //            StepAbbrev = x.StepAbbrev,
+                            //            DeviceId = x.DeviceId,
+                            //            Code = x.Code,
+                            //            ProductionId = x.ProductionId,
+                            //            Production = x.Production,
+                            //            ProcessorId = x.ProcessorId,
+                            //            Processor = x.Processor
+                            //        });
+                            //    #endregion
+                            //    break;
+                            #endregion
+                    }
+                    #region 数据处理
+                    var spData = sps.Where(x => x.WorkshopId == workshop.Id && x.Type == type);
+                    var rgData = gData.ToDictionary(y => y.Key, y => new StatisticProcessAll
+                    {
+                        WorkshopId = workshop.Id,
+                        Type = (StatisticProcessTimeEnum)timeType.EnumValue,
+                        Time = y.Key.Time,
+                        Step = y.Key.Step,
+                        StepName = y.Key.StepName,
+                        StepAbbrev = y.Key.StepAbbrev,
+                        DeviceId = y.Key.DeviceId,
+                        Code = y.Key.Code,
+                        ProductionId = y.Key.ProductionId,
+                        Production = y.Key.Production,
+                        ProcessorId = y.Key.ProcessorId,
+                        Processor = y.Key.Processor,
+
+                        Total = (int)y.Sum(z => z.Total),
+                        Qualified = (int)y.Sum(z => z.HeGe),
+                        Unqualified = (int)y.Sum(z => z.LiePian),
+                    }).ToList();
+                    foreach (var (key, dData) in rgData)
+                    {
+                        var oldData =
+                            spData.FirstOrDefault(x =>
+                                x.Time == key.Time && x.Step == key.Step
+                                && x.DeviceId == key.DeviceId && x.ProductionId == key.ProductionId && x.ProcessorId == key.ProcessorId);
+                        if (oldData == null)
+                        {
+                            dData.Old = false;
+                            sps.Add(dData);
+                        }
+                        else
+                        {
+                            notExist.Remove(oldData);
+                            if (oldData.HaveChange(dData))
+                            {
+                                oldData.Update = true;
+                                oldData.Total = dData.Total;
+                                oldData.Qualified = dData.Qualified;
+                                oldData.Unqualified = dData.Unqualified;
                             }
                         }
-                        #endregion
                     }
+                    #endregion
+                }
 
-                    var now = DateTime.Now;
-                    var add = sps.Where(x => !x.Old);
-                    if (add.Any())
+                var now = DateTime.Now;
+                var add = sps.Where(x => !x.Old);
+                if (add.Any())
+                {
+                    StatisticProcessHelper.Add(add.Select(x =>
                     {
-                        StatisticProcessHelper.Add(add.Select(x =>
-                        {
-                            x.MarkedDateTime = now;
-                            return x;
-                        }));
-                    }
-                    var update = sps.Where(x => x.Old && x.Update);
-                    if (update.Any())
+                        x.MarkedDateTime = now;
+                        return x;
+                    }));
+                }
+                var update = sps.Where(x => x.Old && x.Update);
+                if (update.Any())
+                {
+                    StatisticProcessHelper.Update(update.Select(x =>
                     {
-                        StatisticProcessHelper.Update(update.Select(x =>
-                        {
-                            x.MarkedDateTime = now;
-                            return x;
-                        }));
-                    }
+                        x.MarkedDateTime = now;
+                        return x;
+                    }));
+                }
+                if (notExist.Any())
+                {
+                    StatisticProcessHelper.Delete(notExist);
                 }
             }
             catch (Exception e)

@@ -1,4 +1,5 @@
 ﻿using ApiManagement.Base.Server;
+using ApiManagement.Models.AccountManagementModel;
 using ApiManagement.Models.OtherModel;
 using ApiManagement.Models.StatisticManagementModel;
 using ApiManagement.Models.Warning;
@@ -26,6 +27,8 @@ namespace ApiManagement.Base.Helper
         private static readonly string Debug = $"{redisPre}:Debug";
         private static readonly string LogIdKey = $"{redisPre}:LogId";
 
+        private static readonly string _5s_LockKey = $"{redisPre}:5s_Lock";
+
         private static readonly string dLockKey = $"{redisPre}:设备数据Lock";
         private static readonly string dIdKey = $"{redisPre}:设备数据Id";
         private static readonly string dDeviceKey = $"{redisPre}:设备数据Device";
@@ -38,6 +41,9 @@ namespace ApiManagement.Base.Helper
         private static readonly string pDeviceKey = $"{redisPre}:生产数据Device";
         private static readonly string pTimeKey = $"{redisPre}:生产数据Time";
         private static readonly string pDayTimeKey = $"{redisPre}:生产数据日Time";
+
+        private static readonly string rLockKey = $"{redisPre}:预警修复Lock";
+        private static readonly string rIdKey = $"{redisPre}:预警修复Id";
 
         private static readonly string sLockKey = $"{redisPre}:数据统计Lock";
         private static readonly string sTimeKey = $"{redisPre}:数据统计Time";
@@ -68,10 +74,22 @@ namespace ApiManagement.Base.Helper
                 //{
                 //    RedisHelper.SetForever(Debug, 0);
                 //}
-                LogId = RedisHelper.Exists(LogIdKey) ?
-                    RedisHelper.Get<int>(LogIdKey) :
-                    ServerConfig.ApiDb.Query<int>("SELECT IFNULL(MAX(Id), 0) FROM `warning_log`;").FirstOrDefault();
-                RedisHelper.SetForever(LogIdKey, LogId);
+
+                if (RedisHelper.Exists(LogIdKey))
+                {
+                    LogId = RedisHelper.Get<int>(LogIdKey);
+                }
+                else
+                {
+                    LogId = ServerConfig.ApiDb.Query<int>("SELECT IFNULL(MAX(Id), 0) FROM `warning_log`;")
+                        .FirstOrDefault();
+                    RedisHelper.SetForever(LogIdKey, LogId);
+                }
+
+                //LogId = RedisHelper.Exists(LogIdKey) ?
+                //    RedisHelper.Get<int>(LogIdKey) :
+                //    ServerConfig.ApiDb.Query<int>("SELECT IFNULL(MAX(Id), 0) FROM `warning_log`;").FirstOrDefault();
+                //RedisHelper.SetForever(LogIdKey, LogId);
 
                 生产数据字段.AddRange(EnumHelper.EnumToList<WarningItemType>()
                     //.Where(x => x.EnumValue <= 5)
@@ -249,34 +267,47 @@ namespace ApiManagement.Base.Helper
 
         private static void DoSth_5s(object state)
         {
+
+            if (RedisHelper.SetIfNotExist(_5s_LockKey, DateTime.Now.ToStr()))
+            {
+                RedisHelper.SetExpireAt(_5s_LockKey, DateTime.Now.AddMinutes(30));
 #if !DEBUG
             if (RedisHelper.Get<int>(Debug) != 0)
             {
                 return;
             }
 #endif
-            //if (RedisHelper.Get<int>(Debug) != 0)
-            //{
-            //    return;
-            //}
+                //if (RedisHelper.Get<int>(Debug) != 0)
+                //{
+                //    return;
+                //}
 
-            if (!RedisHelper.Exists(LogIdKey))
-            {
-                LogId = ServerConfig.ApiDb.Query<int>("SELECT IFNULL(MAX(Id), 0) FROM `warning_log`;").FirstOrDefault();
-                RedisHelper.SetForever(LogIdKey, LogId);
-                return;
+
+                if (RedisHelper.Exists(LogIdKey))
+                {
+                    LogId = RedisHelper.Get<int>(LogIdKey);
+                }
+                else
+                {
+                    LogId = ServerConfig.ApiDb.Query<int>("SELECT IFNULL(MAX(Id), 0) FROM `warning_log`;")
+                        .FirstOrDefault();
+                    RedisHelper.SetForever(LogIdKey, LogId);
+                }
+
+                if (NeedLoadConfig)
+                {
+                    LoadConfig();
+                    NeedLoadConfig = false;
+                    return;
+                }
+                设备数据Warning();
+                生产数据Warning();
+                预警修正Warning();
+
+                Statistic();
+
+                RedisHelper.Remove(_5s_LockKey);
             }
-
-            if (NeedLoadConfig)
-            {
-                LoadConfig();
-                NeedLoadConfig = false;
-                return;
-            }
-            设备数据Warning();
-            生产数据Warning();
-
-            Statistic();
         }
 
         /// <summary>
@@ -316,7 +347,7 @@ namespace ApiManagement.Base.Helper
                     var notDeals = WarningClearHelper.GetWarningClears(0);
                     if (notDeals.Any())
                     {
-                        var sets = WarningSetHelper.GetMenus(notDeals.Select(x => x.SetId));
+                        var sets = WarningSetHelper.GetMenus(1, notDeals.Select(x => x.SetId));
                         foreach (var deal in notDeals)
                         {
                             var set = sets.FirstOrDefault(x => x.Id == deal.SetId);
@@ -667,7 +698,7 @@ namespace ApiManagement.Base.Helper
                                     if (!report.Code.IsNullOrEmpty() && deviceId == 0)
                                     {
                                         Log.Error($"Nod Device,{report.Id}");
-                                         continue;
+                                        continue;
                                     }
                                     var deviceSingleData = singleData.Where(x => x.Key.Item5 == stepId);
                                     if (deviceId != 0)
@@ -1088,6 +1119,271 @@ namespace ApiManagement.Base.Helper
             }
         }
 
+        /// <summary>
+        /// 预警修正
+        /// </summary>
+        private static void 预警修正Warning()
+        {
+            if (RedisHelper.SetIfNotExist(rLockKey, DateTime.Now.ToStr()))
+            {
+                RedisHelper.SetExpireAt(rLockKey, DateTime.Now.AddMinutes(10));
+                try
+                {
+                    var now = DateTime.Now;
+                    var allDeviceList = new Dictionary<int, MonitoringProcess>();
+                    if (RedisHelper.Exists(pDeviceKey))
+                    {
+                        allDeviceList.AddRange(MonitoringProcessHelper.GetMonitoringProcesses().ToDictionary(x => x.DeviceId));
+                        var redisDeviceList = RedisHelper.Get<string>(pDeviceKey).ToClass<IEnumerable<MonitoringProcess>>();
+                        if (redisDeviceList != null)
+                        {
+                            foreach (var redisDevice in redisDeviceList)
+                            {
+                                var deviceId = redisDevice.DeviceId;
+                                if (allDeviceList.ContainsKey(deviceId))
+                                {
+                                    allDeviceList[deviceId].ProductWarnings = redisDevice.ProductWarnings;
+                                }
+                            }
+                        }
+                    }
+                    else
+                    {
+                        allDeviceList.AddRange(MonitoringProcessHelper.GetMonitoringProcesses().ToDictionary(x => x.DeviceId));
+                    }
+
+                    var workshopId = 1;
+                    var pId = RedisHelper.Get<int>(rIdKey);
+                    var data = ServerConfig.ApiDb.Query<FlowCardReportUpdate>("SELECT b.*, a.IsUpdate, a.Id Id1 FROM `flowcard_report_update` a " +
+                                                                              "JOIN `flowcard_report_get` b ON a.WorkshopId = b.WorkshopId AND a.Step = b.Step AND a.OtherId = b.OtherId " +
+                                                                              "WHERE a.Id > @pId ORDER BY a.Id LIMIT @limit;",
+                        new
+                        {
+                            pId,
+                            limit = _dealLength
+                        });
+
+                    if (data.Any(x => x.State == 0 || x.IsUpdate == 0))
+                    {
+                        var t = data.OrderBy(x => x.Id).FirstOrDefault(x => x.State == 0 || x.IsUpdate == 0);
+                        data = data.Where(x => x.Id < t.Id);
+                    }
+
+                    if (data.Any() && data.All(x => x.State != 0 && x.IsUpdate != 0))
+                    {
+                        pId = data.Max(x => x.Id1);
+                        var add = new List<WarningLog>();
+                        var update = new List<WarningLog>();
+                        var del = new List<WarningLog>();
+
+                        //上报报表的Id,不是更新报表的Id
+                        var ids = data.Select(x => x.Id).Distinct();
+                        var oldLogs = WarningLogHelper.GetWarningLogs(workshopId, ids.Select(x => $"{x},%"));
+
+                        #region 生产预警
+                        #region 预警检验  单次加工相关预警 频率每次
+                        var keys = CurrentData.Keys.Where(x => x.Item3 == WarningDataType.生产数据
+                                                               && x.Item4 == WarningType.设备).ToList();
+
+                        var singleData = CurrentData.Where(x => keys.Contains(x.Key))
+                            .Where(x => 生产数据单次字段.Any(y => y.Item2 == x.Value.ItemType)).ToDictionary(x => x.Key, x => x.Value);
+
+                        if (singleData.Any())
+                        {
+                            foreach (var report in data)
+                            {
+                                var time = report.Time;
+                                var stepId = report.Step;
+                                var deviceId = report.DeviceId;
+                                if (!report.Code.IsNullOrEmpty() && deviceId == 0)
+                                {
+                                    Log.Error($"Nod Device,{report.Id}");
+                                    continue;
+                                }
+                                var deviceSingleData = singleData.Where(x => x.Key.Item5 == stepId);
+                                if (deviceId != 0)
+                                {
+                                    deviceSingleData = deviceSingleData.Where(x => x.Key.Item2 == deviceId);
+                                }
+                                foreach (var (_, deviceWarning) in deviceSingleData)
+                                {
+                                    if (deviceWarning.Interval != WarningInterval.每次)
+                                    {
+                                        continue;
+                                    }
+
+                                    deviceWarning.CurrentTime = time;
+                                    var f = true;
+                                    switch (deviceWarning.ItemType)
+                                    {
+                                        //[Description("单次加工数")]
+                                        case WarningItemType.SingleTotal:
+                                            deviceWarning.Value = report.Total;
+                                            break;
+                                        //[Description("单次合格数")]
+                                        case WarningItemType.SingleQualified:
+                                            deviceWarning.Value = report.HeGe;
+                                            break;
+                                        //[Description("单次次品数")]
+                                        case WarningItemType.SingleUnqualified:
+                                            deviceWarning.Value = report.LiePian;
+                                            break;
+                                        //[Description("单次合格率(%)")]
+                                        case WarningItemType.SingleQualifiedRate:
+                                            deviceWarning.Value = report.QualifiedRate;
+                                            break;
+                                        //[Description("单次次品率(%)")]
+                                        case WarningItemType.SingleUnqualifiedRate:
+                                            deviceWarning.Value = report.UnqualifiedRate;
+                                            break;
+                                        default:
+                                            f = false;
+                                            break;
+                                    }
+
+                                    if (f)
+                                    {
+                                        var oldLog = oldLogs.FirstOrDefault(x =>
+                                            x.ItemId == deviceWarning.ItemId &&
+                                            x.ExtraIdList.ElementAt(0) == report.Id);
+                                        var warningLog = oldLog != null ? ClassExtension.ParentCopyToChild<WarningLog, WarningLog>(oldLog) :
+                                            ClassExtension.ParentCopyToChild<WarningCurrent, WarningLog>(deviceWarning);
+                                        var conditionInfos = new List<WarningConditionInfo>
+                                    {
+                                        new WarningConditionInfo(deviceWarning.Condition1, deviceWarning.Value1),
+                                        new WarningConditionInfo(deviceWarning.Condition2, deviceWarning.Value2),
+                                    };
+                                        //满足条件
+                                        if (MeetConditions(conditionInfos, deviceWarning.Logic, deviceWarning.Value))
+                                        {
+                                            warningLog.Value = deviceWarning.Value;
+                                            warningLog.WarningTime = time;
+                                            warningLog.WarningData.Clear();
+                                            var wd = new WarningData(time, deviceWarning.Value);
+                                            wd.AddParam(report.FlowCard);
+                                            wd.AddParam(report.Processor);
+                                            wd.AddOtherParam(report.ReasonList);
+                                            warningLog.WarningData.Add(wd);
+                                            warningLog.UpdateValues();
+                                            warningLog.ClearExtraIds();
+                                            warningLog.AddExtraId(report.Id);
+                                            warningLog.AddExtraId(report.FlowCardId);
+                                            warningLog.AddExtraId(report.OldFlowCardId);
+                                            //满足条件有老数据  更新
+                                            if (oldLog != null)
+                                            {
+                                                warningLog.MarkedDelete = false;
+                                                update.Add(warningLog);
+                                                if (deviceId != 0)
+                                                {
+                                                    var warning = allDeviceList[deviceId].ProductWarningList.Values
+                                                    .FirstOrDefault(x => x.LogId == warningLog.Id && x.ItemId == deviceWarning.ItemId);
+                                                    if (warning != null)
+                                                    {
+                                                        allDeviceList[deviceId].UpdateWarningData(WarningDataType.生产数据, warningLog);
+                                                    }
+                                                }
+                                            }
+                                            //满足条件无老数据  增加
+                                            else
+                                            {
+                                                warningLog.Id = Interlocked.Increment(ref LogId);
+                                                add.Add(warningLog);
+                                            }
+                                        }
+                                        //不满足条件
+                                        else
+                                        {
+                                            //不满足条件有老数据  删除
+                                            if (oldLog != null)
+                                            {
+                                                warningLog.MarkedDelete = true;
+                                                del.Add(oldLog);
+                                            }
+                                            //不满足条件无老数据  不处理
+                                            else
+                                            {
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                        #endregion
+
+                        #region 预警检验  单台日加工相关预警
+                        //todo
+                        #endregion
+                        #endregion
+
+                        //RedisHelper.SetForever(pDeviceKey, allDeviceList.Values
+                        //    .Select(ClassExtension.CopyTo<MonitoringProcess, MonitoringProcessWarning>).OrderBy(x => x.DeviceId).ToJSON());
+
+                        RedisHelper.SetForever(LogIdKey, LogId);
+                        var dUpdate = allDeviceList.Values.Where(x => x.WarningChange);
+                        if (dUpdate.Any())
+                        {
+                            Task.Run(() =>
+                            {
+                                ServerConfig.ApiDb.Execute(
+                                    "UPDATE npc_proxy_link SET `ProductWarnings` = @ProductWarnings WHERE `DeviceId` = @DeviceId;",
+                                    dUpdate);
+                            });
+                        }
+
+                        if (add.Any())
+                        {
+                            WarningLogHelper.Instance.Add(add);
+                        }
+                        if (update.Any())
+                        {
+                            WarningLogHelper.Instance.Update<WarningLog>(update);
+                        }
+                        if (del.Any())
+                        {
+                            WarningLogHelper.Instance.Delete(del.Select(x => x.Id));
+                        }
+                        RedisHelper.SetForever(rIdKey, pId);
+
+                        var workshops = WorkshopHelper.Instance.GetAll<Workshop>();
+                        foreach (var workshop in workshops)
+                        {
+                            var todayWorkDay = DateTimeExtend.GetDayWorkDayRange(workshop.StatisticTimeList, now);
+                            var times = data.GroupBy(x =>
+                            {
+                                var workDay = DateTimeExtend.GetDayWorkDayRange(workshop.StatisticTimeList, x.Time);
+                                return new Tuple<DateTime, DateTime>(workDay.Item1, workDay.Item2);
+                            }).Select(x => x.Key);
+                            foreach (var time in times)
+                            {
+                                if (time.Item1 == todayWorkDay.Item1 && time.Item2 == todayWorkDay.Item2)
+                                {
+                                    continue;
+                                }
+
+                                var startTime = time.Item1;
+                                var endTime = time.Item2.AddSeconds(-1);
+                                var args = new List<Tuple<string, string, dynamic>>
+                                {
+                                    new Tuple<string, string, dynamic>("WorkshopId", "=", workshop.Id),
+                                    new Tuple<string, string, dynamic>("IsWarning", "=", true),
+                                    new Tuple<string, string, dynamic>("WarningTime", ">=", startTime.NoMinute()),
+                                    new Tuple<string, string, dynamic>("WarningTime", "<=", endTime.NextHour(0, 1))
+                                };
+                                var logs = WarningLogHelper.Instance.CommonGet<WarningLog>(args).OrderBy(x => x.WarningTime);
+                                Statistic(logs, workshop, new Tuple<DateTime, DateTime>(startTime, endTime));
+                            }
+                        }
+                    }
+                }
+                catch (Exception e)
+                {
+                    Log.Error(e);
+                }
+
+                RedisHelper.Remove(rLockKey);
+            }
+        }
 
         /// <summary>
         /// 是否满足条件
@@ -1143,68 +1439,38 @@ namespace ApiManagement.Base.Helper
                 try
                 {
                     RedisHelper.SetExpireAt(sLockKey, DateTime.Now.AddMinutes(10));
-                    var items = WarningSetItemHelper.Instance.GetAll<WarningSetItem>();
-                    if (items.Any())
+
+                    var now = DateTime.Now;
+                    var rTime = RedisHelper.Get<DateTime>(sTimeKey);
+                    if (rTime == default(DateTime))
                     {
-
-
-
-
-
-
-
-                        var today = DateTime.Today;
-                        var rTime = RedisHelper.Get<DateTime>(sTimeKey);
-                        if (rTime == default(DateTime))
+                        rTime = now;
+                    }
+                    var workshops = WorkshopHelper.Instance.GetAll<Workshop>();
+                    var items = WarningSetItemHelper.Instance.GetAll<WarningSetItem>();
+                    foreach (var workshop in workshops)
+                    {
+                        if (items.Any())
                         {
-                            rTime = today;
-                        }
-                        var startTime = rTime.DayBeginTime();
-                        var endTime = rTime.AddDays(1).DayBeginTime();
-                        var args = new List<Tuple<string, string, dynamic>>
-                        {
-                            new Tuple<string, string, dynamic>("IsWarning", "=", true),
-                            new Tuple<string, string, dynamic>("WarningTime", ">=", startTime),
-                            new Tuple<string, string, dynamic>("WarningTime", "<=", endTime)
-                        };
-                        if (!rTime.InSameDay(today))
-                        {
-                            rTime = rTime.AddDays(1);
-                        }
-                        var logs = WarningLogHelper.Instance.CommonGet<WarningLog>(args).OrderBy(x => x.WarningTime);
-                        if (logs.Any())
-                        {
-                            var es = EnumHelper.EnumToList<WarningStatisticTime>(true);
-                            foreach (var e in es)
+                            var nowWorkTimes = DateTimeExtend.GetDayWorkDayRange(workshop.StatisticTimeList, now);
+                            var workDayTimes = DateTimeExtend.GetDayWorkDayRange(workshop.StatisticTimeList, rTime);
+                            var startTime = workDayTimes.Item1;
+                            var endTime = workDayTimes.Item2.AddSeconds(-1);
+                            var args = new List<Tuple<string, string, dynamic>>
                             {
-                                var timeEnum = (WarningStatisticTime)e.EnumValue;
-                                //public WarningStatistic(DateTime time, int setId, string setName, int itemId, string item, string range, int count)
-                                var statistics = logs.GroupBy(x => new { WarningTime = GetWarningTime(timeEnum, x.WarningTime), x.SetId, x.SetName, x.ItemId, x.Item, x.Range })
-                                    .Select(x => new WarningStatistic(x.Key.WarningTime, x.Key.SetId, x.Key.SetName, x.Key.ItemId, x.Key.Item, x.Key.Range, x.Count()));
-                                var itemIds = statistics.Select(x => x.ItemId).Distinct();
-                                if (itemIds.Any())
-                                {
-                                    var oldStatistics = WarningStatisticHelper.GetWarningStatistic(timeEnum, startTime, endTime, itemIds);
-                                    if (WarningStatisticHelper.Tables.ContainsKey(timeEnum) && statistics.Any())
-                                    {
-                                        var update = statistics.Where(x =>
-                                            oldStatistics.Any(y => y.Time == x.Time && y.ItemId == x.ItemId)
-                                            && ClassExtension.HaveChange(oldStatistics.First(y => y.Time == x.Time && y.ItemId == x.ItemId), x));
-
-                                        if (update.Any())
-                                        {
-                                            WarningStatisticHelper.Update(timeEnum, update);
-                                        }
-                                        var add = statistics.Where(x => !oldStatistics.Any(y => y.Time == x.Time && y.ItemId == x.ItemId));
-                                        if (add.Any())
-                                        {
-                                            WarningStatisticHelper.Add(timeEnum, add);
-                                        }
-                                    }
-                                }
+                                new Tuple<string, string, dynamic>("WorkshopId", "=", workshop.Id),
+                                new Tuple<string, string, dynamic>("IsWarning", "=", true),
+                                new Tuple<string, string, dynamic>("WarningTime", ">=", startTime.NoMinute()),
+                                new Tuple<string, string, dynamic>("WarningTime", "<=", endTime.NextHour(0,1))
+                            };
+                            var logs = WarningLogHelper.Instance.CommonGet<WarningLog>(args).OrderBy(x => x.WarningTime);
+                            Statistic(logs, workshop, new Tuple<DateTime, DateTime>(startTime, endTime));
+                            if (!rTime.InSameWorkDay(nowWorkTimes))
+                            {
+                                rTime = rTime.AddDays(1);
                             }
+                            RedisHelper.SetForever(sTimeKey, rTime.ToDateStr());
                         }
-                        RedisHelper.SetForever(sTimeKey, rTime.ToDateStr());
                     }
                 }
                 catch (Exception e)
@@ -1215,19 +1481,57 @@ namespace ApiManagement.Base.Helper
             }
         }
 
-        private static DateTime GetWarningTime(WarningStatisticTime timeEnum, DateTime time)
+        private static void Statistic(IEnumerable<WarningLog> logs, Workshop workshop, Tuple<DateTime, DateTime> workDays)
         {
-            switch (timeEnum)
+            var workshopId = workshop.Id;
+            var es = EnumHelper.EnumToList<WarningStatisticTime>(true);
+            var itemIds = logs.Select(x => x.ItemId).Distinct();
+            var oldStatistics = WarningStatisticHelper.GetWarningStatistic(workshopId, workDays, itemIds);
+            foreach (var e in es)
             {
-                case WarningStatisticTime.分:
-                    return time.NoSecond();
-                case WarningStatisticTime.时:
-                    return time.NoMinute();
-                case WarningStatisticTime.天:
-                    return time.NoHour();
-            }
+                var timeEnum = (WarningStatisticTime)e.EnumValue;
+                IEnumerable<IGrouping<dynamic, WarningLog>> gData = null;
+                IEnumerable<WarningStatistic> oldSS = null;
+                if (timeEnum == WarningStatisticTime.分)
+                {
+                    oldSS = oldStatistics.Where(x => x.Type == timeEnum && x.Time.InSameRange(workDays));
+                    gData = logs.Where(x => x.WarningTime.InSameRange(workDays))
+                        .GroupBy(x => new { WarningTime = x.WarningTime.NoSecond(), x.SetId, x.SetName, x.ItemId, x.Item, x.Range });
+                }
+                else if (timeEnum == WarningStatisticTime.时)
+                {
+                    oldSS = oldStatistics.Where(x => x.Type == timeEnum
+                        && x.Time.InSameRange(new Tuple<DateTime, DateTime>(workDays.Item1.NoMinute(), workDays.Item2.NextHour(0, 1))));
+                    gData = logs
+                        .GroupBy(x => new { WarningTime = x.WarningTime.NoMinute(), x.SetId, x.SetName, x.ItemId, x.Item, x.Range });
+                }
+                else if (timeEnum == WarningStatisticTime.天)
+                {
+                    oldSS = oldStatistics.Where(x => x.Type == timeEnum && x.Time == workDays.Item1.DayBeginTime());
+                    gData = logs.Where(x => x.WarningTime.InSameRange(workDays))
+                        .GroupBy(x => new { WarningTime = workDays.Item1.DayBeginTime(), x.SetId, x.SetName, x.ItemId, x.Item, x.Range });
+                }
+                var statistics = gData
+                        .Select(x => new WarningStatistic(workshopId, timeEnum, x.Key.WarningTime, x.Key.SetId, x.Key.SetName, x.Key.ItemId, x.Key.Item, x.Key.Range, x.Count()));
+                var update = statistics.Where(x =>
+                    oldSS.Any(y => y.Type == x.Type && y.Time == x.Time && y.ItemId == x.ItemId)
+                        && oldSS.First(y => y.Type == x.Type && y.Time == x.Time && y.ItemId == x.ItemId).HaveChange(x));
 
-            return time;
+                if (update.Any())
+                {
+                    WarningStatisticHelper.Instance.Update(update);
+                }
+                var add = statistics.Where(x => !oldSS.Any(y => y.Type == x.Type && y.Time == x.Time && y.ItemId == x.ItemId));
+                if (add.Any())
+                {
+                    WarningStatisticHelper.Instance.Add(add);
+                }
+                var del = oldSS.Where(x => !statistics.Any(y => y.Type == x.Type && y.Time == x.Time && y.ItemId == x.ItemId));
+                if (del.Any())
+                {
+                    WarningStatisticHelper.Delete(del);
+                }
+            }
         }
 
         /// <summary>

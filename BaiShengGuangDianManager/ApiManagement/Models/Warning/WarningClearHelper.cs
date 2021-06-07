@@ -26,11 +26,15 @@ namespace ApiManagement.Models.Warning
         }
         public static readonly WarningClearHelper Instance = new WarningClearHelper();
         #region Get
-        public static IEnumerable<WarningClearDetail> GetWarningClears(DateTime startTime, DateTime endTime, int setId,
+        public static IEnumerable<WarningClearDetail> GetWarningClears(int wId, DateTime startTime, DateTime endTime, int setId,
             WarningType warningType, WarningDataType dataType, IEnumerable<int> deviceIds)
         {
             var clears = new List<WarningClearDetail>();
             var param = new List<string> { "DealTime >= @startTime", "DealTime <= @endTime" };
+            if (wId != 0)
+            {
+                param.Add("WorkshopId = @wId");
+            }
             if (warningType != WarningType.默认)
             {
                 param.Add("b.WarningType = @warningType");
@@ -66,8 +70,8 @@ namespace ApiManagement.Models.Warning
 
             if (clears.Any())
             {
-                var sets = WarningSetHelper.GetMenus(clears.Select(x => x.SetId).Distinct()).ToDictionary(x => x.Id);
-                var devices = DeviceLibraryHelper.GetMenu(clears.SelectMany(x => x.DeviceIdList).Distinct()).ToDictionary(x => x.Id);
+                var sets = WarningSetHelper.GetMenus(wId, clears.Select(x => x.SetId).Distinct()).ToDictionary(x => x.Id);
+                var devices = DeviceLibraryHelper.GetMenu(wId, clears.SelectMany(x => x.DeviceIdList).Distinct()).ToDictionary(x => x.Id);
                 var createUserIds = AccountInfoHelper.GetAccountInfoByAccounts(clears.Select(x => x.CreateUserId).Distinct()).ToDictionary(x => x.Account);
                 foreach (var d in clears)
                 {

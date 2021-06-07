@@ -35,6 +35,11 @@ namespace ApiManagement.Models.Warning
                 ExtraIds += $"{id}";
             }
         }
+
+        public void ClearExtraIds()
+        {
+            ExtraIds = "";
+        }
     }
 
     public class WarningLogWeb : WarningLog

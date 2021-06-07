@@ -1799,14 +1799,14 @@ namespace ApiManagement.Base.Helper
                                     {
                                         var configs1 = item.ConfigList.Length > 0 ? item.ConfigList[0] : new int[0];
                                         var configs2 = item.ConfigList.Length > 1 ? item.ConfigList[1] : new int[0];
-                                        var data = WarningLogHelper.GetWarningLogs(startTime, endTime, 0, 0,
+                                        var data = WarningLogHelper.GetWarningLogs(workshop.Id, startTime, endTime, 0, 0,
                                             WarningType.设备, WarningDataType.生产数据, null, null, configs1, configs2, 1);
                                         var wgData = data.Where(x => x.StepId == 32);
                                         var oldFcIds = wgData.Where(x => x.Interval == WarningInterval.每次
                                                                          && (x.ItemType == WarningItemType.SingleQualifiedRate || x.ItemType == WarningItemType.SingleUnqualifiedRate)
                                                                          && x.ExtraIdList.Count > 2)
                                             .Select(y => y.ExtraIdList.ElementAt(2));
-                                        var stepReport = FlowCardReportGetHelper.GetReport(default(DateTime), default(DateTime), 18, null, 0,
+                                        var stepReport = FlowCardReportGetHelper.GetReport(workshop.Id, default(DateTime), default(DateTime), 18, null, 0,
                                             null, 0, null, 0, oldFcIds);
 
                                         foreach (var log in data)
@@ -1877,7 +1877,7 @@ namespace ApiManagement.Base.Helper
                                     {
                                         var configs1 = item.ConfigList.Length > 0 ? item.ConfigList[0] : new int[0];
                                         var configs2 = item.ConfigList.Length > 1 ? item.ConfigList[1] : new int[0];
-                                        var logs = WarningLogHelper.GetWarningLogs(startTime, endTime, 0, 0, WarningType.设备, WarningDataType.生产数据,
+                                        var logs = WarningLogHelper.GetWarningLogs(workshop.Id, startTime, endTime, 0, 0, WarningType.设备, WarningDataType.生产数据,
                                             null, null, configs1, configs2, 1);
                                         MonitoringKanBanDic[id].ItemData[key].AddRange(logs.GroupBy(x => new { x.ItemId, x.SetId, x.SetName, x.Range, x.Item })
                                             .Select(x => new WarningStatistic
@@ -1932,7 +1932,7 @@ namespace ApiManagement.Base.Helper
                                 }
                                 else if (type == KanBanItemEnum.计划号日进度表)
                                 {
-                                    var reports = FlowCardReportGetHelper.GetReport(startTime, endTime, 18, null, 0, set.DeviceIdList)
+                                    var reports = FlowCardReportGetHelper.GetReport(workshop.Id, startTime, endTime, 18, null, 0, set.DeviceIdList)
                                         .GroupBy(x => x.ProductionId)
                                         .ToDictionary(x => x.Key, x => x.Sum(y => y.HeGe));
                                     var productionPlans = ProductionPlanHelper.GetDetails(startTime.Date, startTime.Date, "蓝玻璃发抛光").Where(x => x.ProductionId != 0);
@@ -1966,7 +1966,7 @@ namespace ApiManagement.Base.Helper
                                 }
                                 else if (type == KanBanItemEnum.设备日进度表)
                                 {
-                                    var reports = FlowCardReportGetHelper.GetReport(startTime, endTime, 18, null, 0, set.DeviceIdList)
+                                    var reports = FlowCardReportGetHelper.GetReport(workshop.Id, startTime, endTime, 18, null, 0, set.DeviceIdList)
                                         .GroupBy(x => x.DeviceId)
                                         .ToDictionary(x => x.Key, x => x.Sum(y => y.HeGe));
                                     var deviceLibraries = DeviceLibraryHelper.GetMenu(reports.Keys);
@@ -1985,7 +1985,7 @@ namespace ApiManagement.Base.Helper
                                 }
                                 else if (type == KanBanItemEnum.操作工日进度表)
                                 {
-                                    var reports = FlowCardReportGetHelper.GetReport(startTime, endTime, 18, null, 0, set.DeviceIdList)
+                                    var reports = FlowCardReportGetHelper.GetReport(workshop.Id, startTime, endTime, 18, null, 0, set.DeviceIdList)
                                         .GroupBy(x => x.ProcessorId)
                                         .ToDictionary(x => x.Key, x => x.Sum(y => y.HeGe));
                                     var processes = AccountInfoHelper.GetAccountInfoByAccountIds(reports.Keys);
@@ -2016,6 +2016,7 @@ namespace ApiManagement.Base.Helper
                                     var isSum = 0;
                                     List<int> steps = null;
                                     var deviceIds = set.DeviceIdList;
+                                    deviceIds.Add(0);
                                     List<int> productionIds = null;
                                     List<Production> productions = new List<Production>();
                                     List<int> processorIds = null;

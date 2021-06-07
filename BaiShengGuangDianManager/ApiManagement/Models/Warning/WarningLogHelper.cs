@@ -18,7 +18,7 @@ namespace ApiManagement.Models.Warning
                 "INSERT INTO `warning_log` (`Id`, `IsWarning`, `WarningTime`, `WarningType`, `StepId`, `ClassId`, `SetName`, `ItemId`, `Item`, `DeviceId`, `DataType`, `SetId`, `ScriptId`, `CategoryId`, `StartTime`, `EndTime`, `Frequency`, `Interval`, `Count`, `Condition1`, `Value1`, `Condition2`, `Value2`, `Range`, `DictionaryId`, `Current`, `Value`, `Param`, `Values`, `DeviceIds`, `ExtraIds`) " +
                 "VALUES (@Id, @IsWarning, @WarningTime, @WarningType, @StepId, @ClassId, @SetName, @ItemId, @Item, @DeviceId, @DataType, @SetId, @ScriptId, @CategoryId, @StartTime, @EndTime, @Frequency, @Interval, @Count, @Condition1, @Value1, @Condition2, @Value2, @Range, @DictionaryId, @Current, @Value, @Param, @Values, @DeviceIds, @ExtraIds);";
             UpdateSql =
-                "";
+                "UPDATE `warning_log` SET `MarkedDelete` = @MarkedDelete, `DeviceId` = @DeviceId, `Value` = @Value, `Values` = @Values, `DeviceIds` = @DeviceIds, `ExtraIds` = @ExtraIds WHERE `Id` = @Id;";
 
             SameField = "WarningTime";
             MenuFields.AddRange(new[] { "Id", "WarningTime" });
@@ -41,6 +41,7 @@ namespace ApiManagement.Models.Warning
         /// <summary>
         /// 
         /// </summary>
+        /// <param name="workshopId"></param>
         /// <param name="startTime"></param>
         /// <param name="endTime"></param>
         /// <param name="setId"></param>
@@ -53,10 +54,11 @@ namespace ApiManagement.Models.Warning
         /// <param name="setIds"></param>
         /// <param name="itemIds"></param>
         /// <returns></returns>
-        public static IEnumerable<WarningLog> GetWarningLogs(DateTime startTime, DateTime endTime, int setId, int itemId,
+        public static IEnumerable<WarningLog> GetWarningLogs(int workshopId, DateTime startTime, DateTime endTime, int setId, int itemId,
             WarningType warningType, WarningDataType dataType, IEnumerable<int> deviceIds, IEnumerable<WarningItemType> itemTypes, IEnumerable<int> setIds, IEnumerable<int> itemIds, int isWarning = -1)
         {
             var param = new List<string>();
+            param.Add("a.WorkshopId = @workshopId");
             if (startTime != default(DateTime))
             {
                 param.Add("a.WarningTime >= @startTime");
@@ -124,11 +126,11 @@ namespace ApiManagement.Models.Warning
                 $"SELECT a.*, b.ItemType FROM `warning_log` a " +
                 $"JOIN (SELECT a.*, b.StepId FROM warning_set_item a JOIN `warning_set` b ON a.SetId = b.Id) b ON a.ItemId = b.Id " +
                 $"{(param.Any() ? $" WHERE {param.Join(" AND ")}" : "")} ORDER BY a.WarningTime DESC;",
-                new { startTime, endTime, setId, itemId, warningType, dataType, deviceIds, setIds, itemIds, itemTypes, isWarning });
+                new { workshopId, startTime, endTime, setId, itemId, warningType, dataType, deviceIds, setIds, itemIds, itemTypes, isWarning });
 
             if (r != null && r.Any())
             {
-                var sets = WarningSetHelper.GetMenus(r.Select(x => x.SetId).Distinct()).ToDictionary(x => x.Id);
+                var sets = WarningSetHelper.GetMenus(workshopId, r.Select(x => x.SetId).Distinct()).ToDictionary(x => x.Id);
                 var devices = DeviceLibraryHelper.GetMenu(r.Select(x => x.DeviceId).Distinct()).ToDictionary(x => x.Id);
                 var categories = DeviceCategoryHelper.GetMenus(r.Select(x => x.CategoryId).Distinct()).ToDictionary(x => x.Id);
                 foreach (var d in r)
@@ -144,7 +146,7 @@ namespace ApiManagement.Models.Warning
             return r;
         }
 
-        public static IEnumerable<WarningLog> GetWarningLogs(IEnumerable<int> deviceIds, IEnumerable<int> itemIds)
+        public static IEnumerable<WarningLog> GetWarningLogs(int workshopId, IEnumerable<int> deviceIds, IEnumerable<int> itemIds)
         {
             var r = ServerConfig.ApiDb.Query<WarningLog>(
                 $"SELECT * FROM (SELECT * FROM `warning_log` WHERE DeviceId IN @deviceIds AND ItemId IN @itemIds ORDER BY WarningTime DESC) a GROUP BY a.DeviceId, a.ItemId",
@@ -152,6 +154,22 @@ namespace ApiManagement.Models.Warning
             return r;
         }
 
+        public static IEnumerable<WarningLog> GetWarningLogs(int workshopId, IEnumerable<string> extraIds)
+        {
+            var r = new List<WarningLog>();
+            foreach (var extraId in extraIds)
+            {
+                r.AddRange(ServerConfig.ApiDb.Query<WarningLog>(
+                    $"SELECT * FROM `warning_log` WHERE WorkshopId = @workshopId AND ExtraIds LIKE @extraId;",
+                new { workshopId, extraId }));
+            }
+            //var r = ServerConfig.ApiDb.Query<WarningLog>(
+            //    //$"SELECT * FROM `warning_log` WHERE WorkshopId = @workshopId AND ExtraIds LIKE @extraIds;",
+            //    //new { workshopId, extraIds });
+            //    $"SELECT * FROM `warning_log` WHERE ExtraIds LIKE CONCAT(@extraIds,'%');",
+            //    extraIds);
+            return r;
+        }
         #endregion
 
         #region Add

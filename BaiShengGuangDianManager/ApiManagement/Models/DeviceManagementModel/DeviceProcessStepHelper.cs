@@ -98,6 +98,26 @@ namespace ApiManagement.Models.DeviceManagementModel
         //    }
         //    return Instance.CommonHaveSame(args);
         //}
+
+
+        public static IEnumerable<DeviceProcessStepDetail> GetStepFromId(IEnumerable<int> ids = null)
+        {
+            //var res = new List<DeviceProcessStepDetail>();
+            //foreach (var id in ids)
+            //{
+            //    var r = ServerConfig.ApiDb.Query<DeviceProcessStepDetail>("SELECT OtherId FromId, Step Id, StepAbbrev Abbrev, StepName FROM `flowcard_report_get` WHERE Step = @id ORDER BY OtherId + 0 DESC LIMIT 1;", new{ id }, 1000).FirstOrDefault();
+            //    if (r != null)
+            //    {
+            //        res.Add(r);
+            //    }
+            //}
+
+            //return res;
+            return
+                ServerConfig.ApiDb.Query<DeviceProcessStepDetail>(
+                    $"SELECT MAX(OtherId) FromId, Step Id, StepAbbrev Abbrev, StepName FROM `flowcard_report_get` {(ids != null && ids.Any() ? "WHERE Step IN @ids" : "")} GROUP BY Step + 0;",
+                    new { ids }, 1000);
+        }
         #endregion
 
         #region Add

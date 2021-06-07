@@ -1,6 +1,5 @@
 ﻿using ApiManagement.Base.Server;
 using ApiManagement.Models.BaseModel;
-using ApiManagement.Models.DeviceManagementModel;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -14,8 +13,8 @@ namespace ApiManagement.Models.OtherModel
             Table = "flowcard_report_get";
 
             InsertSql =
-                "INSERT INTO `flowcard_report_get` (`MarkedDateTime`, `OtherId`, `InsertTime`, `Time`, `Step`, `StepName`, `StepAbbrev`, `FlowCardId`, `FlowCard`, `OldFlowCardId`, `OldFlowCard`, `ProductionId`, `Production`, `DeviceId`, `Code`, `Back`, `ProcessorId`, `Processor`, `Total`, `HeGe`, `LiePian`, `Reason`, `State`) " +
-                "VALUES (@MarkedDateTime, @OtherId, @InsertTime, @Time, @Step, @StepName, @StepAbbrev, @FlowCardId, @FlowCard, @OldFlowCardId, @OldFlowCard, @ProductionId, @Production, @DeviceId, @Code, @Back, @ProcessorId, @Processor, @Total, @HeGe, @LiePian, @Reason, @State);";
+                "INSERT INTO `flowcard_report_get` (`MarkedDateTime`, `OtherId`, `InsertTime`, `UpdateTime`, `Time`, `Step`, `StepName`, `StepAbbrev`, `FlowCardId`, `FlowCard`, `OldFlowCardId`, `OldFlowCard`, `ProductionId`, `Production`, `DeviceId`, `Code`, `Back`, `ProcessorId`, `Processor`, `Total`, `HeGe`, `LiePian`, `Reason`, `State`) " +
+                "VALUES (@MarkedDateTime, @OtherId, @InsertTime, @UpdateTime, @Time, @Step, @StepName, @StepAbbrev, @FlowCardId, @FlowCard, @OldFlowCardId, @OldFlowCard, @ProductionId, @Production, @DeviceId, @Code, @Back, @ProcessorId, @Processor, @Total, @HeGe, @LiePian, @Reason, @State);";
             UpdateSql =
                 "UPDATE `flowcard_report_get` SET `MarkedDateTime` = @MarkedDateTime, `Total` = @Total, `HeGe` = @HeGe, `LiePian` = @LiePian, `Reason` = @Reason WHERE `Id` = @Id;";
 
@@ -58,15 +57,18 @@ namespace ApiManagement.Models.OtherModel
         //    return Instance.CommonHaveSame(args);
         //}
 
-        public static IEnumerable<FlowCardReportGet> GetReport(DateTime startTime, DateTime endTime,
+        public static IEnumerable<FlowCardReportGet> GetReport(int workshopId, DateTime startTime = default(DateTime), DateTime endTime = default(DateTime),
             int stepId = 0, IEnumerable<int> stepIds = null,
             int deviceId = 0, IEnumerable<int> deviceIds = null,
             int flowCardId = 0, IEnumerable<int> flowCardIds = null,
             int oldFlowCardId = 0, IEnumerable<int> oldFlowCardIds = null,
             int productionId = 0, IEnumerable<int> productionIds = null,
-            int processorId = 0, IEnumerable<int> processorIds = null)
+            int processorId = 0, IEnumerable<int> processorIds = null,
+            int otherId = 0, IEnumerable<int> otherIds = null)
         {
             var args = new List<Tuple<string, string, dynamic>>();
+            args.Add(new Tuple<string, string, dynamic>("WorkshopId", "=", workshopId));
+            args.Add(new Tuple<string, string, dynamic>("State", "!=", 0));
             if (startTime != default(DateTime))
             {
                 args.Add(new Tuple<string, string, dynamic>("Time", ">=", startTime));
@@ -123,11 +125,21 @@ namespace ApiManagement.Models.OtherModel
             {
                 args.Add(new Tuple<string, string, dynamic>("ProcessorId", "IN", processorIds));
             }
+            if (otherId != 0)
+            {
+                args.Add(new Tuple<string, string, dynamic>("OtherId", "=", otherId));
+            }
+            if (otherIds != null && otherIds.Any())
+            {
+                args.Add(new Tuple<string, string, dynamic>("OtherId", "IN", otherIds));
+            }
             return Instance.CommonGet<FlowCardReportGet>(args, false, 1000);
         }
-        public static IEnumerable<DeviceProcessStepDetail> GetStepFromId()
+
+        public static DateTime GetMaxTime()
         {
-            return ServerConfig.ApiDb.Query<DeviceProcessStepDetail>("SELECT MAX(OtherId) FromId, Step Id, StepAbbrev Abbrev, StepName FROM `flowcard_report_get` GROUP BY Step", null, 1000);
+            return ServerConfig.ApiDb.Query<FlowCardReportGet>("SELECT UpdateTime FROM `flowcard_report_get` ORDER BY UpdateTime DESC LIMIT 1;", null, 1000)
+                .FirstOrDefault()?.UpdateTime ?? DateTime.Now;
         }
         #endregion
 
@@ -139,6 +151,15 @@ namespace ApiManagement.Models.OtherModel
         {
             ServerConfig.ApiDb.Execute(
                 "UPDATE `flowcard_report_get` SET `MarkedDateTime` = @MarkedDateTime, `FlowCardId` = @FlowCardId, `OldFlowCardId` = @OldFlowCardId, `ProductionId` = @ProductionId, `Production` = @Production, `DeviceId` = @DeviceId, `ProcessorId` = @ProcessorId, `State` = @State  WHERE `Id` = @Id;",
+                flowCardReports);
+        }
+
+        public static void UpdateReport(IEnumerable<FlowCardReportGet> flowCardReports)
+        {
+            ServerConfig.ApiDb.Execute(
+                "UPDATE `flowcard_report_get` SET `MarkedDateTime` = @MarkedDateTime, `UpdateTime` = @UpdateTime, `State` = @State, `FlowCardId` = @FlowCardId, `FlowCardId` = @FlowCardId, `OldFlowCardId` = @OldFlowCardId, " +
+                "`ProductionId` = @ProductionId, `Production` = @Production, `DeviceId` = @DeviceId, `Code` = @Code, `ProcessorId` = @ProcessorId, `Processor` = @Processor, " +
+                "`Total` = @Total, `HeGe` = @HeGe, `LiePian` = @LiePian, `Reason` = @Reason  WHERE `Id` = @Id;",
                 flowCardReports);
         }
         #endregion

@@ -86,8 +86,10 @@ namespace ApiManagement.Models.DeviceManagementModel
         /// </summary>
         /// <param name="scriptIds"></param>
         /// <param name="variableNameIds"></param>
+        /// <param name="variableTypeIds">类型</param>
         /// <returns></returns>
-        public static IEnumerable<UsuallyDictionary> GetUsuallyDictionaries(IEnumerable<int> scriptIds, IEnumerable<int> variableNameIds = null)
+        public static IEnumerable<UsuallyDictionary> GetUsuallyDictionaries(IEnumerable<int> scriptIds
+            , IEnumerable<int> variableNameIds = null, IEnumerable<int> variableTypeIds = null)
         {
             var sIds = new List<int> { 0 };
             sIds.AddRange(scriptIds);
@@ -95,9 +97,13 @@ namespace ApiManagement.Models.DeviceManagementModel
             {
                 new Tuple<string, string, dynamic>("ScriptId", "IN", sIds)
             };
-            if (variableNameIds != null)
+            if (variableNameIds != null && variableNameIds.Any())
             {
                 args.Add(new Tuple<string, string, dynamic>("VariableNameId", "IN", variableNameIds));
+            }
+            if (variableTypeIds != null && variableTypeIds.Any())
+            {
+                args.Add(new Tuple<string, string, dynamic>("VariableTypeId", "IN", variableTypeIds));
             }
             var data = Instance.CommonGet<UsuallyDictionary>(args);
             var tData = new List<UsuallyDictionary>();

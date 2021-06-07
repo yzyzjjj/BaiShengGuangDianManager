@@ -82,6 +82,10 @@ namespace ApiManagement.Models.StatisticManagementModel
         /// 是否是老数据（数据库数据）
         /// </summary>
         public bool Old { get; set; } = true;
+        ///// <summary>
+        ///// 老数据是否删除（数据库数据）
+        ///// </summary>
+        //public bool OldDel { get; set; } = true;
         /// <summary>
         /// 是否更新（数据库数据）
         /// </summary>
@@ -108,6 +112,11 @@ namespace ApiManagement.Models.StatisticManagementModel
         /// 加工人
         /// </summary>
         public string Processor { get; set; } = "";
+
+        public bool HaveChange(StatisticProcessAll all)
+        {
+            return Total != all.Total || Qualified != all.Qualified || Unqualified != all.Unqualified;
+        }
     }
     /// <summary>
     /// 设备工序加工统计

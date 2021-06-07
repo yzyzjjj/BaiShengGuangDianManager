@@ -22,6 +22,7 @@ namespace ApiManagement.Models.OtherModel
             StepAbbrev = step.Abbrev;
 
             OtherId = report.f_id;
+            UpdateTime = report.f_updatetime;
             Time = report.f_inserttime;
             OldFlowCard = report.f_lckh0 ?? "";
             FlowCard = report.f_lckh ?? "";
@@ -46,11 +47,15 @@ namespace ApiManagement.Models.OtherModel
         /// 修改时间
         /// </summary>
         public DateTime MarkedDateTime { get; set; }
+        public int MarkedDelete { get; set; }
         /// <summary>
-        /// 插入时间
+        /// api插入时间
         /// </summary>
         public DateTime InsertTime { get; set; }
-        public int MarkedDelete { get; set; }
+        /// <summary>
+        /// 更新时间
+        /// </summary>
+        public DateTime UpdateTime { get; set; }
         /// <summary>
         /// 上报时间
         /// </summary>
@@ -165,6 +170,10 @@ namespace ApiManagement.Models.OtherModel
         /// </summary>
         public DateTime f_inserttime { get; set; }
         /// <summary>
+        /// 更新时间
+        /// </summary>
+        public DateTime f_updatetime { get; set; }
+        /// <summary>
         /// 源流程卡
         /// </summary>
         public string f_lckh0 { get; set; }
@@ -228,4 +237,6 @@ namespace ApiManagement.Models.OtherModel
         /// </summary>
         public string JiaGongRen { get; set; }
     }
+
+
 }

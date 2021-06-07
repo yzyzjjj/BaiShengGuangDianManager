@@ -2,6 +2,12 @@
 
 namespace ApiManagement.Models.Warning
 {
+    public enum WarningStatisticTime
+    {
+        分 = 0,
+        时 = 1,
+        天 = 2,
+    }
     public class WarningStatistic
     {
         //private DateTime warningTime;
@@ -11,8 +17,10 @@ namespace ApiManagement.Models.Warning
         {
         }
 
-        public WarningStatistic(DateTime time, int setId, string setName, int itemId, string item, string range, int count)
+        public WarningStatistic(int workshopId, WarningStatisticTime type, DateTime time, int setId, string setName, int itemId, string item, string range, int count)
         {
+            WorkshopId = workshopId;
+            Type = type;
             Time = time;
             SetId = setId;
             SetName = setName;
@@ -21,6 +29,14 @@ namespace ApiManagement.Models.Warning
             Range = range;
             Count = count;
         }
+        /// <summary>
+        /// 车间Id
+        /// </summary>
+        public int WorkshopId { get; set; }
+        /// <summary>
+        /// 时间类型
+        /// </summary>
+        public WarningStatisticTime Type { get; set; }
         public DateTime Time { get; set; }
         /// <summary>
         /// 预警设置id
@@ -49,12 +65,10 @@ namespace ApiManagement.Models.Warning
         /// 预警次数
         /// </summary>
         public int Count { get; set; }
-    }
 
-    public enum WarningStatisticTime
-    {
-        分,
-        时,
-        天
+        public bool HaveChange(WarningStatistic statistic)
+        {
+            return Count != statistic.Count;
+        }
     }
 }

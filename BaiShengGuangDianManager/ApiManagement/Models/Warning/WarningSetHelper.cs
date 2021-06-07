@@ -11,7 +11,7 @@ namespace ApiManagement.Models.Warning
             Table = "warning_set";
 
             InsertSql =
-                "INSERT INTO  `warning_set` (`Id`, `CreateUserId`, `MarkedDateTime`, `WarningType`, `DataType`, `Name`, `Enable`, `StepId`, `ClassId`, `ScriptId`, `CategoryId`, `DeviceIds`) " +
+                "INSERT INTO `warning_set` (`Id`, `CreateUserId`, `MarkedDateTime`, `WarningType`, `DataType`, `Name`, `Enable`, `StepId`, `ClassId`, `ScriptId`, `CategoryId`, `DeviceIds`) " +
                 "VALUES (@Id, @CreateUserId, @MarkedDateTime, @WarningType, @DataType, @Name, @Enable, @StepId, @ClassId, @ScriptId, @CategoryId, @DeviceIds);";
             UpdateSql =
                 "UPDATE `warning_set` SET `MarkedDateTime` = @MarkedDateTime, `Name` = @Name, `Enable` = @Enable, `StepId` = @StepId, `ClassId` = @ClassId, `ScriptId` = @ScriptId, " +
@@ -25,10 +25,13 @@ namespace ApiManagement.Models.Warning
         /// <summary>
         /// 菜单
         /// </summary>
-        /// <param name="ids"></param>
-        public static IEnumerable<WarningSet> GetMenus(IEnumerable<int> ids)
+        public static IEnumerable<WarningSet> GetMenus(int wId, IEnumerable<int> ids)
         {
             var args = new List<Tuple<string, string, dynamic>>();
+            if (wId != 0)
+            {
+                args.Add(new Tuple<string, string, dynamic>("WorkshopId", "=", wId));
+            }
             if (ids != null)
             {
                 args.Add(new Tuple<string, string, dynamic>("Id", "IN", ids));
@@ -36,10 +39,11 @@ namespace ApiManagement.Models.Warning
 
             return Instance.CommonGet<WarningSet>(args, true);
         }
-        public static bool GetHaveSame(IEnumerable<string> sames, IEnumerable<int> ids = null)
+        public static bool GetHaveSame(int wId, IEnumerable<string> sames, IEnumerable<int> ids = null)
         {
             var args = new List<Tuple<string, string, dynamic>>
             {
+                new Tuple<string, string, dynamic>("WorkshopId", "=", wId),
                 new Tuple<string, string, dynamic>("Name", "IN", sames)
             };
             if (ids != null)
@@ -48,10 +52,11 @@ namespace ApiManagement.Models.Warning
             }
             return Instance.CommonHaveSame(args);
         }
-        public static bool GetHaveSame(WarningType warningType, WarningDataType dataType, IEnumerable<string> sames, IEnumerable<int> ids)
+        public static bool GetHaveSame(int wId, WarningType warningType, WarningDataType dataType, IEnumerable<string> sames, IEnumerable<int> ids)
         {
             var args = new List<Tuple<string, string, dynamic>>
             {
+                new Tuple<string, string, dynamic>("WorkshopId", "=", wId),
                 new Tuple<string, string, dynamic>("WarningType", "=", warningType),
                 new Tuple<string, string, dynamic>("DataType", "=", dataType),
                 new Tuple<string, string, dynamic>("Name", "IN", sames),

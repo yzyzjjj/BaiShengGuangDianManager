@@ -255,7 +255,7 @@ namespace ApiManagement.Models.AccountManagementModel
         /// <summary>
         /// 菜单
         /// </summary>
-        public static IEnumerable<AccountInfo> GetAccountInfoByNames(IEnumerable<string> names)
+        public static IEnumerable<AccountInfo> GetAccountInfoByNames(IEnumerable<string> names, bool all = false)
         {
             if (names == null || !names.Any())
             {
@@ -264,7 +264,7 @@ namespace ApiManagement.Models.AccountManagementModel
             var args = new List<Tuple<string, string, dynamic>>();
             args.Add(new Tuple<string, string, dynamic>("Name", "IN", names));
 
-            return Instance.CommonGet<AccountInfo>(args);
+            return !all ? Instance.CommonGet<AccountInfo>(args) : Instance.CommonGetAll<AccountInfo>(args);
         }
 
         /// <summary>

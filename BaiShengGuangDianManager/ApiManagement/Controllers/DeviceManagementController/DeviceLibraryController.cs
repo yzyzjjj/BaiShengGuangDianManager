@@ -30,8 +30,21 @@ namespace ApiManagement.Controllers.DeviceManagementController
     public class DeviceLibraryController : ControllerBase
     {
         // GET: api/DeviceLibrary
+        /// <summary>
+        /// 
+        /// </summary>
+        /// <param name="script">是否需要设备脚本信息</param>
+        /// <param name="detail">是否需要完整的设备信息</param>
+        /// <param name="other">是否需要设备其他信息</param>
+        /// <param name="state">是否需要状态信息</param>
+        /// <param name="valid">连接正常设备</param>
+        /// <param name="work">是否工作台</param>
+        /// <param name="ids"></param>
+        /// <param name="scriptId"></param>
+        /// <param name="categoryId"></param>
+        /// <returns></returns>
         [HttpGet]
-        public DataResult GetDeviceLibrary([FromQuery] bool script, bool detail, bool other, bool state, bool work, string ids, int scriptId, int categoryId)
+        public DataResult GetDeviceLibrary([FromQuery] bool script, bool detail, bool other, bool state, bool valid, bool work, string ids, int scriptId, int categoryId)
         {
             var idList = !ids.IsNullOrEmpty() ? ids.Split(",").Select(int.Parse) : new int[0];
             if (!detail)
@@ -39,7 +52,7 @@ namespace ApiManagement.Controllers.DeviceManagementController
                 var result = new DataResult();
                 if (script)
                 {
-                    result.datas.AddRange(DeviceLibraryHelper.GetMenu(0, idList, 0, true));
+                    result.datas.AddRange(DeviceLibraryHelper.GetMenu(1, idList, 0, true));
                 }
                 else
                 {
@@ -202,13 +215,24 @@ namespace ApiManagement.Controllers.DeviceManagementController
                     }
                 }
 
-                var data = deviceLibraryDetails.Values.All(x => int.TryParse(x.Code, out _))
-                    ? deviceLibraryDetails.Values.OrderByDescending(x => x.DeviceState).ThenByDescending(x => x.DeviceStateStr).ThenBy(x => int.Parse(x.Code))
-                    : deviceLibraryDetails.Values.OrderByDescending(x => x.DeviceState).ThenByDescending(x => x.DeviceStateStr).ThenBy(x => x.Code);
+                IEnumerable<DeviceLibraryDetail> td;
+                if (valid)
+                {
+                    td = (deviceLibraryDetails.Values.All(x => int.TryParse(x.Code, out _))
+                        ? deviceLibraryDetails.Values.OrderBy(x => int.Parse(x.Code))
+                        : deviceLibraryDetails.Values.OrderBy(x => x.Code)).Where(x =>
+                        x.DeviceState == DeviceState.Waiting || x.DeviceState == DeviceState.Processing);
+                }
+                else
+                {
+                    td = deviceLibraryDetails.Values.All(x => int.TryParse(x.Code, out _))
+                        ? deviceLibraryDetails.Values.OrderByDescending(x => x.DeviceState).ThenByDescending(x => x.DeviceStateStr).ThenBy(x => int.Parse(x.Code))
+                        : deviceLibraryDetails.Values.OrderByDescending(x => x.DeviceState).ThenByDescending(x => x.DeviceStateStr).ThenBy(x => x.Code);
+                }
 
                 if (work)
                 {
-                    result.datas.AddRange(data.Select(x => new
+                    result.datas.AddRange(td.Select(x => new
                     {
                         x.Id,
                         x.Code,
@@ -223,7 +247,7 @@ namespace ApiManagement.Controllers.DeviceManagementController
                 }
                 else
                 {
-                    result.datas.AddRange(data);
+                    result.datas.AddRange(td);
                 }
 
                 return result;

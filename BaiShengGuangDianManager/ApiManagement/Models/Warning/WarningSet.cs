@@ -52,6 +52,10 @@ namespace ApiManagement.Models.Warning
 
     public class WarningSet : CommonBase
     {
+        /// <summary>
+        /// 车间Id
+        /// </summary>
+        public int WorkshopId { get; set; }
         public WarningType WarningType { get; set; }
         /// <summary>
         /// 数据类型

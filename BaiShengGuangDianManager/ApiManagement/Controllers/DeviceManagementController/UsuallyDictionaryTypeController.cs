@@ -1,7 +1,4 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using ApiManagement.Base.Helper;
+﻿using ApiManagement.Base.Helper;
 using ApiManagement.Base.Server;
 using ApiManagement.Models.DeviceManagementModel;
 using Microsoft.AspNetCore.Mvc;
@@ -9,6 +6,9 @@ using ModelBase.Base.EnumConfig;
 using ModelBase.Base.Utils;
 using ModelBase.Models.Result;
 using ServiceStack;
+using System;
+using System.Collections.Generic;
+using System.Linq;
 
 namespace ApiManagement.Controllers.DeviceManagementController
 {
@@ -33,17 +33,15 @@ namespace ApiManagement.Controllers.DeviceManagementController
         public DataResult GetUsuallyDictionaryTypeDevice([FromQuery] int deviceId)
         {
             var device =
-                ServerConfig.ApiDb.Query<DeviceLibraryDetail>("SELECT * FROM `device_library` WHERE Id = @DeviceId AND `MarkedDelete` = 0;", new { DeviceId = deviceId }).FirstOrDefault();
+                DeviceLibraryHelper.Instance.Get<DeviceLibrary>(deviceId);
             if (device == null)
             {
                 return Result.GenError<DataResult>(Error.DeviceNotExist);
             }
 
+            var usuallyDictionaries = UsuallyDictionaryHelper.GetUsuallyDictionaries(new List<int> { device.ScriptId }, null, new List<int>{ 1 });
             var result = new DataResult();
-            result.datas.AddRange(ServerConfig.ApiDb.Query<UsuallyDictionaryType>("SELECT a.* FROM `usually_dictionary_type` a JOIN `usually_dictionary` b ON a.Id = b.VariableNameId WHERE a.`MarkedDelete` = 0 AND b.`MarkedDelete` = 0 AND b.ScriptId = @ScriptId AND b.VariableTypeId = 1;", new
-            {
-                ScriptId = device.ScriptId
-            }));
+            result.datas.AddRange(usuallyDictionaries);
             return result;
         }
 

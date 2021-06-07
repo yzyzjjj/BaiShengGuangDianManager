@@ -55,6 +55,10 @@ namespace ApiManagement.Models.Warning
     public class WarningSetItem : CommonBase
     {
         /// <summary>
+        /// 车间Id
+        /// </summary>
+        public int WorkshopId { get; set; }
+        /// <summary>
         /// 预警设置id
         /// </summary>
         /// <returns></returns>

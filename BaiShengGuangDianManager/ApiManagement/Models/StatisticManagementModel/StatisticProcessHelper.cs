@@ -84,7 +84,6 @@ namespace ApiManagement.Models.StatisticManagementModel
                 var deviceList = (deviceIds != null && deviceIds.Any())
                     ? DeviceLibraryHelper.GetMenu(workshopId, deviceIds).ToDictionary(x => x.Id, x => x.Code)
                     : new Dictionary<int, string>();
-                deviceList.Add(0, "");
                 var processorList = (processorIds != null && processorIds.Any())
                     ? AccountInfoHelper.GetMenu(processorIds).ToDictionary(x => x.Id, x => x.Name)
                     : new Dictionary<int, string>();
@@ -165,7 +164,7 @@ namespace ApiManagement.Models.StatisticManagementModel
                     return res;
                 }
 
-                var data = GetDetails(workshopId, dTimeType, startTime, endTime, steps, deviceIds, productionIds, processorIds);
+                var data = GetDetails(workshopId, dTimeType, startTime.NoMinute(), endTime.NextHour(0, 1), steps, deviceIds, productionIds, processorIds);
 
                 switch (timeType)
                 {
@@ -626,9 +625,10 @@ namespace ApiManagement.Models.StatisticManagementModel
             //res.AddRange(ServerConfig.ApiDb.Query<T>($"SELECT *, MAX(Time) Time FROM `{config[0]}` WHERE Time >= @st AND Time < @ed GROUP BY WorkshopId, Type, Step, {config[1]};",
             //res.AddRange(ServerConfig.ApiDb.Query<T>($"SELECT * FROM `{config[0]}` WHERE Time >= @st AND Time < @ed GROUP BY WorkshopId, Type, Step, {config[1]};",
             res.AddRange(ServerConfig.ApiDb.Query<StatisticProcessAll>(
-                $"SELECT * FROM `statistic_process` WHERE Time = @st1 OR (Time >= @st2 AND Time < @ed);",
+                $"SELECT * FROM `statistic_process` WHERE (Type = @t AND Time = @st1) OR (Type != @t AND Time >= @st2 AND Time < @ed);",
                 new
                 {
+                    t = StatisticProcessTimeEnum.日,
                     st1 = workDays.Item1.DayBeginTime(),
                     st2 = workDays.Item1.NoMinute(),
                     ed = workDays.Item2.NoMinute().AddHours(1),
@@ -663,6 +663,10 @@ namespace ApiManagement.Models.StatisticManagementModel
         #endregion
 
         #region Delete
+        public static void Delete(IEnumerable<StatisticProcessAll> data)
+        {
+            ServerConfig.ApiDb.Execute("DELETE FROM `statistic_process` WHERE WorkshopId = @WorkshopId AND Type = @Type AND Time = @Time AND Step = @Step AND DeviceId = @DeviceId AND ProcessorId = @ProcessorId AND ProductionId = @ProductionId", data);
+        }
         #endregion
     }
 }
