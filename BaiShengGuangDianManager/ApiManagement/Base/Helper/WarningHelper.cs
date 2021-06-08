@@ -100,11 +100,11 @@ namespace ApiManagement.Base.Helper
                 生产数据合计字段.AddRange(EnumHelper.EnumToList<WarningItemType>()
                     .Where(x => x.EnumValue >= 11 && x.EnumValue <= 15)
                     .Select(x => new Tuple<string, WarningItemType>(x.Description, (WarningItemType)x.EnumValue)));
-                CurrentData = ServerConfig.ApiDb.Query<WarningCurrent>("SELECT a.*, b.VariableName Item, b.VariableTypeId, b.PointerAddress, b.`Precision`, c.WarningType, c.StepId, c.ClassId, c.`Name` SetName, c.`DeviceIds` DeviceIds FROM `warning_current` a " +
-                                                                       "JOIN `data_name_dictionary` b ON a.DictionaryId = b.Id " +
-                                                                       "JOIN `warning_set` c ON a.SetId = c.Id;")
-                    .ToDictionary(x => new Tuple<int, int, WarningDataType, WarningType, int>(x.ItemId, x.DeviceId, x.DataType, x.WarningType,
-                        (x.DataType == WarningDataType.生产数据 && x.WarningType == WarningType.设备) ? x.StepId : x.ClassId));
+                //CurrentData = ServerConfig.ApiDb.Query<WarningCurrent>("SELECT a.*, b.VariableName Item, b.VariableTypeId, b.PointerAddress, b.`Precision`, c.WarningType, c.StepId, c.ClassId, c.`Name` SetName, c.`DeviceIds` DeviceIds FROM `warning_current` a " +
+                //                                                       "JOIN `data_name_dictionary` b ON a.DictionaryId = b.Id " +
+                //                                                       "JOIN `warning_set` c ON a.SetId = c.Id;")
+                //    .ToDictionary(x => new Tuple<int, int, WarningDataType, WarningType, int>(x.ItemId, x.DeviceId, x.DataType, x.WarningType,
+                //        (x.DataType == WarningDataType.生产数据 && x.WarningType == WarningType.设备) ? x.StepId : x.ClassId));
                 LoadConfig();
 
                 _timer5S = new Timer(DoSth_5s, null, 5000, 1000 * 5);
@@ -120,16 +120,39 @@ namespace ApiManagement.Base.Helper
             NeedLoadConfig = true;
         }
 
+        public static void LoadCurrentData()
+        {
+            try
+            {
+                CurrentData = ServerConfig.ApiDb.Query<WarningCurrent>("SELECT a.*, " +
+                                                                       "IF(ISNULL(b.VariableName), d.Item, b.VariableName) Item, b.VariableTypeId, b.PointerAddress, b.`Precision`, " +
+                                                                       "c.WarningType, c.StepId, c.ClassId, c.`Name` SetName, c.`DeviceIds` DeviceIds, " +
+                                                                       "d.ItemType " +
+                                                                       "FROM `warning_current` a " +
+                                                                       "LEFT JOIN `data_name_dictionary` b ON a.DictionaryId = b.Id " +
+                                                                       "JOIN `warning_set` c ON a.SetId = c.Id " +
+                                                                       "JOIN `warning_set_item` d ON a.ItemId = d.Id;")
+                    .ToDictionary(x => new Tuple<int, int, WarningDataType, WarningType, int>(x.ItemId, x.DeviceId, x.DataType, x.WarningType,
+                        (x.DataType == WarningDataType.生产数据 && x.WarningType == WarningType.设备) ? x.StepId : x.ClassId));
+            }
+            catch (Exception e)
+            {
+                Log.Error(e);
+            }
+        }
+
         public static void LoadConfig()
         {
             try
             {
+                LoadCurrentData();
+
                 #region 设备数据
                 var dataType = WarningDataType.设备数据;
                 var sql =
-                "SELECT a.*, b.DataType, b.DeviceIds, b.ScriptId, c.VariableName Item, c.VariableTypeId, c.PointerAddress, c.`Precision`, b.WarningType, b.ClassId, b.`Name` SetName FROM `warning_set_item` a " +
-                "JOIN `warning_set` b ON a.SetId = b.Id " +
-                "JOIN `data_name_dictionary` c ON a.DictionaryId = c.Id WHERE a.MarkedDelete = 0 AND b.MarkedDelete = 0 AND c.MarkedDelete = 0 AND b.`Enable` = 1 AND b.`DataType` = @DataType;";
+                    "SELECT a.*, b.DataType, b.DeviceIds, b.ScriptId, c.VariableName Item, c.VariableTypeId, c.PointerAddress, c.`Precision`, b.WarningType, b.ClassId, b.`Name` SetName FROM `warning_set_item` a " +
+                    "JOIN `warning_set` b ON a.SetId = b.Id " +
+                    "JOIN `data_name_dictionary` c ON a.DictionaryId = c.Id WHERE a.MarkedDelete = 0 AND b.MarkedDelete = 0 AND c.MarkedDelete = 0 AND b.`Enable` = 1 AND b.`DataType` = @DataType;";
                 var warningSetItemConfigs = ServerConfig.ApiDb.Query<WarningSetItemDetail>(sql, new { DataType = dataType });
                 if (warningSetItemConfigs != null)
                 {
@@ -274,6 +297,7 @@ namespace ApiManagement.Base.Helper
 #if !DEBUG
             if (RedisHelper.Get<int>(Debug) != 0)
             {
+                RedisHelper.Remove(_5s_LockKey);
                 return;
             }
 #endif
@@ -281,7 +305,6 @@ namespace ApiManagement.Base.Helper
                 //{
                 //    return;
                 //}
-
 
                 if (RedisHelper.Exists(LogIdKey))
                 {
@@ -300,6 +323,9 @@ namespace ApiManagement.Base.Helper
                     NeedLoadConfig = false;
                     return;
                 }
+
+                LoadCurrentData();
+
                 设备数据Warning();
                 生产数据Warning();
                 预警修正Warning();
@@ -855,8 +881,8 @@ namespace ApiManagement.Base.Helper
                     {
                         if (!singleData.Any())
                         {
-                            endId = ServerConfig.ApiDb.Query<int>("SELECT IFNULL(MAX(Id), 0) FROM `flowcard_report_get` WHERE Time < @now AND State != 0 ORDER BY Id DESC LIMIT 1;",
-                            new { now }).FirstOrDefault();
+                            endId = ServerConfig.ApiDb.Query<FlowCardReportGet>("SELECT * FROM `flowcard_report_get` WHERE Time < @now AND State != 0 ORDER BY Id DESC LIMIT 1;",
+                            new { now }).FirstOrDefault()?.Id ?? 0;
                         }
                     }
                     RedisHelper.SetForever(pIdKey, endId);

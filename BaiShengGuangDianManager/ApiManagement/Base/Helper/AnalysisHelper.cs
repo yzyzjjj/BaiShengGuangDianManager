@@ -1800,7 +1800,8 @@ namespace ApiManagement.Base.Helper
                                         var configs1 = item.ConfigList.Length > 0 ? item.ConfigList[0] : new int[0];
                                         var configs2 = item.ConfigList.Length > 1 ? item.ConfigList[1] : new int[0];
                                         var data = WarningLogHelper.GetWarningLogs(workshop.Id, startTime, endTime, 0, 0,
-                                            WarningType.设备, WarningDataType.生产数据, null, null, configs1, configs2, 1);
+                                            //WarningType.设备, WarningDataType.生产数据, null, null, configs1, configs2, 1);
+                                            WarningType.设备, WarningDataType.生产数据, null, new List<WarningItemType> { WarningItemType.SingleQualifiedRate }, configs1, configs2, 1);
                                         var wgData = data.Where(x => x.StepId == 32);
                                         var oldFcIds = wgData.Where(x => x.Interval == WarningInterval.每次
                                                                          && (x.ItemType == WarningItemType.SingleQualifiedRate || x.ItemType == WarningItemType.SingleUnqualifiedRate)

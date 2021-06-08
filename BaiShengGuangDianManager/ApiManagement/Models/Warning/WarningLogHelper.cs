@@ -98,7 +98,7 @@ namespace ApiManagement.Models.Warning
 
             if (itemTypes != null && itemTypes.Any())
             {
-                param.Add("b.ItemType = @itemTypes");
+                param.Add("b.ItemType IN @itemTypes");
                 //var args = new List<Tuple<string, string, dynamic>>
                 //{
                 //    new Tuple<string, string, dynamic>("ItemType", "IN", itemTypes)
