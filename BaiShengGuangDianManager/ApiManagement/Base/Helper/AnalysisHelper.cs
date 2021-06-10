@@ -2011,10 +2011,21 @@ namespace ApiManagement.Base.Helper
                                 }
                                 else if (type == KanBanItemEnum.计划号工序推移图 || type == KanBanItemEnum.设备工序推移图 || type == KanBanItemEnum.操作工工序推移图)
                                 {
+                                    //班制
                                     var shift = 0;
+                                    //时间类型
                                     var timeType = StatisticProcessTimeEnum.小时;
+                                    //时间范围
                                     var range = 10;
+                                    //是否是合计
                                     var isSum = 0;
+                                    //是否是比较
+                                    var isCompare = 0;
+                                    //比较的时间类型
+                                    var cTimeType = StatisticProcessTimeEnum.小时;
+                                    //比较的时间范围类型
+                                    var cTimeRangeType = StatisticProcessTimeRangeEnum.前多少时间;
+                                    List<int> cTimeRange = null;
                                     List<int> steps = null;
                                     var deviceIds = set.DeviceIdList;
                                     deviceIds.Add(0);
@@ -2023,18 +2034,32 @@ namespace ApiManagement.Base.Helper
                                     List<int> processorIds = null;
                                     //item.ConfigList 工序推移图[0][0] 班制[0][1]数据类型[0][2]时间范围;[1][...]工序
                                     var index = 0;
+                                    var cIndex = 0;
                                     if (item.ConfigList.Length > index)
                                     {
                                         //班制
-                                        shift = item.ConfigList[index].Length > 0 ? item.ConfigList[index][0] : shift;
+                                        cIndex = 0;
+                                        shift = item.ConfigList[index].Length > cIndex ? item.ConfigList[index][cIndex] : shift;
                                         //时间类型
-                                        timeType = item.ConfigList[index].Length > 1 ? (StatisticProcessTimeEnum)item.ConfigList[index][1] : timeType;
+                                        cIndex = 1;
+                                        timeType = item.ConfigList[index].Length > cIndex ? (StatisticProcessTimeEnum)item.ConfigList[index][cIndex] : timeType;
                                         //时间范围
-                                        range = item.ConfigList[index].Length > 2 ? item.ConfigList[index][2] : range;
-                                        //合计
-                                        isSum = item.ConfigList[index].Length > 3 ? item.ConfigList[index][3] : isSum;
+                                        cIndex = 2;
+                                        range = item.ConfigList[index].Length > cIndex ? item.ConfigList[index][cIndex] : range;
+                                        //是否是合计
+                                        cIndex = 3;
+                                        isSum = item.ConfigList[index].Length > cIndex ? item.ConfigList[index][cIndex] : isSum;
+                                        //是否是比较
+                                        cIndex = 4;
+                                        isCompare = item.ConfigList[index].Length > cIndex ? item.ConfigList[index][cIndex] : isCompare;
+                                        //比较的时间类型
+                                        cIndex = 5;
+                                        cTimeType = item.ConfigList[index].Length > cIndex ? (StatisticProcessTimeEnum)item.ConfigList[index][cIndex] : cTimeType;
+                                        //比较的时间范围类型
+                                        cIndex = 6;
+                                        cTimeRangeType = item.ConfigList[index].Length > cIndex ? (StatisticProcessTimeRangeEnum)item.ConfigList[index][cIndex] : cTimeRangeType;
                                     }
-                                    //工序
+                                    //工序 当前只有单工序
                                     index = 1;
                                     if (item.ConfigList.Length > index && item.ConfigList[index].Length > 0)
                                     {
@@ -2055,6 +2080,18 @@ namespace ApiManagement.Base.Helper
                                     if (item.ConfigList.Length > index && item.ConfigList[index].Length > 0)
                                     {
                                         processorIds = item.ConfigList[index].ToList();
+                                    }
+                                    //操作工
+                                    index = 3;
+                                    if (item.ConfigList.Length > index && item.ConfigList[index].Length > 0)
+                                    {
+                                        processorIds = item.ConfigList[index].ToList();
+                                    }
+                                    //对比时间范围
+                                    index = 4;
+                                    if (item.ConfigList.Length > index && item.ConfigList[index].Length > 0)
+                                    {
+                                        cTimeRange = item.ConfigList[index].ToList();
                                     }
 
                                     try

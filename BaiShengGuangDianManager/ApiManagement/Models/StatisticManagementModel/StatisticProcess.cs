@@ -19,6 +19,15 @@ namespace ApiManagement.Models.StatisticManagementModel
         [Description("年")]
         年 = 4,
     }
+    public enum StatisticProcessTimeRangeEnum
+    {
+        [Description("前多少时间")]
+        前多少时间 = 0,
+        [Description("指定时间")]
+        指定时间 = 1,
+        [Description("时间范围")]
+        时间范围 = 2,
+    }
     public enum StatisticProcessTypeEnum
     {
         [Description("设备")]
