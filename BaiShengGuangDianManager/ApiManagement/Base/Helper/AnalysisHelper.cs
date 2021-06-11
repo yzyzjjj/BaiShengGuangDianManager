@@ -124,7 +124,7 @@ namespace ApiManagement.Base.Helper
         /// <summary>
         /// 设备状态
         /// </summary>
-        public static int stateDId = 1;
+        public static int IdleSecond = 600;
         /// <summary>
         /// 已加工时间
         /// </summary>
@@ -209,6 +209,8 @@ namespace ApiManagement.Base.Helper
 #else        
         private static int _dealLength = 2000;
 #endif
+        public static int stateDId = 1;
+
         //public static MonitoringKanBan MonitoringKanBan;
         //private static MonitoringKanBan _monitoringKanBan;
         /// <summary>
@@ -1895,9 +1897,9 @@ namespace ApiManagement.Base.Helper
                                 }
                                 else if (type == KanBanItemEnum.设备状态反馈)
                                 {
-                                    var idleSecond = RedisHelper.Get<int>(aIdleSecondKey);
+                                    IdleSecond = RedisHelper.Get<int>(aIdleSecondKey);
                                     var devices = MonitoringProcessHelper.GetMonitoringProcesses();
-                                    var idleDevices = devices.Where(x => x.State == 0 && x.TotalTime > idleSecond);
+                                    var idleDevices = devices.Where(x => x.State == 0 && x.TotalTime > IdleSecond);
                                     //var idleDevices = devices.Where(x => x.State == 0);
                                     MonitoringKanBanDic[id].ItemData[key].AddRange(idleDevices.Select(x => new DeviceStateInfo
                                     {

@@ -1,6 +1,9 @@
 ﻿using ModelBase.Base.EnumConfig;
+using ModelBase.Base.Utils;
 using ModelBase.Models.BaseModel;
 using Newtonsoft.Json;
+using System;
+using System.ComponentModel;
 
 namespace ApiManagement.Models.DeviceManagementModel
 {
@@ -115,11 +118,19 @@ namespace ApiManagement.Models.DeviceManagementModel
                 {
                     switch (DeviceState)
                     {
-                        case DeviceState.Waiting: return "待机";
-                        case DeviceState.Processing: return "加工中";
-                        case DeviceState.UpgradeScript: return "流程升级中";
-                        case DeviceState.UpgradeFirmware: return "固件升级中";
-                        case DeviceState.Restart: return "设备重启中";
+                        //case DeviceState.Readying: return "准备中";
+                        //case DeviceState.Waiting: return "待机";
+                        //case DeviceState.Processing: return "加工中";
+                        //case DeviceState.UpgradeScript: return "流程升级中";
+                        //case DeviceState.UpgradeFirmware: return "固件升级中";
+                        //case DeviceState.Restart: return "设备重启中";
+                        case DeviceState.Readying:
+                        case DeviceState.Waiting:
+                        case DeviceState.Processing:
+                        case DeviceState.UpgradeScript:
+                        case DeviceState.UpgradeFirmware:
+                        case DeviceState.Restart:
+                            return DeviceState.GetAttribute<DescriptionAttribute>()?.Description ?? "";
                     }
                 }
                 else
@@ -168,5 +179,13 @@ namespace ApiManagement.Models.DeviceManagementModel
         /// 剩余加工时间
         /// </summary>
         public string LeftTime { get; set; }
+
+        /// <summary>
+        /// 开始时间
+        /// </summary>
+        public DateTime StartTime { get; set; }/// <summary>
+                                               /// 本次过程已经历时间
+                                               /// </summary>
+        public int TotalTime => StartTime != default(DateTime) ? (int)(DateTime.Now - StartTime).TotalSeconds : 0;
     }
 }
