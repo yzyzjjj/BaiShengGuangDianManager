@@ -119,12 +119,12 @@ namespace ApiManagement.Base.Helper
         private static readonly string fcraLockKey = $"{fcraRedisPre}:Lock";
         private static readonly string fcraDeviceKey = $"{fcraRedisPre}:Device";
         #endregion
-
+        public static int IdleSecond = 600;
         #region 变量
         /// <summary>
         /// 设备状态
         /// </summary>
-        public static int IdleSecond = 600;
+        public static int stateDId = 1;
         /// <summary>
         /// 已加工时间
         /// </summary>
@@ -209,7 +209,6 @@ namespace ApiManagement.Base.Helper
 #else        
         private static int _dealLength = 2000;
 #endif
-        public static int stateDId = 1;
 
         //public static MonitoringKanBan MonitoringKanBan;
         //private static MonitoringKanBan _monitoringKanBan;
@@ -670,7 +669,7 @@ namespace ApiManagement.Base.Helper
                             "JOIN `npc_proxy_link` b ON a.Id = b.DeviceId " +
                             "JOIN (SELECT a.*, b.CategoryName FROM `device_model` a " +
                             "JOIN `device_category` b ON a.DeviceCategoryId = b.Id) c ON a.DeviceModelId = c.Id WHERE a.MarkedDelete = 0;").ToDictionary(x => x.DeviceId));
-                        var flag = false;
+                        var flag = true;
                         var currentProcessLog = MonitoringProcessLogHelper.GetDistinctProcessLogs(flag).ToDictionary(x => x.DeviceId);
                         foreach (var deviceId in allDeviceList.Keys)
                         {
@@ -685,6 +684,10 @@ namespace ApiManagement.Base.Helper
                                     currentProcessLog[deviceId].EndTime != default(DateTime)
                                         ? currentProcessLog[deviceId].EndTime
                                         : currentProcessLog[deviceId].StartTime;
+                                allDeviceList[deviceId].State =
+                                    currentProcessLog[deviceId].ProcessType == ProcessType.Idle ? 0 : 1;
+                                allDeviceList[deviceId].ProcessType =
+                                    currentProcessLog[deviceId].ProcessType;
                             }
                             if (allDeviceList[deviceId].State == 1 && allDeviceList[deviceId].ProcessType == ProcessType.Idle)
                             {

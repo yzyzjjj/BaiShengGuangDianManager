@@ -183,9 +183,10 @@ namespace ApiManagement.Models.DeviceManagementModel
         /// <summary>
         /// 开始时间
         /// </summary>
-        public DateTime StartTime { get; set; }/// <summary>
-                                               /// 本次过程已经历时间
-                                               /// </summary>
+        public DateTime StartTime { get; set; }
+        /// <summary>
+        /// 本次过程已经历时间
+        /// </summary>
         public int TotalTime => StartTime != default(DateTime) ? (int)(DateTime.Now - StartTime).TotalSeconds : 0;
     }
 }
