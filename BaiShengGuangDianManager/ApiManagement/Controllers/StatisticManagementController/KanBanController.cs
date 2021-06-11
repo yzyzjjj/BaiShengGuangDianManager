@@ -136,7 +136,7 @@ namespace ApiManagement.Controllers.StatisticManagementController
                             var idList = set.DeviceIdList;
                             var deviceLibraryDetails = ServerConfig.ApiDb.Query<DeviceLibraryDetail>(
                                 "SELECT a.*, b.ModelName, b.DeviceCategoryId, b.CategoryName, c.FirmwareName, d.ApplicationName, e.HardwareName, f.SiteName, f.Region, " +
-                                "g.ScriptName, IFNULL(h.`Name`, '')  AdministratorName, i.`Class`, j.FlowCardId, j.FlowCard, j.LastFlowCardId, j.LastFlowCard FROM device_library a " +
+                                "g.ScriptName, IFNULL(h.`Name`, '')  AdministratorName, i.`Class`, j.FlowCardId, j.FlowCard, j.LastFlowCardId, j.LastFlowCard, j.StartTime FROM device_library a " +
                                 $"JOIN (SELECT a.*, b.CategoryName FROM device_model a JOIN device_category b ON a.DeviceCategoryId = b.Id) b ON a.DeviceModelId = b.Id " +
                                 "JOIN firmware_library c ON a.FirmwareId = c.Id " +
                                 "JOIN application_library d ON a.ApplicationId = d.Id " +
@@ -188,6 +188,10 @@ namespace ApiManagement.Controllers.StatisticManagementController
                                             {
                                                 deviceLibraryDetails[deviceId].State = deviceInfo.State;
                                                 deviceLibraryDetails[deviceId].DeviceState = deviceInfo.DeviceState;
+                                                if (deviceLibraryDetails[deviceId].DeviceState == DeviceState.Waiting && deviceLibraryDetails[deviceId].TotalTime<= AnalysisHelper.IdleSecond)
+                                                {
+                                                    deviceLibraryDetails[deviceId].DeviceState = DeviceState.Readying;
+                                                }
                                             }
                                         }
                                     }
@@ -211,8 +215,10 @@ namespace ApiManagement.Controllers.StatisticManagementController
                                      + other.Count(x => x.DeviceState == DeviceState.Restart)
                                      + other.Count(x => x.DeviceState == DeviceState.UpgradeFirmware)
                                      + other.Count(x => x.DeviceState == DeviceState.UpgradeScript)
+                                     + other.Count(x => x.DeviceState == DeviceState.Readying)
                                      + other.Count(x => x.DeviceState == DeviceState.Waiting);
                             var jg = other.Count(x => x.DeviceState == DeviceState.Processing);
+                            var zb = other.Count(x => x.DeviceState == DeviceState.Readying);
                             var xz = other.Count(x => x.DeviceState == DeviceState.Waiting);
                             var wlj = sum - zc;
                             var tp = (int)Math.Ceiling((decimal)sum / (set.Length <= 0 ? 30 : set.Length));
@@ -334,8 +340,9 @@ namespace ApiManagement.Controllers.StatisticManagementController
                                 errno = 0,
                                 errmsg = "成功",
                                 time = DateTime.Now,
-                                zc,
                                 jg,
+                                zc,
+                                zb,
                                 xz,
                                 gz,
                                 wlj,

@@ -16,6 +16,9 @@ namespace ApiManagement.Models.MaterialManagementModel
         订单完成,
         撤销,
         已入库,
+        采购中,
+        部分入库,
+        完全入库,
     }
     public enum MaterialPurchasePriorityEnum
     {

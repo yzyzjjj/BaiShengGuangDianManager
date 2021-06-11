@@ -721,6 +721,7 @@ namespace ApiManagement.Base.Helper
 
                         if (!EnumHelper.TryParseStr(p.f_zt, out MaterialPurchaseStateEnum state, true))
                         {
+                            Log.Info($"f_id:{p.f_id}, f_zt:{p.f_zt}");
                             continue;
                         }
 
