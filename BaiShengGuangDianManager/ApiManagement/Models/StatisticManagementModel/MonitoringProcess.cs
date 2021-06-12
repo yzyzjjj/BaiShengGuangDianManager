@@ -3,7 +3,7 @@ using ApiManagement.Models.Warning;
 using ModelBase.Base.Logger;
 using ModelBase.Base.Utils;
 using ModelBase.Models.Device;
-using Newtonsoft.Json;using ModelBase.Models.BaseModel;
+using Newtonsoft.Json;
 using ServiceStack;
 using System;
 using System.Collections.Generic;
@@ -195,6 +195,10 @@ namespace ApiManagement.Models.StatisticManagementModel
         /// 是否有插入加工日志  npc_monitoring_process_log
         /// </summary>
         public bool NewLog => LogId == 0;
+        /// <summary>
+        /// 设备数据
+        /// </summary>
+        public DeviceData AnalysisData { get; set; }
         #endregion
     }
 
@@ -609,8 +613,21 @@ namespace ApiManagement.Models.StatisticManagementModel
         /// <summary>
         /// 预警时间
         /// </summary>
-        public DateTime WarningTime => Warning ?
-           DeviceWarningList.Values.Max(x => x.WarningTime).Max(ProductWarningList.Values.Max(x => x.WarningTime)) : default(DateTime);
+        public DateTime WarningTime
+        {
+            get
+            {
+                var t1 = DeviceWarning
+                    ? DeviceWarningList.Values.Max(x => x.WarningTime)
+                    : default(DateTime);
+                var t2 = ProductWarning
+                    ? ProductWarningList.Values.Max(x => x.WarningTime)
+                    : default(DateTime);
+                return Warning
+                    ? (t1.Max(t2))
+                    : default(DateTime);
+            }
+        }
 
         /// <summary>
         /// 设备数据预警列表ItemId

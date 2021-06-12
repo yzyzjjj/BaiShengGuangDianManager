@@ -16,6 +16,7 @@ using ServiceStack;
 using System;
 using System.Collections.Generic;
 using System.ComponentModel;
+using System.Diagnostics;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
@@ -30,16 +31,22 @@ namespace ApiManagement.Base.Helper
         private static readonly string Debug = "Debug";
         #region Analysis
         private static readonly string aRedisPre = "Analysis";
-        private static bool aRun = false;
         private static readonly string aLockKey = $"{aRedisPre}:Lock";
         private static readonly string aIdKey = $"{aRedisPre}:Id";
         private static readonly string aDeviceKey = $"{aRedisPre}:Device";
-        private static readonly string aKanBanKey = $"{aRedisPre}:KanBan";
-        private static readonly string aKanBanDeviceKey = $"{aRedisPre}:KanBanDevice";
         private static readonly string aIdleSecondKey = $"{aRedisPre}:IdleSecond";
         private static readonly string aExceptDeviceKey = $"{aRedisPre}:ExceptDevice";
         private static readonly string aTimeKey = $"{aRedisPre}:Time";
         private static readonly string aProcessLogIdKey = $"{aRedisPre}:ProcessLogId";
+        #endregion
+
+        #region kanBan
+        private static readonly string kbRedisPre = "kanBan";
+        private static readonly string kbLockKey = $"{kbRedisPre}:Lock";
+        private static readonly string kbTimeKey = $"{aRedisPre}:Time";
+        private static readonly string kbIdKey = $"{kbRedisPre}:Id";
+        private static readonly string kbInfoKey = $"{kbRedisPre}:Info";
+        private static readonly string kbDeviceKey = $"{kbRedisPre}:Device";
         #endregion
 
         #region ProcessSum
@@ -119,12 +126,12 @@ namespace ApiManagement.Base.Helper
         private static readonly string fcraLockKey = $"{fcraRedisPre}:Lock";
         private static readonly string fcraDeviceKey = $"{fcraRedisPre}:Device";
         #endregion
-
+        public static int IdleSecond = 600;
         #region 变量
         /// <summary>
         /// 设备状态
         /// </summary>
-        public static int IdleSecond = 600;
+        public static int stateDId = 1;
         /// <summary>
         /// 已加工时间
         /// </summary>
@@ -209,7 +216,6 @@ namespace ApiManagement.Base.Helper
 #else        
         private static int _dealLength = 2000;
 #endif
-        public static int stateDId = 1;
 
         //public static MonitoringKanBan MonitoringKanBan;
         //private static MonitoringKanBan _monitoringKanBan;
@@ -273,6 +279,9 @@ namespace ApiManagement.Base.Helper
             //t.Stop();
             //Console.WriteLine(t.ElapsedMilliseconds);
             AnalysisOther();
+
+            UpdateKanBan(DateTime.Now);
+
         }
 
         private static void DoSth_10s(object state)
@@ -607,8 +616,7 @@ namespace ApiManagement.Base.Helper
             {
                 try
                 {
-                    RedisHelper.SetExpireAt(aLockKey, DateTime.Now.AddMinutes(5));
-                    aRun = true;
+                    RedisHelper.SetExpireAt(aLockKey, DateTime.Now.AddMinutes(30));
                     var now = DateTime.Now;
                     var workshop = WorkshopHelper.Instance.Get<Workshop>(1);
 
@@ -622,8 +630,8 @@ namespace ApiManagement.Base.Helper
                         exceptDevices.AddRange(exceptDevicesStr.Split(",").Select(int.Parse));
                     }
 
-                    var monitoringKanBanList = new List<MonitoringKanBan>();
-                    var monitoringKanBanDeviceList = new List<MonitoringKanBanDevice>();
+                    //var monitoringKanBanList = new List<MonitoringKanBan>();
+                    //var monitoringKanBanDeviceList = new List<MonitoringKanBanDevice>();
                     var monitoringProcesses = new List<MonitoringProcess>();
                     //加工日志
                     var oldProcessLogs = new List<MonitoringProcessLogFlag>();
@@ -633,32 +641,37 @@ namespace ApiManagement.Base.Helper
                     var allDeviceList = new Dictionary<int, MonitoringProcess>();
                     if (RedisHelper.Exists(aDeviceKey))
                     {
-                        allDeviceList.AddRange(ServerConfig.ApiDb.Query<MonitoringProcess>(
-                            "SELECT a.Id DeviceId, c.DeviceCategoryId, c.CategoryName, a.`Code`, a.`ScriptId` FROM `device_library` a " +
-                            "JOIN (SELECT a.*, b.CategoryName FROM `device_model` a " +
-                            "JOIN `device_category` b ON a.DeviceCategoryId = b.Id) c ON a.DeviceModelId = c.Id WHERE a.MarkedDelete = 0;").ToDictionary(x => x.DeviceId));
+                        allDeviceList.AddRange(GetMonitoringProcesses().ToDictionary(x => x.DeviceId));
 
-                        var redisDeviceList = RedisHelper.Get<string>(aDeviceKey).ToClass<IEnumerable<MonitoringProcess>>();
-                        if (redisDeviceList != null)
-                        {
-                            foreach (var redisDevice in redisDeviceList)
-                            {
-                                var deviceId = redisDevice.DeviceId;
-                                if (allDeviceList.ContainsKey(deviceId))
-                                {
-                                    var device = allDeviceList[deviceId];
-                                    redisDevice.DeviceCategoryId = device.DeviceCategoryId;
-                                    redisDevice.CategoryName = device.CategoryName;
-                                    redisDevice.Code = device.Code;
-                                    redisDevice.ScriptId = device.ScriptId;
-                                    allDeviceList[deviceId] = redisDevice;
-                                    if (allDeviceList[deviceId].State == 1 && allDeviceList[deviceId].ProcessType == ProcessType.Idle)
-                                    {
-                                        allDeviceList[deviceId].ProcessType = ProcessType.Process;
-                                    }
-                                }
-                            }
-                        }
+                        #region old
+
+                        //allDeviceList.AddRange(ServerConfig.ApiDb.Query<MonitoringProcess>(
+                        //    "SELECT a.Id DeviceId, c.DeviceCategoryId, c.CategoryName, a.`Code`, a.`ScriptId` FROM `device_library` a " +
+                        //    "JOIN (SELECT a.*, b.CategoryName FROM `device_model` a " +
+                        //    "JOIN `device_category` b ON a.DeviceCategoryId = b.Id) c ON a.DeviceModelId = c.Id WHERE a.MarkedDelete = 0;").ToDictionary(x => x.DeviceId));
+
+                        //var redisDeviceList = RedisHelper.Get<string>(aDeviceKey).ToClass<IEnumerable<MonitoringProcess>>();
+                        //if (redisDeviceList != null)
+                        //{
+                        //    foreach (var redisDevice in redisDeviceList)
+                        //    {
+                        //        var deviceId = redisDevice.DeviceId;
+                        //        if (allDeviceList.ContainsKey(deviceId))
+                        //        {
+                        //            var device = allDeviceList[deviceId];
+                        //            redisDevice.DeviceCategoryId = device.DeviceCategoryId;
+                        //            redisDevice.CategoryName = device.CategoryName;
+                        //            redisDevice.Code = device.Code;
+                        //            redisDevice.ScriptId = device.ScriptId;
+                        //            allDeviceList[deviceId] = redisDevice;
+                        //            if (allDeviceList[deviceId].State == 1 && allDeviceList[deviceId].ProcessType == ProcessType.Idle)
+                        //            {
+                        //                allDeviceList[deviceId].ProcessType = ProcessType.Process;
+                        //            }
+                        //        }
+                        //    }
+                        //}
+                        #endregion
 
                         var logIds = allDeviceList.Values.Select(x => x.LogId).Where(x => x != 0);
                         oldProcessLogs.AddRange(MonitoringProcessLogHelper.GetProcessLogFlags(logIds));
@@ -670,7 +683,7 @@ namespace ApiManagement.Base.Helper
                             "JOIN `npc_proxy_link` b ON a.Id = b.DeviceId " +
                             "JOIN (SELECT a.*, b.CategoryName FROM `device_model` a " +
                             "JOIN `device_category` b ON a.DeviceCategoryId = b.Id) c ON a.DeviceModelId = c.Id WHERE a.MarkedDelete = 0;").ToDictionary(x => x.DeviceId));
-                        var flag = false;
+                        var flag = true;
                         var currentProcessLog = MonitoringProcessLogHelper.GetDistinctProcessLogs(flag).ToDictionary(x => x.DeviceId);
                         foreach (var deviceId in allDeviceList.Keys)
                         {
@@ -685,6 +698,10 @@ namespace ApiManagement.Base.Helper
                                     currentProcessLog[deviceId].EndTime != default(DateTime)
                                         ? currentProcessLog[deviceId].EndTime
                                         : currentProcessLog[deviceId].StartTime;
+                                allDeviceList[deviceId].State =
+                                    currentProcessLog[deviceId].ProcessType == ProcessType.Idle ? 0 : 1;
+                                allDeviceList[deviceId].ProcessType =
+                                    currentProcessLog[deviceId].ProcessType;
                             }
                             if (allDeviceList[deviceId].State == 1 && allDeviceList[deviceId].ProcessType == ProcessType.Idle)
                             {
@@ -738,7 +755,6 @@ namespace ApiManagement.Base.Helper
                             Id = startId,
                             limit = _dealLength
                         });
-
                     var minTime = lastTime;
                     var maxTime = kanBanTime;
                     IEnumerable<MonitoringData> tData = null;
@@ -1382,17 +1398,19 @@ namespace ApiManagement.Base.Helper
                         }
                     }
 
-                    UpdateKanBan(allDeviceList, kanBanTime);
-                    monitoringKanBanList.AddRange(MonitoringKanBanDic.Values);
-                    monitoringKanBanDeviceList.AddRange(MonitoringKanBanDeviceDic.Values);
-
                     //RedisHelper.SetForever(aDeviceKey, deviceList.Values.Select(x => new
                     RedisHelper.SetForever(aDeviceKey, allDeviceList.Values
                         .Select(ClassExtension.CopyTo<MonitoringProcess, MonitoringProcessAnalysis>).OrderBy(x => x.DeviceId).ToJSON());
 
-                    RedisHelper.SetForever(aKanBanKey, monitoringKanBanList.ToJSON());
+                    //UpdateKanBanLogic(kanBanTime, false);
+                    //UpdateKanBan(allDeviceList, kanBanTime);
+                    //monitoringKanBanList.AddRange(MonitoringKanBanDic.Values);
+                    //monitoringKanBanDeviceList.AddRange(MonitoringKanBanDeviceDic.Values);
 
-                    RedisHelper.SetForever(aKanBanDeviceKey, monitoringKanBanDeviceList.ToJSON());
+
+                    //RedisHelper.SetForever(aKanBanKey, monitoringKanBanList.ToJSON());
+
+                    //RedisHelper.SetForever(aKanBanDeviceKey, monitoringKanBanDeviceList.ToJSON());
 
                     var changeLogs = oldProcessLogs.Where(x => x.Change);
                     if (changeLogs.Any())
@@ -1433,7 +1451,7 @@ namespace ApiManagement.Base.Helper
                         });
                     }
 
-                    InsertAnalysis(monitoringProcesses, monitoringKanBanList, monitoringKanBanDeviceList);
+                    InsertAnalysis(monitoringProcesses);
 
                     RedisHelper.SetForever(aTimeKey, kanBanTime.ToStr());
                     RedisHelper.SetForever(aIdKey, endId);
@@ -1442,25 +1460,7 @@ namespace ApiManagement.Base.Helper
                 {
                     Log.Error(e);
                 }
-                aRun = false;
                 RedisHelper.Remove(aLockKey);
-            }
-            else
-            {
-                if (aRun)
-                {
-                    return;
-                }
-                if (RedisHelper.Exists(aKanBanDeviceKey))
-                {
-                    var t = RedisHelper.Get<string>(aKanBanDeviceKey).ToClass<IEnumerable<MonitoringKanBanDevice>>();
-                    MonitoringKanBanDeviceDic = t.ToDictionary(x => x.DeviceId);
-                }
-                if (RedisHelper.Exists(aKanBanKey))
-                {
-                    var t = RedisHelper.Get<string>(aKanBanKey).ToClass<IEnumerable<MonitoringKanBan>>();
-                    MonitoringKanBanDic = t.ToDictionary(x => x.Id);
-                }
             }
         }
 
@@ -1500,9 +1500,12 @@ namespace ApiManagement.Base.Helper
             };
         }
 
-        private static void InsertAnalysis(IEnumerable<MonitoringProcess> monitoringProcesses, IEnumerable<MonitoringKanBan> monitoringKanBanList, IEnumerable<MonitoringKanBanDevice> monitoringKanBanDeviceList)
+        private static void InsertAnalysis(IEnumerable<MonitoringProcess> monitoringProcesses,
+            IEnumerable<MonitoringKanBan> monitoringKanBanList = null, IEnumerable<MonitoringKanBanDevice> monitoringKanBanDeviceList = null)
         {
-            Task.Run(() =>
+            if (monitoringKanBanList != null && monitoringKanBanList.Any())
+            {
+                Task.Run(() =>
             {
                 ServerConfig.ApiDb.Execute(
                     "INSERT INTO kanban_log (`Date`, `Time`, `Id`, `AllDevice`, `NormalDevice`, `ProcessDevice`, `IdleDevice`, `FaultDevice`, `ConnectErrorDevice`, `MaxUse`, `UseListStr`, " +
@@ -1521,7 +1524,9 @@ namespace ApiManagement.Base.Helper
                     "`ProductionData` = @ProductionData, `VariableData` = @VariableData;"
                     , monitoringKanBanList);
 
-                ServerConfig.ApiDb.Execute(
+                if (monitoringKanBanDeviceList != null && monitoringKanBanDeviceList.Any())
+                {
+                    ServerConfig.ApiDb.Execute(
                     "INSERT INTO kanban_device_state (`Date`, `Time`, `DeviceId`, `AllDevice`, `NormalDevice`, `ProcessDevice`, `IdleDevice`, `FaultDevice`, `ConnectErrorDevice`, `MaxUse`, `UseListStr`, " +
                     "`MaxUseListStr`, `MaxUseRate`, `MinUse`, `MinUseRate`, `MaxSimultaneousUseRate`, `MinSimultaneousUseRate`, `SingleProcessRateStr`, `AllProcessRate`, `RunTime`, `ProcessTime`, `IdleTime`, " +
                     "`DayTotal`, `DayQualified`, `DayUnqualified`, `DayQualifiedRate`, `DayUnqualifiedRate`" +
@@ -1535,8 +1540,11 @@ namespace ApiManagement.Base.Helper
                     "`SingleProcessRateStr` = @SingleProcessRateStr, `AllProcessRate` = @AllProcessRate, `RunTime` = @RunTime, `ProcessTime` = @ProcessTime, `IdleTime` = @IdleTime, " +
                     "`DayTotal` = @DayTotal, `DayQualified` = @DayQualified, `DayUnqualified` = @DayUnqualified, `DayQualifiedRate` = @DayQualifiedRate, `DayUnqualifiedRate` = @DayUnqualifiedRate;"
                     , monitoringKanBanDeviceList);
+                }
 
-                ServerConfig.ApiDb.ExecuteTrans(
+                if (monitoringProcesses != null && monitoringProcesses.Any())
+                {
+                    ServerConfig.ApiDb.ExecuteTrans(
                    "INSERT INTO `npc_monitoring_process` (`Time`, `DeviceId`, `State`, `ProcessCount`, `TotalProcessCount`, `ProcessTime`, `TotalProcessTime`, `RunTime`, `TotalRunTime`, `Use`, " +
                    "`Total`, `Rate`, `DayTotal`, `DayQualified`, `DayUnqualified`, `DayQualifiedRate`, `DayUnqualifiedRate`) " +
                    "VALUES (@Time, @DeviceId, @State, @ProcessCount, @TotalProcessCount, @ProcessTime, @TotalProcessTime, @RunTime, @TotalRunTime, @Use, @Total, @Rate, @DayTotal, @DayQualified, " +
@@ -1545,14 +1553,59 @@ namespace ApiManagement.Base.Helper
                    "`ProcessTime` = @ProcessTime, `TotalProcessTime` = @TotalProcessTime, `RunTime` = @RunTime, `TotalRunTime` = @TotalRunTime, `Use` = @Use, `Total` = @Total, `Rate` = @Rate, " +
                    "`DayTotal` = @DayTotal, `DayQualified` = @DayQualified, `DayUnqualified` = @DayUnqualified, `DayQualifiedRate` = @DayQualifiedRate, `DayUnqualifiedRate` = @DayUnqualifiedRate;",
                    monitoringProcesses);
+                }
             });
+            }
         }
 
-        private static void UpdateKanBan(Dictionary<int, MonitoringProcess> allDeviceList, DateTime time)
+        private static bool kbRun = false;
+        private static void UpdateKanBan(DateTime time)
+        {
+            if (RedisHelper.SetIfNotExist(kbLockKey, DateTime.Now.ToStr()))
+            {
+                kbRun = true;
+                UpdateKanBanLogic(time);
+                kbRun = false;
+                RedisHelper.Remove(kbLockKey);
+            }
+            else
+            {
+                if (kbRun)
+                {
+                    return;
+                }
+
+                if (RedisHelper.Exists(kbInfoKey))
+                {
+                    var t = RedisHelper.Get<string>(kbInfoKey).ToClass<IEnumerable<MonitoringKanBan>>();
+                    MonitoringKanBanDic = t.ToDictionary(x => x.Id);
+                }
+                if (RedisHelper.Exists(kbDeviceKey))
+                {
+                    var t = RedisHelper.Get<string>(kbDeviceKey).ToClass<IEnumerable<MonitoringKanBanDevice>>();
+                    MonitoringKanBanDeviceDic = t.ToDictionary(x => x.DeviceId);
+                }
+            }
+        }
+
+        private static void UpdateKanBanLogic(DateTime time, bool real = true)
         {
             try
             {
+                var ws = Stopwatch.StartNew();
+                long t1 = 0;
+                long t2 = 0;
+                RedisHelper.SetExpireAt(kbLockKey, DateTime.Now.AddMinutes(5));
+                var monitoringKanBanList = new List<MonitoringKanBan>();
+                var monitoringKanBanDeviceList = new List<MonitoringKanBanDevice>();
+                var allDeviceList = GetMonitoringProcesses().ToDictionary(x => x.DeviceId);
+                t2 = ws.ElapsedMilliseconds;
+                Console.WriteLine($"k0 {t2} {t2 - t1}");
+                t1 = t2;
                 var sets = MonitoringKanBanSetHelper.Instance.GetAll<MonitoringKanBanSet>().ToList();
+                t2 = ws.ElapsedMilliseconds;
+                Console.WriteLine($"k01 {t2} {t2 - t1}");
+                t1 = t2;
                 sets.Add(new MonitoringKanBanSet
                 {
                     Id = 0,
@@ -1571,6 +1624,9 @@ namespace ApiManagement.Base.Helper
                     }
                 }
 
+                t2 = ws.ElapsedMilliseconds;
+                Console.WriteLine($"k1 {t2} {t2 - t1}");
+                t1 = t2;
                 var workshopIds = sets.Select(x => x.WorkshopId).Where(x => x != 0).Distinct();
                 var workshops = WorkshopHelper.Instance.GetAllByIds<Workshop>(workshopIds).ToDictionary(x => x.Id);
                 var scriptIds = sets.SelectMany(x => x.VariableList.Select(y => y.ScriptId)).Where(x => x != 0).Distinct();
@@ -1596,6 +1652,10 @@ namespace ApiManagement.Base.Helper
                     }
                 }
 
+                t2 = ws.ElapsedMilliseconds;
+                Console.WriteLine($"k2 {t2} {t2 - t1}");
+                t1 = t2;
+                var t3 = t1;
                 #region MonitoringKanBanDic
                 foreach (var id in MonitoringKanBanDic.Keys)
                 {
@@ -2112,13 +2172,32 @@ namespace ApiManagement.Base.Helper
                             #endregion
                         }
                     }
+
+                    t2 = ws.ElapsedMilliseconds;
+                    Console.WriteLine($"k21 {id} {t2} {t2 - t3}");
+                    t3 = t2;
+                    Console.WriteLine($"------");
                 }
                 #endregion
+
+
+                t2 = ws.ElapsedMilliseconds;
+                Console.WriteLine($"k3 {t2} {t2 - t1}");
+                t1 = t2;
+                monitoringKanBanList.AddRange(MonitoringKanBanDic.Values);
+                monitoringKanBanDeviceList.AddRange(MonitoringKanBanDeviceDic.Values);
+
+                InsertAnalysis(null, monitoringKanBanList, monitoringKanBanDeviceList);
+
+                RedisHelper.SetForever(kbInfoKey, monitoringKanBanList.ToJSON());
+                RedisHelper.SetForever(kbDeviceKey, monitoringKanBanDeviceList.ToJSON());
+                RedisHelper.SetForever(kbTimeKey, time.ToStr());
             }
             catch (Exception e)
             {
                 Log.Error(e);
             }
+            RedisHelper.Remove(kbLockKey);
         }
 
         public static int ttt = 0;
@@ -2131,6 +2210,11 @@ namespace ApiManagement.Base.Helper
             var allDeviceList = MonitoringProcessHelper.GetMonitoringProcesses(deviceIds).ToDictionary(x => x.DeviceId);
             if (RedisHelper.Exists(aDeviceKey))
             {
+                allDeviceList.AddRange(ServerConfig.ApiDb.Query<MonitoringProcess>(
+                    "SELECT a.Id DeviceId, c.DeviceCategoryId, c.CategoryName, a.`Code`, a.`ScriptId` FROM `device_library` a " +
+                    "JOIN (SELECT a.*, b.CategoryName FROM `device_model` a " +
+                    "JOIN `device_category` b ON a.DeviceCategoryId = b.Id) c ON a.DeviceModelId = c.Id WHERE a.MarkedDelete = 0;").ToDictionary(x => x.DeviceId));
+
                 var redisDeviceList = RedisHelper.Get<string>(aDeviceKey).ToClass<IEnumerable<MonitoringProcess>>();
                 if (redisDeviceList != null)
                 {
@@ -2141,12 +2225,33 @@ namespace ApiManagement.Base.Helper
                         {
                             var device = allDeviceList[deviceId];
                             redisDevice.DeviceCategoryId = device.DeviceCategoryId;
+                            redisDevice.CategoryName = device.CategoryName;
                             redisDevice.Code = device.Code;
                             redisDevice.ScriptId = device.ScriptId;
                             allDeviceList[deviceId] = redisDevice;
+                            if (allDeviceList[deviceId].State == 1 && allDeviceList[deviceId].ProcessType == ProcessType.Idle)
+                            {
+                                allDeviceList[deviceId].ProcessType = ProcessType.Process;
+                            }
                         }
                     }
                 }
+                //var redisDeviceList = RedisHelper.Get<string>(aDeviceKey).ToClass<IEnumerable<MonitoringProcess>>();
+                //if (redisDeviceList != null)
+                //{
+                //    foreach (var redisDevice in redisDeviceList)
+                //    {
+                //        var deviceId = redisDevice.DeviceId;
+                //        if (allDeviceList.ContainsKey(deviceId))
+                //        {
+                //            var device = allDeviceList[deviceId];
+                //            redisDevice.DeviceCategoryId = device.DeviceCategoryId;
+                //            redisDevice.Code = device.Code;
+                //            redisDevice.ScriptId = device.ScriptId;
+                //            allDeviceList[deviceId] = redisDevice;
+                //        }
+                //    }
+                //}
             }
             return allDeviceList.Values;
         }

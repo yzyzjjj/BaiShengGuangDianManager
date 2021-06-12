@@ -1372,8 +1372,7 @@ namespace ApiManagement.Base.Helper
                                 }
                                 catch (Exception e)
                                 {
-                                    Log.ErrorFormat("GetFlowCardReportUpdate erp数据解析失败,原因:{0},错误:{1}", e.Message,
-                                        e.StackTrace);
+                                    Log.Error($"GetFlowCardReportUpdate erp数据解析失败,step:{step.StepName},Id:{step.Id},url:{_url},原因:{e.Message},错误:{e.StackTrace}");
                                 }
                             }
                             else
