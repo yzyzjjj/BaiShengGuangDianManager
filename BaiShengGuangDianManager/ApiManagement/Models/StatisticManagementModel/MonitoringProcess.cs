@@ -195,6 +195,10 @@ namespace ApiManagement.Models.StatisticManagementModel
         /// 是否有插入加工日志  npc_monitoring_process_log
         /// </summary>
         public bool NewLog => LogId == 0;
+        /// <summary>
+        /// 设备数据
+        /// </summary>
+        public DeviceData AnalysisData { get; set; }
         #endregion
     }
 
