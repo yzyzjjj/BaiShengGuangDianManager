@@ -16,7 +16,6 @@ using ServiceStack;
 using System;
 using System.Collections.Generic;
 using System.ComponentModel;
-using System.Diagnostics;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
@@ -1592,20 +1591,11 @@ namespace ApiManagement.Base.Helper
         {
             try
             {
-                var ws = Stopwatch.StartNew();
-                long t1 = 0;
-                long t2 = 0;
                 RedisHelper.SetExpireAt(kbLockKey, DateTime.Now.AddMinutes(5));
                 var monitoringKanBanList = new List<MonitoringKanBan>();
                 var monitoringKanBanDeviceList = new List<MonitoringKanBanDevice>();
                 var allDeviceList = GetMonitoringProcesses().ToDictionary(x => x.DeviceId);
-                t2 = ws.ElapsedMilliseconds;
-                Console.WriteLine($"k0 {t2} {t2 - t1}");
-                t1 = t2;
                 var sets = MonitoringKanBanSetHelper.Instance.GetAll<MonitoringKanBanSet>().ToList();
-                t2 = ws.ElapsedMilliseconds;
-                Console.WriteLine($"k01 {t2} {t2 - t1}");
-                t1 = t2;
                 sets.Add(new MonitoringKanBanSet
                 {
                     Id = 0,
@@ -1624,9 +1614,6 @@ namespace ApiManagement.Base.Helper
                     }
                 }
 
-                t2 = ws.ElapsedMilliseconds;
-                Console.WriteLine($"k1 {t2} {t2 - t1}");
-                t1 = t2;
                 var workshopIds = sets.Select(x => x.WorkshopId).Where(x => x != 0).Distinct();
                 var workshops = WorkshopHelper.Instance.GetAllByIds<Workshop>(workshopIds).ToDictionary(x => x.Id);
                 var scriptIds = sets.SelectMany(x => x.VariableList.Select(y => y.ScriptId)).Where(x => x != 0).Distinct();
@@ -1652,10 +1639,6 @@ namespace ApiManagement.Base.Helper
                     }
                 }
 
-                t2 = ws.ElapsedMilliseconds;
-                Console.WriteLine($"k2 {t2} {t2 - t1}");
-                t1 = t2;
-                var t3 = t1;
                 #region MonitoringKanBanDic
                 foreach (var id in MonitoringKanBanDic.Keys)
                 {
@@ -2172,18 +2155,9 @@ namespace ApiManagement.Base.Helper
                             #endregion
                         }
                     }
-
-                    t2 = ws.ElapsedMilliseconds;
-                    Console.WriteLine($"k21 {id} {t2} {t2 - t3}");
-                    t3 = t2;
-                    Console.WriteLine($"------");
                 }
                 #endregion
 
-
-                t2 = ws.ElapsedMilliseconds;
-                Console.WriteLine($"k3 {t2} {t2 - t1}");
-                t1 = t2;
                 monitoringKanBanList.AddRange(MonitoringKanBanDic.Values);
                 monitoringKanBanDeviceList.AddRange(MonitoringKanBanDeviceDic.Values);
 
