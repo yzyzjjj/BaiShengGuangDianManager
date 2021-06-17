@@ -1642,7 +1642,7 @@ namespace ApiManagement.Base.Helper
                 #region MonitoringKanBanDic
                 foreach (var id in MonitoringKanBanDic.Keys)
                 {
-                    Console.WriteLine(id);
+                    //Console.WriteLine(id);
                     var set = sets.FirstOrDefault(x => x.Id == id);
                     if (set != null && set.DeviceIdList.Any())
                     {

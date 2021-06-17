@@ -586,54 +586,54 @@ namespace ApiManagement.Models.StatisticManagementModel
                 var pre = 0;
                 var dTimeType = timeType == StatisticProcessTimeEnum.小时 ?
                     StatisticProcessTimeEnum.小时 : shift == 0 ? StatisticProcessTimeEnum.日 : StatisticProcessTimeEnum.小时;
-                DateTime ws;
-                DateTime we;
-                switch (timeType)
-                {
-                    case StatisticProcessTimeEnum.小时:
-                        days.Add(dayTime.Item1.Date);
-                        break;
-                    case StatisticProcessTimeEnum.日:
-                        for (var i = range - 1; i >= 0; i--)
-                        {
-                            var t = dayTime.Item1.Date.AddDays(-i);
-                            days.Add(t);
-                        }
-                        break;
-                    case StatisticProcessTimeEnum.周:
-                        var week = DateTimeExtend.GetWorkWeek(0, time, workshop.StatisticTimeList);
-                        ws = week.Item1.Date.AddWeeks(1 - range);
-                        we = week.Item1.Date.AddWeeks(1);
-                        while (ws < we)
-                        {
-                            days.Add(ws);
-                            ws = ws.AddDays(1);
-                        }
-                        break;
-                    case StatisticProcessTimeEnum.月:
-                        var month = DateTimeExtend.GetWorkMonth(0, time, workshop.StatisticTimeList);
-                        ws = month.Item1.Date.AddMonths(1 - range);
-                        we = month.Item1.Date.AddMonths(1);
-                        while (ws < we)
-                        {
-                            days.Add(ws);
-                            ws = ws.AddDays(1);
-                        }
-                        break;
-                    case StatisticProcessTimeEnum.年:
-                        var year = DateTimeExtend.GetWorkYear(0, time, workshop.StatisticTimeList);
-                        ws = year.Item1.Date.AddYears(1 - range);
-                        we = year.Item1.Date.AddYears(1);
-                        while (ws < we)
-                        {
-                            days.Add(ws);
-                            ws = ws.AddDays(1);
-                        }
-                        break;
-                }
 
                 if (isCompare)
                 {
+                    DateTime ws;
+                    DateTime we;
+                    switch (timeType)
+                    {
+                        case StatisticProcessTimeEnum.小时:
+                            days.Add(dayTime.Item1.Date);
+                            break;
+                        case StatisticProcessTimeEnum.日:
+                            for (var i = range - 1; i >= 0; i--)
+                            {
+                                var t = dayTime.Item1.Date.AddDays(-i);
+                                days.Add(t);
+                            }
+                            break;
+                        case StatisticProcessTimeEnum.周:
+                            var week = DateTimeExtend.GetWorkWeek(0, time, workshop.StatisticTimeList);
+                            ws = week.Item1.Date.AddWeeks(1 - range);
+                            we = week.Item1.Date.AddWeeks(1);
+                            while (ws < we)
+                            {
+                                days.Add(ws);
+                                ws = ws.AddDays(1);
+                            }
+                            break;
+                        case StatisticProcessTimeEnum.月:
+                            var month = DateTimeExtend.GetWorkMonth(0, time, workshop.StatisticTimeList);
+                            ws = month.Item1.Date.AddMonths(1 - range);
+                            we = month.Item1.Date.AddMonths(1);
+                            while (ws < we)
+                            {
+                                days.Add(ws);
+                                ws = ws.AddDays(1);
+                            }
+                            break;
+                        case StatisticProcessTimeEnum.年:
+                            var year = DateTimeExtend.GetWorkYear(0, time, workshop.StatisticTimeList);
+                            ws = year.Item1.Date.AddYears(1 - range);
+                            we = year.Item1.Date.AddYears(1);
+                            while (ws < we)
+                            {
+                                days.Add(ws);
+                                ws = ws.AddDays(1);
+                            }
+                            break;
+                    }
                     dTimeType = compareTimeType == StatisticProcessTimeEnum.小时 ?
                         StatisticProcessTimeEnum.小时 : shift == 0 ? StatisticProcessTimeEnum.日 : StatisticProcessTimeEnum.小时;
 
@@ -884,11 +884,12 @@ namespace ApiManagement.Models.StatisticManagementModel
                 }
                 else
                 {
-                    switch (dTimeType)
+                    switch (timeType)
                     {
                         case StatisticProcessTimeEnum.小时:
-                            endTime = (time < shiftTime.Item2 ? time : shiftTime.Item2).NoMinute();
-                            th = (int)(endTime - shiftTime.Item1.NoMinute()).Hours;
+                            var t = time < shiftTime.Item2 ? time : shiftTime.Item2;
+                            endTime = t > t.NoMinute() ? t.NoMinute().AddHours(1) : t.NoMinute();
+                            th = (int)(endTime - shiftTime.Item1.NoMinute()).TotalHours;
                             startTime = th < range ? shiftTime.Item1.NoMinute() : time.NoMinute().AddHours(-range);
                             range = th < range ? th : range;
                             break;
@@ -943,6 +944,10 @@ namespace ApiManagement.Models.StatisticManagementModel
                                 startTime = year.Item1.AddYears(-range).NoMinute();
                             }
                             break;
+                    }
+                    if (startTime == default(DateTime) || endTime == default(DateTime))
+                    {
+                        return res;
                     }
                     data = GetDetails(workshopId, dTimeType, startTime.NoMinute(), endTime.NextHour(0, 1), steps, deviceIds, productionIds, processorIds);
                 }
