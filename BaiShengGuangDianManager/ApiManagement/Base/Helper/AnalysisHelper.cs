@@ -1836,11 +1836,11 @@ namespace ApiManagement.Base.Helper
                                     MonitoringKanBanDic[id].ItemData.Add(key, new List<dynamic>());
                                 }
                                 MonitoringKanBanDic[id].ItemData[key].Clear();
-                                if (!(type == KanBanItemEnum.计划号工序推移图 || type == KanBanItemEnum.设备工序推移图 ||
-                                    type == KanBanItemEnum.操作工工序推移图))
-                                {
-                                    continue;
-                                }
+                                //if (!(type == KanBanItemEnum.计划号工序推移图 || type == KanBanItemEnum.设备工序推移图 ||
+                                //    type == KanBanItemEnum.操作工工序推移图))
+                                //{
+                                //    continue;
+                                //}
                                 if (type == KanBanItemEnum.异常报警)
                                 {
                                     //MonitoringKanBanDic[id].WarningLogs =
