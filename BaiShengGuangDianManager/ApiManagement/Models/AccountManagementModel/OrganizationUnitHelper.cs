@@ -22,10 +22,38 @@ namespace ApiManagement.Models.AccountManagementModel
         }
         public static readonly OrganizationUnitHelper Instance = new OrganizationUnitHelper();
 
-        public static bool GetHaveSame(IEnumerable<string> sames, IEnumerable<int> ids = null)
+        /// <summary>
+        /// 
+        /// </summary>
+        /// <param name="pId">上级部门</param>
+        /// <param name="sames"></param>
+        /// <param name="ids"></param>
+        /// <returns></returns>
+        public static bool GetHaveSame(int pId, IEnumerable<string> sames, IEnumerable<int> ids = null)
         {
             var args = new List<Tuple<string, string, dynamic>>
             {
+                new Tuple<string, string, dynamic>("ParentId", "=", pId),
+                new Tuple<string, string, dynamic>("Name", "IN", sames)
+            };
+            if (ids != null)
+            {
+                args.Add(new Tuple<string, string, dynamic>("Id", "NOT IN", ids));
+            }
+            return Instance.CommonHaveSame(args);
+        }
+        /// <summary>
+        /// 
+        /// </summary>
+        /// <param name="pIds">上级部门</param>
+        /// <param name="sames"></param>
+        /// <param name="ids"></param>
+        /// <returns></returns>
+        public static bool GetHaveSame(IEnumerable<int> pIds, IEnumerable<string> sames, IEnumerable<int> ids = null)
+        {
+            var args = new List<Tuple<string, string, dynamic>>
+            {
+                new Tuple<string, string, dynamic>("ParentId", "IN", pIds),
                 new Tuple<string, string, dynamic>("Name", "IN", sames)
             };
             if (ids != null)
@@ -78,13 +106,19 @@ namespace ApiManagement.Models.AccountManagementModel
         /// 根据id获取下级组织结构
         /// </summary>
         /// <param name="pIds"></param>
+        /// <param name="names"></param>
         /// <returns></returns>
-        public static IEnumerable<OrganizationUnit> GetUnderOrganizationUnitsByParentIds(IEnumerable<int>  pIds)
+        public static IEnumerable<OrganizationUnit> GetUnderOrganizationUnits(IEnumerable<int> pIds, IEnumerable<string> names = null)
         {
             var args = new List<Tuple<string, string, dynamic>>
             {
                 new Tuple<string, string, dynamic>("ParentId", "IN", pIds)
             };
+            if (names != null && names.Any())
+            {
+                args.Add(new Tuple<string, string, dynamic>("Name", "IN", names));
+            }
+
             return Instance.CommonGet<OrganizationUnit>(args);
         }
         /// <summary>
@@ -94,15 +128,26 @@ namespace ApiManagement.Models.AccountManagementModel
         /// <returns></returns>
         public static void AddOrganizationUnit(OrganizationUnit organizationUnit)
         {
-            var sql = "INSERT INTO organization_units (`ParentId`, `Code`, `CodeLink`, `Name`) VALUES (@ParentId, @Code, @CodeLink, @Name);SELECT LAST_INSERT_ID();";
+            var sql = "INSERT INTO organization_units (`CreateUserId`, `MarkedDateTime`, `ParentId`, `Code`, `CodeLink`, `Name`) " +
+                      "VALUES (@CreateUserId, @MarkedDateTime, @ParentId, @Code, @CodeLink, @Name);SELECT LAST_INSERT_ID();";
             var id = ServerConfig.ApiDb.Query<int>(sql, organizationUnit).FirstOrDefault();
-            sql = "UPDATE organization_units SET `Code` = @Code, `CodeLink` = @CodeLink WHERE `Id` = @Id;";
+            sql = "UPDATE organization_units SET `MarkedDateTime` = @MarkedDateTime, `Code` = @Code, `CodeLink` = @CodeLink WHERE `Id` = @Id;";
             organizationUnit.Id = id;
             organizationUnit.Code = (10000 + id).ToString();
             organizationUnit.CodeLink = organizationUnit.ParentId == 0 ? $"{organizationUnit.Code}" : $"{organizationUnit.CodeLink},{organizationUnit.Code}";
             ServerConfig.ApiDb.Execute(sql, organizationUnit);
         }
 
+        /// <summary>
+        /// 更新组织结构
+        /// </summary>
+        /// <param name="organizationUnits"></param>
+        /// <returns></returns>
+        public static void UpdateOrganizationUnit(IEnumerable<OrganizationUnit> organizationUnits)
+        {
+            var sql = "UPDATE organization_units SET `MarkedDateTime` = @MarkedDateTime, `Code` = @Code, `CodeLink` = @CodeLink WHERE `Id` = @Id;";
+            ServerConfig.ApiDb.Execute(sql, organizationUnits);
+        }
         /// <summary>
         /// 移动组织结构
         /// </summary>
@@ -166,8 +211,8 @@ namespace ApiManagement.Models.AccountManagementModel
         public static IEnumerable<dynamic> MemberListByUnits(IEnumerable<int> unitIds)
         {
             var sql = "SELECT a.Id, a.AccountId, b.`Name`, b.RoleName, a.OrganizationUnitId FROM `account_organization_units` a " +
-                      //"JOIN ( SELECT a.*, b.`Name` RoleName FROM `accounts` a JOIN `roles` b ON a.Role = b.Id WHERE a.MarkedDelete = 0 AND b.MarkedDelete = 0 ) b ON a.AccountId = b.Id " +
-                      //"WHERE a.MarkedDelete = 0 AND b.MarkedDelete = 0 AND a.OrganizationUnitId IN @unitIds;";
+                    //"JOIN ( SELECT a.*, b.`Name` RoleName FROM `accounts` a JOIN `roles` b ON a.Role = b.Id WHERE a.MarkedDelete = 0 AND b.MarkedDelete = 0 ) b ON a.AccountId = b.Id " +
+                    //"WHERE a.MarkedDelete = 0 AND b.MarkedDelete = 0 AND a.OrganizationUnitId IN @unitIds;";
                     "JOIN ( SELECT a.*, b.`Name` RoleName FROM `accounts` a JOIN `roles` b ON a.Role = b.Id ) b ON a.AccountId = b.Id " +
                     "WHERE a.MarkedDelete = 0 AND a.OrganizationUnitId IN @unitIds;";
             return ServerConfig.ApiDb.Query<dynamic>(sql, new { unitIds });
@@ -222,7 +267,7 @@ namespace ApiManagement.Models.AccountManagementModel
         public static void DeleteMemberByAccountId(int accountId)
         {
             var sql = "UPDATE account_organization_units SET `MarkedDelete` = 1 WHERE `AccountId` = @accountId;";
-            ServerConfig.ApiDb.Execute(sql, new {accountId });
+            ServerConfig.ApiDb.Execute(sql, new { accountId });
         }
 
         /// <summary>

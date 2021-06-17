@@ -51,9 +51,10 @@ namespace ApiManagement.Controllers.AccountManagementController
                 return Result.GenError<Result>(Error.OrganizationUnitDuplicate);
             }
 
-            var sames = units.Select(x => x.Name);
             var ids = units.Select(x => x.Id);
-            if (OrganizationUnitHelper.GetHaveSame(sames, ids))
+            var sames = units.Select(x => x.Name);
+            var parentIds = units.Select(x => x.ParentId).Distinct();
+            if (OrganizationUnitHelper.GetHaveSame(parentIds, sames, ids))
             {
                 return Result.GenError<Result>(Error.OrganizationUnitIsExist);
             }
@@ -64,7 +65,6 @@ namespace ApiManagement.Controllers.AccountManagementController
                 return Result.GenError<Result>(Error.OrganizationUnitNotExist);
             }
 
-            var parentIds = units.Select(x => x.ParentId).Distinct(); ;
             var p = parentIds.Where(x => x != 0);
             if (p.Any())
             {
@@ -75,7 +75,7 @@ namespace ApiManagement.Controllers.AccountManagementController
                 }
             }
 
-            var underUnits = OrganizationUnitHelper.GetUnderOrganizationUnitsByParentIds(parentIds);
+            var underUnits = OrganizationUnitHelper.GetUnderOrganizationUnits(parentIds);
             if (underUnits.Any(x => units.Any(y => y.ParentId == x.ParentId && y.Name == x.Name)))
             {
                 return Result.GenError<Result>(Error.OrganizationUnitIsExist);
@@ -116,7 +116,7 @@ namespace ApiManagement.Controllers.AccountManagementController
                 return Result.GenError<Result>(Error.ParentNotExist);
             }
 
-            var underUnits = OrganizationUnitHelper.GetUnderOrganizationUnitsByParentIds(parentIds);
+            var underUnits = OrganizationUnitHelper.GetUnderOrganizationUnits(parentIds);
             if (underUnits.Any(x => units.Any(y => y.ParentId == x.ParentId && y.Name == x.Name)))
             {
                 return Result.GenError<Result>(Error.OrganizationUnitIsExist);
@@ -156,24 +156,26 @@ namespace ApiManagement.Controllers.AccountManagementController
                 return Result.GenError<Result>(Error.OrganizationUnitDuplicate);
             }
 
+            var parentIds = units.Select(x => x.ParentId).Distinct();
             var sames = units.Select(x => x.Name);
-            if (OrganizationUnitHelper.GetHaveSame(sames))
+            if (OrganizationUnitHelper.GetHaveSame(parentIds, sames))
             {
                 return Result.GenError<Result>(Error.OrganizationUnitIsExist);
             }
 
-            var parentIds = units.Select(x => x.ParentId).Distinct(); ;
+            var names = units.Select(x => x.Name).Distinct();
+            IEnumerable<OrganizationUnit> parentUnits = null;
             var p = parentIds.Where(x => x != 0);
             if (p.Any())
             {
-                var parentUnits = OrganizationUnitHelper.Instance.GetByIds<OrganizationUnit>(p);
+                parentUnits = OrganizationUnitHelper.Instance.GetByIds<OrganizationUnit>(p);
                 if (p.Count() != parentUnits.Count())
                 {
                     return Result.GenError<Result>(Error.ParentNotExist);
                 }
             }
 
-            var underUnits = OrganizationUnitHelper.GetUnderOrganizationUnitsByParentIds(parentIds);
+            var underUnits = OrganizationUnitHelper.GetUnderOrganizationUnits(parentIds);
             if (underUnits.Any(x => units.Any(y => y.ParentId == x.ParentId && y.Name == x.Name)))
             {
                 return Result.GenError<Result>(Error.OrganizationUnitIsExist);
@@ -185,8 +187,26 @@ namespace ApiManagement.Controllers.AccountManagementController
                 unit.CreateUserId = userId;
                 unit.MarkedDateTime = markedDateTime;
                 unit.Name = unit.Name ?? "";
-                OrganizationUnitHelper.AddOrganizationUnit(unit);
             }
+            OrganizationUnitHelper.Instance.Add(units);
+
+            var newUnits = OrganizationUnitHelper.GetUnderOrganizationUnits(parentIds, names);
+            foreach (var unit in units)
+            {
+                var nu = newUnits.FirstOrDefault(x => x.ParentId == unit.ParentId && x.Name == unit.Name);
+                if (nu != null)
+                {
+                    unit.Id = nu.Id;
+                    unit.Code = (10000 + nu.Id).ToString();
+                    OrganizationUnit parent = null;
+                    if (unit.ParentId != 0)
+                    {
+                        parent = parentUnits.FirstOrDefault(x => x.Id == unit.ParentId);
+                    }
+                    unit.CodeLink = unit.ParentId == 0 ? $"{unit.Code}" : $"{parent?.CodeLink ?? ""},{unit.Code}";
+                }
+            }
+            OrganizationUnitHelper.UpdateOrganizationUnit(units);
             return Result.GenError<Result>(Error.Success);
         }
 
