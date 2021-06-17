@@ -2422,7 +2422,7 @@ namespace ApiManagement.Base.Helper
                             spTime = now;
                         }
 
-                        var workDayTimes = DateTimeExtend.GetDayWorkDayRange(workshop.StatisticTimeList, spTime);
+                        var workDayTimes = DateTimeExtend.GetDayWorkDay(workshop.StatisticTimeList, spTime);
                         var mData = FlowCardReportGetHelper.GetReport(workshop.Id, workDayTimes.Item1.NoMinute(), workDayTimes.Item2.NextHour(0, 1).AddSeconds(-1));
                         //ServerConfig.ApiDb.Query<FlowCardReportGet>("SELECT * FROM `flowcard_report_get` WHERE Time >= @st AND Time < @ed ORDER BY Time;",
                         //var mData = ServerConfig.ApiDb.Query<FlowCardReportGet>("SELECT * FROM `flowcard_report_get` WHERE Id > @spId ORDER BY Id LIMIT @limit;",
@@ -2504,13 +2504,13 @@ namespace ApiManagement.Base.Helper
                             var wData = data.Where(x => x.WorkshopId == workshop.Id);
                             var times = wData.GroupBy(x =>
                             {
-                                var workDay = DateTimeExtend.GetDayWorkDayRange(workshop.StatisticTimeList, x.Time);
+                                var workDay = DateTimeExtend.GetDayWorkDay(workshop.StatisticTimeList, x.Time);
                                 return new Tuple<DateTime, DateTime>(workDay.Item1, workDay.Item2);
                             }).Select(x => x.Key);
 
                             var timeKey = $"{StatisticProcessPre}:Time_{workshop.Id}";
                             var spTime = RedisHelper.Get<DateTime>(timeKey);
-                            var workDayTimes = DateTimeExtend.GetDayWorkDayRange(workshop.StatisticTimeList, spTime);
+                            var workDayTimes = DateTimeExtend.GetDayWorkDay(workshop.StatisticTimeList, spTime);
                             foreach (var time in times)
                             {
                                 if (time.Item1 == workDayTimes.Item1 && time.Item2 == workDayTimes.Item2)

@@ -122,6 +122,12 @@ namespace ApiManagement.Models.StatisticManagementModel
         /// </summary>
         public string Processor { get; set; } = "";
 
+        public int DataId { get; set; }
+        /// <summary>
+        /// 最终数据
+        /// </summary>
+        public string Data { get; set; } = "";
+
         public bool HaveChange(StatisticProcessAll all)
         {
             return Total != all.Total || Qualified != all.Qualified || Unqualified != all.Unqualified;

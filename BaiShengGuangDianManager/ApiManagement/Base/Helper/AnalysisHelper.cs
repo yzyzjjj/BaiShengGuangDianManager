@@ -727,7 +727,7 @@ namespace ApiManagement.Base.Helper
 
                     //var currentWorkTime = DateTimeExtend.GetCurrentWorkTimeRanges(workshop.Shifts, workshop.ShiftTimeList, kanBanTime);
                     //var todayWorkDay = DateTimeExtend.GetDayWorkDayRange(workshop.Shifts, workshop.ShiftTimeList, now);
-                    var kanBanWorkTime = DateTimeExtend.GetDayWorkDayRange(workshop.ShiftTimeList, kanBanTime);
+                    var kanBanWorkTime = DateTimeExtend.GetDayWorkDay(workshop.ShiftTimeList, kanBanTime);
                     var kanBanWorkDayEndTime = kanBanWorkTime.Item1.AddDays(1).AddSeconds(-1);
                     //var kanBanNextWorkStartTime = kanBanWorkTime.Item1.AddDays(1);
 
@@ -1562,6 +1562,7 @@ namespace ApiManagement.Base.Helper
         {
             if (RedisHelper.SetIfNotExist(kbLockKey, DateTime.Now.ToStr()))
             {
+                RedisHelper.SetExpireAt(kbLockKey, DateTime.Now.AddMinutes(30));
                 kbRun = true;
                 UpdateKanBanLogic(time);
                 kbRun = false;
@@ -1591,7 +1592,6 @@ namespace ApiManagement.Base.Helper
         {
             try
             {
-                RedisHelper.SetExpireAt(kbLockKey, DateTime.Now.AddMinutes(5));
                 var monitoringKanBanList = new List<MonitoringKanBan>();
                 var monitoringKanBanDeviceList = new List<MonitoringKanBanDevice>();
                 var allDeviceList = GetMonitoringProcesses().ToDictionary(x => x.DeviceId);
@@ -1642,6 +1642,7 @@ namespace ApiManagement.Base.Helper
                 #region MonitoringKanBanDic
                 foreach (var id in MonitoringKanBanDic.Keys)
                 {
+                    Console.WriteLine(id);
                     var set = sets.FirstOrDefault(x => x.Id == id);
                     if (set != null && set.DeviceIdList.Any())
                     {
@@ -1782,7 +1783,7 @@ namespace ApiManagement.Base.Helper
                                     ShiftTimes = "[\"00:00:00\",\"24:00:00\"]"
                                 };
                             var currentWorkTimes = DateTimeExtend.GetCurrentWorkTimeRanges(workshop.Shifts, workshop.StatisticTimeList, time);
-                            var workTime = DateTimeExtend.GetDayWorkDayRange(workshop.StatisticTimeList, time);
+                            var workTime = DateTimeExtend.GetDayWorkDay(workshop.StatisticTimeList, time);
                             foreach (var item in set.ItemList)
                             {
                                 var type = item.Item;
@@ -1835,6 +1836,11 @@ namespace ApiManagement.Base.Helper
                                     MonitoringKanBanDic[id].ItemData.Add(key, new List<dynamic>());
                                 }
                                 MonitoringKanBanDic[id].ItemData[key].Clear();
+                                if (!(type == KanBanItemEnum.计划号工序推移图 || type == KanBanItemEnum.设备工序推移图 ||
+                                    type == KanBanItemEnum.操作工工序推移图))
+                                {
+                                    continue;
+                                }
                                 if (type == KanBanItemEnum.异常报警)
                                 {
                                     //MonitoringKanBanDic[id].WarningLogs =
@@ -2136,13 +2142,14 @@ namespace ApiManagement.Base.Helper
                                     index = 4;
                                     if (item.ConfigList.Length > index && item.ConfigList[index].Length > 0)
                                     {
+                                        //前多少时间 取[0], 指定时间 取数组, 时间范围 取数组
                                         cTimeRange = item.ConfigList[index].ToList();
                                     }
 
                                     try
                                     {
                                         var processes = StatisticProcessHelper.StatisticProcesses(type, time, workshop, shift, timeType,
-                                            range, isSum == 1, steps, deviceIds, productionIds, processorIds).ToList();
+                                            range, isSum == 1, isCompare == 1, cTimeType, cTimeRangeType, cTimeRange, steps, deviceIds, productionIds, processorIds).ToList();
                                         MonitoringKanBanDic[id].ItemData[key].AddRange(processes);
                                     }
                                     catch (Exception e)

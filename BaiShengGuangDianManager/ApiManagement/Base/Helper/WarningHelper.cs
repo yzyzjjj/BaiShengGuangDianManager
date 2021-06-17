@@ -1374,10 +1374,10 @@ namespace ApiManagement.Base.Helper
                         var workshops = WorkshopHelper.Instance.GetAll<Workshop>();
                         foreach (var workshop in workshops)
                         {
-                            var todayWorkDay = DateTimeExtend.GetDayWorkDayRange(workshop.StatisticTimeList, now);
+                            var todayWorkDay = DateTimeExtend.GetDayWorkDay(workshop.StatisticTimeList, now);
                             var times = data.GroupBy(x =>
                             {
-                                var workDay = DateTimeExtend.GetDayWorkDayRange(workshop.StatisticTimeList, x.Time);
+                                var workDay = DateTimeExtend.GetDayWorkDay(workshop.StatisticTimeList, x.Time);
                                 return new Tuple<DateTime, DateTime>(workDay.Item1, workDay.Item2);
                             }).Select(x => x.Key);
                             foreach (var time in times)
@@ -1478,8 +1478,8 @@ namespace ApiManagement.Base.Helper
                     {
                         if (items.Any())
                         {
-                            var nowWorkTimes = DateTimeExtend.GetDayWorkDayRange(workshop.StatisticTimeList, now);
-                            var workDayTimes = DateTimeExtend.GetDayWorkDayRange(workshop.StatisticTimeList, rTime);
+                            var nowWorkTimes = DateTimeExtend.GetDayWorkDay(workshop.StatisticTimeList, now);
+                            var workDayTimes = DateTimeExtend.GetDayWorkDay(workshop.StatisticTimeList, rTime);
                             var startTime = workDayTimes.Item1;
                             var endTime = workDayTimes.Item2.AddSeconds(-1);
                             var args = new List<Tuple<string, string, dynamic>>
