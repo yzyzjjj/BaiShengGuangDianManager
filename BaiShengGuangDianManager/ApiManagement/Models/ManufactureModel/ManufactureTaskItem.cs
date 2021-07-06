@@ -20,6 +20,9 @@ namespace ApiManagement.Models.ManufactureModel
         public string EstimatedTime => DateTimeExtend.ToTimeStr(EstimatedHour * 3600 + EstimatedMin * 60, 1);
         public int Score { get; set; }
         public string Desc { get; set; }
+        /// <summary>
+        /// 关联任务的Order
+        /// </summary>
         public int Relation { get; set; }
     }
     public class ManufactureTaskItemDetail : ManufactureTaskItem

@@ -96,7 +96,7 @@ namespace ApiManagement.Models.StatisticManagementModel
                     }),
                     new KanBanItemConfig(KanBanItemEnum.计划号工序推移图, true, true, new List<KanBanTableFieldConfig>
                     {
-                        new KanBanTableFieldConfig("datetime", "Time", "时间", KanBanItemTableAxisEnum.X),
+                        new KanBanTableFieldConfig("datetime", "Time", "时间", KanBanItemTableAxisEnum.X, true),
                         //new KanBanTableFieldConfig("string", "Production", "计划号"),
                         new KanBanTableFieldConfig("int", "Total", "加工数", KanBanItemTableAxisEnum.Y),
                         new KanBanTableFieldConfig("int", "Qualified", "合格数", KanBanItemTableAxisEnum.Y),
@@ -106,7 +106,7 @@ namespace ApiManagement.Models.StatisticManagementModel
                     }, KanBanItemDisplayEnum.Chart),
                     new KanBanItemConfig(KanBanItemEnum.设备工序推移图, true, true, new List<KanBanTableFieldConfig>
                     {
-                        new KanBanTableFieldConfig("datetime", "Time", "时间", KanBanItemTableAxisEnum.X),
+                        new KanBanTableFieldConfig("datetime", "Time", "时间", KanBanItemTableAxisEnum.X, true),
                         //new KanBanTableFieldConfig("string", "Code", "机台号"),
                         new KanBanTableFieldConfig("int", "Total", "加工数", KanBanItemTableAxisEnum.Y),
                         new KanBanTableFieldConfig("int", "Qualified", "合格数", KanBanItemTableAxisEnum.Y),
@@ -116,7 +116,7 @@ namespace ApiManagement.Models.StatisticManagementModel
                     }, KanBanItemDisplayEnum.Chart),
                     new KanBanItemConfig(KanBanItemEnum.操作工工序推移图, true, true, new List<KanBanTableFieldConfig>
                     {
-                        new KanBanTableFieldConfig("datetime", "Time", "时间", KanBanItemTableAxisEnum.X),
+                        new KanBanTableFieldConfig("datetime", "Time", "时间", KanBanItemTableAxisEnum.X, true),
                         //new KanBanTableFieldConfig("string", "Processor", "操作工"),
                         new KanBanTableFieldConfig("int", "Total", "加工数", KanBanItemTableAxisEnum.Y),
                         new KanBanTableFieldConfig("int", "Qualified", "合格数", KanBanItemTableAxisEnum.Y),
@@ -124,6 +124,41 @@ namespace ApiManagement.Models.StatisticManagementModel
                         new KanBanTableFieldConfig("decimal", "QualifiedRate", "合格率(%)", KanBanItemTableAxisEnum.Y),
                         new KanBanTableFieldConfig("decimal", "UnqualifiedRate", "次品率(%)", KanBanItemTableAxisEnum.Y),
                     }, KanBanItemDisplayEnum.Chart),
+                    new KanBanItemConfig(KanBanItemEnum.流程卡追踪, false, false, new List<KanBanTableFieldConfig>
+                    {
+                        new KanBanTableFieldConfig("string", "FlowCard", "流程卡", true),
+                        new KanBanTableFieldConfig("string", "StepName", "工序", true),
+                        new KanBanTableFieldConfig("string", "StateDesc", "状态", true),
+                        new KanBanTableFieldConfig("string", "Production", "计划号", true),
+                        new KanBanTableFieldConfig("array", "FlowCards", "分卡列表", true),
+                        new KanBanTableFieldConfig("int", "Order", "顺序", true),
+                        new KanBanTableFieldConfig("string", "Processor", "加工人", true),
+                        new KanBanTableFieldConfig("int", "Total", "加工数", true),
+                        new KanBanTableFieldConfig("int", "Qualified", "合格数", true),
+                        new KanBanTableFieldConfig("int", "Unqualified", "次品数", true),
+                        new KanBanTableFieldConfig("datetime", "StartTime", "开始时间"),
+                        new KanBanTableFieldConfig("datetime", "EndTime", "结束时间"),
+                        new KanBanTableFieldConfig("int", "time", "CostTime", "间隔时间(秒)"),
+                        new KanBanTableFieldConfig("decimal", "QualifiedRate", "合格率(%)"),
+                        new KanBanTableFieldConfig("decimal", "UnqualifiedRate", "次品率(%)"),
+                        new KanBanTableFieldConfig("datetime", "Time", "添加时间"),
+                        new KanBanTableFieldConfig("string", "Creator", "添加人"),
+                    }, KanBanItemDisplayEnum.Track),
+                    new KanBanItemConfig(KanBanItemEnum.计划号评分排行, true, false, new List<KanBanTableFieldConfig>
+                    {
+                        new KanBanTableFieldConfig("string", "Production", "计划号", true),
+                        new KanBanTableFieldConfig("int", "Score", "评分", true),
+                    }),
+                    new KanBanItemConfig(KanBanItemEnum.设备评分排行, true, false, new List<KanBanTableFieldConfig>
+                    {
+                        new KanBanTableFieldConfig("string", "Code", "设备", true),
+                        new KanBanTableFieldConfig("int", "Score", "评分", true),
+                    }),
+                    new KanBanItemConfig(KanBanItemEnum.操作工评分排行, true, false, new List<KanBanTableFieldConfig>
+                    {
+                        new KanBanTableFieldConfig("string", "Name", "操作工", true),
+                        new KanBanTableFieldConfig("int", "Score", "评分", true),
+                    }),
                 }
             },
             {

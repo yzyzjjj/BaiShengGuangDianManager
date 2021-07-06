@@ -79,9 +79,9 @@ namespace ApiManagement.Controllers.ManufactureController
             }
 
             var result = new DataResult();
-            var sql = $"SELECT a.*, IFNULL(b.Plan, '') Plan, IFNULL(c.ProcessorName, '') Processor, IFNULL(d.Module, '') Module, IFNULL(e.`Check`, '') `Check` FROM manufacture_plan_task a " +
+            var sql = $"SELECT a.*, IFNULL(b.Plan, '') Plan, IFNULL(c.Name, '') Processor, IFNULL(d.Module, '') Module, IFNULL(e.`Check`, '') `Check` FROM manufacture_plan_task a " +
                       "LEFT JOIN `manufacture_plan` b ON a.PlanId = b.Id " +
-                      "LEFT JOIN (SELECT a.*, b.ProcessorName FROM `manufacture_processor` a JOIN `processor` b ON a.ProcessorId = b.Id WHERE a.MarkedDelete = 0) c ON a.Person = c.Id " +
+                      "LEFT JOIN (SELECT a.*, b.Name FROM `manufacture_processor` a JOIN `accounts` b ON a.ProcessorId = b.Id WHERE a.MarkedDelete = 0) c ON a.Person = c.Id " +
                       "LEFT JOIN `manufacture_task_module` d ON a.ModuleId = d.Id " +
                       "LEFT JOIN `manufacture_check` e ON a.CheckId = e.Id " +
                       "WHERE a.MarkedDelete = 0 " +
@@ -108,12 +108,12 @@ namespace ApiManagement.Controllers.ManufactureController
         {
             var result = new DataResult();
             var sql =
-                "SELECT a.*, IFNULL(b.Plan, '') Plan, c.`GroupId`, IFNULL(c.`Group`, '') `Group`, IFNULL(c.ProcessorName, '') Processor, IFNULL(d.Module, '') Module, IFNULL(e.`Check`, '') `Check`, IFNULL(f.ProcessorName, a.Assignor) Assignor FROM manufacture_plan_task a " +
+                "SELECT a.*, IFNULL(b.Plan, '') Plan, c.`GroupId`, IFNULL(c.`Group`, '') `Group`, IFNULL(c.Name, '') Processor, IFNULL(d.Module, '') Module, IFNULL(e.`Check`, '') `Check`, IFNULL(f.Name, a.Assignor) Assignor FROM manufacture_plan_task a " +
                 "LEFT JOIN `manufacture_plan` b ON a.PlanId = b.Id " +
-                "LEFT JOIN (SELECT a.*, b.ProcessorName, c.`Group` FROM `manufacture_processor` a JOIN `processor` b ON a.ProcessorId = b.Id JOIN `manufacture_group` c ON a.GroupId = c.Id WHERE a.MarkedDelete = 0) c ON a.Person = c.Id " +
+                "LEFT JOIN (SELECT a.*, b.Name, c.`Group` FROM `manufacture_processor` a JOIN `accounts` b ON a.ProcessorId = b.Id JOIN `manufacture_group` c ON a.GroupId = c.Id WHERE a.MarkedDelete = 0) c ON a.Person = c.Id " +
                 "LEFT JOIN `manufacture_task_module` d ON a.ModuleId = d.Id " +
                 "LEFT JOIN `manufacture_check` e ON a.CheckId = e.Id " +
-                "LEFT JOIN `processor` f ON a.Assignor = f.Account " +
+                "LEFT JOIN `accounts` f ON a.Assignor = f.Account " +
                 "WHERE a.Id = @tId AND a.MarkedDelete = 0 ORDER BY a.`TotalOrder` LIMIT 2;";
             var task = ServerConfig.ApiDb.Query<ManufacturePlanTask>(sql, new { tId }).FirstOrDefault();
 
@@ -125,8 +125,8 @@ namespace ApiManagement.Controllers.ManufactureController
             if (task.IsCheck)
             {
                 sql =
-                    "SELECT a.*, IFNULL(b.ProcessorName, a.Person) Processor FROM `manufacture_plan_task` a " +
-                    "LEFT JOIN (SELECT a.*, b.ProcessorName FROM `manufacture_processor` a JOIN `processor` b ON a.ProcessorId = b.Id ) b ON a.Person = b.Id " +
+                    "SELECT a.*, IFNULL(b.Name, a.Person) Processor FROM `manufacture_plan_task` a " +
+                    "LEFT JOIN (SELECT a.*, b.Name FROM `manufacture_processor` a JOIN `accounts` b ON a.ProcessorId = b.Id ) b ON a.Person = b.Id " +
                     "WHERE PlanId = @PlanId AND `Order` = @Relation;";
                 var preTask = ServerConfig.ApiDb.Query<ManufacturePlanTask>(sql, new { task.PlanId, task.Relation }).FirstOrDefault();
                 if (preTask != null)
@@ -158,8 +158,8 @@ namespace ApiManagement.Controllers.ManufactureController
 
             var oldTask =
                 ServerConfig.ApiDb.Query<ManufacturePlanTask>(
-                    "SELECT a.*, IFNULL(b.ProcessorName, '') Processor FROM `manufacture_plan_task` a " +
-                    "LEFT JOIN (SELECT a.*, b.ProcessorName FROM `manufacture_processor` a JOIN `processor` b ON a.ProcessorId = b.Id WHERE a.MarkedDelete = 0) b ON a.Person = b.Id WHERE a.Id = @Id AND a.MarkedDelete = 0;;",
+                    "SELECT a.*, IFNULL(b.Name, '') Processor FROM `manufacture_plan_task` a " +
+                    "LEFT JOIN (SELECT a.*, b.Name FROM `manufacture_processor` a JOIN `accounts` b ON a.ProcessorId = b.Id WHERE a.MarkedDelete = 0) b ON a.Person = b.Id WHERE a.Id = @Id AND a.MarkedDelete = 0;;",
                     new { task.PlanId, task.Id }).FirstOrDefault();
             if (oldTask == null)
             {

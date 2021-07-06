@@ -1,8 +1,8 @@
-﻿using ApiManagement.Models.BaseModel;
+﻿using ApiManagement.Base.Server;
+using ApiManagement.Models.BaseModel;
 using System;
 using System.Collections.Generic;
 using System.Linq;
-using ApiManagement.Base.Server;
 
 namespace ApiManagement.Models.DeviceManagementModel
 {
@@ -119,19 +119,23 @@ namespace ApiManagement.Models.DeviceManagementModel
             }
             return tData;
         }
+
         /// <summary>
         /// 获取常用脚本
         /// </summary>
         /// <param name="scriptIds"></param>
         /// <param name="variableNameIds"></param>
+        /// <param name="variableTypeIds"></param>
         /// <returns></returns>
-        public static IEnumerable<UsuallyDictionaryDetail> GetUsuallyDictionaryDetails(IEnumerable<int> scriptIds, IEnumerable<int> variableNameIds = null)
+        public static IEnumerable<UsuallyDictionaryDetail> GetUsuallyDictionaryDetails(IEnumerable<int> scriptIds
+            , IEnumerable<int> variableNameIds = null, IEnumerable<int> variableTypeIds = null)
         {
             var data = GetDetail(scriptIds, variableNameIds);
             var tData = new List<UsuallyDictionaryDetail>();
             foreach (var scriptId in scriptIds)
             {
-                var tmp = data.Where(x => x.ScriptId == 0 || x.ScriptId == scriptId).ToList();
+                var tmp = variableTypeIds != null && variableTypeIds.Any() ? data.Where(x => x.ScriptId == 0 || x.ScriptId == scriptId && variableTypeIds.Contains(x.VariableTypeId)).ToList()
+                    : data.Where(x => x.ScriptId == 0 || x.ScriptId == scriptId).ToList();
                 var tTmp = tmp.OrderByDescending(x => x.ScriptId).GroupBy(y => new { y.VariableNameId }).Select(z => z.First());
                 tData.AddRange(tTmp.Select(x =>
                 {

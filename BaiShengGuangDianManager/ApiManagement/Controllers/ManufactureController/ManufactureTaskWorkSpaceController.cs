@@ -37,7 +37,7 @@ namespace ApiManagement.Controllers.ManufactureController
         public DataResult GetManufactureCurrentTask([FromQuery] string account, int gId)
         {
             var processors =
-                ServerConfig.ApiDb.Query<Processor>("SELECT a.Id, b.Account FROM `manufacture_processor` a JOIN `processor` b ON a.ProcessorId = b.Id " +
+                ServerConfig.ApiDb.Query<Processor>("SELECT a.Id, b.Account FROM `manufacture_processor` a JOIN `accounts` b ON a.ProcessorId = b.Id " +
                                                     $"WHERE b.Account = @account AND a.`MarkedDelete` = 0 {(gId == 0 ? "" : " AND GroupId = @gId")};", new { account, gId });
             if (!processors.Any())
             {
@@ -46,12 +46,12 @@ namespace ApiManagement.Controllers.ManufactureController
 
             var result = new DataResult();
             var sql =
-                "SELECT a.*, IFNULL(b.Plan, '') Plan, IFNULL(c.ProcessorName, '') Processor, IFNULL(d.Module, '') Module, IFNULL(e.`Check`, '') `Check`, IFNULL(f.ProcessorName, a.Assignor) Assignor FROM manufacture_plan_task a " +
+                "SELECT a.*, IFNULL(b.Plan, '') Plan, IFNULL(c.Name, '') Processor, IFNULL(d.Module, '') Module, IFNULL(e.`Check`, '') `Check`, IFNULL(f.Name, a.Assignor) Assignor FROM manufacture_plan_task a " +
                 "LEFT JOIN `manufacture_plan` b ON a.PlanId = b.Id " +
-                "LEFT JOIN (SELECT a.*, b.ProcessorName FROM `manufacture_processor` a JOIN `processor` b ON a.ProcessorId = b.Id WHERE a.MarkedDelete = 0) c ON a.Person = c.Id " +
+                "LEFT JOIN (SELECT a.*, b.Name FROM `manufacture_processor` a JOIN `accounts` b ON a.ProcessorId = b.Id WHERE a.MarkedDelete = 0) c ON a.Person = c.Id " +
                 "LEFT JOIN `manufacture_task_module` d ON a.ModuleId = d.Id " +
                 "LEFT JOIN `manufacture_check` e ON a.CheckId = e.Id " +
-                "LEFT JOIN `processor` f ON a.Assignor = f.Account " +
+                "LEFT JOIN `accounts` f ON a.Assignor = f.Account " +
                 "WHERE a.State IN @state AND a.Person IN @pId AND a.MarkedDelete = 0 AND a.IsCheck = 0 ORDER BY a.`TotalOrder` LIMIT 2;";
             var tasks = new List<ManufacturePlanTask>();
             foreach (var validState in ValidStates)
@@ -73,8 +73,8 @@ namespace ApiManagement.Controllers.ManufactureController
                 }
 
                 sql =
-                    "SELECT IFNULL(b.ProcessorName, a.Person) Surveyor FROM `manufacture_plan_task` a " +
-                    "LEFT JOIN (SELECT a.*, b.ProcessorName FROM `manufacture_processor` a JOIN `processor` b ON a.ProcessorId = b.Id ) b ON a.Person = b.Id " +
+                    "SELECT IFNULL(b.Name, a.Person) Surveyor FROM `manufacture_plan_task` a " +
+                    "LEFT JOIN (SELECT a.*, b.Name FROM `manufacture_processor` a JOIN `accounts` b ON a.ProcessorId = b.Id ) b ON a.Person = b.Id " +
                     "WHERE PlanId = @PlanId AND Relation = @Order AND IsCheck = 1;";
                 first.Surveyor = ServerConfig.ApiDb.Query<string>(sql, new { first.PlanId, first.Order }).FirstOrDefault();
                 result.datas.Add(first);
@@ -130,8 +130,8 @@ namespace ApiManagement.Controllers.ManufactureController
                 default: return Result.GenError<DataResult>(Error.ParamError);
             }
 
-            var sql = "SELECT a.Id, a.GroupId, IFNULL(a.ProcessorName, b.Person) Processor, IFNULL(b.Score, 0) Score " +
-                      "FROM (SELECT a.*, b.ProcessorName FROM `manufacture_processor` a JOIN `processor` b ON a.ProcessorId = b.Id WHERE a.MarkedDelete = 0 AND a.GroupId = @gId) a " +
+            var sql = "SELECT a.Id, a.GroupId, IFNULL(a.Name, b.Person) Processor, IFNULL(b.Score, 0) Score " +
+                      "FROM (SELECT a.*, b.Name FROM `manufacture_processor` a JOIN `accounts` b ON a.ProcessorId = b.Id WHERE a.MarkedDelete = 0 AND a.GroupId = @gId) a " +
                       "LEFT JOIN ( SELECT Person, SUM(ActualScore) Score FROM manufacture_plan_task WHERE MarkedDelete = 0 AND State = @state AND ActualEndTime >= @sTime AND ActualEndTime <= @eTime GROUP BY Person) b ON a.Id = b.Person ORDER BY b.Score DESC, b.Person;";
             var data = ServerConfig.ApiDb.Query<dynamic>(sql, new { state = ManufacturePlanTaskState.Done, gId, sTime, eTime });
             return new
@@ -157,7 +157,7 @@ namespace ApiManagement.Controllers.ManufactureController
         public DataResult GetManufactureUnfinishedTask([FromQuery] string account, int gId, int limit = 10)
         {
             var processors =
-                ServerConfig.ApiDb.Query<Processor>("SELECT a.Id, b.Account FROM `manufacture_processor` a JOIN `processor` b ON a.ProcessorId = b.Id " +
+                ServerConfig.ApiDb.Query<Processor>("SELECT a.Id, b.Account FROM `manufacture_processor` a JOIN `accounts` b ON a.ProcessorId = b.Id " +
                                                     $"WHERE b.Account = @account AND a.`MarkedDelete` = 0 {(gId == 0 ? "" : " AND GroupId = @gId")};", new { account, gId });
             if (!processors.Any())
             {
@@ -184,7 +184,7 @@ namespace ApiManagement.Controllers.ManufactureController
         public DataResult GetManufactureFinishedTask([FromQuery] string account, int gId, int limit = 10)
         {
             var processors =
-                ServerConfig.ApiDb.Query<Processor>("SELECT a.Id, b.Account FROM `manufacture_processor` a JOIN `processor` b ON a.ProcessorId = b.Id " +
+                ServerConfig.ApiDb.Query<Processor>("SELECT a.Id, b.Account FROM `manufacture_processor` a JOIN `accounts` b ON a.ProcessorId = b.Id " +
                                                     $"WHERE b.Account = @account AND a.`MarkedDelete` = 0 {(gId == 0 ? "" : " AND GroupId = @gId")};", new { account, gId });
             if (!processors.Any())
             {
@@ -214,7 +214,7 @@ namespace ApiManagement.Controllers.ManufactureController
             var account = opTask.Account;
             var gId = opTask.GId;
             var processors =
-                ServerConfig.ApiDb.Query<Processor>("SELECT a.Id, b.Account FROM `manufacture_processor` a JOIN `processor` b ON a.ProcessorId = b.Id " +
+                ServerConfig.ApiDb.Query<Processor>("SELECT a.Id, b.Account FROM `manufacture_processor` a JOIN `accounts` b ON a.ProcessorId = b.Id " +
                                                     $"WHERE b.Account = @account AND a.`MarkedDelete` = 0 {(gId == 0 ? "" : " AND GroupId = @gId")};", new { account, gId });
             if (!processors.Any())
             {
@@ -295,7 +295,7 @@ namespace ApiManagement.Controllers.ManufactureController
             var account = opTask.Account;
             var gId = opTask.GId;
             var processors =
-                ServerConfig.ApiDb.Query<Processor>("SELECT a.Id, b.Account FROM `manufacture_processor` a JOIN `processor` b ON a.ProcessorId = b.Id " +
+                ServerConfig.ApiDb.Query<Processor>("SELECT a.Id, b.Account FROM `manufacture_processor` a JOIN `accounts` b ON a.ProcessorId = b.Id " +
                                                     $"WHERE b.Account = @account AND a.`MarkedDelete` = 0 {(gId == 0 ? "" : " AND GroupId = @gId")};", new { account, gId });
             if (!processors.Any())
             {
@@ -370,7 +370,7 @@ namespace ApiManagement.Controllers.ManufactureController
             var account = opTask.Account;
             var gId = opTask.GId;
             var processors =
-                ServerConfig.ApiDb.Query<Processor>("SELECT a.Id, b.Account FROM `manufacture_processor` a JOIN `processor` b ON a.ProcessorId = b.Id " +
+                ServerConfig.ApiDb.Query<Processor>("SELECT a.Id, b.Account FROM `manufacture_processor` a JOIN `accounts` b ON a.ProcessorId = b.Id " +
                                                     $"WHERE b.Account = @account AND a.`MarkedDelete` = 0 {(gId == 0 ? "" : " AND GroupId = @gId")};", new { account, gId });
             if (!processors.Any())
             {

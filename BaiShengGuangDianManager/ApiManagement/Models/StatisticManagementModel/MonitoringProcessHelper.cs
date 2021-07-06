@@ -41,6 +41,16 @@ namespace ApiManagement.Models.StatisticManagementModel
                 $"SELECT b.*, a.`Code` FROM `device_library` a JOIN `npc_proxy_link` b ON a.Id = b.DeviceId " +
                 $"WHERE {(ids != null && ids.Any() ? "a.Id IN @ids AND" : "")} a.MarkedDelete = 0;", new { ids });
         }
+        public static IEnumerable<MonitoringProcess> GetMonitoringProcesses(IEnumerable<int> wIds, IEnumerable<int> ids, DateTime sTime = default(DateTime), DateTime eTime = default(DateTime))
+        {
+            return ServerConfig.ApiDb.Query<MonitoringProcess>(
+                $"SELECT b.*, a.`Code` FROM `device_library` a JOIN `npc_proxy_link` b ON a.Id = b.DeviceId " +
+                $"WHERE {(wIds != null && wIds.Any() ? "a.WorkshopId IN @wIds AND " : "")}" +
+                $"{(ids != null && ids.Any() ? "a.Id IN @ids AND " : "")}" +
+                $"{(sTime != default(DateTime) ? "a.Time >= @sTime AND " : "")}" +
+                $"{(eTime != default(DateTime) ? "a.Time < @eTime AND " : "")}" +
+                $"a.MarkedDelete = 0;", new { wIds, ids }, 60);
+        }
         /// <summary>
         /// type 0 分  1 小时   2 天   3 月   
         /// </summary>

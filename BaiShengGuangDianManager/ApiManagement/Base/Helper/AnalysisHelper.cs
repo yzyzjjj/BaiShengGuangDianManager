@@ -208,6 +208,7 @@ namespace ApiManagement.Base.Helper
         #endregion
 
         private static Timer _timer2S;
+        private static Timer _timer5S;
         private static Timer _timer10S;
         private static Timer _timer60S;
 #if DEBUG
@@ -254,8 +255,10 @@ namespace ApiManagement.Base.Helper
                 RedisHelper.Remove(aLockKey);
                 MonitoringKanBanDic.AddRange(ServerConfig.ApiDb.Query<MonitoringKanBan>("SELECT * FROM (SELECT * FROM `kanban_log` ORDER BY Date DESC) a GROUP BY a.Id;", null, 60).ToDictionary(x => x.Id));
                 MonitoringKanBanDeviceDic.AddRange(ServerConfig.ApiDb.Query<MonitoringKanBanDevice>("SELECT * FROM (SELECT * FROM `kanban_device_state` ORDER BY Date DESC) a GROUP BY a.DeviceId;").ToDictionary(x => x.DeviceId));
+                RedisHelper.Remove(kbLockKey);
 
                 _timer2S = new Timer(DoSth_2s, null, 10000, 2000);
+                _timer5S = new Timer(DoSth_5s, null, 10000, 5000);
                 _timer10S = new Timer(DoSth_10s, null, 10000, 1000 * 10);
                 _timer60S = new Timer(DoSth_60s, null, 5000, 1000 * 60);
             }
@@ -273,16 +276,20 @@ namespace ApiManagement.Base.Helper
                 return;
             }
 #endif
-            //var t = Stopwatch.StartNew();
             Analysis();
-            //t.Stop();
-            //Console.WriteLine(t.ElapsedMilliseconds);
             AnalysisOther();
-
-            UpdateKanBan(DateTime.Now);
-
         }
 
+        private static void DoSth_5s(object state)
+        {
+#if !DEBUG
+            if (RedisHelper.Get<int>(Debug) != 0)
+            {
+                return;
+            }
+#endif
+            UpdateKanBan(DateTime.Now);
+        }
         private static void DoSth_10s(object state)
         {
             Delete();
@@ -1562,7 +1569,7 @@ namespace ApiManagement.Base.Helper
         {
             if (RedisHelper.SetIfNotExist(kbLockKey, DateTime.Now.ToStr()))
             {
-                RedisHelper.SetExpireAt(kbLockKey, DateTime.Now.AddMinutes(30));
+                RedisHelper.SetExpireAt(kbLockKey, DateTime.Now.AddMinutes(10));
                 kbRun = true;
                 UpdateKanBanLogic(time);
                 kbRun = false;
@@ -1644,523 +1651,606 @@ namespace ApiManagement.Base.Helper
                 {
                     //Console.WriteLine(id);
                     var set = sets.FirstOrDefault(x => x.Id == id);
-                    if (set != null && set.DeviceIdList.Any())
+                    if (set == null)
                     {
-                        var setDevices = MonitoringKanBanDeviceDic.Values.Where(x => set.DeviceIdList.Contains(x.DeviceId));
-                        //var validDevice = allDevice.Where(x => x.NormalDevice == 1);
-                        MonitoringKanBanDic[id].Time = time;
-                        if (set.Type == KanBanEnum.设备详情看板)
-                        {
-                            #region 设备详情看板
-                            MonitoringKanBanDic[id].AllDevice = setDevices.Count();
-                            MonitoringKanBanDic[id].NormalDevice = setDevices.Count(x => x.NormalDevice == 1);
-                            MonitoringKanBanDic[id].ProcessDevice = setDevices.Count(x => x.ProcessDevice == 1);
-                            MonitoringKanBanDic[id].FaultDevice = setDevices.Count(x => x.FaultDevice == 1);
-                            MonitoringKanBanDic[id].Use = setDevices.Count(x => x.Use == 1);
-                            MonitoringKanBanDic[id].UseList = setDevices.SelectMany(x => x.UseList).Distinct().ToList();
-                            MonitoringKanBanDic[id].MaxUseList = setDevices.SelectMany(x => x.MaxUseList).Distinct().ToList();
-                            MonitoringKanBanDic[id].MaxUse = MonitoringKanBanDic[id].MaxUseList.Count;
-                            MonitoringKanBanDic[id].MinUse = MonitoringKanBanDic[id].MinUse == -1 ? MonitoringKanBanDic[id].MaxUse :
-                                (MonitoringKanBanDic[id].MinUse < MonitoringKanBanDic[id].MaxUse ? MonitoringKanBanDic[id].MinUse : MonitoringKanBanDic[id].MaxUse);
-                            MonitoringKanBanDic[id].MaxSimultaneousUseRate =
-                                MonitoringKanBanDic[id].MaxSimultaneousUseRate <
-                                MonitoringKanBanDic[id].ProcessDevice
-                                    ? MonitoringKanBanDic[id].ProcessDevice
-                                    : MonitoringKanBanDic[id].MaxSimultaneousUseRate;
-                            MonitoringKanBanDic[id].MinSimultaneousUseRate = MonitoringKanBanDic[id].MinSimultaneousUseRate == -1 ? MonitoringKanBanDic[id].MaxSimultaneousUseRate :
-                                (MonitoringKanBanDic[id].MinSimultaneousUseRate < MonitoringKanBanDic[id].MaxSimultaneousUseRate ? MonitoringKanBanDic[id].MinSimultaneousUseRate : MonitoringKanBanDic[id].MaxSimultaneousUseRate);
-                            MonitoringKanBanDic[id].SingleProcessRate = setDevices.SelectMany(x => x.SingleProcessRate).ToList();
-                            MonitoringKanBanDic[id].RunTime = setDevices.Sum(x => x.RunTime);
-                            MonitoringKanBanDic[id].ProcessTime = setDevices.Sum(x => x.ProcessTime);
-                            MonitoringKanBanDic[id].AllProcessRate = setDevices.Any()
-                                ? (MonitoringKanBanDic[id].ProcessTime * 1m / (setDevices.Count() * 24 * 3600)).ToRound(4) : 0;
-                            MonitoringKanBanDic[id].UseCodeList = setDevices.SelectMany(x => x.UseCodeList).Distinct().ToList();
+                        continue;
+                    }
 
-                            MonitoringKanBanDic[id].DayTotal = setDevices.Sum(x => x.DayTotal);
-                            MonitoringKanBanDic[id].DayQualified = setDevices.Sum(x => x.DayQualified);
-                            MonitoringKanBanDic[id].DayUnqualified = setDevices.Sum(x => x.DayUnqualified);
-                            MonitoringKanBanDic[id].ProductionList = setDevices.Select(x => new MonitoringProductionData
-                            {
-                                DeviceId = x.DeviceId,
-                                Code = x.Code,
-                                Time = x.Time,
-                                DayTotal = x.DayTotal,
-                                DayQualified = x.DayQualified,
-                                DayUnqualified = x.DayUnqualified
-                            }).ToList();
-                            #endregion
-                        }
-                        else if (set.Type == KanBanEnum.设备状态看板)
+#if DEBUG
+                    if (set.Type != KanBanEnum.生产相关看板)
+                    {
+                        continue;
+                    }
+#endif
+                    //var validDevice = allDevice.Where(x => x.NormalDevice == 1);
+                    MonitoringKanBanDic[id].Time = time;
+                    if (set.Type == KanBanEnum.设备详情看板)
+                    {
+                        if (!set.DeviceIdList.Any())
                         {
-                            #region 设备状态看板
-                            var mSetData = new List<MonitoringSetData>();
-                            foreach (var deviceId in set.DeviceIdList)
+                            continue;
+                        }
+                        var setDevices = MonitoringKanBanDeviceDic.Values.Where(x => set.DeviceIdList.Contains(x.DeviceId));
+                        #region 设备详情看板
+                        MonitoringKanBanDic[id].AllDevice = setDevices.Count();
+                        MonitoringKanBanDic[id].NormalDevice = setDevices.Count(x => x.NormalDevice == 1);
+                        MonitoringKanBanDic[id].ProcessDevice = setDevices.Count(x => x.ProcessDevice == 1);
+                        MonitoringKanBanDic[id].FaultDevice = setDevices.Count(x => x.FaultDevice == 1);
+                        MonitoringKanBanDic[id].Use = setDevices.Count(x => x.Use == 1);
+                        MonitoringKanBanDic[id].UseList = setDevices.SelectMany(x => x.UseList).Distinct().ToList();
+                        MonitoringKanBanDic[id].MaxUseList = setDevices.SelectMany(x => x.MaxUseList).Distinct().ToList();
+                        MonitoringKanBanDic[id].MaxUse = MonitoringKanBanDic[id].MaxUseList.Count;
+                        MonitoringKanBanDic[id].MinUse = MonitoringKanBanDic[id].MinUse == -1 ? MonitoringKanBanDic[id].MaxUse :
+                            (MonitoringKanBanDic[id].MinUse < MonitoringKanBanDic[id].MaxUse ? MonitoringKanBanDic[id].MinUse : MonitoringKanBanDic[id].MaxUse);
+                        MonitoringKanBanDic[id].MaxSimultaneousUseRate =
+                            MonitoringKanBanDic[id].MaxSimultaneousUseRate <
+                            MonitoringKanBanDic[id].ProcessDevice
+                                ? MonitoringKanBanDic[id].ProcessDevice
+                                : MonitoringKanBanDic[id].MaxSimultaneousUseRate;
+                        MonitoringKanBanDic[id].MinSimultaneousUseRate = MonitoringKanBanDic[id].MinSimultaneousUseRate == -1 ? MonitoringKanBanDic[id].MaxSimultaneousUseRate :
+                            (MonitoringKanBanDic[id].MinSimultaneousUseRate < MonitoringKanBanDic[id].MaxSimultaneousUseRate ? MonitoringKanBanDic[id].MinSimultaneousUseRate : MonitoringKanBanDic[id].MaxSimultaneousUseRate);
+                        MonitoringKanBanDic[id].SingleProcessRate = setDevices.SelectMany(x => x.SingleProcessRate).ToList();
+                        MonitoringKanBanDic[id].RunTime = setDevices.Sum(x => x.RunTime);
+                        MonitoringKanBanDic[id].ProcessTime = setDevices.Sum(x => x.ProcessTime);
+                        MonitoringKanBanDic[id].AllProcessRate = setDevices.Any()
+                            ? (MonitoringKanBanDic[id].ProcessTime * 1m / (setDevices.Count() * 24 * 3600)).ToRound(4) : 0;
+                        MonitoringKanBanDic[id].UseCodeList = setDevices.SelectMany(x => x.UseCodeList).Distinct().ToList();
+
+                        MonitoringKanBanDic[id].DayTotal = setDevices.Sum(x => x.DayTotal);
+                        MonitoringKanBanDic[id].DayQualified = setDevices.Sum(x => x.DayQualified);
+                        MonitoringKanBanDic[id].DayUnqualified = setDevices.Sum(x => x.DayUnqualified);
+                        MonitoringKanBanDic[id].ProductionList = setDevices.Select(x => new MonitoringProductionData
+                        {
+                            DeviceId = x.DeviceId,
+                            Code = x.Code,
+                            Time = x.Time,
+                            DayTotal = x.DayTotal,
+                            DayQualified = x.DayQualified,
+                            DayUnqualified = x.DayUnqualified
+                        }).ToList();
+                        #endregion
+                    }
+                    else if (set.Type == KanBanEnum.设备状态看板)
+                    {
+                        if (!set.DeviceIdList.Any())
+                        {
+                            continue;
+                        }
+                        #region 设备状态看板
+                        var mSetData = new List<MonitoringSetData>();
+                        foreach (var deviceId in set.DeviceIdList)
+                        {
+                            if (!allDeviceList.ContainsKey(deviceId))
                             {
-                                if (!allDeviceList.ContainsKey(deviceId))
+                                continue;
+                            }
+                            var device = allDeviceList[deviceId];
+                            var deviceData = device.AnalysisData;
+
+                            var t = new MonitoringSetData { Id = deviceId, ScriptId = device.ScriptId };
+                            var vs = set.VariableList.Where(v => v.ScriptId == device.ScriptId).OrderBy(x => x.Order);
+                            foreach (var x in vs)
+                            {
+                                var dn = dataNameDictionaries.FirstOrDefault(d =>
+                                    d.VariableTypeId == x.VariableTypeId && d.PointerAddress == x.PointerAddress);
+
+                                if (dn == null)
                                 {
                                     continue;
                                 }
-                                var device = allDeviceList[deviceId];
-                                var deviceData = device.AnalysisData;
-
-                                var t = new MonitoringSetData { Id = deviceId, ScriptId = device.ScriptId };
-                                var vs = set.VariableList.Where(v => v.ScriptId == device.ScriptId).OrderBy(x => x.Order);
-                                foreach (var x in vs)
+                                var r = new MonitoringSetSingleDataDetail
                                 {
-                                    var dn = dataNameDictionaries.FirstOrDefault(d =>
-                                        d.VariableTypeId == x.VariableTypeId && d.PointerAddress == x.PointerAddress);
+                                    Order = x.Order,
+                                    SubOrder = x.SubOrder,
+                                    Delimiter = x.Delimiter,
+                                    Sid = x.ScriptId,
+                                    Type = x.VariableTypeId,
+                                    Add = x.PointerAddress,
+                                    VName = x.VariableName.IsNullOrEmpty() ? dn.VariableName ?? "" : x.VariableName,
+                                };
 
-                                    if (dn == null)
+                                if (dn.VariableTypeId == 1 && dn.VariableNameId == stateDId)
+                                {
+                                    r.V = device.State.ToString();
+                                }
+                                else if (deviceData != null)
+                                {
+                                    List<int> bl = null;
+                                    switch (x.VariableTypeId)
+                                    {
+                                        case 1: bl = deviceData.vals; break;
+                                        case 2: bl = deviceData.ins; break;
+                                        case 3: bl = deviceData.outs; break;
+                                        default: break;
+                                    }
+
+                                    if (bl != null)
+                                    {
+                                        if (bl.Count > x.PointerAddress - 1)
+                                        {
+                                            var chu = Math.Pow(10, dn.Precision);
+                                            var v = (decimal)(bl.ElementAt(x.PointerAddress - 1) / chu);
+                                            if (dn.VariableTypeId == 1 && (dn.VariableNameId == AnalysisHelper.flowCardDId || dn.VariableNameId == AnalysisHelper.nextFlowCardDId))
+                                            {
+                                                var flowCard = FlowCardHelper.Instance.Get<FlowCard>((int)v);
+                                                r.V = flowCard?.FlowCardName ?? "";
+                                            }
+                                            else if (dn.VariableTypeId == 1 && dn.VariableNameId == AnalysisHelper.currentProductDId)
+                                            {
+                                                var production = ProductionHelper.Instance.Get<Production>((int)v);
+                                                r.V = production?.ProductionProcessName ?? "";
+                                            }
+                                            else
+                                            {
+                                                r.V = v.ToString();
+                                            }
+                                        }
+                                    }
+                                }
+                                t.Data.Add(r);
+                            }
+                            mSetData.Add(t);
+                        }
+
+                        MonitoringKanBanDic[id].MSetData = mSetData;
+                        #endregion
+                    }
+                    else if (set.Type == KanBanEnum.生产相关看板)
+                    {
+                        #region 生产相关看板
+
+                        var workshop = workshops.ContainsKey(set.WorkshopId)
+                            ? workshops[set.WorkshopId]
+                            : new Workshop
+                            {
+                                Shifts = 1,
+                                ShiftTimes = "[\"00:00:00\",\"24:00:00\"]"
+                            };
+                        var currentWorkTimes = DateTimeExtend.GetCurrentWorkTimeRanges(workshop.Shifts, workshop.StatisticTimeList, time);
+                        var workTime = DateTimeExtend.GetDayWorkDay(workshop.StatisticTimeList, time);
+                        foreach (var item in set.ItemList)
+                        {
+                            var type = item.Item;
+                            if (type != KanBanItemEnum.流程卡追踪 && !set.DeviceIdList.Any())
+                            {
+                                continue;
+                            }
+
+                            var key = $"{(int)item.Item}_{item.Col}_{item.Order}";
+                            if (!MonitoringKanBanDic[id].Times.ContainsKey(key))
+                            {
+                                MonitoringKanBanDic[id].Times.Add(key, default(DateTime));
+                            }
+                            if (MonitoringKanBanDic[id].Times[key] != default(DateTime)
+                                && (time - MonitoringKanBanDic[id].Times[key]).TotalSeconds < 10)
+                            {
+                                continue;
+                            }
+                            MonitoringKanBanDic[id].Times[key] = time;
+                            var startTime = time.DayBeginTime();
+                            var endTime = time.DayEndTime();
+                            switch (item.Shifts)
+                            {
+                                case KanBanShiftsEnum.当前班次:
+                                    startTime = currentWorkTimes.ElementAt(1).Item1;
+                                    endTime = currentWorkTimes.ElementAt(1).Item2.AddSeconds(-1);
+                                    break;
+                                case KanBanShiftsEnum.上个班:
+                                    startTime = currentWorkTimes.ElementAt(0).Item1;
+                                    endTime = currentWorkTimes.ElementAt(0).Item2.AddSeconds(-1);
+                                    break;
+                                case KanBanShiftsEnum.今日:
+                                    startTime = workTime.Item1;
+                                    endTime = workTime.Item2.AddSeconds(-1);
+                                    break;
+                                case KanBanShiftsEnum.昨日:
+                                    startTime = workTime.Item1.AddDays(-1);
+                                    endTime = workTime.Item2.AddDays(-1).AddSeconds(-1);
+                                    break;
+                            }
+
+                            if (endTime > time)
+                            {
+                                endTime = time;
+                            }
+                            var cha = (endTime - startTime).TotalMinutes;
+                            var duration = item.Hour * 60 + item.Min;
+                            if (duration != 0 && duration < cha)
+                            {
+                                startTime = endTime.AddMinutes(-duration);
+                            }
+
+                            if (!MonitoringKanBanDic[id].ItemData.ContainsKey(key))
+                            {
+                                MonitoringKanBanDic[id].ItemData.Add(key, new List<dynamic>());
+                            }
+
+                            //if (!(type == KanBanItemEnum.计划号工序推移图 || type == KanBanItemEnum.设备工序推移图 ||
+                            //    type == KanBanItemEnum.操作工工序推移图))
+                            //{
+                            //    continue;
+                            //}
+                            MonitoringKanBanDic[id].ItemData[key].Clear();
+                            if (type == KanBanItemEnum.异常报警)
+                            {
+                                //MonitoringKanBanDic[id].WarningLogs =
+                                //    WarningLogHelper.GetWarningLogs(startTime, endTime, 0, 0, WarningType.设备, WarningDataType.生产数据,
+                                //        set.DeviceIdList, new List<WarningItemType> { WarningItemType.SingleQualifiedRate }, 1).ToList();
+                                //if (item.ConfigList.Length == 0)
+                                {
+                                    var configs1 = item.ConfigList.Length > 0 ? item.ConfigList[0] : new int[0];
+                                    var configs2 = item.ConfigList.Length > 1 ? item.ConfigList[1] : new int[0];
+                                    var data = WarningLogHelper.GetWarningLogs(workshop.Id, startTime, endTime, 0, 0,
+                                        //WarningType.设备, WarningDataType.生产数据, null, null, configs1, configs2, 1);
+                                        WarningType.设备, WarningDataType.生产数据, null, new List<WarningItemType> { WarningItemType.SingleQualifiedRate }, configs1, configs2, 1);
+                                    if (!data.Any())
                                     {
                                         continue;
                                     }
-                                    var r = new MonitoringSetSingleDataDetail
-                                    {
-                                        Order = x.Order,
-                                        SubOrder = x.SubOrder,
-                                        Delimiter = x.Delimiter,
-                                        Sid = x.ScriptId,
-                                        Type = x.VariableTypeId,
-                                        Add = x.PointerAddress,
-                                        VName = x.VariableName.IsNullOrEmpty() ? dn.VariableName ?? "" : x.VariableName,
-                                    };
+                                    var wgData = data.Where(x => x.StepId == 32);
+                                    var oldFcIds = wgData.Where(x => x.Interval == WarningInterval.每次
+                                                                     && (x.ItemType == WarningItemType.SingleQualifiedRate || x.ItemType == WarningItemType.SingleUnqualifiedRate)
+                                                                     && x.ExtraIdList.Count > 2)
+                                        .Select(y => y.ExtraIdList.ElementAt(2));
+                                    var stepReport = FlowCardReportGetHelper.GetReport(workshop.Id, default(DateTime), default(DateTime), 18, null, 0,
+                                        null, 0, null, 0, oldFcIds);
 
-                                    if (dn.VariableTypeId == 1 && dn.VariableNameId == stateDId)
+                                    foreach (var log in data)
                                     {
-                                        r.V = device.State.ToString();
-                                    }
-                                    else if (deviceData != null)
-                                    {
-                                        List<int> bl = null;
-                                        switch (x.VariableTypeId)
+                                        if (log.ItemType == WarningItemType.SingleQualifiedRate || log.ItemType == WarningItemType.SingleUnqualifiedRate)
                                         {
-                                            case 1: bl = deviceData.vals; break;
-                                            case 2: bl = deviceData.ins; break;
-                                            case 3: bl = deviceData.outs; break;
-                                            default: break;
-                                        }
-
-                                        if (bl != null)
-                                        {
-                                            if (bl.Count > x.PointerAddress - 1)
+                                            //外观检验
+                                            if (log.StepId == 32 && log.ExtraIdList.Count > 2)
                                             {
-                                                var chu = Math.Pow(10, dn.Precision);
-                                                var v = (decimal)(bl.ElementAt(x.PointerAddress - 1) / chu);
-                                                if (dn.VariableTypeId == 1 && (dn.VariableNameId == AnalysisHelper.flowCardDId || dn.VariableNameId == AnalysisHelper.nextFlowCardDId))
+                                                var oldFcId = log.ExtraIdList.ElementAt(2);
+                                                var report = stepReport.FirstOrDefault(x => x.OldFlowCardId == oldFcId);
+                                                log.Code = report?.Code ?? log.Code;
+                                                if (log.WarningData.Any() && report != null)
                                                 {
-                                                    var flowCard = FlowCardHelper.Instance.Get<FlowCard>((int)v);
-                                                    r.V = flowCard?.FlowCardName ?? "";
-                                                }
-                                                else if (dn.VariableTypeId == 1 && dn.VariableNameId == AnalysisHelper.currentProductDId)
-                                                {
-                                                    var production = ProductionHelper.Instance.Get<Production>((int)v);
-                                                    r.V = production?.ProductionProcessName ?? "";
-                                                }
-                                                else
-                                                {
-                                                    r.V = v.ToString();
+                                                    try
+                                                    {
+                                                        var tp = JsonConvert
+                                                            .DeserializeObject<string[]>(
+                                                                log.WarningData.First().Param);
+                                                        tp[1] = report.Processor;
+                                                        log.WarningData.First().Param = tp.ToJSON();
+                                                    }
+                                                    catch (Exception e)
+                                                    {
+                                                        Log.Error(e);
+                                                    }
                                                 }
                                             }
+
+                                            if (log.WarningData.Any())
+                                            {
+                                                var wd = log.WarningData.First();
+                                                var t = new List<string>();
+                                                if (!wd.Param.IsNullOrEmpty() && wd.Param != "[]")
+                                                {
+                                                    var tp = JsonConvert
+                                                        .DeserializeObject<IEnumerable<string>>(
+                                                            wd.Param);
+                                                    t.AddRange(tp);
+                                                }
+                                                if (!wd.OtherParam.IsNullOrEmpty() && wd.OtherParam != "[]")
+                                                {
+                                                    var tp = JsonConvert
+                                                        .DeserializeObject<IEnumerable<BadTypeCount>>(
+                                                            wd.OtherParam);
+                                                    t.AddRange(tp.Where(x => x.count > 0).Select(y => $"{y.comment}:{ y.count}"));
+                                                }
+                                                log.Info = t.Join();
+                                            }
                                         }
+
                                     }
-                                    t.Data.Add(r);
+                                    MonitoringKanBanDic[id].ItemData[key].AddRange(data);
                                 }
-                                mSetData.Add(t);
                             }
-
-                            MonitoringKanBanDic[id].MSetData = mSetData;
-                            #endregion
-                        }
-                        else if (set.Type == KanBanEnum.生产相关看板)
-                        {
-                            #region 生产相关看板
-
-                            var workshop = workshops.ContainsKey(set.WorkshopId)
-                                ? workshops[set.WorkshopId]
-                                : new Workshop
-                                {
-                                    Shifts = 1,
-                                    ShiftTimes = "[\"00:00:00\",\"24:00:00\"]"
-                                };
-                            var currentWorkTimes = DateTimeExtend.GetCurrentWorkTimeRanges(workshop.Shifts, workshop.StatisticTimeList, time);
-                            var workTime = DateTimeExtend.GetDayWorkDay(workshop.StatisticTimeList, time);
-                            foreach (var item in set.ItemList)
+                            else if (type == KanBanItemEnum.异常统计)
                             {
-                                var type = item.Item;
-                                var key = $"{(int)item.Item}_{item.Col}_{item.Order}";
-                                if (!MonitoringKanBanDic[id].Times.ContainsKey(key))
-                                {
-                                    MonitoringKanBanDic[id].Times.Add(key, default(DateTime));
-                                }
-                                if (MonitoringKanBanDic[id].Times[key] != default(DateTime)
-                                    && (time - MonitoringKanBanDic[id].Times[key]).TotalSeconds < 10)
-                                {
-                                    continue;
-                                }
-                                MonitoringKanBanDic[id].Times[key] = time;
-                                var startTime = time.DayBeginTime();
-                                var endTime = time.DayEndTime();
-                                switch (item.Shifts)
-                                {
-                                    case KanBanShiftsEnum.当前班次:
-                                        startTime = currentWorkTimes.ElementAt(1).Item1;
-                                        endTime = currentWorkTimes.ElementAt(1).Item2.AddSeconds(-1);
-                                        break;
-                                    case KanBanShiftsEnum.上个班:
-                                        startTime = currentWorkTimes.ElementAt(0).Item1;
-                                        endTime = currentWorkTimes.ElementAt(0).Item2.AddSeconds(-1);
-                                        break;
-                                    case KanBanShiftsEnum.今日:
-                                        startTime = workTime.Item1;
-                                        endTime = workTime.Item2.AddSeconds(-1);
-                                        break;
-                                    case KanBanShiftsEnum.昨日:
-                                        startTime = workTime.Item1.AddDays(-1);
-                                        endTime = workTime.Item2.AddDays(-1).AddSeconds(-1);
-                                        break;
-                                }
+                                //相关设备
+                                //MonitoringKanBanDic[id].WarningStatistics =
+                                //    WarningStatisticHelper.GetWarningStatistic(WarningStatisticTime.天, startTime, null, WarningDataType.生产数据,
+                                //        set.DeviceIdList, new List<WarningItemType> { WarningItemType.SingleQualifiedRate }).ToList();
 
-                                if (endTime > time)
+                                //无相关设备
+                                //MonitoringKanBanDic[id].WarningStatistics =
+                                //    WarningStatisticHelper.GetWarningStatistic(WarningStatisticTime.天, startTime, null, WarningDataType.生产数据,
+                                //        null, new List<WarningItemType> { WarningItemType.SingleQualifiedRate }).ToList();
+                                //if (item.ConfigList.Length > 0)
                                 {
-                                    endTime = time;
-                                }
-                                var cha = (endTime - startTime).TotalMinutes;
-                                var duration = item.Hour * 60 + item.Min;
-                                if (duration != 0 && duration < cha)
-                                {
-                                    startTime = endTime.AddMinutes(-duration);
-                                }
-
-                                if (!MonitoringKanBanDic[id].ItemData.ContainsKey(key))
-                                {
-                                    MonitoringKanBanDic[id].ItemData.Add(key, new List<dynamic>());
-                                }
-                                MonitoringKanBanDic[id].ItemData[key].Clear();
-                                //if (!(type == KanBanItemEnum.计划号工序推移图 || type == KanBanItemEnum.设备工序推移图 ||
-                                //    type == KanBanItemEnum.操作工工序推移图))
-                                //{
-                                //    continue;
-                                //}
-                                if (type == KanBanItemEnum.异常报警)
-                                {
-                                    //MonitoringKanBanDic[id].WarningLogs =
-                                    //    WarningLogHelper.GetWarningLogs(startTime, endTime, 0, 0, WarningType.设备, WarningDataType.生产数据,
-                                    //        set.DeviceIdList, new List<WarningItemType> { WarningItemType.SingleQualifiedRate }, 1).ToList();
-                                    //if (item.ConfigList.Length == 0)
-                                    {
-                                        var configs1 = item.ConfigList.Length > 0 ? item.ConfigList[0] : new int[0];
-                                        var configs2 = item.ConfigList.Length > 1 ? item.ConfigList[1] : new int[0];
-                                        var data = WarningLogHelper.GetWarningLogs(workshop.Id, startTime, endTime, 0, 0,
-                                            //WarningType.设备, WarningDataType.生产数据, null, null, configs1, configs2, 1);
-                                            WarningType.设备, WarningDataType.生产数据, null, new List<WarningItemType> { WarningItemType.SingleQualifiedRate }, configs1, configs2, 1);
-                                        var wgData = data.Where(x => x.StepId == 32);
-                                        var oldFcIds = wgData.Where(x => x.Interval == WarningInterval.每次
-                                                                         && (x.ItemType == WarningItemType.SingleQualifiedRate || x.ItemType == WarningItemType.SingleUnqualifiedRate)
-                                                                         && x.ExtraIdList.Count > 2)
-                                            .Select(y => y.ExtraIdList.ElementAt(2));
-                                        var stepReport = FlowCardReportGetHelper.GetReport(workshop.Id, default(DateTime), default(DateTime), 18, null, 0,
-                                            null, 0, null, 0, oldFcIds);
-
-                                        foreach (var log in data)
+                                    var configs1 = item.ConfigList.Length > 0 ? item.ConfigList[0] : new int[0];
+                                    var configs2 = item.ConfigList.Length > 1 ? item.ConfigList[1] : new int[0];
+                                    var logs = WarningLogHelper.GetWarningLogs(workshop.Id, startTime, endTime, 0, 0, WarningType.设备, WarningDataType.生产数据,
+                                        null, null, configs1, configs2, 1);
+                                    MonitoringKanBanDic[id].ItemData[key].AddRange(logs.GroupBy(x => new { x.ItemId, x.SetId, x.SetName, x.Range, x.Item })
+                                        .Select(x => new WarningStatistic
                                         {
-                                            if (log.ItemType == WarningItemType.SingleQualifiedRate || log.ItemType == WarningItemType.SingleUnqualifiedRate)
-                                            {
-                                                //外观检验
-                                                if (log.StepId == 32 && log.ExtraIdList.Count > 2)
-                                                {
-                                                    var oldFcId = log.ExtraIdList.ElementAt(2);
-                                                    var report = stepReport.FirstOrDefault(x => x.OldFlowCardId == oldFcId);
-                                                    log.Code = report?.Code ?? log.Code;
-                                                    if (log.WarningData.Any() && report != null)
-                                                    {
-                                                        try
-                                                        {
-                                                            var tp = JsonConvert
-                                                                .DeserializeObject<string[]>(
-                                                                    log.WarningData.First().Param);
-                                                            tp[1] = report.Processor;
-                                                            log.WarningData.First().Param = tp.ToJSON();
-                                                        }
-                                                        catch (Exception e)
-                                                        {
-                                                            Log.Error(e);
-                                                        }
-                                                    }
-                                                }
-
-                                                if (log.WarningData.Any())
-                                                {
-                                                    var wd = log.WarningData.First();
-                                                    var t = new List<string>();
-                                                    if (!wd.Param.IsNullOrEmpty() && wd.Param != "[]")
-                                                    {
-                                                        var tp = JsonConvert
-                                                            .DeserializeObject<IEnumerable<string>>(
-                                                                wd.Param);
-                                                        t.AddRange(tp);
-                                                    }
-                                                    if (!wd.OtherParam.IsNullOrEmpty() && wd.OtherParam != "[]")
-                                                    {
-                                                        var tp = JsonConvert
-                                                            .DeserializeObject<IEnumerable<BadTypeCount>>(
-                                                                wd.OtherParam);
-                                                        t.AddRange(tp.Where(x => x.count > 0).Select(y => $"{y.comment}:{ y.count}"));
-                                                    }
-                                                    log.Info = t.Join();
-                                                }
-                                            }
-
-                                        }
-                                        MonitoringKanBanDic[id].ItemData[key].AddRange(data);
-                                    }
+                                            Time = startTime.Date,
+                                            SetId = x.Key.SetId,
+                                            SetName = x.Key.SetName,
+                                            ItemId = x.Key.ItemId,
+                                            Item = x.Key.Item,
+                                            Range = x.Key.Range,
+                                            Count = x.Count()
+                                        }));
                                 }
-                                else if (type == KanBanItemEnum.异常统计)
+                            }
+                            else if (type == KanBanItemEnum.设备状态反馈)
+                            {
+                                IdleSecond = RedisHelper.Get<int>(aIdleSecondKey);
+                                var devices = MonitoringProcessHelper.GetMonitoringProcesses();
+                                var idleDevices = devices.Where(x => x.State == 0 && x.TotalTime > IdleSecond);
+                                //var idleDevices = devices.Where(x => x.State == 0);
+                                MonitoringKanBanDic[id].ItemData[key].AddRange(idleDevices.Select(x => new DeviceStateInfo
                                 {
-                                    //相关设备
-                                    //MonitoringKanBanDic[id].WarningStatistics =
-                                    //    WarningStatisticHelper.GetWarningStatistic(WarningStatisticTime.天, startTime, null, WarningDataType.生产数据,
-                                    //        set.DeviceIdList, new List<WarningItemType> { WarningItemType.SingleQualifiedRate }).ToList();
-
-                                    //无相关设备
-                                    //MonitoringKanBanDic[id].WarningStatistics =
-                                    //    WarningStatisticHelper.GetWarningStatistic(WarningStatisticTime.天, startTime, null, WarningDataType.生产数据,
-                                    //        null, new List<WarningItemType> { WarningItemType.SingleQualifiedRate }).ToList();
-                                    //if (item.ConfigList.Length > 0)
-                                    {
-                                        var configs1 = item.ConfigList.Length > 0 ? item.ConfigList[0] : new int[0];
-                                        var configs2 = item.ConfigList.Length > 1 ? item.ConfigList[1] : new int[0];
-                                        var logs = WarningLogHelper.GetWarningLogs(workshop.Id, startTime, endTime, 0, 0, WarningType.设备, WarningDataType.生产数据,
-                                            null, null, configs1, configs2, 1);
-                                        MonitoringKanBanDic[id].ItemData[key].AddRange(logs.GroupBy(x => new { x.ItemId, x.SetId, x.SetName, x.Range, x.Item })
-                                            .Select(x => new WarningStatistic
-                                            {
-                                                Time = startTime.Date,
-                                                SetId = x.Key.SetId,
-                                                SetName = x.Key.SetName,
-                                                ItemId = x.Key.ItemId,
-                                                Item = x.Key.Item,
-                                                Range = x.Key.Range,
-                                                Count = x.Count()
-                                            }));
-                                    }
-                                }
-                                else if (type == KanBanItemEnum.设备状态反馈)
+                                    DeviceId = x.DeviceId,
+                                    Code = x.Code,
+                                    IdleSecond = x.TotalTime,
+                                    //IdleSecond = RandomSeed.Next(100000),
+                                }).OrderBy(x => x.IdleSecond));
+                            }
+                            else if (type == KanBanItemEnum.设备预警状态)
+                            {
+                                var deviceList = WarningHelper.GetMonitoringProcesses(set.DeviceIdList);
+                                var warningList = deviceList.Where(device => device.DeviceWarning);
+                                MonitoringKanBanDic[id].ItemData[key].AddRange(warningList.Select(device =>
                                 {
-                                    IdleSecond = RedisHelper.Get<int>(aIdleSecondKey);
-                                    var devices = MonitoringProcessHelper.GetMonitoringProcesses();
-                                    var idleDevices = devices.Where(x => x.State == 0 && x.TotalTime > IdleSecond);
-                                    //var idleDevices = devices.Where(x => x.State == 0);
-                                    MonitoringKanBanDic[id].ItemData[key].AddRange(idleDevices.Select(x => new DeviceStateInfo
+                                    var warnings = new List<MonitoringProcessWarningLog>();
+                                    //warnings.AddRange(device.DeviceWarningList.Values.Concat(device.ProductWarningList.Values));
+                                    warnings.AddRange(device.DeviceWarningList.Values);
+                                    var warning = warnings.OrderByDescending(x => x.WarningTime).First();
+                                    return new WarningDeviceInfo
                                     {
-                                        DeviceId = x.DeviceId,
-                                        Code = x.Code,
-                                        IdleSecond = x.TotalTime,
-                                        //IdleSecond = RandomSeed.Next(100000),
-                                    }).OrderBy(x => x.IdleSecond));
-                                }
-                                else if (type == KanBanItemEnum.设备预警状态)
-                                {
-                                    var deviceList = WarningHelper.GetMonitoringProcesses(set.DeviceIdList);
-                                    var warningList = deviceList.Where(device => device.DeviceWarning);
-                                    MonitoringKanBanDic[id].ItemData[key].AddRange(warningList.Select(device =>
+                                        Time = warning.WarningTime,
+                                        DeviceId = device.DeviceId,
+                                        Code = device.Code,
+                                        ItemId = warning.ItemId,
+                                        Item = warning.Item,
+                                        SetId = warning.SetId,
+                                        SetName = warning.SetName,
+                                        Range = warning.Range,
+                                        Value = warning.Value,
+                                    };
+                                }).OrderByDescending(x => x.Time));
+                            }
+                            else if (type == KanBanItemEnum.计划号日进度表)
+                            {
+                                var reports = FlowCardReportGetHelper.GetReport(workshop.Id, startTime, endTime, 18, null, 0, set.DeviceIdList)
+                                    .GroupBy(x => x.ProductionId)
+                                    .ToDictionary(x => x.Key, x => x.Sum(y => y.HeGe));
+                                var productionPlans = ProductionPlanHelper.GetDetails(startTime.Date, startTime.Date, "蓝玻璃发抛光").Where(x => x.ProductionId != 0);
+                                var existProductionPlanIds = reports.Select(x => x.Key)
+                                    .Where(y => y != 0 && productionPlans.All(z => z.ProductionId != y));
+                                var existProductionPlans = ProductionPlanHelper.GetDetails(startTime.Date, startTime.Date, 0, 0, existProductionPlanIds).Where(x => x.ProductionId != 0);
+                                var productions = ProductionHelper.GetMenus(reports.Keys);
+                                var pp = reports.Where(x => productions.Any(y => y.Id == x.Key))
+                                    .Select(x =>
                                     {
-                                        var warnings = new List<MonitoringProcessWarningLog>();
-                                        //warnings.AddRange(device.DeviceWarningList.Values.Concat(device.ProductWarningList.Values));
-                                        warnings.AddRange(device.DeviceWarningList.Values);
-                                        var warning = warnings.OrderByDescending(x => x.WarningTime).First();
-                                        return new WarningDeviceInfo
+                                        var production = productions.First(p => p.Id == x.Key);
+                                        var plan = productionPlans.FirstOrDefault(p => p.ProductionId == x.Key) ??
+                                                   existProductionPlans.FirstOrDefault(p => p.ProductionId == x.Key);
+                                        return new ProductionSchedule
                                         {
-                                            Time = warning.WarningTime,
-                                            DeviceId = device.DeviceId,
-                                            Code = device.Code,
-                                            ItemId = warning.ItemId,
-                                            Item = warning.Item,
-                                            SetId = warning.SetId,
-                                            SetName = warning.SetName,
-                                            Range = warning.Range,
-                                            Value = warning.Value,
+                                            ProductionId = x.Key,
+                                            Production = production.ProductionProcessName,
+                                            Plan = plan?.Plan ?? 0,
+                                            Actual = x.Value,
                                         };
-                                    }).OrderByDescending(x => x.Time));
-                                }
-                                else if (type == KanBanItemEnum.计划号日进度表)
+                                    }).ToList();
+                                var not = productionPlans.Where(x => pp.All(y => y.ProductionId != x.ProductionId)).ToList();
+                                pp.AddRange(not.Select(z => new ProductionSchedule
                                 {
-                                    var reports = FlowCardReportGetHelper.GetReport(workshop.Id, startTime, endTime, 18, null, 0, set.DeviceIdList)
-                                        .GroupBy(x => x.ProductionId)
-                                        .ToDictionary(x => x.Key, x => x.Sum(y => y.HeGe));
-                                    var productionPlans = ProductionPlanHelper.GetDetails(startTime.Date, startTime.Date, "蓝玻璃发抛光").Where(x => x.ProductionId != 0);
-                                    var existProductionPlanIds = reports.Select(x => x.Key)
-                                        .Where(y => y != 0 && productionPlans.All(z => z.ProductionId != y));
-                                    var existProductionPlans = ProductionPlanHelper.GetDetails(startTime.Date, startTime.Date, 0, 0, existProductionPlanIds).Where(x => x.ProductionId != 0);
-                                    var productions = ProductionHelper.GetMenus(reports.Keys);
-                                    var pp = reports.Where(x => productions.Any(y => y.Id == x.Key))
-                                        .Select(x =>
-                                        {
-                                            var production = productions.First(p => p.Id == x.Key);
-                                            var plan = productionPlans.FirstOrDefault(p => p.ProductionId == x.Key) ??
-                                                       existProductionPlans.FirstOrDefault(p => p.ProductionId == x.Key);
-                                            return new ProductionSchedule
-                                            {
-                                                ProductionId = x.Key,
-                                                Production = production.ProductionProcessName,
-                                                Plan = plan?.Plan ?? 0,
-                                                Actual = x.Value,
-                                            };
-                                        }).ToList();
-                                    var not = productionPlans.Where(x => pp.All(y => y.ProductionId != x.ProductionId)).ToList();
-                                    pp.AddRange(not.Select(z => new ProductionSchedule
+                                    ProductionId = z.ProductionId,
+                                    Production = z.ProductionProcessName,
+                                    Plan = z.Plan,
+                                    Actual = 0
+                                }));
+                                MonitoringKanBanDic[id].ItemData[key].AddRange(pp.OrderByDescending(x => x.Plan).ThenByDescending(x => x.Actual));
+                            }
+                            else if (type == KanBanItemEnum.设备日进度表)
+                            {
+                                var reports = FlowCardReportGetHelper.GetReport(workshop.Id, startTime, endTime, 18, null, 0, set.DeviceIdList)
+                                    .GroupBy(x => x.DeviceId)
+                                    .ToDictionary(x => x.Key, x => x.Sum(y => y.HeGe));
+                                var deviceLibraries = DeviceLibraryHelper.GetMenu(reports.Keys);
+                                MonitoringKanBanDic[id].ItemData[key].AddRange(reports.Where(x => deviceLibraries.Any(y => y.Id == x.Key))
+                                    .Select(x =>
                                     {
-                                        ProductionId = z.ProductionId,
-                                        Production = z.ProductionProcessName,
-                                        Plan = z.Plan,
-                                        Actual = 0
-                                    }));
-                                    MonitoringKanBanDic[id].ItemData[key].AddRange(pp.OrderByDescending(x => x.Plan).ThenByDescending(x => x.Actual));
-                                }
-                                else if (type == KanBanItemEnum.设备日进度表)
-                                {
-                                    var reports = FlowCardReportGetHelper.GetReport(workshop.Id, startTime, endTime, 18, null, 0, set.DeviceIdList)
-                                        .GroupBy(x => x.DeviceId)
-                                        .ToDictionary(x => x.Key, x => x.Sum(y => y.HeGe));
-                                    var deviceLibraries = DeviceLibraryHelper.GetMenu(reports.Keys);
-                                    MonitoringKanBanDic[id].ItemData[key].AddRange(reports.Where(x => deviceLibraries.Any(y => y.Id == x.Key))
-                                        .Select(x =>
+                                        var deviceLibrary = deviceLibraries.First(p => p.Id == x.Key);
+                                        return new DeviceSchedule
                                         {
-                                            var deviceLibrary = deviceLibraries.First(p => p.Id == x.Key);
-                                            return new DeviceSchedule
-                                            {
-                                                DeviceId = x.Key,
-                                                Code = deviceLibrary.Code,
-                                                Plan = 0,
-                                                Actual = x.Value,
-                                            };
-                                        }).OrderByDescending(x => x.Actual));
-                                }
-                                else if (type == KanBanItemEnum.操作工日进度表)
-                                {
-                                    var reports = FlowCardReportGetHelper.GetReport(workshop.Id, startTime, endTime, 18, null, 0, set.DeviceIdList)
-                                        .GroupBy(x => x.ProcessorId)
-                                        .ToDictionary(x => x.Key, x => x.Sum(y => y.HeGe));
-                                    var processes = AccountInfoHelper.GetAccountInfoByAccountIds(reports.Keys);
-                                    MonitoringKanBanDic[id].ItemData[key].AddRange(reports.Where(x => processes.Any(y => y.Id == x.Key))
-                                        .Select(x =>
+                                            DeviceId = x.Key,
+                                            Code = deviceLibrary.Code,
+                                            Plan = 0,
+                                            Actual = x.Value,
+                                        };
+                                    }).OrderByDescending(x => x.Actual));
+                            }
+                            else if (type == KanBanItemEnum.操作工日进度表)
+                            {
+                                var reports = FlowCardReportGetHelper.GetReport(workshop.Id, startTime, endTime, 18, null, 0, set.DeviceIdList)
+                                    .GroupBy(x => x.ProcessorId)
+                                    .ToDictionary(x => x.Key, x => x.Sum(y => y.HeGe));
+                                var processes = AccountInfoHelper.GetAccountInfoByAccountIds(reports.Keys);
+                                MonitoringKanBanDic[id].ItemData[key].AddRange(reports.Where(x => processes.Any(y => y.Id == x.Key))
+                                    .Select(x =>
+                                    {
+                                        var process = processes.First(p => p.Id == x.Key);
+                                        return new ProcessorSchedule
                                         {
-                                            var process = processes.First(p => p.Id == x.Key);
-                                            return new ProcessorSchedule
-                                            {
-                                                ProcessorId = x.Key,
-                                                Processor = process.Name,
-                                                Plan = 0,
-                                                Actual = x.Value,
-                                            };
-                                        }).OrderByDescending(x => x.Actual));
-                                }
-                                else if (type == KanBanItemEnum.故障状态反馈)
-                                {
-                                    //var faults = RepairRecordHelper.GetKanBan(workshop.Id);
-                                    var faults = RepairRecordHelper.GetKanBan();
-                                    MonitoringKanBanDic[id].ItemData[key].AddRange(faults.OrderByDescending(x => x.FaultTime));
-                                }
-                                else if (type == KanBanItemEnum.计划号工序推移图 || type == KanBanItemEnum.设备工序推移图 || type == KanBanItemEnum.操作工工序推移图)
+                                            ProcessorId = x.Key,
+                                            Processor = process.Name,
+                                            Plan = 0,
+                                            Actual = x.Value,
+                                        };
+                                    }).OrderByDescending(x => x.Actual));
+                            }
+                            else if (type == KanBanItemEnum.故障状态反馈)
+                            {
+                                //var faults = RepairRecordHelper.GetKanBan(workshop.Id);
+                                var faults = RepairRecordHelper.GetKanBan();
+                                MonitoringKanBanDic[id].ItemData[key].AddRange(faults.OrderByDescending(x => x.FaultTime));
+                            }
+                            else if (type == KanBanItemEnum.计划号工序推移图 || type == KanBanItemEnum.设备工序推移图 || type == KanBanItemEnum.操作工工序推移图)
+                            {
+                                //班制
+                                var shift = 0;
+                                //时间类型
+                                var timeType = StatisticProcessTimeEnum.小时;
+                                //时间范围
+                                var range = 10;
+                                //是否是合计
+                                var isSum = 0;
+                                //是否是比较
+                                var isCompare = 0;
+                                //比较的时间类型
+                                var cTimeType = StatisticProcessTimeEnum.小时;
+                                //比较的时间范围类型
+                                var cTimeRangeType = StatisticProcessTimeRangeEnum.前多少时间;
+                                List<int> cTimeRange = null;
+                                List<int> steps = null;
+                                var deviceIds = set.DeviceIdList;
+                                deviceIds.Add(0);
+                                List<int> productionIds = null;
+                                List<Production> productions = new List<Production>();
+                                List<int> processorIds = null;
+                                //item.ConfigList 工序推移图[0][0] 班制[0][1]数据类型[0][2]时间范围;[1][...]工序
+                                var index = 0;
+                                var cIndex = 0;
+                                if (item.ConfigList.Length > index)
                                 {
                                     //班制
-                                    var shift = 0;
+                                    cIndex = 0;
+                                    shift = item.ConfigList[index].Length > cIndex ? item.ConfigList[index][cIndex] : shift;
                                     //时间类型
-                                    var timeType = StatisticProcessTimeEnum.小时;
+                                    cIndex = 1;
+                                    timeType = item.ConfigList[index].Length > cIndex ? (StatisticProcessTimeEnum)item.ConfigList[index][cIndex] : timeType;
                                     //时间范围
-                                    var range = 10;
+                                    cIndex = 2;
+                                    range = item.ConfigList[index].Length > cIndex ? item.ConfigList[index][cIndex] : range;
                                     //是否是合计
-                                    var isSum = 0;
+                                    cIndex = 3;
+                                    isSum = item.ConfigList[index].Length > cIndex ? item.ConfigList[index][cIndex] : isSum;
                                     //是否是比较
-                                    var isCompare = 0;
+                                    cIndex = 4;
+                                    isCompare = item.ConfigList[index].Length > cIndex ? item.ConfigList[index][cIndex] : isCompare;
                                     //比较的时间类型
-                                    var cTimeType = StatisticProcessTimeEnum.小时;
+                                    cIndex = 5;
+                                    cTimeType = item.ConfigList[index].Length > cIndex ? (StatisticProcessTimeEnum)item.ConfigList[index][cIndex] : cTimeType;
                                     //比较的时间范围类型
-                                    var cTimeRangeType = StatisticProcessTimeRangeEnum.前多少时间;
-                                    List<int> cTimeRange = null;
-                                    List<int> steps = null;
-                                    var deviceIds = set.DeviceIdList;
-                                    deviceIds.Add(0);
-                                    List<int> productionIds = null;
-                                    List<Production> productions = new List<Production>();
-                                    List<int> processorIds = null;
-                                    //item.ConfigList 工序推移图[0][0] 班制[0][1]数据类型[0][2]时间范围;[1][...]工序
-                                    var index = 0;
-                                    var cIndex = 0;
-                                    if (item.ConfigList.Length > index)
+                                    cIndex = 6;
+                                    cTimeRangeType = item.ConfigList[index].Length > cIndex ? (StatisticProcessTimeRangeEnum)item.ConfigList[index][cIndex] : cTimeRangeType;
+                                }
+                                //工序 当前只有单工序
+                                index = 1;
+                                if (item.ConfigList.Length > index && item.ConfigList[index].Length > 0)
+                                {
+                                    steps = new List<int> { item.ConfigList[index][0] };
+                                }
+                                //计划号
+                                index = 2;
+                                if (item.ConfigList.Length > index && item.ConfigList[index].Length > 0)
+                                {
+                                    productionIds = item.ConfigList[index].ToList();
+                                    if (productionIds.Any())
                                     {
-                                        //班制
-                                        cIndex = 0;
-                                        shift = item.ConfigList[index].Length > cIndex ? item.ConfigList[index][cIndex] : shift;
-                                        //时间类型
-                                        cIndex = 1;
-                                        timeType = item.ConfigList[index].Length > cIndex ? (StatisticProcessTimeEnum)item.ConfigList[index][cIndex] : timeType;
-                                        //时间范围
-                                        cIndex = 2;
-                                        range = item.ConfigList[index].Length > cIndex ? item.ConfigList[index][cIndex] : range;
-                                        //是否是合计
-                                        cIndex = 3;
-                                        isSum = item.ConfigList[index].Length > cIndex ? item.ConfigList[index][cIndex] : isSum;
-                                        //是否是比较
-                                        cIndex = 4;
-                                        isCompare = item.ConfigList[index].Length > cIndex ? item.ConfigList[index][cIndex] : isCompare;
-                                        //比较的时间类型
-                                        cIndex = 5;
-                                        cTimeType = item.ConfigList[index].Length > cIndex ? (StatisticProcessTimeEnum)item.ConfigList[index][cIndex] : cTimeType;
-                                        //比较的时间范围类型
-                                        cIndex = 6;
-                                        cTimeRangeType = item.ConfigList[index].Length > cIndex ? (StatisticProcessTimeRangeEnum)item.ConfigList[index][cIndex] : cTimeRangeType;
-                                    }
-                                    //工序 当前只有单工序
-                                    index = 1;
-                                    if (item.ConfigList.Length > index && item.ConfigList[index].Length > 0)
-                                    {
-                                        steps = new List<int> { item.ConfigList[index][0] };
-                                    }
-                                    //计划号
-                                    index = 2;
-                                    if (item.ConfigList.Length > index && item.ConfigList[index].Length > 0)
-                                    {
-                                        productionIds = item.ConfigList[index].ToList();
-                                        if (productionIds.Any())
-                                        {
-                                            productions.AddRange(ProductionHelper.Instance.GetByIds<Production>(productionIds));
-                                        }
-                                    }
-                                    //操作工
-                                    index = 3;
-                                    if (item.ConfigList.Length > index && item.ConfigList[index].Length > 0)
-                                    {
-                                        processorIds = item.ConfigList[index].ToList();
-                                    }
-                                    //操作工
-                                    index = 3;
-                                    if (item.ConfigList.Length > index && item.ConfigList[index].Length > 0)
-                                    {
-                                        processorIds = item.ConfigList[index].ToList();
-                                    }
-                                    //对比时间范围
-                                    index = 4;
-                                    if (item.ConfigList.Length > index && item.ConfigList[index].Length > 0)
-                                    {
-                                        //前多少时间 取[0], 指定时间 取数组, 时间范围 取数组
-                                        cTimeRange = item.ConfigList[index].ToList();
-                                    }
-
-                                    try
-                                    {
-                                        var processes = StatisticProcessHelper.StatisticProcesses(type, time, workshop, shift, timeType,
-                                            range, isSum == 1, isCompare == 1, cTimeType, cTimeRangeType, cTimeRange, steps, deviceIds, productionIds, processorIds).ToList();
-                                        MonitoringKanBanDic[id].ItemData[key].AddRange(processes);
-                                    }
-                                    catch (Exception e)
-                                    {
-                                        Log.Error(e);
+                                        productions.AddRange(ProductionHelper.Instance.GetByIds<Production>(productionIds));
                                     }
                                 }
+                                //操作工
+                                index = 3;
+                                if (item.ConfigList.Length > index && item.ConfigList[index].Length > 0)
+                                {
+                                    processorIds = item.ConfigList[index].ToList();
+                                }
+                                //对比时间范围
+                                index = 4;
+                                if (item.ConfigList.Length > index && item.ConfigList[index].Length > 0)
+                                {
+                                    //前多少时间 取[0], 指定时间 取数组, 时间范围 取数组
+                                    cTimeRange = item.ConfigList[index].ToList();
+                                }
+
+                                try
+                                {
+                                    var processes = StatisticProcessHelper.StatisticProcesses(type, time, workshop, shift, timeType,
+                                        range, isSum == 1, isCompare == 1, cTimeType, cTimeRangeType, cTimeRange, steps, deviceIds, productionIds, processorIds).ToList();
+                                    MonitoringKanBanDic[id].ItemData[key].AddRange(processes);
+                                }
+                                catch (Exception e)
+                                {
+                                    Log.Error(e);
+                                }
                             }
-                            MonitoringKanBanDic[id].Check(set.ItemList);
-                            #endregion
+                            else if (type == KanBanItemEnum.流程卡追踪)
+                            {
+                                var p = new List<string> { "主管1", "主管2", "主管3", "主管4" };
+                                var limit = RandomSeed.Next(1, 10);
+                                var steps = DeviceProcessStepHelper.GetDetails(workshop.Id);
+                                var processors = AccountInfoHelper.GetProcessorDetails();
+                                var fcs = FlowCardHelper.GetFlowCardDetailLimit(limit);
+                                var fks = new List<FenKa>();
+                                var now = DateTime.Now;
+                                foreach (var fc in fcs)
+                                {
+                                    var stepLen = RandomSeed.Next(1, steps.Count());
+                                    var edTime = now.AddSeconds(-10 * stepLen * 60 * 60);
+                                    var stepList = RandomSeed.NextN(0, steps.Count(), stepLen).OrderBy(x => x);
+                                    var allSteps = stepList.Select(index => steps.ElementAt(index));
+                                    var step = allSteps.ElementAt(0);
+                                    var qualified = 36;
+                                    // 0 等待 1 加工 2 完成
+                                    var nStates = new List<Tuple<int, int>>
+                                    {
+                                        new Tuple<int, int>(0, 10),
+                                        new Tuple<int, int>(1, 30),
+                                        new Tuple<int, int>(2, 60),
+                                    };
+                                    var nState = RandomSeed.GetRandom(nStates);
+                                    nState = 2;
+                                    var r = FenKaFunc(now, fc.FlowCardName, qualified, 0, 0, false, 0, nState, edTime, step, allSteps, processors);
+                                    r.Time = DateTime.Now.AddSeconds(-RandomSeed.Next(100));
+                                    r.Creator = p.ElementAt(RandomSeed.Next(p.Count));
+                                    r.FlowCard = fc.FlowCardName;
+                                    r.Production = fc.ProductionProcessName;
+                                    fks.Add(r);
+                                }
+
+                                var fenKas = FenKaSimpleFunc(fks, true);
+                                fenKas = fenKas.Select(x =>
+                                {
+                                    x.FenKas = x.FenKas.Select(y =>
+                                    {
+                                        y.FenKas.Clear();
+                                        return y;
+                                    }).ToList();
+                                    x.FlowCards = x.FenKas.Where(y => y.IsPart).Select(y => y.FFlowCard).ToList();
+                                    return x;
+                                }).ToList();
+                                var dr = fenKas.OrderByDescending(x => x.Creator);
+                                MonitoringKanBanDic[id].ItemData[key].AddRange(dr);
+                            }
+                            else if (type == KanBanItemEnum.计划号评分排行)
+                            {
+                                var ds = ProductionHelper.GetDetails();
+                                MonitoringKanBanDic[id].ItemData[key].AddRange(ds.Select(x => new { Production = x.ProductionProcessName, Score = RandomSeed.Next(100) }).OrderBy(x => x.Score));
+                            }
+                            else if (type == KanBanItemEnum.设备评分排行)
+                            {
+                                var ds = DeviceLibraryHelper.GetDetails(workshop.Id);
+                                MonitoringKanBanDic[id].ItemData[key].AddRange(ds.Select(x => new { x.Code, Score = RandomSeed.Next(100) }).OrderBy(x => x.Score));
+                            }
+                            else if (type == KanBanItemEnum.操作工评分排行)
+                            {
+                                var ds = AccountInfoHelper.GetProcessorDetails();
+                                MonitoringKanBanDic[id].ItemData[key].AddRange(ds.Select(x => new { x.Name, Score = RandomSeed.Next(100) }).OrderBy(x => x.Score));
+                            }
                         }
+                        MonitoringKanBanDic[id].Check(set.ItemList);
+                        #endregion
                     }
                 }
                 #endregion
@@ -2179,6 +2269,244 @@ namespace ApiManagement.Base.Helper
                 Log.Error(e);
             }
             RedisHelper.Remove(kbLockKey);
+        }
+
+        /// <summary>
+        /// 
+        /// </summary>
+        /// <param name="now">当前时间</param>
+        /// <param name="ka">上道工序 流程卡</param>
+        /// <param name="total">上道工序 合格品数量</param>
+        /// <param name="order">工序顺序</param>
+        /// <param name="deep">分卡次数（深度）</param>
+        /// <param name="isFenKa">是否是分卡</param>
+        /// <param name="xvHao">分卡序号</param>
+        /// <param name="state">上道工序 状态 0 等待 1 加工 2 完成</param>
+        /// <param name="startTime">上道工序 开始时间</param>
+        /// <param name="endTime">上道工序 结束时间</param>
+        /// <param name="step">当前工序</param>
+        /// <param name="allSteps">所有工序</param>
+        /// <param name="processors">所有操作工</param>
+        /// <returns></returns>
+        private static FenKa FenKaFunc(DateTime now, string ka, int total, int order, int deep, bool isFenKa, int xvHao, int state,
+            DateTime endTime, DeviceProcessStepDetail step, IEnumerable<DeviceProcessStepDetail> allSteps, IEnumerable<AccountInfo> processors)
+        {
+            // 0 等待 1 加工 2 完成
+            var states = new Dictionary<int, string>
+            {
+                { 0, "等待中"},
+                { 1, "加工中"},
+                { 2, "已完成"}
+            };
+            var index = allSteps.IndexOf(step);
+            var nextStep = allSteps.Count() > index + 1 ? allSteps.ElementAt(index + 1) : null;
+            var r = new FenKa();
+            r.Order = order;
+            r.IsPart = isFenKa;
+            r.FlowCard = ka;
+            r.FFlowCard = isFenKa ? $"{ka}-{xvHao}" : ka;
+            var nState = 0;
+            var defaultMin = 10;
+            var second = RandomSeed.Next(20 * 60, 60 * 60);
+            var stTime = endTime.AddMinutes(defaultMin);
+            var edTime = stTime.AddSeconds(second);
+            var rate = RandomSeed.Next(0, 200);
+            if (index == 0 && order == 0)
+            {
+                rate = 100;
+            }
+
+            var qualified = (int)(Math.Floor(total * (rate > 100 ? 100 : rate) / 100m));
+            var unqualified = total - qualified;
+            var qualifiedRate = total == 0 ? 0 : (qualified * 100m / total).ToRound();
+            var unqualifiedRate = (100 - qualifiedRate).ToRound();
+            // 0 上道工序等待
+            if (state == 0)
+            {
+                nState = 0;
+                r.StartTime = default(DateTime);
+                r.EndTime = default(DateTime);
+                r.CostTime = 0;
+            }
+            // 1 上道工序加工
+            else if (state == 1)
+            {
+                nState = 0;
+                r.StartTime = default(DateTime);
+                r.EndTime = default(DateTime);
+                r.CostTime = 0;
+            }
+            // 2 上道工序完成
+            else if (state == 2)
+            {
+                var nStates = new List<Tuple<int, int>>
+                {
+                    new Tuple<int, int>(0, 10),
+                    new Tuple<int, int>(1, 30),
+                    new Tuple<int, int>(2, 60),
+                };
+                nState = RandomSeed.GetRandom(nStates);
+                // 0 本次工序等待
+                if (nState == 0)
+                {
+                    r.StartTime = default(DateTime);
+                    r.EndTime = default(DateTime);
+                    r.CostTime = (int)(now - endTime).TotalSeconds;
+                }
+                // 1 本次工序加工
+                else if (nState == 1)
+                {
+                    r.StartTime = stTime;
+                    r.EndTime = default(DateTime);
+                    r.CostTime = (int)(now - endTime).TotalSeconds;
+                }
+                // 2 本次工序完成
+                else if (nState == 2)
+                {
+                    r.StartTime = stTime;
+                    r.EndTime = edTime;
+                    r.CostTime = (int)(edTime - endTime).TotalSeconds;
+                }
+            }
+
+            r.State = nState;
+            r.StateDesc = states[nState];
+            r.StepName = step.StepName;
+            r.Processor = processors.ElementAt(RandomSeed.Next(processors.Count()))?.Name ?? "";
+            r.Total = total;
+            r.Qualified = qualified;
+            r.Unqualified = unqualified;
+            r.QualifiedRate = qualifiedRate;
+            r.UnqualifiedRate = unqualifiedRate;
+            var nextIsFenKa = RandomSeed.Next(0, 2) == 0;
+            if (order > 10)
+            {
+                nextIsFenKa = false;
+            }
+            if (nextIsFenKa && nState != 2)
+            {
+                nextIsFenKa = false;
+            }
+            if (qualified < 2)
+            {
+                nextIsFenKa = false;
+            }
+
+            if (nextStep != null && qualified > 0)
+            {
+                if (!nextIsFenKa)
+                {
+                    if (nState == 2)
+                    {
+                        r.FenKas.Add(FenKaFunc(now, ka, qualified, order + 1, deep, false, 0, nState, edTime, nextStep, allSteps, processors));
+                    }
+                }
+                else
+                {
+                    var max = qualified > 4 ? 4 : qualified;
+                    var fenKaNum = RandomSeed.Next(2, max);
+                    var totals = RandomSeed.NextN(qualified, fenKaNum, false);
+                    for (var i = 0; i < fenKaNum; i++)
+                    {
+                        r.FenKas.Add(FenKaFunc(now, r.FFlowCard, totals.ElementAt(i), order + 1, deep + 1, true, i + 1, nState, edTime, nextStep, allSteps, processors));
+                    }
+                }
+            }
+
+            return r;
+        }
+
+        private static List<FenKa> FenKaSimpleFunc(List<FenKa> fks, bool isFirst = false)
+        {
+            var fenKas = new List<FenKa>();
+            var con = false;
+            var len = fks.Count();
+            for (int i = 0; i < len; i++)
+            {
+                var fk = fks.ElementAt(i);
+                var lastFk = isFirst ? fk : fk.FenKas.LastOrDefault();
+                if (lastFk != null && lastFk.FenKas.Any())
+                {
+                    var fkLen = lastFk.FenKas.Count;
+                    for (var j = 0; j < fkLen; j++)
+                    {
+                        var ffk = lastFk.FenKas[j];
+                        var f = ClassExtension.CopyTo<FenKa, FenKa>(fk);
+                        f.FenKas = new List<FenKa>();
+                        if (!isFirst)
+                        {
+                            f.FenKas.AddRange(fk.FenKas);
+                        }
+
+                        f.FenKas.Add(ffk);
+                        //f.NextFenKa = ffk;
+                        if (ffk.FenKas.Any())
+                        {
+                            con = true;
+                        }
+                        fenKas.Add(f);
+                    }
+
+                }
+                else
+                {
+                    fenKas.Add(fk);
+                }
+            }
+            if (con)
+            {
+                return FenKaSimpleFunc(fenKas); ;
+            }
+
+            return fenKas;
+        }
+
+        private class FenKa
+        {
+            public int Order { get; set; }
+            public FenKa()
+            {
+                FenKas = new List<FenKa>();
+            }
+            //public FenKa NextFenKa { get; set; }
+            /// <summary>
+            /// 添加时间
+            /// </summary>
+            public DateTime Time { get; set; }
+            /// <summary>
+            /// 添加人
+            /// </summary>
+            public string Creator { get; set; }
+            /// <summary>
+            /// 原卡
+            /// </summary>
+            public string FlowCard { get; set; }
+            /// <summary>
+            /// 是否分卡
+            /// </summary>
+            public bool IsPart { get; set; }
+            /// <summary>
+            /// 分卡
+            /// </summary>
+            public string FFlowCard { get; set; }
+            public List<string> FlowCards { get; set; }
+            /// <summary>
+            /// 计划号
+            /// </summary>
+            public string Production { get; set; }
+            public int State { get; set; }
+            public string StateDesc { get; set; }
+            public DateTime StartTime { get; set; }
+            public DateTime EndTime { get; set; }
+            public int CostTime { get; set; }
+            public string StepName { get; set; }
+            public string Processor { get; set; }
+            public int Total { get; set; }
+            public int Qualified { get; set; }
+            public int Unqualified { get; set; }
+            public decimal QualifiedRate { get; set; }
+            public decimal UnqualifiedRate { get; set; }
+            public List<FenKa> FenKas { get; set; }
         }
 
         public static int ttt = 0;

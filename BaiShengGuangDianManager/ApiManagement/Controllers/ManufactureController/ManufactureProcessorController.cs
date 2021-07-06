@@ -32,14 +32,16 @@ namespace ApiManagement.Controllers.ManufactureController
             if (menu)
             {
                 var data = ServerConfig.ApiDb.Query<dynamic>(
-                    $"SELECT a.Id, a.GroupId, a.ProcessorId, b.ProcessorName Processor, b.Account FROM `manufacture_processor` a JOIN `processor` b ON a.ProcessorId = b.Id WHERE a.MarkedDelete = 0{(groupId == 0 ? "" : " AND a.GroupId = @groupId")};",
+                    $"SELECT a.Id, a.GroupId, a.ProcessorId, b.Name Processor, b.Account FROM `manufacture_processor` a " +
+                    $"JOIN `accounts` b ON a.ProcessorId = b.Id WHERE {(groupId == 0 ? "" : "a.GroupId = @groupId AND ")}a.MarkedDelete = 0 AND b.MarkedDelete = 0;",
                     new { groupId });
                 result.datas.AddRange(data);
             }
             else
             {
                 var data = ServerConfig.ApiDb.Query<ManufactureProcessorDetail>(
-                    "SELECT a.*, b.ProcessorName Processor, b.Account FROM `manufacture_processor` a JOIN `processor` b ON a.ProcessorId = b.Id WHERE a.MarkedDelete = 0 AND a.GroupId = @groupId;",
+                    "SELECT a.*, b.Name Processor, b.Account FROM `manufacture_processor` a " +
+                    "JOIN `accounts` b ON a.ProcessorId = b.Id WHERE a.GroupId = @groupId AND a.MarkedDelete = 0 AND b.MarkedDelete = 0;",
                     new { groupId });
                 result.datas.AddRange(data);
             }

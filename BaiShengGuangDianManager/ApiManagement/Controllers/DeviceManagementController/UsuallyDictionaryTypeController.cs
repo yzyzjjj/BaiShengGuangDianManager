@@ -39,7 +39,7 @@ namespace ApiManagement.Controllers.DeviceManagementController
                 return Result.GenError<DataResult>(Error.DeviceNotExist);
             }
 
-            var usuallyDictionaries = UsuallyDictionaryHelper.GetUsuallyDictionaries(new List<int> { device.ScriptId }, null, new List<int>{ 1 });
+            var usuallyDictionaries = UsuallyDictionaryHelper.GetUsuallyDictionaryDetails(new List<int> { device.ScriptId }, null, new List<int>{ 1 });
             var result = new DataResult();
             result.datas.AddRange(usuallyDictionaries);
             return result;

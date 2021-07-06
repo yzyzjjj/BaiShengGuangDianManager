@@ -36,20 +36,20 @@ namespace ApiManagement.Controllers.ManufactureController
             if (planId == 0 && itemId == 0)
             {
                 sql =
-                   $"SELECT a.*, IFNULL(b.Plan, '') Plan, IFNULL(c.`Task`, '') `Task`, IFNULL(d.Item, '') Item,   IF(ISNULL(e.Account), a.Account, e.ProcessorName) AccountName FROM `manufacture_log` a " +
+                   $"SELECT a.*, IFNULL(b.Plan, '') Plan, IFNULL(c.`Task`, '') `Task`, IFNULL(d.Item, '') Item,   IF(ISNULL(e.Account), a.Account, e.Name) AccountName FROM `manufacture_log` a " +
                    $"LEFT JOIN `manufacture_plan` b ON a.PlanId = b.Id " +
                    $"LEFT JOIN `manufacture_task` c ON a.TaskId = c.Id " +
                    $"LEFT JOIN `manufacture_plan_item` d ON a.ItemId = d.Id " +
-                   $"LEFT JOIN `processor` e ON a.Account = e.Account " +
+                   $"LEFT JOIN `accounts` e ON a.Account = e.Account " +
                    $"WHERE a.IsAssign = @assign;";
                 data.AddRange(ServerConfig.ApiDb.Query<ManufactureLog>(sql, new { assign = false }));
 
                 sql =
-                    $"SELECT a.*, IFNULL(b.Plan, '') Plan, IFNULL(c.`Task`, '') `Task`, IFNULL(d.Item, '') Item,   IF(ISNULL(e.Account), a.Account, e.ProcessorName) AccountName FROM `manufacture_log` a " +
+                    $"SELECT a.*, IFNULL(b.Plan, '') Plan, IFNULL(c.`Task`, '') `Task`, IFNULL(d.Item, '') Item,   IF(ISNULL(e.Account), a.Account, e.Name) AccountName FROM `manufacture_log` a " +
                     $"LEFT JOIN `manufacture_plan` b ON a.PlanId = b.Id " +
                     $"LEFT JOIN `manufacture_task` c ON a.TaskId = c.Id " +
                     $"LEFT JOIN `manufacture_plan_task` d ON a.ItemId = d.Id " +
-                    $"LEFT JOIN `processor` e ON a.Account = e.Account " +
+                    $"LEFT JOIN `accounts` e ON a.Account = e.Account " +
                     $"WHERE a.IsAssign = @assign AND b.State != @state;";
                 data.AddRange(ServerConfig.ApiDb.Query<ManufactureLog>(sql, new { assign = true, state = ManufacturePlanState.Wait }));
             }
@@ -64,21 +64,21 @@ namespace ApiManagement.Controllers.ManufactureController
                 }
 
                 sql =
-                    $"SELECT a.*, IFNULL(b.Plan, '') Plan, IFNULL(c.`Task`, '') `Task`, IFNULL(d.Item, '') Item,   IF(ISNULL(e.Account), a.Account, e.ProcessorName) AccountName FROM `manufacture_log` a " +
+                    $"SELECT a.*, IFNULL(b.Plan, '') Plan, IFNULL(c.`Task`, '') `Task`, IFNULL(d.Item, '') Item,   IF(ISNULL(e.Account), a.Account, e.Name) AccountName FROM `manufacture_log` a " +
                     $"LEFT JOIN `manufacture_plan` b ON a.PlanId = b.Id " +
                     $"LEFT JOIN `manufacture_task` c ON a.TaskId = c.Id " +
                     $"LEFT JOIN `manufacture_plan_item` d ON a.ItemId = d.Id " +
-                    $"LEFT JOIN `processor` e ON a.Account = e.Account " +
+                    $"LEFT JOIN `accounts` e ON a.Account = e.Account " +
                     $"WHERE a.PlanId = @planId AND a.IsAssign = @assign AND a.`Type` <= @type;";
                 data.AddRange(ServerConfig.ApiDb.Query<ManufactureLog>(sql, new { planId, assign = false, type = ManufactureLogType.PlanUpdateItem }));
                 if (plan.State != ManufacturePlanState.Wait)
                 {
                     sql =
-                        $"SELECT a.*, IFNULL(b.Plan, '') Plan, IFNULL(c.`Task`, '') `Task`, IFNULL(d.Item, '') Item,   IF(ISNULL(e.Account), a.Account, e.ProcessorName) AccountName FROM `manufacture_log` a " +
+                        $"SELECT a.*, IFNULL(b.Plan, '') Plan, IFNULL(c.`Task`, '') `Task`, IFNULL(d.Item, '') Item,   IF(ISNULL(e.Account), a.Account, e.Name) AccountName FROM `manufacture_log` a " +
                         $"LEFT JOIN `manufacture_plan` b ON a.PlanId = b.Id " +
                         $"LEFT JOIN `manufacture_task` c ON a.TaskId = c.Id " +
                         $"LEFT JOIN `manufacture_plan_task` d ON a.ItemId = d.Id " +
-                        $"LEFT JOIN `processor` e ON a.Account = e.Account " +
+                        $"LEFT JOIN `accounts` e ON a.Account = e.Account " +
                         $"WHERE a.PlanId = @planId AND a.IsAssign = @assign AND b.State != @state AND a.`Type` <= @type;";
                     data.AddRange(ServerConfig.ApiDb.Query<ManufactureLog>(sql, new { planId, assign = true, state = ManufacturePlanState.Wait, type = ManufactureLogType.PlanUpdateItem }));
                 }
@@ -104,11 +104,11 @@ namespace ApiManagement.Controllers.ManufactureController
                 if (itemId != 0)
                 {
                     sql =
-                        $"SELECT a.*, IFNULL(b.Plan, '') Plan, IFNULL(c.`Task`, '') `Task`, IFNULL(d.Item, '') Item,   IF(ISNULL(e.Account), a.Account, e.ProcessorName) AccountName FROM `manufacture_log` a " +
+                        $"SELECT a.*, IFNULL(b.Plan, '') Plan, IFNULL(c.`Task`, '') `Task`, IFNULL(d.Item, '') Item,   IF(ISNULL(e.Account), a.Account, e.Name) AccountName FROM `manufacture_log` a " +
                         $"LEFT JOIN `manufacture_plan` b ON a.PlanId = b.Id " +
                         $"LEFT JOIN `manufacture_task` c ON a.TaskId = c.Id " +
                         $"LEFT JOIN `manufacture_plan_item` d ON a.ItemId = d.Id " +
-                        $"LEFT JOIN `processor` e ON a.Account = e.Account " +
+                        $"LEFT JOIN `accounts` e ON a.Account = e.Account " +
                         $"WHERE a.PlanId = @planId AND a.ItemId = @itemId AND a.IsAssign = @assign AND a.`Type` >= @type;";
                     data.AddRange(ServerConfig.ApiDb.Query<ManufactureLog>(sql, new { planId, itemId, assign = false, type = ManufactureLogType.TaskCreate }));
                 }
@@ -117,11 +117,11 @@ namespace ApiManagement.Controllers.ManufactureController
                     if (planTaskId != 0)
                     {
                         sql =
-                            $"SELECT a.*, IFNULL(b.Plan, '') Plan, IFNULL(c.`Task`, '') `Task`, IFNULL(d.Item, '') Item,   IF(ISNULL(e.Account), a.Account, e.ProcessorName) AccountName FROM `manufacture_log` a " +
+                            $"SELECT a.*, IFNULL(b.Plan, '') Plan, IFNULL(c.`Task`, '') `Task`, IFNULL(d.Item, '') Item,   IF(ISNULL(e.Account), a.Account, e.Name) AccountName FROM `manufacture_log` a " +
                             $"LEFT JOIN `manufacture_plan` b ON a.PlanId = b.Id " +
                             $"LEFT JOIN `manufacture_task` c ON a.TaskId = c.Id " +
                             $"LEFT JOIN `manufacture_plan_task` d ON a.ItemId = d.Id " +
-                            $"LEFT JOIN `processor` e ON a.Account = e.Account " +
+                            $"LEFT JOIN `accounts` e ON a.Account = e.Account " +
                             $"WHERE a.PlanId = @planId AND a.ItemId = @planTaskId AND a.IsAssign = @assign AND b.State != @state AND a.`Type` >= @type;";
                         data.AddRange(ServerConfig.ApiDb.Query<ManufactureLog>(sql, new { planId, planTaskId, assign = true, state = ManufacturePlanState.Wait, type = ManufactureLogType.TaskCreate }));
                     }

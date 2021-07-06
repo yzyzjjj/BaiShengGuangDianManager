@@ -55,6 +55,14 @@ namespace ApiManagement.Models.StatisticManagementModel
         设备工序推移图,
         [Description("操作工工序推移图")]
         操作工工序推移图,
+        [Description("流程卡追踪")]
+        流程卡追踪,
+        [Description("计划号评分排行")]
+        计划号评分排行,
+        [Description("设备评分排行")]
+        设备评分排行,
+        [Description("操作工评分排行")]
+        操作工评分排行,
         #endregion
 
 
@@ -108,10 +116,21 @@ namespace ApiManagement.Models.StatisticManagementModel
     /// </summary>
     public enum KanBanItemDisplayEnum
     {
+        /// <summary>
+        /// 表格
+        /// </summary>
         [Description("表格")]
         Table = 0,
+        /// <summary>
+        /// 图表
+        /// </summary>
         [Description("图表")]
         Chart = 1,
+        /// <summary>
+        /// 跟踪图
+        /// </summary>
+        [Description("跟踪图")]
+        Track = 2,
     }
 
     /// <summary>
@@ -754,40 +773,50 @@ namespace ApiManagement.Models.StatisticManagementModel
             DataType = config.DataType;
             Special = config.Special;
             Axis = config.Axis;
+            Required = config.Required;
         }
 
-        public KanBanTableFieldConfig(string type, string field, string column)
+        public KanBanTableFieldConfig(string type, string field, string column, bool required = false)
             : base(field, column)
         {
             DataType = type;
+            Required = required;
         }
 
-        public KanBanTableFieldConfig(string type, string field, string column, KanBanItemTableAxisEnum axis)
+        public KanBanTableFieldConfig(string type, string field, string column, KanBanItemTableAxisEnum axis, bool required = false)
             : base(field, column)
         {
             DataType = type;
             Axis = axis;
+            Required = required;
         }
 
-        public KanBanTableFieldConfig(string type, string special, string field, string column)
+        public KanBanTableFieldConfig(string type, string special, string field, string column, bool required = false)
             : base(field, column)
         {
             DataType = type;
             Special = special;
+            Required = required;
         }
-        public KanBanTableFieldConfig(string type, string field, string column, List<KanBanTableFieldConfig> fieldList)
+        public KanBanTableFieldConfig(string type, string field, string column, List<KanBanTableFieldConfig> fieldList, bool required = false)
             : base(field, column)
         {
             DataType = type;
             FieldList = fieldList;
+            Required = required;
         }
-        public KanBanTableFieldConfig(string type, string special, string field, string column, List<KanBanTableFieldConfig> fieldList)
+        public KanBanTableFieldConfig(string type, string special, string field, string column, List<KanBanTableFieldConfig> fieldList, bool required = false)
             : base(field, column)
         {
             DataType = type;
             Special = special;
             FieldList = fieldList;
+            Required = required;
         }
+        /// <summary>
+        /// 是否是必选字段，true 必选，false支持选择配置
+        /// </summary>
+        public bool Required { get; set; }
         /// <summary>
         /// 顺序
         /// </summary>

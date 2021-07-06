@@ -100,7 +100,7 @@ namespace ApiManagement.Controllers.ManufactureController
                 sql = $"SELECT a.*, IFNULL(b.Plan, '') Plan, c.GroupId, IFNULL(c.`Group`, '') `Group`, IFNULL(c.Processor, '') Processor, IFNULL(d.Module, '') Module, IFNULL(e.`Check`, '') `Check`, @State `State` " +
                       $"FROM  `manufacture_plan_task` a " +
                       "LEFT JOIN `manufacture_plan` b ON a.PlanId = b.Id " +
-                      "LEFT JOIN (SELECT a.*, b.ProcessorName Processor, c.`Group` FROM `manufacture_processor` a JOIN `processor` b ON a.ProcessorId = b.Id JOIN `manufacture_group` c ON a.GroupId = c.Id WHERE a.MarkedDelete = 0) c ON a.Person = c.Id " +
+                      "LEFT JOIN (SELECT a.*, b.Name Processor, c.`Group` FROM `manufacture_processor` a JOIN `accounts` b ON a.ProcessorId = b.Id JOIN `manufacture_group` c ON a.GroupId = c.Id WHERE a.MarkedDelete = 0) c ON a.Person = c.Id " +
                       "LEFT JOIN `manufacture_task_module` d ON a.ModuleId = d.Id " +
                       "LEFT JOIN `manufacture_check` e ON a.CheckId = e.Id " +
                       "WHERE a.PlanId = @qId AND a.MarkedDelete = 0 ORDER BY a.`Order`;";
@@ -116,7 +116,7 @@ namespace ApiManagement.Controllers.ManufactureController
             sql = $"SELECT a.*, IFNULL(b.Plan, '') Plan, c.GroupId, IFNULL(c.`Group`, '') `Group`, IFNULL(c.Processor, '') Processor, IFNULL(d.Module, '') Module, IFNULL(e.`Check`, '') `Check` " +
                   $"FROM `manufacture_plan_item` a " +
                   "LEFT JOIN `manufacture_plan` b ON a.PlanId = b.Id " +
-                  "LEFT JOIN (SELECT a.*, b.ProcessorName Processor, c.`Group` FROM `manufacture_processor` a JOIN `processor` b ON a.ProcessorId = b.Id JOIN `manufacture_group` c ON a.GroupId = c.Id WHERE a.MarkedDelete = 0) c ON a.Person = c.Id " +
+                  "LEFT JOIN (SELECT a.*, b.Name Processor, c.`Group` FROM `manufacture_processor` a JOIN `accounts` b ON a.ProcessorId = b.Id JOIN `manufacture_group` c ON a.GroupId = c.Id WHERE a.MarkedDelete = 0) c ON a.Person = c.Id " +
                   "LEFT JOIN `manufacture_task_module` d ON a.ModuleId = d.Id " +
                   "LEFT JOIN `manufacture_check` e ON a.CheckId = e.Id " +
                   "WHERE a.PlanId = @qId AND a.MarkedDelete = 0 ORDER BY a.`Order`;";
@@ -272,9 +272,9 @@ namespace ApiManagement.Controllers.ManufactureController
                             return Result.GenError<DataResult>(Error.ManufacturePlaneTaskAfterAssign);
                         }
 
-                        var sql = $"SELECT a.*, IFNULL(b.Plan, '') Plan, IFNULL(c.ProcessorName, '') Processor, IFNULL(d.Module, '') Module, IFNULL(e.`Check`, '') `Check` FROM `manufacture_plan_item` a " +
+                        var sql = $"SELECT a.*, IFNULL(b.Plan, '') Plan, IFNULL(c.Name, '') Processor, IFNULL(d.Module, '') Module, IFNULL(e.`Check`, '') `Check` FROM `manufacture_plan_item` a " +
                                   "LEFT JOIN `manufacture_plan` b ON a.PlanId = b.Id " +
-                                  "LEFT JOIN (SELECT a.*, b.ProcessorName FROM `manufacture_processor` a JOIN `processor` b ON a.ProcessorId = b.Id WHERE a.MarkedDelete = 0) c ON a.Person = c.Id " +
+                                  "LEFT JOIN (SELECT a.*, b.Name FROM `manufacture_processor` a JOIN `accounts` b ON a.ProcessorId = b.Id WHERE a.MarkedDelete = 0) c ON a.Person = c.Id " +
                                   "LEFT JOIN `manufacture_task_module` d ON a.ModuleId = d.Id " +
                                   "LEFT JOIN `manufacture_check` e ON a.CheckId = e.Id " +
                                   "WHERE a.PlanId = @Id AND a.`State` = @state AND a.MarkedDelete = 0 ORDER BY a.`Order`;";
@@ -473,9 +473,9 @@ namespace ApiManagement.Controllers.ManufactureController
                             ParsingWay = 1,
                         };
                         #region 删除
-                        var sql = $"SELECT a.*, IFNULL(b.Plan, '') Plan, IFNULL(c.ProcessorName, '') Processor, IFNULL(d.Module, '') Module, IFNULL(e.`Check`, '') `Check` FROM `manufacture_plan_item` a " +
+                        var sql = $"SELECT a.*, IFNULL(b.Plan, '') Plan, IFNULL(c.Name, '') Processor, IFNULL(d.Module, '') Module, IFNULL(e.`Check`, '') `Check` FROM `manufacture_plan_item` a " +
                                   "LEFT JOIN `manufacture_plan` b ON a.PlanId = b.Id " +
-                                  "LEFT JOIN (SELECT a.*, b.ProcessorName FROM `manufacture_processor` a JOIN `processor` b ON a.ProcessorId = b.Id WHERE a.MarkedDelete = 0) c ON a.Person = c.Id " +
+                                  "LEFT JOIN (SELECT a.*, b.Name FROM `manufacture_processor` a JOIN `accounts` b ON a.ProcessorId = b.Id WHERE a.MarkedDelete = 0) c ON a.Person = c.Id " +
                                   "LEFT JOIN `manufacture_task_module` d ON a.ModuleId = d.Id " +
                                   "LEFT JOIN `manufacture_check` e ON a.CheckId = e.Id " +
                                   "WHERE a.PlanId = @Id AND a.`State` = @state AND a.MarkedDelete = 0 ORDER BY a.`Order`;";

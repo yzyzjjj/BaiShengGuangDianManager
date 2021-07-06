@@ -48,14 +48,14 @@ namespace ApiManagement.Controllers.ManufactureController
             var sql = "";
             if (gId != 0)
             {
-                sql = "SELECT a.Id, a.GroupId, IFNULL(a.ProcessorName, b.Person) Processor, IFNULL(b.Score, 0) Score " +
-                        "FROM (SELECT a.*, b.ProcessorName FROM `manufacture_processor` a JOIN `processor` b ON a.ProcessorId = b.Id WHERE a.MarkedDelete = 0 AND a.GroupId = @gId) a " +
+                sql = "SELECT a.Id, a.GroupId, IFNULL(a.Name, b.Person) Processor, IFNULL(b.Score, 0) Score " +
+                        "FROM (SELECT a.*, b.Name FROM `manufacture_processor` a JOIN `accounts` b ON a.ProcessorId = b.Id WHERE a.MarkedDelete = 0 AND a.GroupId = @gId) a " +
                         "LEFT JOIN ( SELECT Person, SUM(ActualScore) Score FROM manufacture_plan_task WHERE MarkedDelete = 0 AND State = @state AND ActualEndTime >= @sTime AND ActualEndTime <= @eTime GROUP BY Person) b ON a.Id = b.Person ORDER BY b.Score DESC, b.Person;";
             }
             else
             {
-                sql = "SELECT a.Id, IFNULL(a.ProcessorName, b.Person) Processor, SUM(IFNULL(b.Score, 0)) Score FROM (SELECT a.*, b.ProcessorName " +
-                      "FROM `manufacture_processor` a JOIN `processor` b ON a.ProcessorId = b.Id WHERE a.MarkedDelete = 0) a " +
+                sql = "SELECT a.Id, IFNULL(a.Name, b.Person) Processor, SUM(IFNULL(b.Score, 0)) Score FROM (SELECT a.*, b.Name " +
+                      "FROM `manufacture_processor` a JOIN `accounts` b ON a.ProcessorId = b.Id WHERE a.MarkedDelete = 0) a " +
                       "LEFT JOIN (SELECT Person, SUM(ActualScore) Score FROM manufacture_plan_task WHERE MarkedDelete = 0 AND State = @state AND ActualEndTime >= @sTime AND ActualEndTime <= @eTime GROUP BY Person) b ON a.Id = b.Person GROUP BY a.ProcessorId ORDER BY b.Score DESC, a.Id;";
             }
             var data = ServerConfig.ApiDb.Query<dynamic>(sql, new { state = ManufacturePlanTaskState.Done, gId, sTime, eTime });
@@ -187,7 +187,7 @@ namespace ApiManagement.Controllers.ManufactureController
             }
 
             var processors =
-                ServerConfig.ApiDb.Query<Processor>("SELECT a.Id, b.Account FROM `manufacture_processor` a JOIN `processor` b ON a.ProcessorId = b.Id " +
+                ServerConfig.ApiDb.Query<Processor>("SELECT a.Id, b.Account FROM `manufacture_processor` a JOIN `accounts` b ON a.ProcessorId = b.Id " +
                                                     $"WHERE b.Account IN @account AND a.`MarkedDelete` = 0 {(gId == 0 ? "" : " AND GroupId = @gId")};", new { account = accountList, gId });
             if (!processors.Any())
             {

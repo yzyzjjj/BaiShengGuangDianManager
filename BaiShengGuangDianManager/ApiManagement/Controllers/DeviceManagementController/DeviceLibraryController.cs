@@ -1302,27 +1302,28 @@ namespace ApiManagement.Controllers.DeviceManagementController
                 return Result.GenError<Result>(Error.AnalysisFail);
             }
 
-            var dictionaryId =
-                ServerConfig.ApiDb.Query<UsuallyDictionaryPrecision>("SELECT a.*, b.`Precision` FROM `usually_dictionary` a JOIN `data_name_dictionary` b ON a.DictionaryId = b.PointerAddress WHERE a.ScriptId = @ScriptId AND VariableNameId = @VariableNameId AND a.MarkedDelete = 0;",
-                new
-                {
-                    device.ScriptId,
-                    VariableNameId = dataInfo.UsuallyDictionaryId
-                }).FirstOrDefault();
-
-            if (dictionaryId == null)
+            var usuallyDictionary = UsuallyDictionaryHelper.GetUsuallyDictionaryDetails(new List<int> { device.ScriptId },
+                new List<int> {dataInfo.UsuallyDictionaryId}, new List<int> {1}).FirstOrDefault();
+            if (usuallyDictionary == null)
             {
-                return Result.GenError<Result>(Error.UsuallyDictionaryTypeNotExist);
+                return Result.GenError<Result>(Error.UsuallyDictionaryNotExist);
+            }
+
+            var dataNameDictionary = DataNameDictionaryHelper.GetDataNameDictionaryDetailsByPointerAddress(
+                new List<int> {device.ScriptId}, new List<int> {usuallyDictionary.DictionaryId}).FirstOrDefault();
+            if (dataNameDictionary == null)
+            {
+                return Result.GenError<Result>(Error.DataNameDictionaryNotExist);
             }
             var messagePacket = new SetValMessagePacket();
-            if (dictionaryId.VariableTypeId == 1)
+            if (usuallyDictionary.VariableTypeId == 1)
             {
-                var chu = (int)Math.Pow(10, dictionaryId.Precision);
-                messagePacket.Vals.Add(dictionaryId.DictionaryId - 1, dataInfo.Value * chu);
+                var chu = (int)Math.Pow(10, dataNameDictionary.Precision);
+                messagePacket.Vals.Add(usuallyDictionary.DictionaryId - 1, dataInfo.Value * chu);
             }
             else
             {
-                return Result.GenError<Result>(Error.ParamError);
+                return Result.GenError<Result>(Error.VariableTypeNotSet);
             }
 
             var msg = messagePacket.Serialize();

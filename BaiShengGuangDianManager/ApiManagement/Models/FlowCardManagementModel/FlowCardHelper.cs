@@ -1,8 +1,8 @@
-﻿using ApiManagement.Base.Server;
+﻿using ApiManagement.Models.BaseModel;
 using System;
 using System.Collections.Generic;
 using System.Linq;
-using ApiManagement.Models.BaseModel;
+using ServerConfig = ApiManagement.Base.Server.ServerConfig;
 
 namespace ApiManagement.Models.FlowCardManagementModel
 {
@@ -57,6 +57,12 @@ namespace ApiManagement.Models.FlowCardManagementModel
                                                             "a LEFT JOIN `production_library` b ON a.ProductionProcessId = b.Id LEFT JOIN `raw_materia` c " +
                                                             "ON a.RawMateriaId = c.Id WHERE a.FlowCardName = @flowCard AND a.MarkedDelete = 0;",
                 new { flowCard }).FirstOrDefault();
+        }
+        public static IEnumerable<FlowCardDetail> GetFlowCardDetailLimit(int limit)
+        {
+            return ServerConfig.ApiDb.Query<FlowCardDetail>(
+                "SELECT a.FlowCardName, b.ProductionProcessName FROM (SELECT FlowCardName, ProductionProcessId FROM `flowcard_library` ORDER BY CreateTime DESC LIMIT @limit) a " +
+                "JOIN `production_library` b ON a.ProductionProcessId = b.Id;", new { limit });
         }
         public static FlowCard GetFlowCard(string flowCard)
         {
@@ -121,7 +127,7 @@ namespace ApiManagement.Models.FlowCardManagementModel
             }
             return Instance.CommonHaveSame(args);
         }
-                #endregion
+        #endregion
 
         #region Add
         #endregion

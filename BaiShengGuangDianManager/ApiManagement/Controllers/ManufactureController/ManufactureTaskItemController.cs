@@ -3,12 +3,12 @@ using ApiManagement.Models.ManufactureModel;
 using Microsoft.AspNetCore.Mvc;
 using ModelBase.Base.EnumConfig;
 using ModelBase.Base.Utils;
+using ModelBase.Models.BaseModel;
 using ModelBase.Models.Result;
 using ServiceStack;
 using System;
 using System.Collections.Generic;
 using System.Linq;
-using ModelBase.Models.BaseModel;
 
 namespace ApiManagement.Controllers.ManufactureController
 {
@@ -30,7 +30,7 @@ namespace ApiManagement.Controllers.ManufactureController
         {
             var result = new DataResult();
             var data = ServerConfig.ApiDb.Query<ManufactureTaskItemDetail>("SELECT a.*, b.GroupId, b.`Group`, b.Processor, c.Module FROM `manufacture_task_item` a " +
-                                                                           "JOIN ( SELECT a.*, b.ProcessorName Processor, c.`Group` FROM `manufacture_processor` a JOIN `processor` b ON a.ProcessorId = b.Id JOIN `manufacture_group` c ON a.GroupId = c.Id ) b ON a.Person = b.Id " +
+                                                                           "JOIN ( SELECT a.*, b.Name Processor, c.`Group` FROM `manufacture_processor` a JOIN `accounts` b ON a.ProcessorId = b.Id JOIN `manufacture_group` c ON a.GroupId = c.Id ) b ON a.Person = b.Id " +
                                                                            "JOIN `manufacture_task_module` c ON " +
                                                                            "a.ModuleId = c.Id WHERE a.TaskId = @taskId AND a.`MarkedDelete` = 0 ORDER BY a.`Order`;", new { taskId });
             result.datas.AddRange(data);
@@ -141,7 +141,7 @@ namespace ApiManagement.Controllers.ManufactureController
             }
 
             #region 更新
-            var updateItems = manufactureTaskItems.Where(x => x.Id != 0 && data.Any(y => y.Id == x.Id));
+            var updateItems = manufactureTaskItems.Where(x => x.Id != 0 && data.Any(y => y.Id == x.Id) && ClassExtension.HaveChange(data.First(y => y.Id == x.Id), x));
             if (updateItems.Any() && update)
             {
                 ServerConfig.ApiDb.Execute("UPDATE manufacture_task_item SET `MarkedDateTime` = @MarkedDateTime, `Order` = @Order, `Person` = @Person, `ModuleId` = @ModuleId, `IsCheck` = @IsCheck, " +
@@ -221,20 +221,52 @@ namespace ApiManagement.Controllers.ManufactureController
         public Result DeleteManufactureTaskItem([FromBody] BatchDelete batchDelete)
         {
             var ids = batchDelete.ids;
-            var cnt =
-                ServerConfig.ApiDb.Query<int>("SELECT COUNT(1) FROM `manufacture_task_item` WHERE Id IN @id AND `MarkedDelete` = 0;", new { id = ids }).FirstOrDefault();
-            if (cnt == 0)
+            var items =
+                ServerConfig.ApiDb.Query<ManufactureTaskItem>("SELECT * FROM `manufacture_task_item` WHERE Id IN @id AND `MarkedDelete` = 0;", new { id = ids });
+            if (items.Count() != ids.Count())
             {
                 return Result.GenError<Result>(Error.ManufactureTaskItemNotExist);
             }
 
-            ServerConfig.ApiDb.Execute(
-                "UPDATE `manufacture_task_item` SET `MarkedDateTime`= @MarkedDateTime, `MarkedDelete`= @MarkedDelete WHERE `Id` IN @Id;", new
+            var taskIds = items.Select(x => x.TaskId).Distinct();
+            var tasks =
+                ServerConfig.ApiDb.Query<ManufactureTaskItem>("SELECT * FROM `manufacture_task_item` WHERE TaskId IN @taskIds AND MarkedDelete = 0;", new { taskIds });
+            var update = new List<ManufactureTaskItem>();
+            var time = DateTime.Now;
+            foreach (var taskId in taskIds)
+            {
+                var order = 1;
+                var oldToNew = new Dictionary<int, int>();
+                var ts = tasks.Where(x => x.TaskId == taskId).OrderBy(x => x.Order);
+                foreach (var t in ts)
                 {
-                    MarkedDateTime = DateTime.Now,
-                    MarkedDelete = true,
-                    Id = ids
-                });
+                    t.MarkedDateTime = time;
+                    if (ids.Contains(t.Id))
+                    {
+                        t.MarkedDelete = true;
+                        update.Add(t);
+                        order--;
+                    }
+                    else if (t.Order != order)
+                    {
+                        if (!oldToNew.ContainsKey(t.Order))
+                        {
+                            oldToNew.Add(t.Order, order);
+                        }
+                        t.Order = order;
+                        update.Add(t);
+                    }
+                    order++;
+
+                    if (!t.MarkedDelete && oldToNew.ContainsKey(t.Relation))
+                    {
+                        t.Relation = oldToNew[t.Relation];
+                    }
+                }
+            }
+
+            ServerConfig.ApiDb.Execute(
+                "UPDATE `manufacture_task_item` SET `MarkedDateTime`= @MarkedDateTime, `MarkedDelete`= @MarkedDelete, `Order` = @Order, `Relation` = @Relation WHERE `Id` = @Id;", update);
 
             return Result.GenError<Result>(Error.Success);
         }

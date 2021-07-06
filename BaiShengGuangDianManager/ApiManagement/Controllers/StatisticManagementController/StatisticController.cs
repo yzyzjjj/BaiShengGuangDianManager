@@ -1,4 +1,5 @@
 ﻿using ApiManagement.Base.Server;
+using ApiManagement.Models.AccountManagementModel;
 using ApiManagement.Models.DeviceManagementModel;
 using ApiManagement.Models.FlowCardManagementModel;
 using ApiManagement.Models.StatisticManagementModel;
@@ -15,7 +16,6 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
 using System.Threading.Tasks;
-using ModelBase.Models.BaseModel;
 
 namespace ApiManagement.Controllers.StatisticManagementController
 {
@@ -30,7 +30,7 @@ namespace ApiManagement.Controllers.StatisticManagementController
             //流程卡趋势图
             public int FlowCardId = 0;
             public int Order;
-
+            public int WorkshopId;
             public string WorkshopName;
             //加工记录 0 = 所有    对比图 1,2,3
             public string DeviceId;
@@ -678,7 +678,6 @@ namespace ApiManagement.Controllers.StatisticManagementController
             var result = new DataResult();
             try
             {
-                IEnumerable<int> siteIds = null;
                 if (requestBody.DeviceId != "0")
                 {
                     if (requestBody.Compare == 0)
@@ -707,17 +706,17 @@ namespace ApiManagement.Controllers.StatisticManagementController
                         }
                     }
                 }
+
+                var workshops = new List<Workshop>();
+                if (requestBody.WorkshopId != 0)
+                {
+                    workshops.Add(WorkshopHelper.Instance.Get<Workshop>(requestBody.WorkshopId));
+                }
                 else
                 {
-                    if (requestBody.WorkshopName != "")
-                    {
-                        siteIds = ServerConfig.ApiDb.Query<int>(
-                            "SELECT Id FROM `site` WHERE MarkedDelete = 0 AND SiteName = @SiteName;", new
-                            {
-                                SiteName = requestBody.WorkshopName
-                            });
-                    }
+                    workshops.AddRange(WorkshopHelper.Instance.GetAll<Workshop>());
                 }
+                var wIds = workshops.Select(x => x.Id);
                 string sql;
                 DateTime startTime;
                 DateTime endTime;
@@ -875,12 +874,7 @@ namespace ApiManagement.Controllers.StatisticManagementController
 
                 if (requestBody.DeviceId == "0")
                 {
-                    var data = ServerConfig.ApiDb.Query<MonitoringProcess>(sql, new
-                    {
-                        DeviceId = siteIds,
-                        startTime,
-                        endTime
-                    }, 60);
+                    var data = MonitoringProcessHelper.GetMonitoringProcesses(wIds, null, startTime, endTime);
                     result.datas.AddRange(data);
                 }
                 else
@@ -935,8 +929,8 @@ namespace ApiManagement.Controllers.StatisticManagementController
                     return Result.GenError<DataResult>(Error.DeviceNotExist);
                 }
 
-                var cnt = DeviceLibraryHelper.Instance.GetCountByIds(deviceIds);
-                if (cnt != deviceIds.Count())
+                var devices = DeviceLibraryHelper.Instance.GetByIds<DeviceLibrary>(deviceIds);
+                if (devices.Count() != deviceIds.Count())
                 {
                     return Result.GenError<DataResult>(Error.DeviceNotExist);
                 }
@@ -951,106 +945,101 @@ namespace ApiManagement.Controllers.StatisticManagementController
                 //    DeviceId = deviceIds,
                 //}, 60).ToDictionary(x => x.DeviceId);
 
-                var productions = ProductionHelper.Instance.GetAllData<Production>();
-                sql = "SELECT a.*, b.`Code`, c.ProcessorName, d.FlowCardName, d.ProductionProcessId FROM `npc_monitoring_process_log` a " +
-                      "LEFT JOIN `device_library` b ON a.DeviceId = b.Id " +
-                      "LEFT JOIN `processor` c ON a.ProcessorId = c.Id " +
-                      "LEFT JOIN `flowcard_library` d ON a.FlowCardId = d.Id " +
-                      "WHERE a.DeviceId IN @DeviceId AND StartTime >= @StartTime1 AND StartTime <= @StartTime2 ORDER BY a.StartTime;";
-                var flowCardIs = new List<int>();
-                if (requestBody.ProductionId != 0)
+                var workshops = new List<Workshop>();
+                if (requestBody.WorkshopId != 0)
                 {
-                    var flowCards = FlowCardHelper.GetFlowCardsByProduction(requestBody.ProductionId);
-                    flowCardIs.AddRange(flowCards.Select(x => x.Id));
-                    if (!flowCardIs.Any())
-                    {
-                        return result;
-                    }
-                    sql = "SELECT a.*, b.`Code`, c.ProcessorName, d.FlowCardName, d.ProductionProcessId FROM `npc_monitoring_process_log` a " +
-                        "LEFT JOIN `device_library` b ON a.DeviceId = b.Id " +
-                        "LEFT JOIN `processor` c ON a.ProcessorId = c.Id " +
-                        "LEFT JOIN `flowcard_library` d ON a.FlowCardId = d.Id " +
-                        "WHERE a.DeviceId IN @DeviceId AND StartTime >= @StartTime1 AND StartTime <= @StartTime2 AND a.FlowCardId IN @flowCardIs ORDER BY a.StartTime;";
+                    workshops.Add(WorkshopHelper.Instance.Get<Workshop>(requestBody.WorkshopId));
+                }
+                else
+                {
+                    workshops.AddRange(WorkshopHelper.Instance.GetAll<Workshop>());
                 }
 
-                var day = Math.Floor((requestBody.EndTime.DayEndTime() - requestBody.StartTime.DayBeginTime()).TotalDays + 1);
-                var data = ServerConfig.ApiDb.Query<MonitoringProcessLogDetail>(sql, new
+                foreach (var workshop in workshops)
                 {
-                    DeviceId = deviceIds,
-                    StartTime1 = requestBody.StartTime.DayBeginTime(),
-                    StartTime2 = requestBody.EndTime.DayEndTime(),
-                    ProductionId = requestBody.ProductionId,
-                    flowCardIs
-                }, 60).OrderByDescending(x => x.StartTime);
-                var Counts = ServerConfig.ApiDb.Query<dynamic>(
-                    "SELECT b.DeviceId, COUNT(1) Count FROM (SELECT * FROM flowcard_report_get WHERE Time >= @StartTime1 AND Time <= @StartTime2) a JOIN (SELECT Id DeviceId, `Code` FROM device_library WHERE Id IN @DeviceId AND MarkedDelete = 0) b ON a.`Code` = b.`Code` GROUP BY b.DeviceId;",
-                    new
+                    deviceIds = devices.Where(x => x.WorkshopId == workshop.Id).Select(x => x.Id);
+                    if (!deviceIds.Any())
                     {
-                        DeviceId = deviceIds,
-                        StartTime1 = requestBody.StartTime.DayBeginTime(),
-                        StartTime2 = requestBody.EndTime.DayEndTime(),
-                    }, 60).ToDictionary(x=>x.DeviceId, x=>x.Count);
-                var Count = 0;
-                var Time = 0;
-                foreach (var device in deviceIds)
-                {
-                    //var idleTime = default(DateTime);
-                    var logs = new List<object>();
-                    foreach (var d in data.Where(x => x.DeviceId == device))
+                        continue;
+                    }
+
+                    var workTime1 = DateTimeExtend.GetDayWorkDay(workshop.StatisticTimeList, requestBody.StartTime.AddHours(12));
+                    requestBody.StartTime = workTime1.Item1;
+                    var workTime2 = DateTimeExtend.GetDayWorkDay(workshop.StatisticTimeList, requestBody.EndTime.AddHours(12));
+                    requestBody.EndTime = workTime2.Item2;
+                    var productions = ProductionHelper.Instance.GetAllData<Production>();
+                    sql = "SELECT a.*, b.`Code`, c.Name ProcessorName, d.FlowCardName, d.ProductionProcessId FROM `npc_monitoring_process_log` a " +
+                          "LEFT JOIN `device_library` b ON a.DeviceId = b.Id " +
+                          "LEFT JOIN `accounts` c ON a.ProcessorId = c.Id " +
+                          "LEFT JOIN `flowcard_library` d ON a.FlowCardId = d.Id " +
+                          "WHERE b.WorkshopId = @WorkshopId AND a.DeviceId IN @DeviceId AND StartTime >= @StartTime1 AND StartTime <= @StartTime2 ORDER BY a.StartTime;";
+                    var flowCardIs = new List<int>();
+                    if (requestBody.ProductionId != 0)
                     {
-                        //if (d.OpName == "加工")
-                        //{
-                        //    if (idleTime == default(DateTime))
-                        //    {
-                        //        idleTime = d.StartTime;
-                        //    }
-                        //    else
-                        //    {
-                        //        logs.Add(new MonitoringProcessLogDetail
-                        //        {
-                        //            DeviceId = d.DeviceId,
-                        //            OpName = "闲置",
-                        //            Code = d.Code,
-                        //            StartTime = d.EndTime,
-                        //            EndTime = idleTime,
-                        //        });
-                        //        idleTime = d.StartTime;
-                        //    }
-                        //}
-                        var product = productions.FirstOrDefault(x => x.Id == d.ProductionProcessId);
-                        d.ProductionProcessName = product?.ProductionProcessName;
-                        logs.Add(d);
-                        if (d.ProcessType == ProcessType.Process)
+                        var flowCards = FlowCardHelper.GetFlowCardsByProduction(requestBody.ProductionId);
+                        flowCardIs.AddRange(flowCards.Select(x => x.Id));
+                        if (!flowCardIs.Any())
                         {
-                            Count++;
-                            Time += d.TotalTime;
+                            return result;
                         }
+                        sql = "SELECT a.*, b.`Code`, c.Name ProcessorName, d.FlowCardName, d.ProductionProcessId FROM `npc_monitoring_process_log` a " +
+                            "LEFT JOIN `device_library` b ON a.DeviceId = b.Id " +
+                            "LEFT JOIN `accounts` c ON a.ProcessorId = c.Id " +
+                            "LEFT JOIN `flowcard_library` d ON a.FlowCardId = d.Id " +
+                            "WHERE b.WorkshopId = @WorkshopId AND a.DeviceId IN @DeviceId AND StartTime >= @StartTime1 AND StartTime <= @StartTime2 AND a.FlowCardId IN @flowCardIs ORDER BY a.StartTime;";
                     }
 
-                    var fcCount = Counts.ContainsKey(device) ? Counts[device] : 0;
-                    result.datas.Add(new
+                    var day = Math.Floor((workTime2.Item1 - workTime1.Item1).TotalDays + 1);
+                    var data = ServerConfig.ApiDb.Query<MonitoringProcessLogDetail>(sql, new
                     {
-                        DeviceId = device,
-                        //ProcessCount = monitoringProcess.ContainsKey(device)
-                        //    ? monitoringProcess[device].ProcessCount
-                        //    : 0,
-                        //ProcessCountAvg = monitoringProcess.ContainsKey(device)
-                        //    ? monitoringProcess[device].ProcessCount / day
-                        //    : 0,
-                        //ProcessTime = monitoringProcess.ContainsKey(device)
-                        //    ? monitoringProcess[device].ProcessTime
-                        //    : 0,
-                        //ProcessTimeAvg = monitoringProcess.ContainsKey(device)
-                        //    ? monitoringProcess[device].ProcessTime / day
-                        //    : 0,
-                        Count,
-                        CountAvg = Math.Abs(day) > 0 ? (Count / day).ToRound() : 0,
-                        Time,
-                        TimeAvg = fcCount != 0 ? (int)(Time / fcCount) : 0,
-                        Logs = logs
-                    });
-                }
+                        WorkshopId = workshop.Id,
+                        DeviceId = deviceIds,
+                        StartTime1 = requestBody.StartTime,
+                        StartTime2 = requestBody.EndTime,
+                        ProductionId = requestBody.ProductionId,
+                        flowCardIs
+                    }, 60).OrderByDescending(x => x.StartTime);
+                    //var Counts = ServerConfig.ApiDb.Query<dynamic>(
+                    //    "SELECT b.DeviceId, COUNT(1) Count FROM (SELECT * FROM flowcard_report_get WHERE WorkshopId = @WorkshopId AND Time >= @StartTime1 AND Time <= @StartTime2) a JOIN (SELECT Id DeviceId, `Code` FROM device_library WHERE WorkshopId = @WorkshopId AND Id IN @DeviceId AND MarkedDelete = 0) b ON a.`Code` = b.`Code` GROUP BY b.DeviceId;",
+                    //    new
+                    //    {
+                    //        WorkshopId = workshop.Id,
+                    //        DeviceId = deviceIds,
+                    //        StartTime1 = requestBody.StartTime,
+                    //        StartTime2 = requestBody.EndTime,
+                    //    }, 60).ToDictionary(x => x.DeviceId, x => x.Count);
+                    foreach (var device in deviceIds)
+                    {
+                        //var idleTime = default(DateTime);
+                        var logs = new List<object>();
+                        var ds = data.Where(x => x.DeviceId == device);
+                        var count = 0;
+                        var time = 0;
+                        foreach (var d in ds)
+                        {
+                            var product = productions.FirstOrDefault(x => x.Id == d.ProductionProcessId);
+                            d.ProductionProcessName = product?.ProductionProcessName;
+                            logs.Add(d);
+                            if (d.ProcessType == ProcessType.Process)
+                            {
+                                count++;
+                                time += d.TotalTime;
+                            }
+                        }
 
+                        //var fcCount = Counts.ContainsKey(device) ? Counts[device] : 0;
+                        result.datas.Add(new
+                        {
+                            DeviceId = device,
+                            Count = count,
+                            CountAvg = Math.Abs(day) > 0 ? (count / day).ToRound() : 0,
+                            Time = time,
+                            TimeAvg = count != 0 ? (int)(time / count) : 0,
+                            //TimeAvg = fcCount != 0 ? (int)(Time / fcCount) : 0,
+                            Logs = logs
+                        });
+                    }
+                }
                 return result;
             }
             catch (Exception e)
@@ -1071,6 +1060,15 @@ namespace ApiManagement.Controllers.StatisticManagementController
             var result = new DataResult();
             try
             {
+                var workshops = new List<Workshop>();
+                if (requestBody.WorkshopId != 0)
+                {
+                    workshops.Add(WorkshopHelper.Instance.Get<Workshop>(requestBody.WorkshopId));
+                }
+                else
+                {
+                    workshops.AddRange(WorkshopHelper.Instance.GetAll<Workshop>());
+                }
                 if (requestBody.DeviceId.IsNullOrEmpty())
                 {
                     return Result.GenError<DataResult>(Error.ParamError);

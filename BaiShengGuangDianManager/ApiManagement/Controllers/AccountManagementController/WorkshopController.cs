@@ -45,7 +45,7 @@ namespace ApiManagement.Controllers.AccountManagementController
             if (qId != 0)
             {
                 var workshop = WorkshopHelper.GetDetail(qId);
-                if (workshop != null)
+                if (workshop == null)
                 {
                     result.errno = Error.WorkshopNotExist;
                     return result;

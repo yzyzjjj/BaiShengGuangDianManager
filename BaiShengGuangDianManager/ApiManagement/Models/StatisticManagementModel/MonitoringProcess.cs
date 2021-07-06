@@ -294,6 +294,10 @@ namespace ApiManagement.Models.StatisticManagementModel
             AllDevice = 1;
             AnalysisData = new DeviceData();
         }
+        /// <summary>
+        /// 车间Id
+        /// </summary>
+        public int WorkshopId { get; set; }
         public DateTime Time { get; set; }
         /// <summary>
         /// 加工类型
