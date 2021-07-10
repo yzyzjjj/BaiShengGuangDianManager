@@ -2608,7 +2608,6 @@ namespace ApiManagement.Base.Helper
             public List<FenKa> FenKas { get; set; }
         }
 
-        public static int ttt = 0;
         /// <summary>
         /// 获取设备当前加工数据
         /// </summary>

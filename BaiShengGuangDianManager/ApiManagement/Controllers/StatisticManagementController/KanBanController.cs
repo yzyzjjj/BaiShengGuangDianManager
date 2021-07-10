@@ -113,11 +113,6 @@ namespace ApiManagement.Controllers.StatisticManagementController
             {
                 Type = KanBanEnum.设备详情看板
             };
-            if (qId == 16)
-            {
-                AnalysisHelper.ttt++;
-            }
-
             if (set != null)
             {
                 MonitoringKanBan kanBan;
@@ -364,13 +359,13 @@ namespace ApiManagement.Controllers.StatisticManagementController
                             var timeRate = new List<decimal>();
                             var processTime = monitoringProcesses.Sum(x => x.ProcessTime);
                             var runTime = monitoringProcesses.Sum(x => x.RunTime);
-                            var rate = runTime > 0 ? (processTime * 100m / (runTime)).ToRound(4) : 0;
+                            var rate = runTime > 0 ? (processTime * 100m / (runTime)).ToRound() : 0;
                             timeRate.Add(rate);
                             timeRate.AddRange(workshop.StatisticTimeList.Select((_, i) =>
                             {
                                 var p = monitoringProcesses.Where(x => x.ExtraData.Parts.Count > i).Sum(y => y.ExtraData.Parts.ElementAt(i).ProcessTime);
                                 var r = monitoringProcesses.Where(x => x.ExtraData.Parts.Count > i).Sum(y => y.ExtraData.Parts.ElementAt(i).RunTime);
-                                return r > 0 ? (p * 100m / (r)).ToRound(4) : 0;
+                                return r > 0 ? (p * 100m / (r)).ToRound() : 0;
                             }));
 
                             var now = DateTime.Now;
@@ -380,13 +375,13 @@ namespace ApiManagement.Controllers.StatisticManagementController
                             var qualifiedRate = new List<decimal>();
                             var qualified = reports.Sum(x => x.HeGe);
                             var total = reports.Sum(x => x.Total);
-                            rate = total > 0 ? (qualified * 100m / (total)).ToRound(4) : 0;
+                            rate = total > 0 ? (qualified * 100m / (total)).ToRound() : 0;
                             qualifiedRate.Add(rate);
                             qualifiedRate.AddRange(currentWorkTime.Select((range, i) =>
                             {
                                 var p = reports.Where(x => x.Time.InSameRange(range)).Sum(y => y.HeGe);
                                 var r = reports.Where(x => x.Time.InSameRange(range)).Sum(y => y.Total);
-                                return r > 0 ? (p * 100m / (r)).ToRound(4) : 0;
+                                return r > 0 ? (p * 100m / (r)).ToRound() : 0;
                             }));
 
                             return new
