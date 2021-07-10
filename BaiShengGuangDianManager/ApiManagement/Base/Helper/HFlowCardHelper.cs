@@ -103,7 +103,7 @@ namespace ApiManagement.Base.Helper
         {
             if (RedisHelper.SetIfNotExist(lock_10Key, DateTime.Now.ToStr()))
             {
-                RedisHelper.SetExpireAt(lock_10Key, DateTime.Now.AddMinutes(5));
+                RedisHelper.SetExpireAt(lock_10Key, DateTime.Now.AddMinutes(10));
                 UpdateProcessStep();
                 UseFlowCardReportGet();
                 UseFlowCardReportUpdate();
@@ -1210,6 +1210,7 @@ namespace ApiManagement.Base.Helper
                         DeviceProcessStepHelper.UpdateFromId(updateStep);
                     }
 
+                    var gxFcs = new Dictionary<string, List<ErpUpdateFlowCardGet>>();
                     if (add.Any())
                     {
                         var codes = add.Where(x => !x.Code.IsNullOrEmpty()).Select(x => x.Code).Distinct();
@@ -1263,7 +1264,48 @@ namespace ApiManagement.Base.Helper
                                 fc.State = 0;
                             }
                         }
+
+                        foreach (var gx in AnalysisHelper.ParamAbbrevDic.Keys)
+                        {
+                            if (!gxFcs.ContainsKey(gx))
+                            {
+                                gxFcs.Add(gx, new List<ErpUpdateFlowCardGet>());
+                            }
+                            var flowCardInfos = add.Where(x => x.StepAbbrev == gx && x.OldFlowCardId != 0)
+                                .Select(fc => new ErpUpdateFlowCardGet
+                                {
+                                    Id = fc.OldFlowCardId,
+                                    MarkedDateTime = fc.Time,
+                                    FaChu = fc.Total,
+                                    HeGe = fc.HeGe,
+                                    LiePian = fc.LiePian,
+                                    DeviceId = fc.DeviceId,
+                                    Time = fc.Time,
+                                    JiaGongRen = fc.Processor
+                                });
+                            gxFcs[gx].AddRange(flowCardInfos);
+                        }
+
+
                         FlowCardReportGetHelper.Instance.Add(add.OrderBy(x => x.Time));
+                        if (gxFcs.Any())
+                        {
+                            foreach (var (gx, fcis) in gxFcs)
+                            {
+                                if (fcis.Any())
+                                {
+                                    ServerConfig.ApiDb.Execute(
+                                        $"UPDATE `flowcard_library` SET `MarkedDateTime` = @MarkedDateTime, " +
+                                        $"`{AnalysisHelper.ParamAbbrevDic[gx][1]}` = `{AnalysisHelper.ParamAbbrevDic[gx][1]}` + @FaChu, " +
+                                        $"`{AnalysisHelper.ParamAbbrevDic[gx][2]}` = `{AnalysisHelper.ParamAbbrevDic[gx][2]}` + @HeGe, " +
+                                        $"`{AnalysisHelper.ParamAbbrevDic[gx][3]}` = `{AnalysisHelper.ParamAbbrevDic[gx][3]}` + @LiePian, " +
+                                        $"`{AnalysisHelper.ParamAbbrevDic[gx][4]}` = @DeviceId, " +
+                                        $"`{AnalysisHelper.ParamAbbrevDic[gx][0]}` = @Time, " +
+                                        $"`{AnalysisHelper.ParamAbbrevDic[gx][5]}` = @JiaGongRen WHERE `Id` = @Id;",
+                                        fcis);
+                                }
+                            }
+                        }
                     }
                 }
             }
@@ -1607,7 +1649,6 @@ namespace ApiManagement.Base.Helper
                             }
                         }
 
-                        #endregion
 
                         if (update.Any())
                         {
@@ -1628,6 +1669,7 @@ namespace ApiManagement.Base.Helper
                     {
                         Log.Error($"GetProductionPlan 请求erp获取数据失败,date1:{date1}, date2:{date2}");
                     }
+                    #endregion
                 }
             }
             catch (Exception e)
@@ -1824,10 +1866,6 @@ namespace ApiManagement.Base.Helper
                     var gxs = fcs.GroupBy(x => x.StepAbbrev).Select(x => x.Key);
                     foreach (var gx in gxs)
                     {
-                        if (!gxFcs.ContainsKey(gx))
-                        {
-                            gxFcs.Add(gx, new List<ErpUpdateFlowCardGet>());
-                        }
                         var fcc = fcs.Where(x => x.StepAbbrev == gx).Select(fc =>
                         {
                             if (fc.NeedUpdate)
@@ -1946,17 +1984,22 @@ namespace ApiManagement.Base.Helper
                         //研磨1 粗抛 2  精抛 3
                         if (AnalysisHelper.ParamAbbrevDic.ContainsKey(gx))
                         {
-                            var flowCardInfos = fcc.Select(fc => new ErpUpdateFlowCardGet
+                            if (!gxFcs.ContainsKey(gx))
                             {
-                                Id = fc.FlowCardId,
-                                MarkedDateTime = fc.Time,
-                                FaChu = fc.Total,
-                                HeGe = fc.HeGe,
-                                LiePian = fc.LiePian,
-                                DeviceId = fc.DeviceId,
-                                Time = fc.Time,
-                                JiaGongRen = fc.Processor
-                            });
+                                gxFcs.Add(gx, new List<ErpUpdateFlowCardGet>());
+                            }
+                            var flowCardInfos = fcc.Where(x => x.StepAbbrev == gx && x.OldFlowCardId != 0)
+                                .Select(fc => new ErpUpdateFlowCardGet
+                                {
+                                    Id = fc.OldFlowCardId,
+                                    MarkedDateTime = fc.Time,
+                                    FaChu = fc.Total,
+                                    HeGe = fc.HeGe,
+                                    LiePian = fc.LiePian,
+                                    DeviceId = fc.DeviceId,
+                                    Time = fc.Time,
+                                    JiaGongRen = fc.Processor
+                                });
                             gxFcs[gx].AddRange(flowCardInfos);
 
                             foreach (var fc in fcc)
@@ -2000,9 +2043,9 @@ namespace ApiManagement.Base.Helper
                             {
                                 ServerConfig.ApiDb.Execute(
                                     $"UPDATE `flowcard_library` SET `MarkedDateTime` = @MarkedDateTime, " +
-                                    $"`{AnalysisHelper.ParamAbbrevDic[gx][1]}` = @FaChu, " +
-                                    $"`{AnalysisHelper.ParamAbbrevDic[gx][2]}` = @HeGe, " +
-                                    $"`{AnalysisHelper.ParamAbbrevDic[gx][3]}` = @LiePian, " +
+                                    $"`{AnalysisHelper.ParamAbbrevDic[gx][1]}` = `{AnalysisHelper.ParamAbbrevDic[gx][1]}` + @FaChu, " +
+                                    $"`{AnalysisHelper.ParamAbbrevDic[gx][2]}` = `{AnalysisHelper.ParamAbbrevDic[gx][2]}` + @HeGe, " +
+                                    $"`{AnalysisHelper.ParamAbbrevDic[gx][3]}` = `{AnalysisHelper.ParamAbbrevDic[gx][3]}` + @LiePian, " +
                                     $"`{AnalysisHelper.ParamAbbrevDic[gx][4]}` = @DeviceId, " +
                                     $"`{AnalysisHelper.ParamAbbrevDic[gx][0]}` = @Time, " +
                                     $"`{AnalysisHelper.ParamAbbrevDic[gx][5]}` = @JiaGongRen WHERE `Id` = @Id;",

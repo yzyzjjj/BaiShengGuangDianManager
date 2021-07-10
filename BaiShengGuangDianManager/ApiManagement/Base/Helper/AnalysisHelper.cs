@@ -116,7 +116,7 @@ namespace ApiManagement.Base.Helper
             //{"研磨机", new []{ "YanMoTime", "YanMoFaChu", "YanMoHeGe", "YanMoLiePian", "YanMoDeviceId", "YanMoJiaGongRen"}},
             {"cpjg", new []{ "CuPaoTime", "CuPaoFaChu", "CuPaoHeGe", "CuPaoLiePian", "CuPaoDeviceId", "CuPaoJiaGongRen"}},
             {"jpjg", new []{ "JingPaoTime", "JingPaoFaChu", "JingPaoHeGe", "JingPaoLiePian", "JingPaoDeviceId", "JingPaoJiaGongRen"}},
-            {"wgjy2", new []{ "WaiGuanTime", "WaiGuanFaChu", "WaiGuanHeGe", "WaiGuanLiePian", "WaiGuanDeviceId", "WaiGuanJiaGongRen"}},
+            {"wgjy", new []{ "WaiGuanTime", "WaiGuanFaChu", "WaiGuanHeGe", "WaiGuanLiePian", "WaiGuanDeviceId", "WaiGuanJiaGongRen"}},
         };
         #endregion
 
@@ -625,8 +625,13 @@ namespace ApiManagement.Base.Helper
                     RedisHelper.SetExpireAt(aLockKey, DateTime.Now.AddMinutes(30));
                     var now = DateTime.Now;
                     var workshop = WorkshopHelper.Instance.Get<Workshop>(1);
+                    if (workshop.Shifts == 0 || !workshop.ShiftTimeList.Any() || workshop.Shifts != workshop.ShiftTimeList.Count)
+                    {
+                        workshop.Shifts = 2;
+                        workshop.ShiftTimes = "8:00:00,20:00:00";
+                    }
 
-                    var processLogId = ServerConfig.ApiDb.Query<int>("SELECT MAX(Id) FROM `npc_monitoring_process_log`;").FirstOrDefault();
+                    var processLogId = ServerConfig.ApiDb.Query<int>("SELECT IFNULL(MAX(Id), 0) FROM `npc_monitoring_process_log`;").FirstOrDefault();
                     RedisHelper.SetForever(aProcessLogIdKey, processLogId);
                     var exceptDevicesStr = RedisHelper.Get<string>(aExceptDeviceKey);
                     //不需要读取真实的流程卡的设备列表
@@ -724,17 +729,19 @@ namespace ApiManagement.Base.Helper
 
                     var startId = RedisHelper.Get<int>(aIdKey);
                     var endId = startId;
-                    var lastTime = RedisHelper.Get<DateTime>(aTimeKey);
-                    var kanBanTime = lastTime;
-                    if (workshop.Shifts == 0 || !workshop.ShiftTimeList.Any() || workshop.Shifts != workshop.ShiftTimeList.Count)
+                    var lastKanBanTime = RedisHelper.Get<DateTime>(aTimeKey);
+                    var kanBanTime = lastKanBanTime;
+                    var deviceKanBanTime = allDeviceList.Max(x => x.Value.Time);
+                    var kanBanWorkTime = DateTimeExtend.GetDayWorkDay(workshop.StatisticTimeList, kanBanTime);
+                    if (!deviceKanBanTime.InSameWorkDay(kanBanWorkTime))
                     {
-                        workshop.Shifts = 2;
-                        workshop.ShiftTimes = "8:00:00,20:00:00";
+                        kanBanTime = deviceKanBanTime;
+                        kanBanWorkTime = DateTimeExtend.GetDayWorkDay(workshop.StatisticTimeList, kanBanTime);
                     }
-
                     //var currentWorkTime = DateTimeExtend.GetCurrentWorkTimeRanges(workshop.Shifts, workshop.ShiftTimeList, kanBanTime);
+                    var currentWorkTime = DateTimeExtend.GetDayWorkTimeRanges(workshop.Shifts, workshop.StatisticTimeList, kanBanTime);
                     //var todayWorkDay = DateTimeExtend.GetDayWorkDayRange(workshop.Shifts, workshop.ShiftTimeList, now);
-                    var kanBanWorkTime = DateTimeExtend.GetDayWorkDay(workshop.ShiftTimeList, kanBanTime);
+                    var kanBanWorkDayStartTime = kanBanWorkTime.Item1;
                     var kanBanWorkDayEndTime = kanBanWorkTime.Item1.AddDays(1).AddSeconds(-1);
                     //var kanBanNextWorkStartTime = kanBanWorkTime.Item1.AddDays(1);
 
@@ -761,14 +768,14 @@ namespace ApiManagement.Base.Helper
                             Id = startId,
                             limit = _dealLength
                         });
-                    var minTime = lastTime;
+                    var minTime = lastKanBanTime;
                     var maxTime = kanBanTime;
                     IEnumerable<MonitoringData> tData = null;
                     IEnumerable<DataNameDictionaryDetail> dataNameDictionaries = null;
                     if (mData.Any())
                     {
-                        minTime = mData.Min(x => x.SendTime);
-                        maxTime = mData.Max(x => x.SendTime);
+                        minTime = mData.Min(x => x.SendTime.NoMillisecond());
+                        maxTime = mData.Max(x => x.SendTime.NoMillisecond());
                         var minSameDay = minTime.InSameWorkDay(kanBanWorkTime);
                         var maxSameDay = maxTime.InSameWorkDay(kanBanWorkTime);
                         //tData = !sameDay ? mData.Where(x => x.SendTime.Date < minTime.Date.AddDays(1))
@@ -786,13 +793,13 @@ namespace ApiManagement.Base.Helper
                         }
                         else
                         {
-                            tData = mData.OrderBy(x => x.SendTime).ToList();
+                            tData = mData.Where(x => x.SendTime >= kanBanWorkTime.Item1 && x.SendTime < kanBanWorkTime.Item2).OrderBy(x => x.SendTime).ToList();
                         }
 
                         if (tData.Any())
                         {
-                            minTime = tData.Min(x => x.SendTime);
-                            kanBanTime = maxTime = tData.Max(x => x.SendTime);
+                            minTime = tData.Min(x => x.SendTime.NoMillisecond());
+                            kanBanTime = maxTime = tData.Max(x => x.SendTime.NoMillisecond());
                             endId = tData.Last().Id;
                             if (endId <= startId)
                             {
@@ -804,7 +811,7 @@ namespace ApiManagement.Base.Helper
                         }
                         else
                         {
-                            kanBanTime = minTime;
+                            kanBanTime = maxTime = minTime;
                             if (!minSameDay)
                             {
                                 foreach (var device in allDeviceList.Values)
@@ -885,6 +892,11 @@ namespace ApiManagement.Base.Helper
                             if (tData != null && tData.Any() && tData.Any(x => x.DeviceId == deviceId))
                             {
                                 var dData = tData.Where(x => x.DeviceId == deviceId).OrderBy(x => x.SendTime);
+                                //var dDataMinTime = dData.Min(x=>x.SendTime.NoMillisecond());
+                                //var dDataMaxTime = dData.Max(x => x.SendTime.NoMillisecond());
+                                ////全天运行时间
+                                //allDeviceList[deviceId].RunTime += (int)(dDataMaxTime - dDataMinTime).TotalSeconds;
+
                                 #region  加工记录
                                 if (dataNameDictionaries != null && dataNameDictionaries.Any() &&
                                     VariableNameIdList.All(x => dataNameDictionaries.Any(y => y.VariableNameId == x)))
@@ -892,14 +904,40 @@ namespace ApiManagement.Base.Helper
                                     foreach (var data in dData)
                                     {
                                         var time = data.SendTime.NoMillisecond();
+                                        var shiftTime = currentWorkTime.FirstOrDefault(x => time.InSameRange(x));
+                                        var shift = -1;
+                                        MonitoringProcessPart part = null;
+                                        if (shiftTime != null)
+                                        {
+                                            shift = currentWorkTime.IndexOf(shiftTime);
+                                            part = allDeviceList[deviceId].ExtraData.Parts.FirstOrDefault(x => x.Shift == shift);
+                                            if (part == null)
+                                            {
+                                                allDeviceList[deviceId].ExtraData.Parts.Add(new MonitoringProcessPart
+                                                {
+                                                    Time = time,
+                                                    Shift = shift
+                                                });
+                                                part = allDeviceList[deviceId].ExtraData.Parts.FirstOrDefault(x => x.Shift == shift);
+                                            }
+                                        }
                                         if (allDeviceList[deviceId].LogTime != default(DateTime)
                                             && time <= allDeviceList[deviceId].LogTime)
                                         {
                                             continue;
                                         }
 
+                                        var lastTime = allDeviceList[deviceId].Time;
                                         allDeviceList[deviceId].Time = time;
+                                        //全天运行时间
+                                        //allDeviceList[deviceId].RunTime += (int)(time - lastTime).TotalSeconds;
+                                        allDeviceList[deviceId].RunTime = (int)(time - kanBanWorkDayStartTime).TotalSeconds;
                                         allDeviceList[deviceId].NormalDevice = 1;
+                                        if (part != null)
+                                        {
+                                            part.RunTime = (int)(time - shiftTime.Item1).TotalSeconds;
+                                            part.NormalDevice = 1;
+                                        }
 
                                         if (data.AnalysisData != null)
                                         {
@@ -1019,7 +1057,6 @@ namespace ApiManagement.Base.Helper
                                                 if (lastProcessType != thisProcessType)
                                                 {
                                                     #region 设备可能在加工状态时，加工类型发生变化（最好没有这种情况）
-
                                                     if (!allDeviceList[deviceId].NewLog)
                                                     {
                                                         var oldProcessLog = oldProcessLogs.FirstOrDefault(x =>
@@ -1054,7 +1091,7 @@ namespace ApiManagement.Base.Helper
                                                         OpName = thisProcessType.GetAttribute<DescriptionAttribute>()
                                                                      ?.Description ?? "",
                                                         DeviceId = deviceId,
-                                                        StartTime = time,
+                                                        StartTime = allDeviceList[deviceId].StartTime,
                                                         ProcessData = processData.ToJson()
                                                     };
 
@@ -1074,6 +1111,14 @@ namespace ApiManagement.Base.Helper
                                                         log.ProcessData = processData.ToJson();
                                                         log.RequirementMid =
                                                             flowCardProcessStepDetail?.ProcessStepRequirementMid ?? 0;
+                                                        log.Error = 1;
+
+                                                        //全天加工次数
+                                                        allDeviceList[deviceId].ProcessCount++;
+                                                        if (part != null)
+                                                        {
+                                                            part.ProcessCount++;
+                                                        }
                                                     }
 
                                                     if (lastProcessType == ProcessType.Process &&
@@ -1082,8 +1127,18 @@ namespace ApiManagement.Base.Helper
                                                         if (flowCardProcessStepDetail != null &&
                                                             flowCardProcessStepDetail.ProcessTime == default(DateTime))
                                                         {
-                                                            flowCardProcessStepDetail.ProcessEndTime = data.SendTime;
+                                                            flowCardProcessStepDetail.ProcessEndTime = time;
                                                             flowCardProcessStep.Add(flowCardProcessStepDetail);
+                                                        }
+
+                                                        log.EndTime = time;
+                                                        log.Error = 2;
+                                                        var costTime = (int)(time - lastTime).TotalSeconds;
+                                                        //全天加工时间
+                                                        allDeviceList[deviceId].ProcessTime += costTime;
+                                                        if (part != null)
+                                                        {
+                                                            part.ProcessTime += costTime;
                                                         }
                                                     }
 
@@ -1097,6 +1152,16 @@ namespace ApiManagement.Base.Helper
                                                     allDeviceList[deviceId].LogTime = time;
 
                                                     #endregion
+                                                }
+                                                else
+                                                {
+                                                    var costTime = (int)(time - lastTime).TotalSeconds;
+                                                    //全天加工时间
+                                                    allDeviceList[deviceId].ProcessTime += costTime;
+                                                    if (part != null)
+                                                    {
+                                                        part.ProcessTime += costTime;
+                                                    }
                                                 }
                                             }
                                             //开始加工时
@@ -1155,6 +1220,13 @@ namespace ApiManagement.Base.Helper
                                                     log.ProcessData = processData.ToJson();
                                                     log.RequirementMid =
                                                         flowCardProcessStepDetail?.ProcessStepRequirementMid ?? 0;
+
+                                                    //全天加工次数
+                                                    allDeviceList[deviceId].ProcessCount++;
+                                                    if (part != null)
+                                                    {
+                                                        part.ProcessCount++;
+                                                    }
                                                 }
 
                                                 newProcessLogs.Add(log);
@@ -1251,7 +1323,7 @@ namespace ApiManagement.Base.Helper
                                             allDeviceList[deviceId].State = thisState > 0 ? 1 : 0;
                                             allDeviceList[deviceId].ProcessType = thisState > 0 ? thisProcessType : ProcessType.Idle;
 
-                                            //总加工次数
+                                            //设备存储总加工次数
                                             if (GetValue(data.AnalysisData, dataNameDictionaries, data.ScriptId,
                                                 processCountDId, out var totalProcessCount))
                                             {
@@ -1259,16 +1331,16 @@ namespace ApiManagement.Base.Helper
                                                 {
                                                     totalProcessCount = 0;
                                                 }
-                                                if (allDeviceList[deviceId].TotalProcessCount < totalProcessCount)
-                                                {
-                                                    allDeviceList[deviceId].ProcessCount +=
-                                                        (int)totalProcessCount -
-                                                        allDeviceList[deviceId].TotalProcessCount;
-                                                }
+                                                //if (allDeviceList[deviceId].TotalProcessCount < totalProcessCount)
+                                                //{
+                                                //    allDeviceList[deviceId].ProcessCount +=
+                                                //        (int)totalProcessCount -
+                                                //        allDeviceList[deviceId].TotalProcessCount;
+                                                //}
                                             }
                                             allDeviceList[deviceId].TotalProcessCount = (int)totalProcessCount;
 
-                                            //总加工时间
+                                            //设备存储总加工时间
                                             if (GetValue(data.AnalysisData, dataNameDictionaries, data.ScriptId,
                                                 totalProcessTimeDId, out var totalProcessTime))
                                             {
@@ -1276,15 +1348,15 @@ namespace ApiManagement.Base.Helper
                                                 {
                                                     totalProcessTime = 0;
                                                 }
-                                                if (allDeviceList[deviceId].TotalProcessTime < totalProcessTime)
-                                                {
-                                                    allDeviceList[deviceId].ProcessTime +=
-                                                        (int)totalProcessTime - allDeviceList[deviceId].TotalProcessTime;
-                                                }
+                                                //if (allDeviceList[deviceId].TotalProcessTime < totalProcessTime)
+                                                //{
+                                                //    allDeviceList[deviceId].ProcessTime +=
+                                                //        (int)totalProcessTime - allDeviceList[deviceId].TotalProcessTime;
+                                                //}
                                             }
                                             allDeviceList[deviceId].TotalProcessTime = (int)totalProcessTime;
 
-                                            //总运行时间
+                                            //设备存储总运行时间
                                             if (GetValue(data.AnalysisData, dataNameDictionaries, data.ScriptId, runTimeDId,
                                                 out var totalRunTime))
                                             {
@@ -1292,21 +1364,22 @@ namespace ApiManagement.Base.Helper
                                                 {
                                                     totalRunTime = 0;
                                                 }
-                                                if (allDeviceList[deviceId].TotalRunTime < totalRunTime)
-                                                {
-                                                    allDeviceList[deviceId].RunTime +=
-                                                        (int)totalRunTime - allDeviceList[deviceId].TotalRunTime;
-                                                }
+                                                //if (allDeviceList[deviceId].TotalRunTime < totalRunTime)
+                                                //{
+                                                //    allDeviceList[deviceId].RunTime +=
+                                                //        (int)totalRunTime - allDeviceList[deviceId].TotalRunTime;
+                                                //}
                                             }
                                             allDeviceList[deviceId].TotalRunTime = (int)totalRunTime;
 
-                                            var rate = allDeviceList[deviceId].SingleProcessRate
-                                                .FirstOrDefault(x => x.Id == deviceId);
                                             if (allDeviceList.ContainsKey(deviceId))
                                             {
                                                 var device = allDeviceList[deviceId];
                                                 var processTime = device.ProcessTime;
-                                                allDeviceList[deviceId].ProcessTime = processTime;
+                                                var runTime = device.RunTime;
+                                                //allDeviceList[deviceId].ProcessTime = processTime;
+                                                var rate = allDeviceList[deviceId].SingleProcessRate
+                                                    .FirstOrDefault(x => x.Id == deviceId);
                                                 if (rate == null)
                                                 {
                                                     allDeviceList[deviceId].SingleProcessRate.Add(
@@ -1314,12 +1387,12 @@ namespace ApiManagement.Base.Helper
                                                         {
                                                             Id = device.DeviceId,
                                                             Code = device.Code,
-                                                            Rate = (processTime * 1m / (24 * 3600)).ToRound(4)
+                                                            Rate = runTime > 0 ? (processTime * 100m / (runTime)).ToRound(4) : 0
                                                         });
                                                 }
                                                 else
                                                 {
-                                                    rate.Rate = (processTime * 1m / (24 * 3600)).ToRound(4);
+                                                    rate.Rate = runTime > 0? (processTime * 100m / (runTime)).ToRound(4): 0;
                                                 }
                                             }
 
@@ -1372,13 +1445,38 @@ namespace ApiManagement.Base.Helper
                                 allDeviceList[deviceId].DayRest(maxTime < kanBanWorkTime.Item1);
                                 for (var i = 0; i < totalSeconds; i++)
                                 {
+                                    var lastTime = allDeviceList[deviceId].Time;
                                     var endTime = minTime.AddSeconds(i);
+                                    var shiftTime = currentWorkTime.FirstOrDefault(x => endTime.InSameRange(x));
+                                    var shift = -1;
+                                    MonitoringProcessPart part = null;
+                                    if (shiftTime != null)
+                                    {
+                                        shift = currentWorkTime.IndexOf(shiftTime);
+                                        part = allDeviceList[deviceId].ExtraData.Parts.FirstOrDefault(x => x.Shift == shift);
+                                        if (part == null)
+                                        {
+                                            allDeviceList[deviceId].ExtraData.Parts.Add(new MonitoringProcessPart
+                                            {
+                                                Time = endTime,
+                                                Shift = shift
+                                            });
+                                            part = allDeviceList[deviceId].ExtraData.Parts.FirstOrDefault(x => x.Shift == shift);
+                                        }
+                                    }
+                                    allDeviceList[deviceId].Time = endTime;
                                     var pData = productionData[deviceId];
                                     var d = GetProductionDataByEndTime(pData, endTime);
                                     allDeviceList[deviceId].DayTotal = d.DayTotal;
                                     allDeviceList[deviceId].DayQualified = d.DayQualified;
                                     allDeviceList[deviceId].DayUnqualified = d.DayUnqualified;
-
+                                    //全天运行时间
+                                    allDeviceList[deviceId].RunTime += (int)(endTime - lastTime).TotalSeconds;
+                                    if (part != null)
+                                    {
+                                        part.RunTime = (int)(endTime - shiftTime.Item1).TotalSeconds;
+                                        part.NormalDevice = 1;
+                                    }
                                     var monitoringProcess = new MonitoringProcess
                                     {
                                         DeviceId = deviceId,
@@ -1400,6 +1498,7 @@ namespace ApiManagement.Base.Helper
                                     monitoringProcesses.Add(monitoringProcess);
                                 }
                             }
+                            allDeviceList[deviceId].SerializeExtraData();
                             allDeviceList[deviceId].UpdateAnalysis();
                         }
                     }
@@ -1512,55 +1611,55 @@ namespace ApiManagement.Base.Helper
             if (monitoringKanBanList != null && monitoringKanBanList.Any())
             {
                 Task.Run(() =>
-            {
-                ServerConfig.ApiDb.Execute(
-                    "INSERT INTO kanban_log (`Date`, `Time`, `Id`, `AllDevice`, `NormalDevice`, `ProcessDevice`, `IdleDevice`, `FaultDevice`, `ConnectErrorDevice`, `MaxUse`, `UseListStr`, " +
-                    "`MaxUseListStr`, `MaxUseRate`, `MinUse`, `MinUseRate`, `MaxSimultaneousUseRate`, `MinSimultaneousUseRate`, `SingleProcessRateStr`, `AllProcessRate`, `RunTime`, `ProcessTime`, `IdleTime`, " +
-                    "`DayTotal`, `DayQualified`, `DayUnqualified`, `DayQualifiedRate`, `DayUnqualifiedRate`, " +
-                    "`ProductionData`) " +
-                    "VALUES (@Date, @Time, @Id, @AllDevice, @NormalDevice, @ProcessDevice, @IdleDevice, @FaultDevice, @ConnectErrorDevice, @MaxUse, @UseListStr, " +
-                    "@MaxUseListStr ,@MaxUseRate, @MinUse, @MinUseRate, @MaxSimultaneousUseRate, @MinSimultaneousUseRate, @SingleProcessRateStr, @AllProcessRate, @RunTime, @ProcessTime, @IdleTime, " +
-                    "@DayTotal, @DayQualified, @DayUnqualified, @DayQualifiedRate, @DayUnqualifiedRate, " +
-                    "@ProductionData) " +
-                    "ON DUPLICATE KEY UPDATE `Time` = @Time, `AllDevice` = @AllDevice, `NormalDevice` = @NormalDevice, `ProcessDevice` = @ProcessDevice, `IdleDevice` = @IdleDevice, " +
-                    "`FaultDevice` = @FaultDevice, `ConnectErrorDevice` = @ConnectErrorDevice, `MaxUse` = @MaxUse, `MaxUseListStr` = @MaxUseListStr, `UseListStr` = @UseListStr, " +
-                    "`MaxUseRate` = @MaxUseRate, `MinUse` = @MinUse, `MinUseRate` = @MinUseRate, `MaxSimultaneousUseRate` = @MaxSimultaneousUseRate, `MinSimultaneousUseRate` = @MinSimultaneousUseRate, " +
-                    "`SingleProcessRateStr` = @SingleProcessRateStr, `AllProcessRate` = @AllProcessRate, `RunTime` = @RunTime, `ProcessTime` = @ProcessTime, `IdleTime` = @IdleTime, " +
-                    "`DayTotal` = @DayTotal, `DayQualified` = @DayQualified, `DayUnqualified` = @DayUnqualified, `DayQualifiedRate` = @DayQualifiedRate, `DayUnqualifiedRate` = @DayUnqualifiedRate, " +
-                    "`ProductionData` = @ProductionData, `VariableData` = @VariableData;"
-                    , monitoringKanBanList);
-
-                if (monitoringKanBanDeviceList != null && monitoringKanBanDeviceList.Any())
                 {
                     ServerConfig.ApiDb.Execute(
-                    "INSERT INTO kanban_device_state (`Date`, `Time`, `DeviceId`, `AllDevice`, `NormalDevice`, `ProcessDevice`, `IdleDevice`, `FaultDevice`, `ConnectErrorDevice`, `MaxUse`, `UseListStr`, " +
-                    "`MaxUseListStr`, `MaxUseRate`, `MinUse`, `MinUseRate`, `MaxSimultaneousUseRate`, `MinSimultaneousUseRate`, `SingleProcessRateStr`, `AllProcessRate`, `RunTime`, `ProcessTime`, `IdleTime`, " +
-                    "`DayTotal`, `DayQualified`, `DayUnqualified`, `DayQualifiedRate`, `DayUnqualifiedRate`" +
-                    ") VALUES (@Date, @Time, @DeviceId, @AllDevice, @NormalDevice, @ProcessDevice, @IdleDevice, @FaultDevice, @ConnectErrorDevice, @MaxUse, @UseListStr, " +
-                    "@MaxUseListStr ,@MaxUseRate, @MinUse, @MinUseRate, @MaxSimultaneousUseRate, @MinSimultaneousUseRate, @SingleProcessRateStr, @AllProcessRate, @RunTime, @ProcessTime, @IdleTime, " +
-                    "@DayTotal, @DayQualified, @DayUnqualified, @DayQualifiedRate, @DayUnqualifiedRate" +
-                    ") " +
-                    "ON DUPLICATE KEY UPDATE `Time` = @Time, `AllDevice` = @AllDevice, `NormalDevice` = @NormalDevice, `ProcessDevice` = @ProcessDevice, `IdleDevice` = @IdleDevice, " +
-                    "`FaultDevice` = @FaultDevice, `ConnectErrorDevice` = @ConnectErrorDevice, `MaxUse` = @MaxUse, `MaxUseListStr` = @MaxUseListStr, `UseListStr` = @UseListStr, " +
-                    "`MaxUseRate` = @MaxUseRate, `MinUse` = @MinUse, `MinUseRate` = @MinUseRate, `MaxSimultaneousUseRate` = @MaxSimultaneousUseRate, `MinSimultaneousUseRate` = @MinSimultaneousUseRate, " +
-                    "`SingleProcessRateStr` = @SingleProcessRateStr, `AllProcessRate` = @AllProcessRate, `RunTime` = @RunTime, `ProcessTime` = @ProcessTime, `IdleTime` = @IdleTime, " +
-                    "`DayTotal` = @DayTotal, `DayQualified` = @DayQualified, `DayUnqualified` = @DayUnqualified, `DayQualifiedRate` = @DayQualifiedRate, `DayUnqualifiedRate` = @DayUnqualifiedRate;"
-                    , monitoringKanBanDeviceList);
-                }
+                        "INSERT INTO kanban_log (`Date`, `Time`, `Id`, `AllDevice`, `NormalDevice`, `ProcessDevice`, `IdleDevice`, `FaultDevice`, `ConnectErrorDevice`, `MaxUse`, `UseListStr`, " +
+                        "`MaxUseListStr`, `MaxUseRate`, `MinUse`, `MinUseRate`, `MaxSimultaneousUseRate`, `MinSimultaneousUseRate`, `SingleProcessRateStr`, `AllProcessRate`, `RunTime`, `ProcessTime`, `IdleTime`, " +
+                        "`DayTotal`, `DayQualified`, `DayUnqualified`, `DayQualifiedRate`, `DayUnqualifiedRate`, " +
+                        "`ProductionData`) " +
+                        "VALUES (@Date, @Time, @Id, @AllDevice, @NormalDevice, @ProcessDevice, @IdleDevice, @FaultDevice, @ConnectErrorDevice, @MaxUse, @UseListStr, " +
+                        "@MaxUseListStr ,@MaxUseRate, @MinUse, @MinUseRate, @MaxSimultaneousUseRate, @MinSimultaneousUseRate, @SingleProcessRateStr, @AllProcessRate, @RunTime, @ProcessTime, @IdleTime, " +
+                        "@DayTotal, @DayQualified, @DayUnqualified, @DayQualifiedRate, @DayUnqualifiedRate, " +
+                        "@ProductionData) " +
+                        "ON DUPLICATE KEY UPDATE `Time` = @Time, `AllDevice` = @AllDevice, `NormalDevice` = @NormalDevice, `ProcessDevice` = @ProcessDevice, `IdleDevice` = @IdleDevice, " +
+                        "`FaultDevice` = @FaultDevice, `ConnectErrorDevice` = @ConnectErrorDevice, `MaxUse` = @MaxUse, `MaxUseListStr` = @MaxUseListStr, `UseListStr` = @UseListStr, " +
+                        "`MaxUseRate` = @MaxUseRate, `MinUse` = @MinUse, `MinUseRate` = @MinUseRate, `MaxSimultaneousUseRate` = @MaxSimultaneousUseRate, `MinSimultaneousUseRate` = @MinSimultaneousUseRate, " +
+                        "`SingleProcessRateStr` = @SingleProcessRateStr, `AllProcessRate` = @AllProcessRate, `RunTime` = @RunTime, `ProcessTime` = @ProcessTime, `IdleTime` = @IdleTime, " +
+                        "`DayTotal` = @DayTotal, `DayQualified` = @DayQualified, `DayUnqualified` = @DayUnqualified, `DayQualifiedRate` = @DayQualifiedRate, `DayUnqualifiedRate` = @DayUnqualifiedRate, " +
+                        "`ProductionData` = @ProductionData, `VariableData` = @VariableData;"
+                        , monitoringKanBanList);
 
-                if (monitoringProcesses != null && monitoringProcesses.Any())
-                {
-                    ServerConfig.ApiDb.ExecuteTrans(
-                   "INSERT INTO `npc_monitoring_process` (`Time`, `DeviceId`, `State`, `ProcessCount`, `TotalProcessCount`, `ProcessTime`, `TotalProcessTime`, `RunTime`, `TotalRunTime`, `Use`, " +
-                   "`Total`, `Rate`, `DayTotal`, `DayQualified`, `DayUnqualified`, `DayQualifiedRate`, `DayUnqualifiedRate`) " +
-                   "VALUES (@Time, @DeviceId, @State, @ProcessCount, @TotalProcessCount, @ProcessTime, @TotalProcessTime, @RunTime, @TotalRunTime, @Use, @Total, @Rate, @DayTotal, @DayQualified, " +
-                   "@DayUnqualified, @DayQualifiedRate, @DayUnqualifiedRate) " +
-                   "ON DUPLICATE KEY UPDATE `Time` = @Time, `DeviceId` = @DeviceId, `State` = @State, `ProcessCount` = @ProcessCount, `TotalProcessCount` = @TotalProcessCount, " +
-                   "`ProcessTime` = @ProcessTime, `TotalProcessTime` = @TotalProcessTime, `RunTime` = @RunTime, `TotalRunTime` = @TotalRunTime, `Use` = @Use, `Total` = @Total, `Rate` = @Rate, " +
-                   "`DayTotal` = @DayTotal, `DayQualified` = @DayQualified, `DayUnqualified` = @DayUnqualified, `DayQualifiedRate` = @DayQualifiedRate, `DayUnqualifiedRate` = @DayUnqualifiedRate;",
-                   monitoringProcesses);
-                }
-            });
+                    if (monitoringKanBanDeviceList != null && monitoringKanBanDeviceList.Any())
+                    {
+                        ServerConfig.ApiDb.Execute(
+                        "INSERT INTO kanban_device_state (`Date`, `Time`, `DeviceId`, `AllDevice`, `NormalDevice`, `ProcessDevice`, `IdleDevice`, `FaultDevice`, `ConnectErrorDevice`, `MaxUse`, `UseListStr`, " +
+                        "`MaxUseListStr`, `MaxUseRate`, `MinUse`, `MinUseRate`, `MaxSimultaneousUseRate`, `MinSimultaneousUseRate`, `SingleProcessRateStr`, `AllProcessRate`, `RunTime`, `ProcessTime`, `IdleTime`, " +
+                        "`DayTotal`, `DayQualified`, `DayUnqualified`, `DayQualifiedRate`, `DayUnqualifiedRate`" +
+                        ") VALUES (@Date, @Time, @DeviceId, @AllDevice, @NormalDevice, @ProcessDevice, @IdleDevice, @FaultDevice, @ConnectErrorDevice, @MaxUse, @UseListStr, " +
+                        "@MaxUseListStr ,@MaxUseRate, @MinUse, @MinUseRate, @MaxSimultaneousUseRate, @MinSimultaneousUseRate, @SingleProcessRateStr, @AllProcessRate, @RunTime, @ProcessTime, @IdleTime, " +
+                        "@DayTotal, @DayQualified, @DayUnqualified, @DayQualifiedRate, @DayUnqualifiedRate" +
+                        ") " +
+                        "ON DUPLICATE KEY UPDATE `Time` = @Time, `AllDevice` = @AllDevice, `NormalDevice` = @NormalDevice, `ProcessDevice` = @ProcessDevice, `IdleDevice` = @IdleDevice, " +
+                        "`FaultDevice` = @FaultDevice, `ConnectErrorDevice` = @ConnectErrorDevice, `MaxUse` = @MaxUse, `MaxUseListStr` = @MaxUseListStr, `UseListStr` = @UseListStr, " +
+                        "`MaxUseRate` = @MaxUseRate, `MinUse` = @MinUse, `MinUseRate` = @MinUseRate, `MaxSimultaneousUseRate` = @MaxSimultaneousUseRate, `MinSimultaneousUseRate` = @MinSimultaneousUseRate, " +
+                        "`SingleProcessRateStr` = @SingleProcessRateStr, `AllProcessRate` = @AllProcessRate, `RunTime` = @RunTime, `ProcessTime` = @ProcessTime, `IdleTime` = @IdleTime, " +
+                        "`DayTotal` = @DayTotal, `DayQualified` = @DayQualified, `DayUnqualified` = @DayUnqualified, `DayQualifiedRate` = @DayQualifiedRate, `DayUnqualifiedRate` = @DayUnqualifiedRate;"
+                        , monitoringKanBanDeviceList);
+                    }
+
+                    if (monitoringProcesses != null && monitoringProcesses.Any())
+                    {
+                        ServerConfig.ApiDb.ExecuteTrans(
+                       "INSERT INTO `npc_monitoring_process` (`Time`, `DeviceId`, `State`, `ProcessCount`, `TotalProcessCount`, `ProcessTime`, `TotalProcessTime`, `RunTime`, `TotalRunTime`, `Use`, " +
+                       "`Total`, `Rate`, `DayTotal`, `DayQualified`, `DayUnqualified`, `DayQualifiedRate`, `DayUnqualifiedRate`) " +
+                       "VALUES (@Time, @DeviceId, @State, @ProcessCount, @TotalProcessCount, @ProcessTime, @TotalProcessTime, @RunTime, @TotalRunTime, @Use, @Total, @Rate, @DayTotal, @DayQualified, " +
+                       "@DayUnqualified, @DayQualifiedRate, @DayUnqualifiedRate) " +
+                       "ON DUPLICATE KEY UPDATE `Time` = @Time, `DeviceId` = @DeviceId, `State` = @State, `ProcessCount` = @ProcessCount, `TotalProcessCount` = @TotalProcessCount, " +
+                       "`ProcessTime` = @ProcessTime, `TotalProcessTime` = @TotalProcessTime, `RunTime` = @RunTime, `TotalRunTime` = @TotalRunTime, `Use` = @Use, `Total` = @Total, `Rate` = @Rate, " +
+                       "`DayTotal` = @DayTotal, `DayQualified` = @DayQualified, `DayUnqualified` = @DayUnqualified, `DayQualifiedRate` = @DayQualifiedRate, `DayUnqualifiedRate` = @DayUnqualifiedRate;",
+                       monitoringProcesses);
+                    }
+                });
             }
         }
 
@@ -1693,7 +1792,7 @@ namespace ApiManagement.Base.Helper
                         MonitoringKanBanDic[id].RunTime = setDevices.Sum(x => x.RunTime);
                         MonitoringKanBanDic[id].ProcessTime = setDevices.Sum(x => x.ProcessTime);
                         MonitoringKanBanDic[id].AllProcessRate = setDevices.Any()
-                            ? (MonitoringKanBanDic[id].ProcessTime * 1m / (setDevices.Count() * 24 * 3600)).ToRound(4) : 0;
+                            ? (MonitoringKanBanDic[id].ProcessTime * 100m / (setDevices.Count() * 24 * 3600)).ToRound(4) : 0;
                         MonitoringKanBanDic[id].UseCodeList = setDevices.SelectMany(x => x.UseCodeList).Distinct().ToList();
 
                         MonitoringKanBanDic[id].DayTotal = setDevices.Sum(x => x.DayTotal);

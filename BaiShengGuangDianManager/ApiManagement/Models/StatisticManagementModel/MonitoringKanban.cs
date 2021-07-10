@@ -321,6 +321,9 @@ namespace ApiManagement.Models.StatisticManagementModel
     {
         public int Id { get; set; }
         public string Code { get; set; }
+        /// <summary>
+        /// 时间利用率
+        /// </summary>
         public decimal Rate { get; set; }
     }
     /// <summary>

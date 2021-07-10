@@ -236,6 +236,21 @@ namespace ApiManagement.Models.StatisticManagementModel
         /// 修盘结束时间
         /// </summary>
         public DateTime RepairEndTime { get; set; }
+
+        public List<MonitoringProcessPart> Parts { get; set; } = new List<MonitoringProcessPart>();
+
+        public void Reset()
+        {
+            //IdleTime = default(DateTime);
+            //IdleEndTime = default(DateTime);
+            //ProcessTime = default(DateTime);
+            //ProcessEndTime = default(DateTime);
+            //WashTime = default(DateTime);
+            //WashEndTime = default(DateTime);
+            //RepairTime = default(DateTime);
+            //RepairEndTime = default(DateTime);
+            Parts = new List<MonitoringProcessPart>();
+        }
     }
 
     public class MonitoringProcessWarning
@@ -286,6 +301,18 @@ namespace ApiManagement.Models.StatisticManagementModel
         public string Range { get; set; }
         public decimal Value { get; set; }
     }
+
+    /// <summary>
+    /// 分班次统计数据
+    /// </summary>
+    public class MonitoringProcessPart : MonitoringProcess
+    {
+        /// <summary>
+        /// 班次 0为全部 1 为第一个班
+        /// </summary>
+        public int Shift { get; set; }
+    }
+
 
     public class MonitoringProcess : ICloneable
     {
@@ -536,6 +563,7 @@ namespace ApiManagement.Models.StatisticManagementModel
                 try
                 {
                     _extraData = _extraData ?? (Data.IsNullOrEmpty() ? new ExtraData() : Data.ToClass<ExtraData>());
+                    _extraData = _extraData ?? new ExtraData();
                 }
                 catch (Exception e)
                 {
@@ -548,6 +576,11 @@ namespace ApiManagement.Models.StatisticManagementModel
             {
                 _extraData = value;
             }
+        }
+
+        public void SerializeExtraData()
+        {
+            Data = _extraData.ToJSON();
         }
 
         public void UpdateExtraData()
@@ -572,7 +605,7 @@ namespace ApiManagement.Models.StatisticManagementModel
                 ExtraData.ProcessTime = StartTime;
                 ExtraData.ProcessEndTime = EndTime;
             }
-            Data = _extraData.ToJSON();
+            SerializeExtraData();
         }
 
         /// <summary>
@@ -819,6 +852,7 @@ namespace ApiManagement.Models.StatisticManagementModel
                 UseCodeList = new List<string>();
                 ProductionList = new List<MonitoringProductionData>();
                 UpdateAnalysis();
+                ExtraData.Reset();
             }
         }
 

@@ -1,5 +1,6 @@
 ﻿using ApiManagement.Base.Helper;
 using ApiManagement.Base.Server;
+using ApiManagement.Models.AccountManagementModel;
 using ApiManagement.Models.DeviceManagementModel;
 using ApiManagement.Models.FlowCardManagementModel;
 using ApiManagement.Models.RepairManagementModel;
@@ -17,6 +18,7 @@ using ServiceStack;
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using ApiManagement.Models.OtherModel;
 
 namespace ApiManagement.Controllers.StatisticManagementController
 {
@@ -34,6 +36,7 @@ namespace ApiManagement.Controllers.StatisticManagementController
         [HttpGet]
         public object GetSet([FromQuery] bool init = false, int wId = 1, int qId = 0, int page = 0)
         {
+            var workshop = WorkshopHelper.Instance.Get<Workshop>(wId);
             if (init)
             {
                 var data = MonitoringKanBanSetHelper.GetDetail(wId).ToList();
@@ -111,7 +114,10 @@ namespace ApiManagement.Controllers.StatisticManagementController
                 Type = KanBanEnum.设备详情看板
             };
             if (qId == 16)
+            {
                 AnalysisHelper.ttt++;
+            }
+
             if (set != null)
             {
                 MonitoringKanBan kanBan;
@@ -188,7 +194,7 @@ namespace ApiManagement.Controllers.StatisticManagementController
                                             {
                                                 deviceLibraryDetails[deviceId].State = deviceInfo.State;
                                                 deviceLibraryDetails[deviceId].DeviceState = deviceInfo.DeviceState;
-                                                if (deviceLibraryDetails[deviceId].DeviceState == DeviceState.Waiting && deviceLibraryDetails[deviceId].TotalTime<= AnalysisHelper.IdleSecond)
+                                                if (deviceLibraryDetails[deviceId].DeviceState == DeviceState.Waiting && deviceLibraryDetails[deviceId].TotalTime <= AnalysisHelper.IdleSecond)
                                                 {
                                                     deviceLibraryDetails[deviceId].DeviceState = DeviceState.Readying;
                                                 }
@@ -230,6 +236,7 @@ namespace ApiManagement.Controllers.StatisticManagementController
                             var scriptIds = set.VariableList.Select(y => y.ScriptId);
                             var dataNameDictionaries = scriptIds.Any() ? DataNameDictionaryHelper.GetDataNameDictionaryDetails(scriptIds) : new List<DataNameDictionaryDetail>();
                             ret.Id = qId;
+
                             foreach (var device in devices)
                             {
                                 var t = ClassExtension.ParentCopyToChild<DeviceLibraryDetail, MonitoringSetData>(device);
@@ -335,6 +342,53 @@ namespace ApiManagement.Controllers.StatisticManagementController
                                 }
                                 ret.MSetData.Add(t);
                             }
+                            var monitoringProcesses = new List<MonitoringProcess>();
+                            //monitoringProcesses.AddRange(AnalysisHelper.GetMonitoringProcesses(idList));
+                            //if (!monitoringProcesses.Any())
+                            //{
+                            //    monitoringProcesses.AddRange(ServerConfig.ApiDb.Query<MonitoringProcess>(
+                            //        "SELECT b.*, c.DeviceCategoryId, c.CategoryName, a.`Code`, a.`ScriptId` FROM `device_library` a " +
+                            //        "JOIN `npc_proxy_link` b ON a.Id = b.DeviceId " +
+                            //        "JOIN (SELECT a.*, b.CategoryName FROM `device_model` a " +
+                            //        "JOIN `device_category` b ON a.DeviceCategoryId = b.Id) c ON a.DeviceModelId = c.Id WHERE a.Id in @idList AND a.MarkedDelete = 0;", new { idList }));
+                            //}
+                            monitoringProcesses.AddRange(AnalysisHelper.GetMonitoringProcesses());
+                            if (!monitoringProcesses.Any())
+                            {
+                                monitoringProcesses.AddRange(ServerConfig.ApiDb.Query<MonitoringProcess>(
+                                    "SELECT b.*, c.DeviceCategoryId, c.CategoryName, a.`Code`, a.`ScriptId` FROM `device_library` a " +
+                                    "JOIN `npc_proxy_link` b ON a.Id = b.DeviceId " +
+                                    "JOIN (SELECT a.*, b.CategoryName FROM `device_model` a " +
+                                    "JOIN `device_category` b ON a.DeviceCategoryId = b.Id) c ON a.DeviceModelId = c.Id WHERE a.Id in @idList AND a.MarkedDelete = 0;"));
+                            }
+                            var timeRate = new List<decimal>();
+                            var processTime = monitoringProcesses.Sum(x => x.ProcessTime);
+                            var runTime = monitoringProcesses.Sum(x => x.RunTime);
+                            var rate = runTime > 0 ? (processTime * 100m / (runTime)).ToRound(4) : 0;
+                            timeRate.Add(rate);
+                            timeRate.AddRange(workshop.StatisticTimeList.Select((_, i) =>
+                            {
+                                var p = monitoringProcesses.Where(x => x.ExtraData.Parts.Count > i).Sum(y => y.ExtraData.Parts.ElementAt(i).ProcessTime);
+                                var r = monitoringProcesses.Where(x => x.ExtraData.Parts.Count > i).Sum(y => y.ExtraData.Parts.ElementAt(i).RunTime);
+                                return r > 0 ? (p * 100m / (r)).ToRound(4) : 0;
+                            }));
+
+                            var now = DateTime.Now;
+                            var currentWorkTime = DateTimeExtend.GetDayWorkTimeRanges(workshop.Shifts, workshop.StatisticTimeList, now);
+                            var workTime = DateTimeExtend.GetDayWorkDay(workshop.ShiftTimeList, now);
+                            var reports = FlowCardReportGetHelper.GetReport(wId, workTime.Item1, workTime.Item2, 18).ToList();
+                            var qualifiedRate = new List<decimal>();
+                            var qualified = reports.Sum(x => x.HeGe);
+                            var total = reports.Sum(x => x.Total);
+                            rate = total > 0 ? (qualified * 100m / (total)).ToRound(4) : 0;
+                            qualifiedRate.Add(rate);
+                            qualifiedRate.AddRange(currentWorkTime.Select((range, i) =>
+                            {
+                                var p = reports.Where(x => x.Time.InSameRange(range)).Sum(y => y.HeGe);
+                                var r = reports.Where(x => x.Time.InSameRange(range)).Sum(y => y.Total);
+                                return r > 0 ? (p * 100m / (r)).ToRound(4) : 0;
+                            }));
+
                             return new
                             {
                                 errno = 0,
@@ -347,6 +401,8 @@ namespace ApiManagement.Controllers.StatisticManagementController
                                 gz,
                                 wlj,
                                 sum,
+                                timeRate,
+                                qualifiedRate,
                                 row = set.Row,
                                 col = set.Col,
                                 cCol = set.ContentCol,
